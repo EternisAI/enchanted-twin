@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// TestScenarioConfig holds configuration parameters for test scenarios
+// TestScenarioConfig holds configuration parameters for test scenarios.
 type TestScenarioConfig struct {
 	// Confidence level mappings for different scenario types
 	ConfidenceLevels map[string]map[string]float64 `json:"confidence_levels"`
@@ -13,7 +13,7 @@ type TestScenarioConfig struct {
 	DefaultConfidence float64 `json:"default_confidence"`
 }
 
-// NewDefaultTestScenarioConfig creates a default configuration
+// NewDefaultTestScenarioConfig creates a default configuration.
 func NewDefaultTestScenarioConfig() *TestScenarioConfig {
 	return &TestScenarioConfig{
 		DefaultConfidence: 0.8,
@@ -33,7 +33,7 @@ func NewDefaultTestScenarioConfig() *TestScenarioConfig {
 	}
 }
 
-// GetConfidence retrieves confidence value for a personality and extension combination
+// GetConfidence retrieves confidence value for a personality and extension combination.
 func (config *TestScenarioConfig) GetConfidence(personalityName string, extensionKey string) float64 {
 	if personalityLevels, exists := config.ConfidenceLevels[personalityName]; exists {
 		if confidence, exists := personalityLevels[extensionKey]; exists {
@@ -47,12 +47,12 @@ func (config *TestScenarioConfig) GetConfidence(personalityName string, extensio
 	return config.DefaultConfidence
 }
 
-// ScenarioBuilder provides a fluent interface for building test scenarios
+// ScenarioBuilder provides a fluent interface for building test scenarios.
 type ScenarioBuilder struct {
 	scenario *ThreadTestScenario
 }
 
-// NewScenarioBuilder creates a new scenario builder
+// NewScenarioBuilder creates a new scenario builder.
 func NewScenarioBuilder(name, description string) *ScenarioBuilder {
 	return &ScenarioBuilder{
 		scenario: &ThreadTestScenario{
@@ -66,7 +66,7 @@ func NewScenarioBuilder(name, description string) *ScenarioBuilder {
 	}
 }
 
-// WithThread sets the thread content
+// WithThread sets the thread content.
 func (sb *ScenarioBuilder) WithThread(title, content, authorName string) *ScenarioBuilder {
 	sb.scenario.ThreadData.Title = title
 	sb.scenario.ThreadData.Content = content
@@ -74,20 +74,20 @@ func (sb *ScenarioBuilder) WithThread(title, content, authorName string) *Scenar
 	return sb
 }
 
-// WithAuthor sets the thread author details
+// WithAuthor sets the thread author details.
 func (sb *ScenarioBuilder) WithAuthor(name string, alias *string) *ScenarioBuilder {
 	sb.scenario.ThreadData.AuthorName = name
 	sb.scenario.ThreadData.AuthorAlias = alias
 	return sb
 }
 
-// WithImages adds image URLs to the thread
+// WithImages adds image URLs to the thread.
 func (sb *ScenarioBuilder) WithImages(urls ...string) *ScenarioBuilder {
 	sb.scenario.ThreadData.ImageURLs = append(sb.scenario.ThreadData.ImageURLs, urls...)
 	return sb
 }
 
-// WithMessage adds a message to the thread
+// WithMessage adds a message to the thread.
 func (sb *ScenarioBuilder) WithMessage(authorName, content string, alias *string) *ScenarioBuilder {
 	message := ThreadMessageData{
 		AuthorName:  authorName,
@@ -99,19 +99,19 @@ func (sb *ScenarioBuilder) WithMessage(authorName, content string, alias *string
 	return sb
 }
 
-// WithTimestamp sets the thread creation time
+// WithTimestamp sets the thread creation time.
 func (sb *ScenarioBuilder) WithTimestamp(t time.Time) *ScenarioBuilder {
 	sb.scenario.ThreadData.CreatedAt = t
 	return sb
 }
 
-// WithContext adds context metadata
+// WithContext adds context metadata.
 func (sb *ScenarioBuilder) WithContext(key string, value interface{}) *ScenarioBuilder {
 	sb.scenario.Context[key] = value
 	return sb
 }
 
-// ExpectResult sets the expected evaluation result for the scenario
+// ExpectResult sets the expected evaluation result for the scenario.
 func (sb *ScenarioBuilder) ExpectResult(shouldShow bool, confidence float64, state string, priority int) *ScenarioBuilder {
 	if sb.scenario.DefaultExpected == nil {
 		sb.scenario.DefaultExpected = &ExpectedThreadEvaluation{}
@@ -123,7 +123,7 @@ func (sb *ScenarioBuilder) ExpectResult(shouldShow bool, confidence float64, sta
 	return sb
 }
 
-// ExpectKeywords sets the expected keywords that should appear in evaluation reasoning
+// ExpectKeywords sets the expected keywords that should appear in evaluation reasoning.
 func (sb *ScenarioBuilder) ExpectKeywords(keywords ...string) *ScenarioBuilder {
 	if sb.scenario.DefaultExpected == nil {
 		sb.scenario.DefaultExpected = &ExpectedThreadEvaluation{}
@@ -132,13 +132,13 @@ func (sb *ScenarioBuilder) ExpectKeywords(keywords ...string) *ScenarioBuilder {
 	return sb
 }
 
-// WithPersonalityExpectations adds personality-specific expectations
+// WithPersonalityExpectations adds personality-specific expectations.
 func (sb *ScenarioBuilder) WithPersonalityExpectations(expectations ...PersonalityExpectedOutcome) *ScenarioBuilder {
 	sb.scenario.PersonalityExpectations = append(sb.scenario.PersonalityExpectations, expectations...)
 	return sb
 }
 
-// generatePersonalityExpectationsFromDefault creates personality expectations based on default expected result
+// generatePersonalityExpectationsFromDefault creates personality expectations based on default expected result.
 func (sb *ScenarioBuilder) generatePersonalityExpectationsFromDefault() {
 	if sb.scenario.DefaultExpected == nil {
 		return
@@ -156,7 +156,7 @@ func (sb *ScenarioBuilder) generatePersonalityExpectationsFromDefault() {
 	}
 }
 
-// generateExpectationsForDomain creates personality expectations based on content domain
+// generateExpectationsForDomain creates personality expectations based on content domain.
 func (sb *ScenarioBuilder) generateExpectationsForDomain(domain string, defaultExpected *ExpectedThreadEvaluation) []PersonalityExpectedOutcome {
 	expectations := make([]PersonalityExpectedOutcome, 0)
 
@@ -302,7 +302,7 @@ func (sb *ScenarioBuilder) generateExpectationsForDomain(domain string, defaultE
 	return expectations
 }
 
-// Build creates the final scenario and converts thread data to model
+// Build creates the final scenario and converts thread data to model.
 func (sb *ScenarioBuilder) Build(framework *PersonalityTestFramework) ThreadTestScenario {
 	// Generate personality expectations from default if none exist
 	sb.generatePersonalityExpectationsFromDefault()
@@ -312,19 +312,19 @@ func (sb *ScenarioBuilder) Build(framework *PersonalityTestFramework) ThreadTest
 	return *sb.scenario
 }
 
-// ScenarioTemplate defines a reusable scenario template
+// ScenarioTemplate defines a reusable scenario template.
 type ScenarioTemplate struct {
 	Name        string
 	Description string
 	Builder     func() *ScenarioBuilder
 }
 
-// ScenarioLibrary contains predefined scenario templates and generators
+// ScenarioLibrary contains predefined scenario templates and generators.
 type ScenarioLibrary struct {
 	templates map[string]ScenarioTemplate
 }
 
-// NewScenarioLibrary creates a new scenario library
+// NewScenarioLibrary creates a new scenario library.
 func NewScenarioLibrary() *ScenarioLibrary {
 	lib := &ScenarioLibrary{
 		templates: make(map[string]ScenarioTemplate),
@@ -336,7 +336,7 @@ func NewScenarioLibrary() *ScenarioLibrary {
 	return lib
 }
 
-// registerBuiltinTemplates adds the standard scenario templates
+// registerBuiltinTemplates adds the standard scenario templates.
 func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 	// AI/Tech News Template
 	sl.RegisterTemplate("ai_news", ScenarioTemplate{
@@ -539,18 +539,18 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 	})
 }
 
-// RegisterTemplate adds a new scenario template to the library
+// RegisterTemplate adds a new scenario template to the library.
 func (sl *ScenarioLibrary) RegisterTemplate(key string, template ScenarioTemplate) {
 	sl.templates[key] = template
 }
 
-// GetTemplate retrieves a scenario template by key
+// GetTemplate retrieves a scenario template by key.
 func (sl *ScenarioLibrary) GetTemplate(key string) (ScenarioTemplate, bool) {
 	template, exists := sl.templates[key]
 	return template, exists
 }
 
-// ListTemplates returns all available template keys
+// ListTemplates returns all available template keys.
 func (sl *ScenarioLibrary) ListTemplates() []string {
 	keys := make([]string, 0, len(sl.templates))
 	for key := range sl.templates {
@@ -559,7 +559,7 @@ func (sl *ScenarioLibrary) ListTemplates() []string {
 	return keys
 }
 
-// GenerateScenario creates a scenario from a template
+// GenerateScenario creates a scenario from a template.
 func (sl *ScenarioLibrary) GenerateScenario(templateKey string, framework *PersonalityTestFramework) (ThreadTestScenario, error) {
 	template, exists := sl.GetTemplate(templateKey)
 	if !exists {
@@ -570,7 +570,7 @@ func (sl *ScenarioLibrary) GenerateScenario(templateKey string, framework *Perso
 	return builder.Build(framework), nil
 }
 
-// GenerateScenarioVariant creates a variant of a template with modifications
+// GenerateScenarioVariant creates a variant of a template with modifications.
 func (sl *ScenarioLibrary) GenerateScenarioVariant(templateKey string, framework *PersonalityTestFramework, modifier func(*ScenarioBuilder) *ScenarioBuilder) (ThreadTestScenario, error) {
 	template, exists := sl.GetTemplate(templateKey)
 	if !exists {
@@ -582,13 +582,13 @@ func (sl *ScenarioLibrary) GenerateScenarioVariant(templateKey string, framework
 	return modifiedBuilder.Build(framework), nil
 }
 
-// ParameterizedScenarioBuilder allows for dynamic scenario generation with parameters
+// ParameterizedScenarioBuilder allows for dynamic scenario generation with parameters.
 type ParameterizedScenarioBuilder struct {
 	baseTemplate string
 	parameters   map[string]interface{}
 }
 
-// NewParameterizedScenario creates a new parameterized scenario builder
+// NewParameterizedScenario creates a new parameterized scenario builder.
 func NewParameterizedScenario(baseTemplate string) *ParameterizedScenarioBuilder {
 	return &ParameterizedScenarioBuilder{
 		baseTemplate: baseTemplate,
@@ -596,13 +596,13 @@ func NewParameterizedScenario(baseTemplate string) *ParameterizedScenarioBuilder
 	}
 }
 
-// WithParameter sets a parameter value
+// WithParameter sets a parameter value.
 func (psb *ParameterizedScenarioBuilder) WithParameter(key string, value interface{}) *ParameterizedScenarioBuilder {
 	psb.parameters[key] = value
 	return psb
 }
 
-// Build generates the scenario with the given parameters
+// Build generates the scenario with the given parameters.
 func (psb *ParameterizedScenarioBuilder) Build(library *ScenarioLibrary, framework *PersonalityTestFramework) (ThreadTestScenario, error) {
 	return library.GenerateScenarioVariant(psb.baseTemplate, framework, func(builder *ScenarioBuilder) *ScenarioBuilder {
 		// Apply parameters to modify the builder
@@ -629,24 +629,24 @@ func (psb *ParameterizedScenarioBuilder) Build(library *ScenarioLibrary, framewo
 	})
 }
 
-// ScenarioGenerator provides high-level scenario generation functions
+// ScenarioGenerator provides high-level scenario generation functions.
 type ScenarioGenerator struct {
 	library *ScenarioLibrary
 }
 
-// NewScenarioGenerator creates a new scenario generator
+// NewScenarioGenerator creates a new scenario generator.
 func NewScenarioGenerator() *ScenarioGenerator {
 	return &ScenarioGenerator{
 		library: NewScenarioLibrary(),
 	}
 }
 
-// GetLibrary returns the scenario library
+// GetLibrary returns the scenario library.
 func (sg *ScenarioGenerator) GetLibrary() *ScenarioLibrary {
 	return sg.library
 }
 
-// GenerateStandardScenarios creates a set of standard test scenarios
+// GenerateStandardScenarios creates a set of standard test scenarios.
 func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTestFramework) ([]ThreadTestScenario, error) {
 	scenarios := make([]ThreadTestScenario, 0)
 	var collectedErrors []error
@@ -718,7 +718,7 @@ func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTes
 	return scenarios, nil
 }
 
-// GeneratePersonalityTargetedScenarios creates scenarios tailored for specific personalities
+// GeneratePersonalityTargetedScenarios creates scenarios tailored for specific personalities.
 func (sg *ScenarioGenerator) GeneratePersonalityTargetedScenarios(personalityType string, framework *PersonalityTestFramework) ([]ThreadTestScenario, error) {
 	scenarios := make([]ThreadTestScenario, 0)
 
@@ -780,7 +780,7 @@ func (sg *ScenarioGenerator) GeneratePersonalityTargetedScenarios(personalityTyp
 	return scenarios, nil
 }
 
-// generateScenario is a helper that returns an error instead of panicking
+// generateScenario is a helper that returns an error instead of panicking.
 func (sg *ScenarioGenerator) generateScenario(templateKey string, framework *PersonalityTestFramework) (ThreadTestScenario, error) {
 	scenario, err := sg.library.GenerateScenario(templateKey, framework)
 	if err != nil {

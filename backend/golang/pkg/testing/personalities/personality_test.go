@@ -903,12 +903,3 @@ func calculateAverageScore(results []TestResult) float64 {
 	}
 	return total / float64(len(results))
 }
-
-func getScoreForScenario(results []TestResult, scenarioName string) float64 {
-	for _, result := range results {
-		if result.ScenarioName == scenarioName {
-			return result.Score
-		}
-	}
-	return 0
-}

@@ -9,12 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	"github.com/charmbracelet/log"
 )
 
-// PersonalityTestFramework provides comprehensive testing capabilities for personality models
+// PersonalityTestFramework provides comprehensive testing capabilities for personality models.
 type PersonalityTestFramework struct {
 	logger            *log.Logger
 	aiService         *ai.Service // Can be nil for mock testing
@@ -26,7 +27,7 @@ type PersonalityTestFramework struct {
 	genericScenarios  []GenericTestScenario
 }
 
-// NewPersonalityTestFramework creates a new personality test framework
+// NewPersonalityTestFramework creates a new personality test framework.
 func NewPersonalityTestFramework(logger *log.Logger, aiService *ai.Service, testDataPath string) *PersonalityTestFramework {
 	return &PersonalityTestFramework{
 		logger:            logger,
@@ -39,7 +40,7 @@ func NewPersonalityTestFramework(logger *log.Logger, aiService *ai.Service, test
 	}
 }
 
-// LoadPersonalities loads all personality profiles from the test data directory
+// LoadPersonalities loads all personality profiles from the test data directory.
 func (ptf *PersonalityTestFramework) LoadPersonalities() error {
 	personalitiesDir := filepath.Join(ptf.testDataPath, "personalities")
 
@@ -66,7 +67,7 @@ func (ptf *PersonalityTestFramework) LoadPersonalities() error {
 	return nil
 }
 
-// LoadBasePersonalities loads base personality profiles
+// LoadBasePersonalities loads base personality profiles.
 func (ptf *PersonalityTestFramework) LoadBasePersonalities() error {
 	personalitiesDir := filepath.Join(ptf.testDataPath, "personalities")
 
@@ -94,7 +95,7 @@ func (ptf *PersonalityTestFramework) LoadBasePersonalities() error {
 	return nil
 }
 
-// LoadPersonalityExtensions loads personality extensions
+// LoadPersonalityExtensions loads personality extensions.
 func (ptf *PersonalityTestFramework) LoadPersonalityExtensions() error {
 	extensionsDir := filepath.Join(ptf.testDataPath, "extensions")
 
@@ -179,7 +180,7 @@ func (ptf *PersonalityTestFramework) LoadPersonalityExtensions() error {
 	return nil
 }
 
-// LoadScenarios loads test scenarios from the test data directory
+// LoadScenarios loads test scenarios from the test data directory.
 func (ptf *PersonalityTestFramework) LoadScenarios() error {
 	scenariosDir := filepath.Join(ptf.testDataPath, "scenarios")
 
@@ -221,7 +222,7 @@ func (ptf *PersonalityTestFramework) LoadScenarios() error {
 	return nil
 }
 
-// LoadGenericScenarios loads generic test scenarios from the test data directory
+// LoadGenericScenarios loads generic test scenarios from the test data directory.
 func (ptf *PersonalityTestFramework) LoadGenericScenarios() error {
 	scenariosDir := filepath.Join(ptf.testDataPath, "generic_scenarios")
 
@@ -268,22 +269,22 @@ func (ptf *PersonalityTestFramework) LoadGenericScenarios() error {
 	return nil
 }
 
-// GetPersonalities returns the loaded personalities
+// GetPersonalities returns the loaded personalities.
 func (ptf *PersonalityTestFramework) GetPersonalities() map[string]*ReferencePersonality {
 	return ptf.personalities
 }
 
-// GetScenarios returns the loaded scenarios
+// GetScenarios returns the loaded scenarios.
 func (ptf *PersonalityTestFramework) GetScenarios() []ThreadTestScenario {
 	return ptf.scenarios
 }
 
-// GetGenericScenarios returns the loaded generic scenarios
+// GetGenericScenarios returns the loaded generic scenarios.
 func (ptf *PersonalityTestFramework) GetGenericScenarios() []GenericTestScenario {
 	return ptf.genericScenarios
 }
 
-// RunPersonalityTests runs a comprehensive suite of personality tests with personality-specific expectations
+// RunPersonalityTests runs a comprehensive suite of personality tests with personality-specific expectations.
 func (ptf *PersonalityTestFramework) RunPersonalityTests(ctx context.Context, memoryStorage interface{}, holonRepo interface{}) ([]TestResult, error) {
 	var results []TestResult
 
@@ -331,7 +332,7 @@ func (ptf *PersonalityTestFramework) RunPersonalityTests(ctx context.Context, me
 						// Check if all required extensions are actually loaded
 						allExtensionsAvailable := true
 						for _, extName := range expectation.ExtensionNames {
-							if _, exists := extensions[extName]; !exists {
+							if _, extensionExists := extensions[extName]; !extensionExists {
 								allExtensionsAvailable = false
 								break
 							}
@@ -353,7 +354,7 @@ func (ptf *PersonalityTestFramework) RunPersonalityTests(ctx context.Context, me
 	return results, nil
 }
 
-// RunFlexiblePersonalityTests runs tests using the flexible generic scenario system
+// RunFlexiblePersonalityTests runs tests using the flexible generic scenario system.
 func (ptf *PersonalityTestFramework) RunFlexiblePersonalityTests(ctx context.Context, memoryStorage interface{}, holonRepo interface{}) ([]TestResult, error) {
 	var results []TestResult
 
@@ -387,7 +388,7 @@ func (ptf *PersonalityTestFramework) RunFlexiblePersonalityTests(ctx context.Con
 	return results, nil
 }
 
-// runTestForPersonalityExtensionCombo runs a test for a specific personality-extension combination
+// runTestForPersonalityExtensionCombo runs a test for a specific personality-extension combination.
 func (ptf *PersonalityTestFramework) runTestForPersonalityExtensionCombo(ctx context.Context, scenario ThreadTestScenario, personalityName string, extensionNames []string, expectedOutcome PersonalityExpectedOutcome, memoryStorage interface{}, holonRepo interface{}) (*TestResult, error) {
 	// Create the test personality by combining base + extensions
 	testPersonality, err := ptf.createTestPersonality(personalityName, extensionNames)
@@ -409,7 +410,7 @@ func (ptf *PersonalityTestFramework) runTestForPersonalityExtensionCombo(ctx con
 	return result, nil
 }
 
-// runGenericTestForPersonality runs a generic test for a specific personality-extension combination
+// runGenericTestForPersonality runs a generic test for a specific personality-extension combination.
 func (ptf *PersonalityTestFramework) runGenericTestForPersonality(ctx context.Context, scenario GenericTestScenario, personalityName string, extensionNames []string, expectedOutcome PersonalityExpectedOutcome, memoryStorage interface{}, holonRepo interface{}) (*TestResult, error) {
 	// Create the test personality by combining base + extensions
 	testPersonality, err := ptf.createTestPersonality(personalityName, extensionNames)
@@ -453,7 +454,7 @@ func (ptf *PersonalityTestFramework) runGenericTestForPersonality(ctx context.Co
 	}, nil
 }
 
-// createTestPersonality creates a test personality by combining base personality with extensions
+// createTestPersonality creates a test personality by combining base personality with extensions.
 func (ptf *PersonalityTestFramework) createTestPersonality(personalityName string, extensionNames []string) (*ReferencePersonality, error) {
 	// Try to find the personality in basePersonalities first (preferred)
 	basePersonality, exists := ptf.basePersonalities[personalityName]
@@ -468,14 +469,14 @@ func (ptf *PersonalityTestFramework) createTestPersonality(personalityName strin
 
 		// Add extensions
 		if len(extensionNames) > 0 {
-			personalityExtensions, exists := ptf.extensions[personalityName]
-			if !exists {
+			personalityExtensions, extExists := ptf.extensions[personalityName]
+			if !extExists {
 				return nil, fmt.Errorf("no extensions found for personality: %s", personalityName)
 			}
 
 			for _, extensionName := range extensionNames {
-				extension, exists := personalityExtensions[extensionName]
-				if !exists {
+				extension, extFound := personalityExtensions[extensionName]
+				if !extFound {
 					return nil, fmt.Errorf("extension not found: %s for personality %s", extensionName, personalityName)
 				}
 				extendedPersonality.Extensions = append(extendedPersonality.Extensions, extension)
@@ -498,7 +499,7 @@ func (ptf *PersonalityTestFramework) createTestPersonality(personalityName strin
 	return nil, fmt.Errorf("personality not found: %s", personalityName)
 }
 
-// CreatePersonalityVariant creates a personality variant programmatically
+// CreatePersonalityVariant creates a personality variant programmatically.
 func (ptf *PersonalityTestFramework) CreatePersonalityVariant(baseName, variantName string, modifications func(*PersonalityExtension) *PersonalityExtension) (*ExtendedPersonality, error) {
 	basePersonality, exists := ptf.basePersonalities[baseName]
 	if !exists {
@@ -528,7 +529,7 @@ func (ptf *PersonalityTestFramework) CreatePersonalityVariant(baseName, variantN
 	}, nil
 }
 
-// CreateExtendedPersonality creates an extended personality with multiple extensions
+// CreateExtendedPersonality creates an extended personality with multiple extensions.
 func (ptf *PersonalityTestFramework) CreateExtendedPersonality(baseName string, extensionNames ...string) (*ExtendedPersonality, error) {
 	basePersonality, exists := ptf.basePersonalities[baseName]
 	if !exists {
@@ -556,7 +557,7 @@ func (ptf *PersonalityTestFramework) CreateExtendedPersonality(baseName string, 
 	}, nil
 }
 
-// runSingleTest runs a single test scenario for a personality
+// runSingleTest runs a single test scenario for a personality.
 func (ptf *PersonalityTestFramework) runSingleTest(ctx context.Context, scenario ThreadTestScenario, personality *ReferencePersonality, expectedOutcome PersonalityExpectedOutcome, memoryStorage interface{}, holonRepo interface{}) (*TestResult, error) {
 	// Create test environment
 	env, err := ptf.setupTestEnvironment(ctx, personality, memoryStorage, holonRepo)
@@ -588,7 +589,7 @@ func (ptf *PersonalityTestFramework) runSingleTest(ctx context.Context, scenario
 	}, nil
 }
 
-// Helper functions for loading data
+// Helper functions for loading data.
 func (ptf *PersonalityTestFramework) loadPersonalityFromFile(filename string) (*ReferencePersonality, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
@@ -645,7 +646,7 @@ func (ptf *PersonalityTestFramework) loadScenarioFromFile(filename string) (*Thr
 	return &scenario, nil
 }
 
-// loadGenericScenarioFromFile loads a generic scenario from a JSON file
+// loadGenericScenarioFromFile loads a generic scenario from a JSON file.
 func (ptf *PersonalityTestFramework) loadGenericScenarioFromFile(filename string) (*GenericTestScenario, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
@@ -660,7 +661,7 @@ func (ptf *PersonalityTestFramework) loadGenericScenarioFromFile(filename string
 	return &scenario, nil
 }
 
-// createThreadFromData converts ThreadData to a model.Thread
+// createThreadFromData converts ThreadData to a model.Thread.
 func (ptf *PersonalityTestFramework) createThreadFromData(data ThreadData) *model.Thread {
 	return &model.Thread{
 		ID:        fmt.Sprintf("test-thread-%d", time.Now().UnixNano()),
@@ -674,12 +675,12 @@ func (ptf *PersonalityTestFramework) createThreadFromData(data ThreadData) *mode
 	}
 }
 
-// generateTestID creates a unique test ID
+// generateTestID creates a unique test ID.
 func generateTestID() string {
 	return fmt.Sprintf("test-%d", time.Now().UnixNano())
 }
 
-// setupTestEnvironment creates a test environment with personality data loaded into memory
+// setupTestEnvironment creates a test environment with personality data loaded into memory.
 func (ptf *PersonalityTestFramework) setupTestEnvironment(ctx context.Context, personality *ReferencePersonality, memoryStorage interface{}, repository interface{}) (*TestEnvironment, error) {
 	// Create memory tracker
 	tracker := NewMemoryTracker()
@@ -699,7 +700,7 @@ func (ptf *PersonalityTestFramework) setupTestEnvironment(ctx context.Context, p
 	}, nil
 }
 
-// calculateBasicScore provides a basic scoring mechanism when LLM judge is not available
+// calculateBasicScore provides a basic scoring mechanism when LLM judge is not available.
 func (ptf *PersonalityTestFramework) calculateBasicScore(expectedOutcome PersonalityExpectedOutcome, actualResult *ThreadEvaluationResult) float64 {
 	score := 0.0
 
@@ -725,7 +726,7 @@ func (ptf *PersonalityTestFramework) calculateBasicScore(expectedOutcome Persona
 	return score
 }
 
-// GenerateReport creates a comprehensive test report
+// GenerateReport creates a comprehensive test report.
 func (ptf *PersonalityTestFramework) GenerateReport(results []TestResult) PersonalityTestResults {
 	totalTests := len(results)
 	passedTests := 0
@@ -774,7 +775,7 @@ func (ptf *PersonalityTestFramework) GenerateReport(results []TestResult) Person
 	}
 }
 
-// PrintSummary prints a summary of test results
+// PrintSummary prints a summary of test results.
 func (ptf *PersonalityTestFramework) PrintSummary(report PersonalityTestResults) {
 	ptf.logger.Info("Personality Test Results Summary",
 		"test_id", report.TestID,
@@ -786,11 +787,11 @@ func (ptf *PersonalityTestFramework) PrintSummary(report PersonalityTestResults)
 		"lowest_score", fmt.Sprintf("%.3f", report.Summary.LowestScore))
 }
 
-// SaveReport saves the test report to a file
+// SaveReport saves the test report to a file.
 func (ptf *PersonalityTestFramework) SaveReport(report PersonalityTestResults, filename string) error {
 	// Ensure the directory exists
 	dir := filepath.Dir(filename)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create reports directory: %w", err)
 	}
 
@@ -799,14 +800,14 @@ func (ptf *PersonalityTestFramework) SaveReport(report PersonalityTestResults, f
 		return fmt.Errorf("failed to marshal report: %w", err)
 	}
 
-	if err := os.WriteFile(filename, data, 0644); err != nil {
+	if err := os.WriteFile(filename, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write report file: %w", err)
 	}
 
 	return nil
 }
 
-// generateCodeBasedScenarios generates scenarios using the code-based scenario system
+// generateCodeBasedScenarios generates scenarios using the code-based scenario system.
 func (ptf *PersonalityTestFramework) generateCodeBasedScenarios() error {
 	generator := NewScenarioGenerator()
 

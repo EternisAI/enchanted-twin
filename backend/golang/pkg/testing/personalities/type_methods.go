@@ -10,13 +10,13 @@ import (
 
 // Method implementations for various types
 
-// MemoryFact methods
+// MemoryFact methods.
 func (mf *MemoryFact) GenerateContent() string {
 	return fmt.Sprintf("[%s] %s (Importance: %.2f, Tags: %s)",
 		mf.Category, mf.Content, mf.Importance, strings.Join(mf.Tags, ", "))
 }
 
-// ExtendedPersonality methods
+// ExtendedPersonality methods.
 func (ep *ExtendedPersonality) ToReferencePersonality() *ReferencePersonality {
 	result := &ReferencePersonality{
 		Name:              ep.Base.Name,
@@ -67,7 +67,7 @@ func (ep *ExtendedPersonality) ToReferencePersonality() *ReferencePersonality {
 	return result
 }
 
-// mergeProfiles merges profile overrides with base profile
+// mergeProfiles merges profile overrides with base profile.
 func mergeProfiles(base PersonalityProfile, override PersonalityProfile) PersonalityProfile {
 	result := base
 
@@ -96,7 +96,7 @@ func mergeProfiles(base PersonalityProfile, override PersonalityProfile) Persona
 	return result
 }
 
-// ThreadTestScenario methods
+// ThreadTestScenario methods.
 func (tts *ThreadTestScenario) GetExpectedOutcomeForPersonality(personalityName string, extensionNames []string) *PersonalityExpectedOutcome {
 	// First try to find exact match with extensions
 	if len(extensionNames) > 0 {
@@ -118,7 +118,7 @@ func (tts *ThreadTestScenario) GetExpectedOutcomeForPersonality(personalityName 
 	return nil
 }
 
-// PersonalityExpectedOutcome methods
+// PersonalityExpectedOutcome methods.
 func (peo *PersonalityExpectedOutcome) GetExpectedThreadEvaluation() ExpectedThreadEvaluation {
 	return ExpectedThreadEvaluation{
 		ShouldShow:     peo.ShouldShow,
@@ -129,7 +129,7 @@ func (peo *PersonalityExpectedOutcome) GetExpectedThreadEvaluation() ExpectedThr
 	}
 }
 
-// ConversationDocument implements memory.Document interface
+// ConversationDocument implements memory.Document interface.
 func (cd *ConversationDocument) ID() string {
 	return cd.DocumentID
 }
@@ -167,7 +167,7 @@ func (cd *ConversationDocument) Source() string {
 	return "conversation"
 }
 
-// MemoryTracker methods
+// MemoryTracker methods.
 func NewMemoryTracker() *MemoryTracker {
 	return &MemoryTracker{
 		accessedMemories: make([]string, 0),
@@ -186,7 +186,7 @@ func (mt *MemoryTracker) TrackAccess(memoryID string) {
 	mt.accessedMemories = append(mt.accessedMemories, memoryID)
 }
 
-// NewThreadScenario creates a new thread scenario for testing
+// NewThreadScenario creates a new thread scenario for testing.
 func NewThreadScenario(name, description string, threadData ThreadData) *ThreadTestScenario {
 	return &ThreadTestScenario{
 		Name:                    name,
@@ -197,7 +197,7 @@ func NewThreadScenario(name, description string, threadData ThreadData) *ThreadT
 	}
 }
 
-// Helper utility functions
+// Helper utility functions.
 func stringSlicesEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -208,24 +208,4 @@ func stringSlicesEqual(a, b []string) bool {
 		}
 	}
 	return true
-}
-
-func mergeStringSlices(base, additions []string) []string {
-	result := make([]string, len(base))
-	copy(result, base)
-
-	for _, addition := range additions {
-		found := false
-		for _, existing := range result {
-			if existing == addition {
-				found = true
-				break
-			}
-		}
-		if !found {
-			result = append(result, addition)
-		}
-	}
-
-	return result
 }

@@ -7,12 +7,12 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// MemoryFactBuilder helps build memory facts with proper validation
+// MemoryFactBuilder helps build memory facts with proper validation.
 type MemoryFactBuilder struct {
 	fact memory.MemoryFact
 }
 
-// NewMemoryFactBuilder creates a new memory fact builder
+// NewMemoryFactBuilder creates a new memory fact builder.
 func NewMemoryFactBuilder() *MemoryFactBuilder {
 	return &MemoryFactBuilder{
 		fact: memory.MemoryFact{
@@ -22,43 +22,43 @@ func NewMemoryFactBuilder() *MemoryFactBuilder {
 	}
 }
 
-// Category sets the memory fact category
+// Category sets the memory fact category.
 func (mfb *MemoryFactBuilder) Category(category string) *MemoryFactBuilder {
 	mfb.fact.Category = category
 	return mfb
 }
 
-// Subject sets the subject of the memory fact
+// Subject sets the subject of the memory fact.
 func (mfb *MemoryFactBuilder) Subject(subject string) *MemoryFactBuilder {
 	mfb.fact.Subject = subject
 	return mfb
 }
 
-// Attribute sets the attribute of the memory fact
+// Attribute sets the attribute of the memory fact.
 func (mfb *MemoryFactBuilder) Attribute(attribute string) *MemoryFactBuilder {
 	mfb.fact.Attribute = attribute
 	return mfb
 }
 
-// Value sets the value of the memory fact
+// Value sets the value of the memory fact.
 func (mfb *MemoryFactBuilder) Value(value string) *MemoryFactBuilder {
 	mfb.fact.Value = value
 	return mfb
 }
 
-// TemporalContext sets the temporal context
+// TemporalContext sets the temporal context.
 func (mfb *MemoryFactBuilder) TemporalContext(context string) *MemoryFactBuilder {
 	mfb.fact.TemporalContext = &context
 	return mfb
 }
 
-// Sensitivity sets the sensitivity level
+// Sensitivity sets the sensitivity level.
 func (mfb *MemoryFactBuilder) Sensitivity(sensitivity string) *MemoryFactBuilder {
 	mfb.fact.Sensitivity = sensitivity
 	return mfb
 }
 
-// Importance sets the importance level (1-3)
+// Importance sets the importance level (1-3).
 func (mfb *MemoryFactBuilder) Importance(importance int) *MemoryFactBuilder {
 	if importance < 1 {
 		importance = 1
@@ -70,13 +70,13 @@ func (mfb *MemoryFactBuilder) Importance(importance int) *MemoryFactBuilder {
 	return mfb
 }
 
-// Content sets the generated content
+// Content sets the generated content.
 func (mfb *MemoryFactBuilder) Content(content string) *MemoryFactBuilder {
 	mfb.fact.Content = content
 	return mfb
 }
 
-// Build creates the final memory fact with validation
+// Build creates the final memory fact with validation.
 func (mfb *MemoryFactBuilder) Build() (memory.MemoryFact, error) {
 	// Validate required fields
 	if mfb.fact.Category == "" {
@@ -108,13 +108,13 @@ func (mfb *MemoryFactBuilder) Build() (memory.MemoryFact, error) {
 	return mfb.fact, nil
 }
 
-// PersonalityMemoryBuilder helps build comprehensive memory profiles for personalities
+// PersonalityMemoryBuilder helps build comprehensive memory profiles for personalities.
 type PersonalityMemoryBuilder struct {
 	personalityName string
 	facts           []memory.MemoryFact
 }
 
-// NewPersonalityMemoryBuilder creates a new personality memory builder
+// NewPersonalityMemoryBuilder creates a new personality memory builder.
 func NewPersonalityMemoryBuilder(personalityName string) *PersonalityMemoryBuilder {
 	return &PersonalityMemoryBuilder{
 		personalityName: personalityName,
@@ -122,7 +122,7 @@ func NewPersonalityMemoryBuilder(personalityName string) *PersonalityMemoryBuild
 	}
 }
 
-// AddPreference adds a preference memory fact
+// AddPreference adds a preference memory fact.
 func (pmb *PersonalityMemoryBuilder) AddPreference(attribute, value string, importance int) *PersonalityMemoryBuilder {
 	fact, err := NewMemoryFactBuilder().
 		Category("preference").
@@ -138,7 +138,7 @@ func (pmb *PersonalityMemoryBuilder) AddPreference(attribute, value string, impo
 	return pmb
 }
 
-// AddGoal adds a goal/plan memory fact
+// AddGoal adds a goal/plan memory fact.
 func (pmb *PersonalityMemoryBuilder) AddGoal(attribute, value, timeline string, importance int) *PersonalityMemoryBuilder {
 	fact, err := NewMemoryFactBuilder().
 		Category("goal_plan").
@@ -155,7 +155,7 @@ func (pmb *PersonalityMemoryBuilder) AddGoal(attribute, value, timeline string, 
 	return pmb
 }
 
-// AddSkill adds a skill/expertise memory fact
+// AddSkill adds a skill/expertise memory fact.
 func (pmb *PersonalityMemoryBuilder) AddSkill(attribute, value string, importance int) *PersonalityMemoryBuilder {
 	fact, err := NewMemoryFactBuilder().
 		Category("skill_expertise").
@@ -171,7 +171,7 @@ func (pmb *PersonalityMemoryBuilder) AddSkill(attribute, value string, importanc
 	return pmb
 }
 
-// AddRelationship adds a relationship memory fact
+// AddRelationship adds a relationship memory fact.
 func (pmb *PersonalityMemoryBuilder) AddRelationship(attribute, value string, sensitivity string, importance int) *PersonalityMemoryBuilder {
 	fact, err := NewMemoryFactBuilder().
 		Category("relationship").
@@ -188,7 +188,7 @@ func (pmb *PersonalityMemoryBuilder) AddRelationship(attribute, value string, se
 	return pmb
 }
 
-// AddValue adds a value/belief memory fact
+// AddValue adds a value/belief memory fact.
 func (pmb *PersonalityMemoryBuilder) AddValue(attribute, value string, importance int) *PersonalityMemoryBuilder {
 	fact, err := NewMemoryFactBuilder().
 		Category("value_belief").
@@ -204,7 +204,7 @@ func (pmb *PersonalityMemoryBuilder) AddValue(attribute, value string, importanc
 	return pmb
 }
 
-// AddHabit adds a habit/routine memory fact
+// AddHabit adds a habit/routine memory fact.
 func (pmb *PersonalityMemoryBuilder) AddHabit(attribute, value string, importance int) *PersonalityMemoryBuilder {
 	fact, err := NewMemoryFactBuilder().
 		Category("habit_routine").
@@ -220,7 +220,7 @@ func (pmb *PersonalityMemoryBuilder) AddHabit(attribute, value string, importanc
 	return pmb
 }
 
-// AddExperience adds an experience/event memory fact
+// AddExperience adds an experience/event memory fact.
 func (pmb *PersonalityMemoryBuilder) AddExperience(attribute, value, timeContext string, importance int) *PersonalityMemoryBuilder {
 	fact, err := NewMemoryFactBuilder().
 		Category("experience_event").
@@ -237,7 +237,7 @@ func (pmb *PersonalityMemoryBuilder) AddExperience(attribute, value, timeContext
 	return pmb
 }
 
-// AddCustomFact adds a custom memory fact with full control
+// AddCustomFact adds a custom memory fact with full control.
 func (pmb *PersonalityMemoryBuilder) AddCustomFact(category, subject, attribute, value string, options ...func(*MemoryFactBuilder)) *PersonalityMemoryBuilder {
 	builder := NewMemoryFactBuilder().
 		Category(category).
@@ -257,17 +257,17 @@ func (pmb *PersonalityMemoryBuilder) AddCustomFact(category, subject, attribute,
 	return pmb
 }
 
-// Build returns all the memory facts
+// Build returns all the memory facts.
 func (pmb *PersonalityMemoryBuilder) Build() []memory.MemoryFact {
 	return pmb.facts
 }
 
-// GetFactCount returns the number of facts added
+// GetFactCount returns the number of facts added.
 func (pmb *PersonalityMemoryBuilder) GetFactCount() int {
 	return len(pmb.facts)
 }
 
-// CreateTechEntrepreneurProfile creates a comprehensive tech entrepreneur memory profile
+// CreateTechEntrepreneurProfile creates a comprehensive tech entrepreneur memory profile.
 func CreateTechEntrepreneurProfile() []memory.MemoryFact {
 	return NewPersonalityMemoryBuilder("tech_entrepreneur").
 		// Preferences
@@ -304,7 +304,7 @@ func CreateTechEntrepreneurProfile() []memory.MemoryFact {
 		Build()
 }
 
-// CreateCreativeArtistProfile creates a comprehensive creative artist memory profile
+// CreateCreativeArtistProfile creates a comprehensive creative artist memory profile.
 func CreateCreativeArtistProfile() []memory.MemoryFact {
 	return NewPersonalityMemoryBuilder("creative_artist").
 		// Preferences
