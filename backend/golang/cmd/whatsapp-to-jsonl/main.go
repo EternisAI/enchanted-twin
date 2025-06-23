@@ -90,7 +90,11 @@ func main() {
 		"dry-run", *dryRun)
 
 	// Create WhatsApp processor
-	processor := whatsapp.NewWhatsappProcessor(nil, logger)
+	processor, err := whatsapp.NewWhatsappProcessor(nil, logger)
+	if err != nil {
+		logger.Error("Failed to create WhatsApp processor", "error", err)
+		os.Exit(1)
+	}
 
 	// Process the SQLite file
 	ctx := context.Background()
