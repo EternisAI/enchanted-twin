@@ -61,9 +61,16 @@ type emailResult struct {
 	duration     time.Duration
 }
 
+type SkipReason struct {
+	Reason   string   `json:"reason"`
+	Count    int      `json:"count"`
+	Examples []string `json:"examples,omitempty"`
+}
+
 const (
-	processTimeout   = time.Second
-	progressBarWidth = 50
+	processTimeout      = time.Second
+	progressBarWidth    = 50
+	saveSkippedAnalysis = false // Set to true for debugging skipped emails
 )
 
 func NewGmailProcessor(store *db.Store, logger *log.Logger) (*GmailProcessor, error) {
@@ -86,9 +93,66 @@ func (g *GmailProcessor) ProcessFileForSenders(ctx context.Context, path string,
 	return err
 }
 
+// normalizeGmailAddress normalizes Gmail addresses by removing dots and converting to lowercase.
+func normalizeGmailAddress(email string) string {
+	email = strings.ToLower(strings.TrimSpace(email))
+
+	// Only normalize actual Gmail addresses
+	if !strings.HasSuffix(email, "@gmail.com") {
+		return email
+	}
+
+	// Split at @ and remove dots from local part
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return email
+	}
+
+	localPart := strings.ReplaceAll(parts[0], ".", "")
+	return localPart + "@" + parts[1]
+}
+
+// detectUserEmails detects all user email variants and returns the primary one plus all variants.
+func (g *GmailProcessor) detectUserEmails(path string) (string, []string, error) {
+	primaryEmail, err := DetectUserEmailFromMbox(path)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if err := g.store.SetSourceUsername(context.Background(), db.SourceUsername{
+		Source:   g.Name(),
+		Username: primaryEmail,
+	}); err != nil {
+		g.logger.Warn("Failed to store user email", "error", err)
+	}
+
+	// Generate all possible Gmail variants
+	variants := []string{primaryEmail}
+
+	// If it's a Gmail address, add the normalized version
+	if strings.HasSuffix(primaryEmail, "@gmail.com") {
+		normalized := normalizeGmailAddress(primaryEmail)
+		if normalized != primaryEmail {
+			variants = append(variants, normalized)
+		}
+
+		// Also try the version with dots removed in display
+		parts := strings.Split(primaryEmail, "@")
+		if len(parts) == 2 {
+			withoutDots := strings.ReplaceAll(parts[0], ".", "") + "@" + parts[1]
+			if withoutDots != primaryEmail && withoutDots != normalized {
+				variants = append(variants, withoutDots)
+			}
+		}
+	}
+
+	g.logger.Info("Detected user email variants", "primary", primaryEmail, "variants", variants)
+	return primaryEmail, variants, nil
+}
+
 // Internal method with all the sophisticated logic.
 func (g *GmailProcessor) processFileInternal(ctx context.Context, path string, outputDir string, sendersOnly bool) ([]memory.ConversationDocument, error) {
-	userEmail, err := g.detectUserEmail(path)
+	primaryUserEmail, userEmailVariants, err := g.detectUserEmails(path)
 	if err != nil {
 		g.logger.Warn("Could not detect user email", "error", err)
 	}
@@ -99,6 +163,7 @@ func (g *GmailProcessor) processFileInternal(ctx context.Context, path string, o
 	}
 	sendersFilePath := filepath.Join(outputDir, "senders.json")
 	failedEmailFilepath := filepath.Join(outputDir, "F_0_gmail.mbox")
+	skippedEmailsFilepath := filepath.Join(outputDir, "skipped_emails_analysis.json")
 
 	// Check for existing senders file
 	useExistingSendersFile := g.fileExists(sendersFilePath)
@@ -121,12 +186,12 @@ func (g *GmailProcessor) processFileInternal(ctx context.Context, path string, o
 	g.logger.Info("Starting email processing", "total", totalEmails, "workers", runtime.NumCPU())
 
 	// Phase 1: Parse all emails with sophisticated parallel processing
-	emails, failures, err := g.parseEmailsAdvanced(path, totalEmails, failedEmailFilepath)
+	emails, failures, skippedReasons, err := g.parseEmailsAdvanced(path, totalEmails, failedEmailFilepath, skippedEmailsFilepath)
 	if err != nil {
 		return nil, err
 	}
 
-	g.logger.Info("Parsing completed", "success", len(emails), "failed", len(failures))
+	g.logger.Info("Parsing completed", "success", len(emails), "failed", len(failures), "skipped_reasons", len(skippedReasons))
 
 	// Phase 2: Sender analysis
 	var keepers map[string]bool
@@ -140,8 +205,8 @@ func (g *GmailProcessor) processFileInternal(ctx context.Context, path string, o
 		}
 		g.logger.Info("Loaded existing sender filtering", "included", len(keepers))
 	} else {
-		// Analyze senders
-		includedSenders, excludedSenders, keepers = g.analyzeSenders(emails, userEmail)
+		// Analyze senders using ALL user email variants
+		includedSenders, excludedSenders, keepers = g.analyzeSenders(emails, userEmailVariants)
 		g.logger.Info("Sender analysis completed", "included", len(includedSenders), "excluded", len(excludedSenders))
 
 		// Save sender analysis
@@ -161,7 +226,7 @@ func (g *GmailProcessor) processFileInternal(ctx context.Context, path string, o
 	g.logger.Info("Email filtering completed", "kept", len(filteredEmails), "filtered_out", len(emails)-len(filteredEmails))
 
 	threads := g.buildThreads(filteredEmails)
-	documents := g.toConversationDocuments(threads, userEmail)
+	documents := g.toConversationDocuments(threads, primaryUserEmail)
 
 	g.logger.Info("Processing completed", "threads", len(threads), "documents", len(documents))
 	return documents, nil
@@ -171,22 +236,6 @@ func (g *GmailProcessor) processFileInternal(ctx context.Context, path string, o
 func (g *GmailProcessor) fileExists(filename string) bool {
 	_, err := os.Stat(filename)
 	return err == nil
-}
-
-func (g *GmailProcessor) detectUserEmail(path string) (string, error) {
-	userEmail, err := DetectUserEmailFromMbox(path)
-	if err != nil {
-		return "", err
-	}
-
-	if err := g.store.SetSourceUsername(context.Background(), db.SourceUsername{
-		Source:   g.Name(),
-		Username: userEmail,
-	}); err != nil {
-		g.logger.Warn("Failed to store user email", "error", err)
-	}
-
-	return userEmail, nil
 }
 
 func (g *GmailProcessor) countEmails(path string) (int, error) {
@@ -211,14 +260,14 @@ func (g *GmailProcessor) countEmails(path string) (int, error) {
 	return count, scanner.Err()
 }
 
-func (g *GmailProcessor) parseEmail(parser *letters.EmailParser, content string) (*emailWithMeta, error) {
+func (g *GmailProcessor) parseEmail(parser *letters.EmailParser, content string) (*emailWithMeta, string, error) {
 	email, err := parser.Parse(strings.NewReader(content))
 	if err != nil {
-		return nil, fmt.Errorf("letters parsing failed: %w", err)
+		return nil, "", fmt.Errorf("letters parsing failed: %w", err)
 	}
 
-	if g.shouldSkipEmail(&email) {
-		return nil, nil // nil error means skip, not failure
+	if skipReason := g.shouldSkipEmail(&email); skipReason != "" {
+		return nil, skipReason, nil // nil error means skip, not failure
 	}
 
 	threadID := g.extractThreadID(&email)
@@ -226,14 +275,20 @@ func (g *GmailProcessor) parseEmail(parser *letters.EmailParser, content string)
 		email:     &email,
 		threadID:  threadID,
 		timestamp: email.Headers.Date,
-	}, nil
+	}, "", nil
 }
 
-func (g *GmailProcessor) shouldSkipEmail(email *letters.Email) bool {
-	if g.hasSkipLabels(email) || g.hasSkipSender(email) {
-		return true
+func (g *GmailProcessor) shouldSkipEmail(email *letters.Email) string {
+	if g.hasSkipLabels(email) {
+		return "skip_labels"
 	}
-	return email.Text == "" && email.HTML == ""
+	if g.hasSkipSender(email) {
+		return "skip_sender"
+	}
+	if email.Text == "" && email.HTML == "" {
+		return "empty_content"
+	}
+	return ""
 }
 
 func (g *GmailProcessor) hasSkipLabels(email *letters.Email) bool {
@@ -298,10 +353,16 @@ func (g *GmailProcessor) subjectThreadID(subject string) string {
 	return fmt.Sprintf("subject-%x", h[:8])
 }
 
-func (g *GmailProcessor) isUserEmail(email *letters.Email, userEmail string) bool {
+func (g *GmailProcessor) isUserEmail(email *letters.Email, userEmails []string) bool {
 	for _, from := range email.Headers.From {
-		if from != nil && strings.ToLower(from.Address) == userEmail {
-			return true
+		if from != nil && from.Address != "" {
+			fromNormalized := normalizeGmailAddress(from.Address)
+			for _, userEmail := range userEmails {
+				userNormalized := normalizeGmailAddress(userEmail)
+				if fromNormalized == userNormalized {
+					return true
+				}
+			}
 		}
 	}
 	return false
@@ -326,6 +387,9 @@ func (g *GmailProcessor) buildThreads(emails []*emailWithMeta) map[string][]*ema
 func (g *GmailProcessor) toConversationDocuments(threads map[string][]*emailWithMeta, userEmail string) []memory.ConversationDocument {
 	var docs []memory.ConversationDocument
 
+	// Normalize the user email consistently with people extraction
+	normalizedUserEmail := normalizeGmailAddress(userEmail)
+
 	for threadID, emails := range threads {
 		if len(emails) == 0 {
 			continue
@@ -335,7 +399,7 @@ func (g *GmailProcessor) toConversationDocuments(threads map[string][]*emailWith
 			FieldID:      fmt.Sprintf("gmail-thread-%s", threadID),
 			FieldSource:  "gmail",
 			FieldTags:    []string{"email", "conversation"},
-			User:         userEmail,
+			User:         normalizedUserEmail,
 			People:       g.extractPeople(emails),
 			Conversation: g.buildConversation(emails),
 			FieldMetadata: map[string]string{
@@ -356,12 +420,14 @@ func (g *GmailProcessor) extractPeople(emails []*emailWithMeta) []string {
 	for _, email := range emails {
 		for _, addr := range email.email.Headers.From {
 			if addr != nil && addr.Address != "" {
-				people[addr.Address] = true
+				normalizedAddr := normalizeGmailAddress(addr.Address)
+				people[normalizedAddr] = true
 			}
 		}
 		for _, addr := range email.email.Headers.To {
 			if addr != nil && addr.Address != "" {
-				people[addr.Address] = true
+				normalizedAddr := normalizeGmailAddress(addr.Address)
+				people[normalizedAddr] = true
 			}
 		}
 	}
@@ -396,10 +462,10 @@ func (g *GmailProcessor) buildConversation(emails []*emailWithMeta) []memory.Con
 
 func (g *GmailProcessor) getSpeaker(email *letters.Email) string {
 	if len(email.Headers.From) > 0 && email.Headers.From[0] != nil {
-		return email.Headers.From[0].Address
+		return normalizeGmailAddress(email.Headers.From[0].Address)
 	}
 	if email.Headers.Sender != nil {
-		return email.Headers.Sender.Address
+		return normalizeGmailAddress(email.Headers.Sender.Address)
 	}
 	return "unknown"
 }
@@ -505,7 +571,7 @@ func (g *GmailProcessor) decodeUTF8Sequences(text string) (string, error) {
 	}), nil
 }
 
-func (g *GmailProcessor) parseEmailsAdvanced(path string, totalEmails int, failedFilePath string) ([]*emailWithMeta, []emailResult, error) {
+func (g *GmailProcessor) parseEmailsAdvanced(path string, totalEmails int, failedFilePath string, skippedEmailsFilepath string) ([]*emailWithMeta, []emailResult, []SkipReason, error) {
 	jobs := make(chan emailJob, runtime.NumCPU())
 	results := make(chan emailResult, totalEmails)
 
@@ -529,17 +595,28 @@ func (g *GmailProcessor) parseEmailsAdvanced(path string, totalEmails int, faile
 
 	var emails []*emailWithMeta
 	var failures []emailResult
+	var skippedReasons []SkipReason
 
 	for result := range results {
 		processedCount.Add(1)
 		if result.err != nil {
-			failedCount.Add(1)
-			failures = append(failures, result)
+			errStr := result.err.Error()
+			if strings.HasPrefix(errStr, "SKIPPED:") {
+				// This is a skipped email
+				skippedCount.Add(1)
+				reason := strings.TrimPrefix(errStr, "SKIPPED:")
+				skippedReasons = append(skippedReasons, SkipReason{
+					Reason:   reason,
+					Count:    1,
+					Examples: []string{g.getEmailPreview(result.originalData)},
+				})
+			} else {
+				// This is a real failure
+				failedCount.Add(1)
+				failures = append(failures, result)
+			}
 		} else if result.email != nil {
 			emails = append(emails, result.email)
-		} else {
-			// result.email == nil && result.err == nil means skipped
-			skippedCount.Add(1)
 		}
 
 		// Progress reporting with visual bar
@@ -565,6 +642,13 @@ func (g *GmailProcessor) parseEmailsAdvanced(path string, totalEmails int, faile
 	// Always save failed emails file (even if empty)
 	g.saveFailedEmails(failedFilePath, failures)
 
+	// Save skipped emails analysis (optional for debugging)
+	if saveSkippedAnalysis {
+		if err := g.saveSkippedEmailsAnalysis(skippedEmailsFilepath, skippedReasons); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to save skipped emails analysis: %w", err)
+		}
+	}
+
 	successCount := int64(len(emails))
 	g.logger.Info("Email processing complete",
 		"success", successCount,
@@ -572,7 +656,20 @@ func (g *GmailProcessor) parseEmailsAdvanced(path string, totalEmails int, faile
 		"skipped", skippedCount.Load(),
 		"total", totalEmails)
 
-	return emails, failures, nil
+	return emails, failures, skippedReasons, nil
+}
+
+func (g *GmailProcessor) getEmailPreview(emailData string) string {
+	lines := strings.Split(emailData, "\n")
+	maxLines := 5
+	if len(lines) < maxLines {
+		maxLines = len(lines)
+	}
+	preview := strings.Join(lines[:maxLines], "\n")
+	if len(preview) > 500 {
+		preview = preview[:500] + "... [truncated]"
+	}
+	return preview
 }
 
 func (g *GmailProcessor) advancedEmailWorker(jobs <-chan emailJob, results chan<- emailResult, wg *sync.WaitGroup) {
@@ -585,7 +682,7 @@ func (g *GmailProcessor) advancedEmailWorker(jobs <-chan emailJob, results chan<
 
 		resultChan := make(chan emailResult, 1)
 		go func() {
-			email, err := g.parseEmail(parser, job.emailData)
+			email, skipReason, err := g.parseEmail(parser, job.emailData)
 			result := emailResult{
 				emailIndex: job.emailIndex,
 				email:      email,
@@ -594,6 +691,11 @@ func (g *GmailProcessor) advancedEmailWorker(jobs <-chan emailJob, results chan<
 			}
 			// Set originalData for any error so failed emails can be saved
 			if err != nil {
+				result.originalData = job.emailData
+				result.originalSize = len(job.emailData)
+			} else if skipReason != "" {
+				// Email was skipped - create a pseudo-error for tracking
+				result.err = fmt.Errorf("SKIPPED:%s", skipReason)
 				result.originalData = job.emailData
 				result.originalSize = len(job.emailData)
 			}
@@ -712,8 +814,7 @@ func (g *GmailProcessor) loadExistingSenders(filePath string) (map[string]bool, 
 	return keepers, nil
 }
 
-func (g *GmailProcessor) analyzeSenders(emails []*emailWithMeta, userEmail string) ([]SenderDetail, []SenderDetail, map[string]bool) {
-	userLower := strings.ToLower(userEmail)
+func (g *GmailProcessor) analyzeSenders(emails []*emailWithMeta, userEmails []string) ([]SenderDetail, []SenderDetail, map[string]bool) {
 	senderCounts := make(map[string]int)
 	recipientsOfMyEmails := make(map[string]bool)
 
@@ -722,23 +823,23 @@ func (g *GmailProcessor) analyzeSenders(emails []*emailWithMeta, userEmail strin
 		seenInThisEmail := make(map[string]bool)
 		for _, from := range email.email.Headers.From {
 			if from != nil && from.Address != "" {
-				lowerAddr := strings.ToLower(from.Address)
-				if !seenInThisEmail[lowerAddr] {
-					senderCounts[lowerAddr]++
-					seenInThisEmail[lowerAddr] = true
+				normalizedAddr := normalizeGmailAddress(from.Address)
+				if !seenInThisEmail[normalizedAddr] {
+					senderCounts[normalizedAddr]++
+					seenInThisEmail[normalizedAddr] = true
 				}
 			}
 		}
 
-		if g.isUserEmail(email.email, userLower) {
+		if g.isUserEmail(email.email, userEmails) {
 			for _, to := range email.email.Headers.To {
 				if to != nil && to.Address != "" {
-					recipientsOfMyEmails[strings.ToLower(to.Address)] = true
+					recipientsOfMyEmails[normalizeGmailAddress(to.Address)] = true
 				}
 			}
 			for _, cc := range email.email.Headers.Cc {
 				if cc != nil && cc.Address != "" {
-					recipientsOfMyEmails[strings.ToLower(cc.Address)] = true
+					recipientsOfMyEmails[normalizeGmailAddress(cc.Address)] = true
 				}
 			}
 		}
@@ -799,7 +900,7 @@ func (g *GmailProcessor) filterEmailsBySenders(emails []*emailWithMeta, keepers 
 		keep := false
 		for _, from := range email.email.Headers.From {
 			if from != nil && from.Address != "" {
-				if keepers[strings.ToLower(from.Address)] {
+				if keepers[normalizeGmailAddress(from.Address)] {
 					keep = true
 					break
 				}
@@ -810,4 +911,28 @@ func (g *GmailProcessor) filterEmailsBySenders(emails []*emailWithMeta, keepers 
 		}
 	}
 	return filtered
+}
+
+func (g *GmailProcessor) saveSkippedEmailsAnalysis(filePath string, skippedReasons []SkipReason) error {
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		g.logger.Warn("Could not create output directory", "error", err)
+		return err
+	}
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		g.logger.Warn("Could not create skipped emails analysis file", "error", err)
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	encoder := json.NewEncoder(f)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(skippedReasons); err != nil {
+		g.logger.Warn("Failed to encode skipped emails analysis", "error", err)
+		return err
+	}
+
+	g.logger.Info("Saved skipped emails analysis", "count", len(skippedReasons), "file", filePath)
+	return nil
 }
