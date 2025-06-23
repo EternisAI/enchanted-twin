@@ -104,10 +104,10 @@ type ReferencePersonality struct {
 
 // ExtendedPersonality combines a base personality with one or more extensions for testing
 type ExtendedPersonality struct {
-	Base       *BasePersonality       `json:"base"`
+	Base       *BasePersonality        `json:"base"`
 	Extensions []*PersonalityExtension `json:"extensions"`
-	TestID     string                 `json:"test_id"`
-	CreatedAt  time.Time              `json:"created_at"`
+	TestID     string                  `json:"test_id"`
+	CreatedAt  time.Time               `json:"created_at"`
 }
 
 // ThreadData contains the raw thread data for creating test threads
@@ -271,8 +271,8 @@ type GenericEvaluationResult struct {
 type ChatMessageContent struct {
 	MessageID   string                 `json:"message_id"`
 	Message     string                 `json:"message"`
-	Content     string                 `json:"content"`     // Alternative field name
-	Text        string                 `json:"text"`        // Alternative field name
+	Content     string                 `json:"content"` // Alternative field name
+	Text        string                 `json:"text"`    // Alternative field name
 	Author      ContentAuthor          `json:"author"`
 	Context     string                 `json:"context,omitempty"`
 	ChatContext string                 `json:"chat_context,omitempty"`
@@ -306,7 +306,7 @@ type EngagementMetrics struct {
 type SocialPostContent struct {
 	PostID     string                 `json:"post_id"`
 	Text       string                 `json:"text"`
-	Content    string                 `json:"content"`     // Alternative field name
+	Content    string                 `json:"content"` // Alternative field name
 	Author     ContentAuthor          `json:"author"`
 	Platform   string                 `json:"platform"`
 	Tags       []string               `json:"tags,omitempty"`

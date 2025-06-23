@@ -269,12 +269,12 @@ func (speh *SocialPostEvaluationHandler) Evaluate(ctx context.Context, scenario 
 		Confidence: confidence,
 		NewState:   newState,
 		Metadata: map[string]interface{}{
-			"handler":         "social_post",
-			"platform":        platform,
-			"engagement":      engagement,
-			"content_length":  len(content),
-			"tech_related":    isTechRelated,
-			"personality":     personality.Name,
+			"handler":        "social_post",
+			"platform":       platform,
+			"engagement":     engagement,
+			"content_length": len(content),
+			"tech_related":   isTechRelated,
+			"personality":    personality.Name,
 		},
 	}, nil
 }
@@ -283,8 +283,8 @@ func (speh *SocialPostEvaluationHandler) Evaluate(ctx context.Context, scenario 
 func contains(text, substr string) bool {
 	// Simple case-insensitive contains check
 	// In a real implementation, you'd want proper case folding
-	return len(text) >= len(substr) && 
-		   findSubstring(strings.ToLower(text), strings.ToLower(substr))
+	return len(text) >= len(substr) &&
+		findSubstring(strings.ToLower(text), strings.ToLower(substr))
 }
 
 // Simple substring search
@@ -295,7 +295,7 @@ func findSubstring(text, substr string) bool {
 	if len(text) < len(substr) {
 		return false
 	}
-	
+
 	for i := 0; i <= len(text)-len(substr); i++ {
 		if text[i:i+len(substr)] == substr {
 			return true

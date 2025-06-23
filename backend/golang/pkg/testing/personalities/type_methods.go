@@ -41,24 +41,24 @@ func (ep *ExtendedPersonality) ToReferencePersonality() *ReferencePersonality {
 			if ext.ProfileOverrides != nil {
 				result.Profile = mergeProfiles(result.Profile, *ext.ProfileOverrides)
 			}
-			
+
 			// Add extension memory facts
 			result.MemoryFacts = append(result.MemoryFacts, ext.AdditionalFacts...)
-			
+
 			// Add extension plans
 			result.Plans = append(result.Plans, ext.AdditionalPlans...)
-			
+
 			// Add expected behaviors
 			result.ExpectedBehaviors = append(result.ExpectedBehaviors, ext.ExpectedBehaviors...)
-			
+
 			// Collect for naming
 			names = append(names, ext.TestName)
 			descs = append(descs, ext.Description)
 		}
-		
-		// Update name and description
+
+		// Update name and description with underscore format instead of plus
 		if len(names) > 0 {
-			result.Name = fmt.Sprintf("%s+%s", result.Name, strings.Join(names, "+"))
+			result.Name = fmt.Sprintf("%s_%s", result.Name, strings.Join(names, "_"))
 		}
 		if len(descs) > 0 {
 			result.Description = fmt.Sprintf("%s (Extended: %s)", result.Description, strings.Join(descs, "; "))
@@ -203,7 +203,7 @@ func stringSlicesEqual(a, b []string) bool {
 func mergeStringSlices(base, additions []string) []string {
 	result := make([]string, len(base))
 	copy(result, base)
-	
+
 	for _, addition := range additions {
 		found := false
 		for _, existing := range result {
@@ -216,7 +216,7 @@ func mergeStringSlices(base, additions []string) []string {
 			result = append(result, addition)
 		}
 	}
-	
+
 	return result
 }
 
@@ -270,10 +270,40 @@ func (gts *GenericTestScenario) Evaluate(ctx context.Context, personality *Refer
 		result.Reason = fmt.Sprintf("Thread scenario evaluated for %s", personality.Name)
 	case ScenarioTypeChatMessage:
 		result.Reason = fmt.Sprintf("Chat message scenario evaluated for %s", personality.Name)
+		// Add chat-specific metadata
+		if chatContent, ok := gts.Content["message"]; ok {
+			result.Metadata["message"] = chatContent
+		}
+		if platform, ok := gts.Content["platform"]; ok {
+			result.Metadata["platform"] = platform
+		}
 	case ScenarioTypeEmail:
 		result.Reason = fmt.Sprintf("Email scenario evaluated for %s", personality.Name)
+		// Add email-specific metadata
+		if subject, ok := gts.Content["subject"]; ok {
+			result.Metadata["subject"] = subject
+		}
+		if priority, ok := gts.Content["priority"]; ok {
+			result.Metadata["priority"] = priority
+		}
+		if from, ok := gts.Content["from"]; ok {
+			result.Metadata["from"] = from
+		}
 	case ScenarioTypeSocialPost:
 		result.Reason = fmt.Sprintf("Social post scenario evaluated for %s", personality.Name)
+		// Add social media-specific metadata
+		if platform, ok := gts.Content["platform"]; ok {
+			result.Metadata["platform"] = platform
+		}
+		if engagement, ok := gts.Content["engagement"]; ok {
+			result.Metadata["engagement"] = engagement
+		}
+		if likes, ok := gts.Content["likes"]; ok {
+			result.Metadata["likes"] = likes
+		}
+		if shares, ok := gts.Content["shares"]; ok {
+			result.Metadata["shares"] = shares
+		}
 	default:
 		result.Reason = fmt.Sprintf("Generic scenario evaluated for %s", personality.Name)
 	}
