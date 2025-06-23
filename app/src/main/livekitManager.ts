@@ -27,7 +27,11 @@ export function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
     }
   }
 
-  livekitAgent = new LiveKitAgentBootstrap(agentProgress, agentSessionReady, agentStateChange)
+  livekitAgent = new LiveKitAgentBootstrap({
+    onProgress: agentProgress,
+    onSessionReady: agentSessionReady,
+    onStateChange: agentStateChange
+  })
 
   try {
     livekitAgent.setup()
