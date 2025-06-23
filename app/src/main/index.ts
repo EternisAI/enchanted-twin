@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+import 'dotenv/config'
+
 import { app, BrowserWindow, session } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import log from 'electron-log/main'

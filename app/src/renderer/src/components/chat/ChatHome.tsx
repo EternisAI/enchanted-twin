@@ -49,7 +49,6 @@ export function Home() {
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const debouncedQuery = useDebounce(query, 300)
   const [isReasonSelected, setIsReasonSelected] = useState(false)
-  const [isMuted] = useState(false)
 
   const [createChat] = useMutation(CreateChatDocument)
   const [sendMessage] = useMutation(SendMessageDocument)
@@ -175,14 +174,6 @@ export function Home() {
             filter: (match) => match.routeId === '/chat/$chatId'
           })
 
-          sendMessage({
-            variables: {
-              chatId: newChatId,
-              text: query,
-              reasoning: isReasonSelected,
-              voice: isVoiceMode || false
-            }
-          })
           setQuery('')
           isVoiceMode && startVoiceMode(newChatId)
         }
@@ -190,7 +181,7 @@ export function Home() {
         console.error('Failed to create chat:', error)
       }
     },
-    [query, navigate, createChat, sendMessage, router, isReasonSelected, startVoiceMode]
+    [query, navigate, createChat, router, startVoiceMode]
   )
 
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -349,7 +340,7 @@ export function Home() {
         className="relative w-full"
       >
         {isVoiceMode ? (
-          <VoiceModeInput isMuted={isMuted} isAgentSpeaking={false} onStop={stopVoiceMode} />
+          <VoiceModeInput onStop={stopVoiceMode} />
         ) : (
           <ChatInputBox
             isVoiceReady={isVoiceReady}
