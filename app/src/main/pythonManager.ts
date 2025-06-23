@@ -196,7 +196,9 @@ export class LiveKitAgentBootstrap {
   }
 
   private async ensurePython312() {
-    await this.run(this.UV_PATH, ['python', 'install', PYTHON_VERSION, '--quiet'], { label: 'py312' })
+    await this.run(this.UV_PATH, ['python', 'install', PYTHON_VERSION, '--quiet'], {
+      label: 'py312'
+    })
   }
 
   private async ensureAgentFiles() {
@@ -207,17 +209,30 @@ export class LiveKitAgentBootstrap {
     const requirementsFile = path.join(this.LIVEKIT_DIR, 'requirements.txt')
 
     // Copy agent file from embedded Python code
-    const sourcePath = path.join(__dirname, 'python', 'livekit-agent.py')
+    const sourcePaths = [
+      path.join(__dirname, 'python', 'livekit-agent.py'), // Built output path
+      path.join(__dirname, '..', '..', '..', 'src', 'main', 'python', 'livekit-agent.py'), // Source path
+      path.join(process.cwd(), 'app', 'src', 'main', 'python', 'livekit-agent.py') // Alternative source path
+    ]
 
-    try {
-      const agentCode = await fs.promises.readFile(sourcePath, 'utf8')
-      await fs.promises.writeFile(agentFile, agentCode)
-    } catch (error) {
-      log.error('[LiveKit] Failed to read agent source file, using fallback')
-      // Fallback to embedded code if file doesn't exist
-      const agentCode = await this.getFallbackAgentCode()
-      await fs.promises.writeFile(agentFile, agentCode)
+    let agentCode: string | null = null
+
+    for (const sourcePath of sourcePaths) {
+      try {
+        agentCode = await fs.promises.readFile(sourcePath, 'utf8')
+        log.info(`[LiveKit] Found agent source at: ${sourcePath}`)
+        break
+      } catch {
+        // Continue to next path
+      }
     }
+
+    if (!agentCode) {
+      log.error('[LiveKit] Failed to read agent source file from any location, using fallback')
+      agentCode = await this.getFallbackAgentCode()
+    }
+
+    await fs.promises.writeFile(agentFile, agentCode)
 
     await fs.promises.writeFile(requirementsFile, PYTHON_REQUIREMENTS)
     log.info('[LiveKit] Agent files created successfully')
