@@ -3,15 +3,16 @@
 # Simplified Pipeline: Raw → ConversationDocument (X_0) → Chunks (X_1) → Facts (X_2)
 #
 # Usage:
-#   make whatsapp   - Convert WhatsApp SQLite to ConversationDocument (X_0)
-#   make telegram   - Convert Telegram JSON to ConversationDocument (X_0)
-#   make chatgpt    - Convert ChatGPT JSON to ConversationDocument (X_0)
-#   make gmail      - Convert Gmail MBOX to ConversationDocument (X_0)
-#   make chunks     - Convert ConversationDocument (X_0) to chunks (X_1)  
-#   make facts      - Convert chunks (X_1) to facts (X_2)
-#   make all        - Run complete pipeline (Raw → X_2)
-#   make clean      - Remove all output files
-#   make build      - Build the pipeline tool
+#   make whatsapp      - Convert WhatsApp SQLite to ConversationDocument (X_0)
+#   make telegram      - Convert Telegram JSON to ConversationDocument (X_0)
+#   make chatgpt       - Convert ChatGPT JSON to ConversationDocument (X_0)
+#   make gmail         - Convert Gmail MBOX to ConversationDocument (X_0)
+#   make gmail-senders - Analyze Gmail senders to include/exclude them from the ConversationDocument (X_0)
+#   make chunks        - Convert ConversationDocument (X_0) to chunks (X_1)  
+#   make facts         - Convert chunks (X_1) to facts (X_2)
+#   make all           - Run complete pipeline (Raw → X_2)
+#   make clean         - Remove all output files
+#   make build         - Build the pipeline tool
 
 TOOL_NAME = memory-processor-test
 INPUT_DIR = pipeline_input
