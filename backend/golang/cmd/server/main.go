@@ -173,6 +173,12 @@ func main() {
 		}
 	}()
 
+	dbsqlc, err := db.New(store.DB().DB, logger)
+	if err != nil {
+		logger.Error("Error creating database", "error", err)
+		panic(errors.Wrap(err, "Error creating database"))
+	}
+
 	tokenFunc := func() string {
 		return "12345"
 	}
@@ -255,8 +261,19 @@ func main() {
 
 	whatsappClientChan := make(chan *whatsmeow.Client)
 	go func() {
-		client := whatsapp.BootstrapWhatsAppClient(mem, logger, nc, envs.DBPath, envs)
+		client := whatsapp.BootstrapWhatsAppClient(mem, dbsqlc, logger, nc, envs.DBPath, envs, aiCompletionsService)
 		whatsappClientChan <- client
+	}()
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		connectChan := whatsapp.GetConnectChannel()
+		select {
+		case connectChan <- struct{}{}:
+			logger.Info("Sent automatic WhatsApp connect signal on startup")
+		default:
+			logger.Debug("WhatsApp connect channel already has a signal")
+		}
 	}()
 
 	ttsSvc, err := bootstrapTTS(logger)
@@ -391,10 +408,10 @@ func main() {
 	}
 	logger.Info("User profile", "profile", userProfile)
 
-	// Create holon service with configuration
 	holonConfig := holon.DefaultManagerConfig()
 	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
 
+<<<<<<< HEAD
 	// Initialize thread processor with AI and memory services for LLM-based filtering
 	logger.Info("Initializing thread processor with LLM-based evaluation")
 	holonService.InitializeThreadProcessor(aiCompletionsService, envs.CompletionsModel, mem)
@@ -421,10 +438,11 @@ func main() {
 	}()
 
 	// Initialize HolonZero API fetcher service with the main logger
+=======
+>>>>>>> main
 	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
 	if err := holonManager.Start(); err != nil {
 		logger.Error("Failed to start HolonZero fetcher service", "error", err)
-		// Don't panic - the service can run without the fetcher
 	} else {
 		logger.Info("HolonZero API fetcher service started successfully")
 		defer func() {
@@ -437,19 +455,16 @@ func main() {
 	threadPreviewTool := holon.NewThreadPreviewTool(holonService)
 	if err := toolRegistry.Register(threadPreviewTool); err != nil {
 		logger.Error("Failed to register thread preview tool", "error", err)
-		// panic(errors.Wrap(err, "Failed to register thread preview tool"))
 	}
 
 	sendToHolonTool := holon.NewSendToHolonTool(holonService)
 	if err := toolRegistry.Register(sendToHolonTool); err != nil {
 		logger.Error("Failed to register send to holon tool", "error", err)
-		// panic(errors.Wrap(err, "Failed to register send to holon tool"))
 	}
 
 	sendMessageToHolonTool := holon.NewAddMessageToThreadTool(holonService)
 	if err := toolRegistry.Register(sendMessageToHolonTool); err != nil {
 		logger.Error("Failed to register send message to holon tool", "error", err)
-		// panic(errors.Wrap(err, "Failed to register send message to holon tool"))
 	}
 
 	telegramServiceInput := telegram.TelegramServiceInput{
@@ -466,12 +481,6 @@ func main() {
 		ToolsRegistry:    toolRegistry,
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
-
-	dbsqlc, err := db.New(store.DB().DB, logger)
-	if err != nil {
-		logger.Error("Error creating database", "error", err)
-		panic(errors.Wrap(err, "Error creating database"))
-	}
 
 	go telegram.SubscribePoller(telegramService, logger)
 	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
@@ -554,7 +563,7 @@ func bootstrapTemporalWorker(
 	input *bootstrapTemporalWorkerInput,
 ) (worker.Worker, error) {
 	w := worker.New(input.temporalClient, "default", worker.Options{
-		MaxConcurrentActivityExecutionSize: 1,
+		MaxConcurrentActivityExecutionSize: 3,
 	})
 
 	dataProcessingWorkflow := workflows.DataProcessingWorkflows{

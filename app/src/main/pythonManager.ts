@@ -222,16 +222,13 @@ logger = logging.getLogger(__name__)
 class MuteManager:
     def __init__(self):
         self.is_muted = False
-        self.lock = threading.Lock()
     
     def set_muted(self, muted):
-        with self.lock:
-            self.is_muted = muted
-            logger.info(f"Agent {'muted' if muted else 'unmuted'}")
+        self.is_muted = muted
+        logger.info(f"Agent {'muted' if muted else 'unmuted'}")
     
     def get_muted(self):
-        with self.lock:
-            return self.is_muted
+        return self.is_muted
 
 # Global mute manager instance
 mute_manager = MuteManager()
@@ -248,34 +245,60 @@ def report_state(state):
 def handle_command(command):
     """Handle commands from TypeScript"""
     try:
-        if command["type"] == "mute":
+        command_type = command.get("type")
+        if command_type == "mute":
             mute_manager.set_muted(True)
-        elif command["type"] == "unmute":
+        elif command_type == "unmute":
             mute_manager.set_muted(False)
+        else:
+            logger.warning(f"Unknown command type: {command_type}")
     except Exception as e:
         logger.error(f"Error handling command: {e}")
 
-def start_command_listener():
-    """Start listening for commands on stdin in a separate thread"""
-    def command_loop():
-        try:
-            while True:
-                line = sys.stdin.readline()
-                if not line:
-                    break
-                line = line.strip()
-                if line:
-                    try:
-                        command = json.loads(line)
-                        handle_command(command)
-                    except json.JSONDecodeError as e:
-                        logger.error(f"Invalid command JSON: {e}")
-        except Exception as e:
-            logger.error(f"Command listener error: {e}")
+async def start_command_listener():
+    """Start async command listener integrated with event loop"""
+    import asyncio
+    import sys
     
-    thread = threading.Thread(target=command_loop, daemon=True)
-    thread.start()
-    logger.info("Command listener started")
+    async def async_command_listener():
+        """Async command listener that doesn't block the main loop"""
+        try:
+            loop = asyncio.get_event_loop()
+            reader = asyncio.StreamReader()
+            protocol = asyncio.StreamReaderProtocol(reader)
+            
+            # Create async stdin reader
+            await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+            
+            logger.info("Async command listener started")
+            
+            while True:
+                try:
+                    # Read line with timeout to prevent blocking
+                    line = await asyncio.wait_for(reader.readline(), timeout=0.1)
+                    if not line:
+                        break
+                    
+                    line = line.decode().strip()
+                    if line:
+                        try:
+                            command = json.loads(line)
+                            handle_command(command)
+                        except json.JSONDecodeError as e:
+                            logger.error(f"Invalid command JSON: {e} - Line: {repr(line)}")
+                            
+                except asyncio.TimeoutError:
+                    # No command received, continue loop
+                    continue
+                except Exception as e:
+                    logger.error(f"Command listener error: {e}")
+                    await asyncio.sleep(0.1)
+                    
+        except Exception as e:
+            logger.error(f"Async command listener setup error: {e}")
+    
+    # Start the async task
+    asyncio.create_task(async_command_listener())
 
 
 # Patch termios for non-TTY environments before importing livekit
@@ -577,9 +600,16 @@ class MyAgentSession(AgentSession):
         if audio_input is None:
             return
 
+        frame_count = 0
         async for frame in audio_input:
             if mute_manager.get_muted():
+                # Yield control every 10 frames to prevent event loop blocking
+                frame_count += 1
+                if frame_count % 10 == 0:
+                    await asyncio.sleep(0)
                 continue  # Skip forwarding audio frames if muted
+            
+            frame_count = 0  # Reset when not muted
             if self._activity is not None:
                 self._activity.push_audio(frame)
 
@@ -590,7 +620,7 @@ async def entrypoint(ctx: JobContext):
     logger.info("Starting LiveKit agent entrypoint")
     
     # Start command listener for TypeScript communication
-    start_command_listener()
+    await start_command_listener()
     
     # Connect to the room
     await ctx.connect()
@@ -861,8 +891,6 @@ websockets>=12.0`
       this.onSessionReady?.(false)
       this.agentProc = null
     })
-
-    // this.muteUser()
 
     log.info('[LiveKit] Agent started successfully')
   }
