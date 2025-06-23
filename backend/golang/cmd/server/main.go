@@ -411,7 +411,6 @@ func main() {
 	holonConfig := holon.DefaultManagerConfig()
 	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
 
-<<<<<<< HEAD
 	// Initialize thread processor with AI and memory services for LLM-based filtering
 	logger.Info("Initializing thread processor with LLM-based evaluation")
 	holonService.InitializeThreadProcessor(aiCompletionsService, envs.CompletionsModel, mem)
@@ -438,8 +437,6 @@ func main() {
 	}()
 
 	// Initialize HolonZero API fetcher service with the main logger
-=======
->>>>>>> main
 	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
 	if err := holonManager.Start(); err != nil {
 		logger.Error("Failed to start HolonZero fetcher service", "error", err)
