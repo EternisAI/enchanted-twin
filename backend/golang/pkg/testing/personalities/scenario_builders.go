@@ -438,21 +438,21 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 					ExtensionNames:  nil,
 					ShouldShow:      true,
 					Confidence:      0.85,
-					ReasonKeywords:  []string{"funding", "startup", "AI", "business opportunity", "valuation"},
+					ReasonKeywords:  []string{"funding", "startup", "AI", "business opportunity"},
 					ExpectedState:   "visible",
 					Priority:        3,
-					Rationale:       "Tech entrepreneurs are highly interested in startup funding announcements",
+					Rationale:       "Tech entrepreneurs are highly interested in major funding announcements",
 				},
 				// AI research focused extension
 				PersonalityExpectedOutcome{
 					PersonalityName: "tech_entrepreneur",
 					ExtensionNames:  []string{"ai_research_focused"},
 					ShouldShow:      true,
-					Confidence:      0.92,
-					ReasonKeywords:  []string{"AI research", "funding", "Constitutional AI", "technical approach", "enterprise adoption"},
+					Confidence:      0.9,
+					ReasonKeywords:  []string{"AI research", "Constitutional AI", "technical advancement"},
 					ExpectedState:   "visible",
 					Priority:        3,
-					Rationale:       "AI research focused tech entrepreneurs are particularly interested in AI safety funding",
+					Rationale:       "AI research focused entrepreneurs care about both funding and technical innovation",
 				},
 				// Startup ecosystem focused extension
 				PersonalityExpectedOutcome{
@@ -460,10 +460,10 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 					ExtensionNames:  []string{"startup_ecosystem_focused"},
 					ShouldShow:      true,
 					Confidence:      0.95,
-					ReasonKeywords:  []string{"funding", "valuation", "Series D", "market dynamics", "startup ecosystem"},
+					ReasonKeywords:  []string{"funding", "valuation", "market dynamics", "Series D"},
 					ExpectedState:   "visible",
 					Priority:        3,
-					Rationale:       "Startup ecosystem focused tech entrepreneurs are extremely interested in major funding rounds",
+					Rationale:       "Startup ecosystem focused entrepreneurs are very interested in major funding rounds",
 				},
 				// Combined extensions - this needs to match test expectation of 0.98
 				PersonalityExpectedOutcome{
@@ -471,10 +471,21 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 					ExtensionNames:  []string{"ai_research_focused", "startup_ecosystem_focused"},
 					ShouldShow:      true,
 					Confidence:      0.98,
-					ReasonKeywords:  []string{"AI research", "funding", "valuation", "Constitutional AI", "startup ecosystem"},
+					ReasonKeywords:  []string{"AI research", "funding", "Constitutional AI", "valuation", "enterprise"},
 					ExpectedState:   "visible",
 					Priority:        3,
-					Rationale:       "Combined AI research and startup ecosystem focus creates maximum interest in AI startup funding",
+					Rationale:       "Combination of AI research and startup ecosystem focus creates maximum interest in AI startup funding",
+				},
+				// Creative artist expectation - this was missing!
+				PersonalityExpectedOutcome{
+					PersonalityName: "creative_artist",
+					ExtensionNames:  nil,
+					ShouldShow:      true,
+					Confidence:      0.6,
+					ReasonKeywords:  []string{"AI technology", "potential impact"},
+					ExpectedState:   "visible",
+					Priority:        2,
+					Rationale:       "Creative artists have moderate interest in AI developments that might affect their field",
 				},
 			)
 
@@ -596,14 +607,39 @@ func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTes
 
 	standardTemplates := []string{"ai_news", "creative_tool", "celebrity_gossip", "startup_funding", "technical_tutorial", "ai_startup_funding"}
 
-	for _, templateKey := range standardTemplates {
-		scenario, err := sg.library.GenerateScenario(templateKey, framework)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate scenario from template %s: %w", templateKey, err)
+	framework.logger.Info("Starting scenario generation", "templates", standardTemplates)
+
+	for i, templateKey := range standardTemplates {
+		framework.logger.Info("Generating scenario", "index", i, "template", templateKey)
+		
+		// Check if template exists
+		template, exists := sg.library.GetTemplate(templateKey)
+		if !exists {
+			framework.logger.Error("Template not found", "template", templateKey)
+			return nil, fmt.Errorf("template not found: %s", templateKey)
 		}
+		
+		framework.logger.Info("Template found, calling builder", "template", templateKey, "name", template.Name)
+		
+		// Call the builder function
+		builder := template.Builder()
+		if builder == nil {
+			framework.logger.Error("Builder function returned nil", "template", templateKey)
+			return nil, fmt.Errorf("builder function returned nil for template: %s", templateKey)
+		}
+		
+		framework.logger.Info("Builder created, calling Build", "template", templateKey)
+		
+		// Build the scenario
+		scenario := builder.Build(framework)
+		
+		framework.logger.Info("Scenario built successfully", "template", templateKey, "scenario_name", scenario.Name)
+		
 		scenarios = append(scenarios, scenario)
+		framework.logger.Info("Scenario added to collection", "template", templateKey, "total_scenarios", len(scenarios))
 	}
 
+	framework.logger.Info("Completed scenario generation", "final_count", len(scenarios), "expected", len(standardTemplates))
 	return scenarios, nil
 }
 

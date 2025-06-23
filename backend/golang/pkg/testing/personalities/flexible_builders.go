@@ -149,22 +149,22 @@ func (cmsb *ChatMessageScenarioBuilder) ExpectPersonality(personalityName string
 func (cmsb *ChatMessageScenarioBuilder) Build(ptf *PersonalityTestFramework) *GenericTestScenario {
 	// Convert content to map[string]interface{}
 	contentMap := map[string]interface{}{
-		"message_id":    cmsb.content.MessageID,
-		"content":       cmsb.content.Content,
-		"text":          cmsb.content.Text,
-		"chat_context":  cmsb.content.ChatContext,
-		"timestamp":     cmsb.content.Timestamp,
-		"created_at":    cmsb.content.CreatedAt,
-		"metadata":      cmsb.content.Metadata,
+		"message_id":   cmsb.content.MessageID,
+		"content":      cmsb.content.Content,
+		"text":         cmsb.content.Text,
+		"chat_context": cmsb.content.ChatContext,
+		"timestamp":    cmsb.content.Timestamp,
+		"created_at":   cmsb.content.CreatedAt,
+		"metadata":     cmsb.content.Metadata,
 	}
-	
+
 	cmsb.builder.WithContent(contentMap)
 	cmsb.builder.WithAuthor(cmsb.content.Author.Identity, cmsb.content.Author.Name, cmsb.content.Author.Alias, nil)
-	
+
 	// Set evaluation handler
 	handler := NewChatMessageEvaluationHandler(ptf)
 	cmsb.builder.WithEvaluationHandler(handler)
-	
+
 	return cmsb.builder.Build()
 }
 
@@ -255,15 +255,15 @@ func (esb *EmailScenarioBuilder) Build(ptf *PersonalityTestFramework) *GenericTe
 		"created_at": esb.content.CreatedAt,
 		"metadata":   esb.content.Metadata,
 	}
-	
+
 	esb.builder.WithContent(contentMap)
 	esb.builder.WithAuthor(esb.content.From.Identity, esb.content.From.Name, esb.content.From.Alias, esb.content.From.Email)
 	esb.builder.WithContext("recipient", esb.content.To)
-	
+
 	// Set evaluation handler
 	handler := NewEmailEvaluationHandler(ptf)
 	esb.builder.WithEvaluationHandler(handler)
-	
+
 	return esb.builder.Build()
 }
 
@@ -357,27 +357,27 @@ func (spsb *SocialPostScenarioBuilder) Build(ptf *PersonalityTestFramework) *Gen
 		"comments": spsb.content.Engagement.Comments,
 		"shares":   spsb.content.Engagement.Shares,
 	}
-	
+
 	// Convert content to map[string]interface{}
 	contentMap := map[string]interface{}{
-		"post_id":     spsb.content.PostID,
-		"content":     spsb.content.Content,
-		"platform":    spsb.content.Platform,
-		"tags":        spsb.content.Tags,
-		"image_urls":  spsb.content.ImageURLs,
-		"engagement":  engagementMap, // Use the converted map instead of struct
-		"timestamp":   spsb.content.Timestamp,
-		"created_at":  spsb.content.CreatedAt,
-		"metadata":    spsb.content.Metadata,
+		"post_id":    spsb.content.PostID,
+		"content":    spsb.content.Content,
+		"platform":   spsb.content.Platform,
+		"tags":       spsb.content.Tags,
+		"image_urls": spsb.content.ImageURLs,
+		"engagement": engagementMap, // Use the converted map instead of struct
+		"timestamp":  spsb.content.Timestamp,
+		"created_at": spsb.content.CreatedAt,
+		"metadata":   spsb.content.Metadata,
 	}
-	
+
 	spsb.builder.WithContent(contentMap)
 	spsb.builder.WithAuthor(spsb.content.Author.Identity, spsb.content.Author.Name, spsb.content.Author.Alias, nil)
-	
+
 	// Set evaluation handler
 	handler := NewSocialPostEvaluationHandler(ptf)
 	spsb.builder.WithEvaluationHandler(handler)
-	
+
 	return spsb.builder.Build()
 }
 
