@@ -10,10 +10,13 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
@@ -47,6 +50,10 @@ func main() {
 		runChunks()
 	case "facts":
 		runFacts()
+	case "store":
+		runStore()
+	case "consolidation":
+		runConsolidation()
 	default:
 		printUsage()
 	}
@@ -346,6 +353,271 @@ func runFacts() {
 	logger.Info("Fact extraction done", "documents", len(documents), "facts", len(allFacts))
 }
 
+func runStore() {
+	logger.Info("Storing facts in Weaviate database")
+
+	// Find X_2 facts file
+	inputFile := findInputFile("pipeline_output/X_2_*.json")
+	if inputFile == "" {
+		logger.Error("No X_2 facts file found")
+		os.Exit(1)
+	}
+
+	logger.Info("Loading facts", "file", inputFile)
+
+	// Load facts from JSON
+	var factsData struct {
+		Facts []memory.MemoryFact `json:"facts"`
+	}
+	if err := loadJSON(inputFile, &factsData); err != nil {
+		logger.Error("Load failed", "error", err)
+		os.Exit(1)
+	}
+
+	if len(factsData.Facts) == 0 {
+		logger.Warn("No facts found to store")
+		return
+	}
+
+	logger.Info("Found facts to store", "count", len(factsData.Facts))
+
+	// Bootstrap Weaviate - similar to server setup
+	ctx := context.Background()
+	weaviatePort := getEnvOrDefault("WEAVIATE_PORT", "51414")
+	weaviatePath := filepath.Join(".", "weaviate-test-memory")
+
+	logger.Info("Starting Weaviate bootstrap", "port", weaviatePort, "path", weaviatePath)
+
+	if _, err := bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, weaviatePath); err != nil {
+		logger.Error("Failed to bootstrap Weaviate server", "error", err)
+		os.Exit(1)
+	}
+
+	// Create Weaviate client
+	weaviateClient, err := weaviate.NewClient(weaviate.Config{
+		Host:   fmt.Sprintf("localhost:%s", weaviatePort),
+		Scheme: "http",
+	})
+	if err != nil {
+		logger.Error("Failed to create Weaviate client", "error", err)
+		os.Exit(1)
+	}
+
+	// Create AI services for embeddings
+	aiEmbeddingsService := ai.NewOpenAIService(
+		logger,
+		getEnvOrDefault("EMBEDDINGS_API_KEY", os.Getenv("COMPLETIONS_API_KEY")),
+		getEnvOrDefault("EMBEDDINGS_API_URL", "https://api.openai.com/v1"),
+	)
+
+	// Create AI completions service
+	aiCompletionsService := ai.NewOpenAIService(
+		logger,
+		os.Getenv("COMPLETIONS_API_KEY"),
+		getEnvOrDefault("COMPLETIONS_API_URL", "https://openrouter.ai/api/v1"),
+	)
+
+	// Initialize Weaviate schema
+	embeddingsModel := getEnvOrDefault("EMBEDDINGS_MODEL", "text-embedding-3-small")
+	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService, embeddingsModel); err != nil {
+		logger.Error("Failed to initialize Weaviate schema", "error", err)
+		os.Exit(1)
+	}
+
+	// Create storage and memory system
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, embeddingsModel)
+	if err != nil {
+		logger.Error("Failed to create embedding wrapper", "error", err)
+		os.Exit(1)
+	}
+
+	storageInterface, err := storage.New(storage.NewStorageInput{
+		Client:            weaviateClient,
+		Logger:            logger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
+	if err != nil {
+		logger.Error("Failed to create storage interface", "error", err)
+		os.Exit(1)
+	}
+
+	memoryStorage, err := evolvingmemory.New(evolvingmemory.Dependencies{
+		Logger:             logger,
+		Storage:            storageInterface,
+		CompletionsService: aiCompletionsService,
+		CompletionsModel:   getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
+		EmbeddingsWrapper:  embeddingsWrapper,
+	})
+	if err != nil {
+		logger.Error("Failed to create memory storage", "error", err)
+		os.Exit(1)
+	}
+
+	// Convert facts to documents for storage
+	var documents []memory.Document
+	for i, fact := range factsData.Facts {
+		// Create a simple text document from each fact
+		textDoc := &memory.TextDocument{
+			FieldID:      fmt.Sprintf("fact-%d", i),
+			FieldContent: fact.GenerateContent(),
+			FieldSource:  "test-harness",
+			FieldTags:    []string{"test-harness"},
+			FieldMetadata: map[string]string{
+				"fact_id":     fact.ID,
+				"category":    fact.Category,
+				"subject":     fact.Subject,
+				"importance":  fmt.Sprintf("%d", fact.Importance),
+				"sensitivity": fact.Sensitivity,
+			},
+		}
+		documents = append(documents, textDoc)
+	}
+
+	// Store the facts
+	logger.Info("Storing facts in Weaviate", "count", len(documents))
+
+	progressCallback := func(processed, total int) {
+		logger.Info("Storage progress", "processed", processed, "total", total)
+	}
+
+	if err := memoryStorage.Store(ctx, documents, progressCallback); err != nil {
+		logger.Error("Failed to store facts", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("Facts stored successfully", "count", len(factsData.Facts))
+
+	// Create a marker file to indicate storage is complete
+	statusFile := "pipeline_output/X_3_storage_complete.json"
+	status := map[string]interface{}{
+		"stored_at":     time.Now().Format(time.RFC3339),
+		"facts_count":   len(factsData.Facts),
+		"weaviate_port": weaviatePort,
+		"weaviate_path": weaviatePath,
+		"step":          "facts_to_storage",
+	}
+	if err := saveJSON(status, statusFile); err != nil {
+		logger.Error("Failed to save status", "error", err)
+	}
+
+	logger.Info("Storage complete marker created", "file", statusFile)
+}
+
+func runConsolidation() {
+	logger.Info("Running memory consolidation")
+
+	// Check for required API key
+	if os.Getenv("COMPLETIONS_API_KEY") == "" {
+		logger.Error("COMPLETIONS_API_KEY required for consolidation")
+		os.Exit(1)
+	}
+
+	// Check if storage is complete
+	if findInputFile("pipeline_output/X_3_storage_complete.json") == "" {
+		logger.Error("Storage not complete. Run 'make store' first.")
+		os.Exit(1)
+	}
+
+	// Load storage status to get Weaviate connection info
+	var storageStatus struct {
+		WeaviatePort string `json:"weaviate_port"`
+		WeaviatePath string `json:"weaviate_path"`
+		FactsCount   int    `json:"facts_count"`
+	}
+	if err := loadJSON("pipeline_output/X_3_storage_complete.json", &storageStatus); err != nil {
+		logger.Error("Failed to load storage status", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("Connecting to existing Weaviate instance",
+		"port", storageStatus.WeaviatePort,
+		"facts_stored", storageStatus.FactsCount)
+
+	// Connect to existing Weaviate
+	ctx := context.Background()
+	weaviateClient, err := weaviate.NewClient(weaviate.Config{
+		Host:   fmt.Sprintf("localhost:%s", storageStatus.WeaviatePort),
+		Scheme: "http",
+	})
+	if err != nil {
+		logger.Error("Failed to create Weaviate client", "error", err)
+		os.Exit(1)
+	}
+
+	// Create AI services
+	aiEmbeddingsService := ai.NewOpenAIService(
+		logger,
+		getEnvOrDefault("EMBEDDINGS_API_KEY", os.Getenv("COMPLETIONS_API_KEY")),
+		getEnvOrDefault("EMBEDDINGS_API_URL", "https://api.openai.com/v1"),
+	)
+
+	aiCompletionsService := ai.NewOpenAIService(
+		logger,
+		os.Getenv("COMPLETIONS_API_KEY"),
+		getEnvOrDefault("COMPLETIONS_API_URL", "https://openrouter.ai/api/v1"),
+	)
+
+	// Create storage interface
+	embeddingsModel := getEnvOrDefault("EMBEDDINGS_MODEL", "text-embedding-3-small")
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, embeddingsModel)
+	if err != nil {
+		logger.Error("Failed to create embedding wrapper", "error", err)
+		os.Exit(1)
+	}
+
+	storageInterface, err := storage.New(storage.NewStorageInput{
+		Client:            weaviateClient,
+		Logger:            logger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
+	if err != nil {
+		logger.Error("Failed to create storage interface", "error", err)
+		os.Exit(1)
+	}
+
+	// Create memory storage
+	memoryStorage, err := evolvingmemory.New(evolvingmemory.Dependencies{
+		Logger:             logger,
+		Storage:            storageInterface,
+		CompletionsService: aiCompletionsService,
+		CompletionsModel:   getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
+		EmbeddingsWrapper:  embeddingsWrapper,
+	})
+	if err != nil {
+		logger.Error("Failed to create memory storage", "error", err)
+		os.Exit(1)
+	}
+
+	// Run consolidation - for now, let's consolidate all facts with "test" tag
+	testTag := "test-harness"
+	logger.Info("Running consolidation", "tag", testTag)
+
+	consolidationDeps := evolvingmemory.ConsolidationDependencies{
+		Logger:             logger,
+		Storage:            memoryStorage,
+		CompletionsService: aiCompletionsService,
+		CompletionsModel:   getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
+	}
+
+	report, err := evolvingmemory.ConsolidateMemoriesByTag(ctx, testTag, consolidationDeps)
+	if err != nil {
+		logger.Error("Consolidation failed", "error", err)
+		os.Exit(1)
+	}
+
+	// Export consolidation report
+	outputFile := "pipeline_output/X_4_consolidation_report.json"
+	if err := report.ExportJSON(outputFile); err != nil {
+		logger.Error("Failed to export consolidation report", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("Consolidation completed",
+		"source_facts", report.SourceFactCount,
+		"consolidated_facts", len(report.ConsolidatedFacts),
+		"output", outputFile)
+}
+
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -364,6 +636,8 @@ func printUsage() {
 	fmt.Println("  memory-processor-test gmail --senders  # Analyze senders only")
 	fmt.Println("  memory-processor-test chunks")
 	fmt.Println("  memory-processor-test facts")
+	fmt.Println("  memory-processor-test store")
+	fmt.Println("  memory-processor-test consolidation")
 	fmt.Println()
 	fmt.Println("Or use make commands:")
 	fmt.Println("  make whatsapp # Convert WhatsApp SQLite")
@@ -373,4 +647,6 @@ func printUsage() {
 	fmt.Println("  make gmail --senders # Analyze Gmail senders, create senders.json")
 	fmt.Println("  make chunks   # X_0 → X_1")
 	fmt.Println("  make facts    # X_1 → X_2")
+	fmt.Println("  make store    # X_2 → Weaviate")
+	fmt.Println("  make consolidation # Weaviate → X_4")
 }
