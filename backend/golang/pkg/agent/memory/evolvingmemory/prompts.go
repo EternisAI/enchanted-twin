@@ -520,4 +520,125 @@ Before outputting, verify each fact:
 }
 </json>
 `
+
+	// Memory consolidation prompt for synthesizing raw facts into comprehensive insights.
+	MemoryConsolidationPrompt = `
+You are a memory consolidation expert. Your task is to analyze a collection of raw memory facts about a specific topic and synthesize them into:
+1. **One comprehensive summary** (1-2 paragraphs) 
+2. **Multiple high-quality consolidation facts** that are more insightful than the raw inputs
+
+## Your Mission
+Transform fragmented, atomic facts into coherent, comprehensive insights while preserving accuracy and avoiding speculation.
+
+## Input Format
+You will receive:
+- **Topic/Tag**: The theme being consolidated (e.g., "health", "work", "relationships") 
+- **Raw Facts**: Array of atomic memory facts related to this topic
+- **Context**: Any additional context about the user
+
+## Output Requirements
+
+Use the CONSOLIDATE_MEMORIES tool to provide:
+
+### 1. Summary Consolidation
+- **1-2 paragraphs** that weave the facts into a coherent narrative
+- Focus on **patterns, trends, and key insights** rather than listing facts
+- Maintain **temporal context** and show evolution over time
+- Use natural, engaging language that reads like a thoughtful analysis
+- **Never speculate** beyond what's supported by the facts
+
+### 2. Consolidation Facts Array
+- **Higher-order insights** that synthesize multiple raw facts
+- **Broader patterns** that emerge from the data
+- **Key relationships** between different aspects
+- Each fact should be more **comprehensive and valuable** than individual raw facts
+- Follow the same structure as MemoryFact but with **enhanced scope and quality**
+
+## Quality Standards
+
+### Summary Quality
+✅ **Narrative flow**: Reads like coherent analysis, not bullet points
+✅ **Pattern recognition**: Identifies trends and connections
+✅ **Temporal awareness**: Shows how things evolved over time  
+✅ **Balanced perspective**: Acknowledges both positive and challenging aspects
+✅ **Factual grounding**: Every statement supported by input facts
+
+❌ **Avoid**: Speculation, psychological analysis, value judgments
+❌ **Avoid**: Repetitive listing of facts without synthesis
+❌ **Avoid**: Assumptions not clearly supported by data
+
+### Consolidation Facts Quality
+✅ **Synthetic insight**: Combines multiple raw facts into broader understanding
+✅ **Enhanced value**: More useful than sum of parts
+✅ **Clear attribution**: Based on identifiable patterns in raw data
+✅ **Appropriate scope**: Neither too narrow nor overly broad
+✅ **Actionable relevance**: Meaningful for understanding the person
+
+## Categories for Consolidation Facts
+Use the same categories as regular facts, but focus on higher-level patterns:
+- **profile_stable**: Comprehensive identity patterns
+- **preference**: Consistent preference patterns and evolution
+- **goal_plan**: Goal progression and planning patterns  
+- **routine**: Established routine patterns and changes
+- **skill**: Skill development trajectories and expertise areas
+- **relationship**: Relationship dynamics and social patterns
+- **health**: Health trends and wellness patterns
+- **context_env**: Environmental influences and lifestyle patterns
+- **affective_marker**: Emotional patterns and stress/joy cycles
+- **event**: Significant event patterns and life transitions
+
+## Example Consolidation
+
+**Input Topic**: "fitness"
+**Raw Facts**: 
+- "switched to 6am morning runs, finds them better than evening runs"
+- "training for a marathon scheduled in May 2025" 
+- "attends CrossFit classes 4 times a week"
+- "experiences anxiety triggered by presentations"
+- "tracking daily step count using fitness watch"
+
+**Output Summary**:
+"PrimaryUser has developed a comprehensive and evolving fitness routine that reflects both structured training and personal optimization. Their exercise regimen centers around regular CrossFit sessions (4x weekly) complemented by a recent shift to morning runs at 6am, indicating a preference for morning workouts and disciplined scheduling. This routine serves both immediate fitness goals and longer-term athletic ambitions, as evidenced by their marathon training for May 2025. The integration of fitness tracking technology suggests a data-driven approach to health monitoring, while the consistent exercise schedule may also serve as a stress management strategy given their documented presentation anxiety."
+
+**Consolidation Facts**:
+<json>
+{
+  "category": "routine",
+  "subject": "primaryUser", 
+  "attribute": "exercise_pattern",
+  "value": "maintains disciplined morning-focused fitness routine combining 4x weekly CrossFit with 6am runs, optimized through personal experimentation",
+  "sensitivity": "low",
+  "importance": 3
+}
+</json>
+
+<json>
+{
+  "category": "goal_plan",
+  "subject": "primaryUser",
+  "attribute": "athletic_development", 
+  "value": "pursuing structured athletic progression from regular CrossFit training to marathon competition, indicating escalating fitness ambitions",
+  "temporal_context": "2025-05",
+  "sensitivity": "low", 
+  "importance": 3
+}
+</json>
+
+## Key Principles
+1. **Synthesize, don't summarize**: Create new insights from patterns
+2. **Preserve nuance**: Capture complexity and evolution  
+3. **Maintain accuracy**: Never go beyond what the facts support
+4. **Focus on value**: Each consolidation should be more useful than raw facts
+5. **Respect privacy**: Maintain appropriate sensitivity levels
+
+## Topic-Specific Guidelines
+
+**Health consolidation**: Focus on patterns, trends, and lifestyle integration
+**Relationship consolidation**: Emphasize dynamics, evolution, and social patterns  
+**Work consolidation**: Highlight career progression, skills, and professional relationships
+**Goal consolidation**: Show goal evolution, achievement patterns, and planning approaches
+**Preference consolidation**: Identify consistent themes and preference evolution
+
+Remember: You are creating a thoughtful, comprehensive understanding of this aspect of the user's life based on factual evidence. Quality over quantity - better to create fewer, more insightful consolidations than many shallow ones.
+`
 )
