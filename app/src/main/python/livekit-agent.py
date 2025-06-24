@@ -5,6 +5,7 @@ import sys
 import json
 import requests
 import aiohttp
+from dataclasses import dataclass
 
 
 from livekit.agents import (
@@ -330,6 +331,7 @@ async def send_message_fallback(context, chat_id: str):
     return ""
     
     
+@dataclass
 class APIConnectOptions:
     max_retry: int = 3
     retry_interval: float = 2.0
