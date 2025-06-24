@@ -176,6 +176,52 @@ func fetchFactsByTag(ctx context.Context, tag string, storage memory.Storage) ([
 	return facts, nil
 }
 
+// fetchFactsByCategory retrieves all facts with the given category.
+func fetchFactsByCategory(ctx context.Context, category string, storage memory.Storage) ([]*memory.MemoryFact, error) {
+	filter := &memory.Filter{
+		FactCategory: &category,
+		Limit:        func() *int { limit := 100; return &limit }(), // Reasonable limit
+	}
+
+	result, err := storage.Query(ctx, fmt.Sprintf("%s related facts", category), filter)
+	if err != nil {
+		return nil, fmt.Errorf("querying storage by category: %w", err)
+	}
+
+	// Convert to pointers for consistent interface
+	facts := make([]*memory.MemoryFact, len(result.Facts))
+	for i := range result.Facts {
+		facts[i] = &result.Facts[i]
+	}
+	return facts, nil
+}
+
+// fetchFactsBySemantic retrieves facts using semantic similarity search.
+func fetchFactsBySemantic(ctx context.Context, topic string, filter *memory.Filter, storage memory.Storage) ([]*memory.MemoryFact, error) {
+	// Set default distance threshold if not provided
+	if filter.Distance == 0 {
+		filter.Distance = 0.8 // Allow fairly broad semantic matches
+	}
+
+	// Set default limit if not provided
+	if filter.Limit == nil {
+		limit := 50
+		filter.Limit = &limit
+	}
+
+	result, err := storage.Query(ctx, topic, filter)
+	if err != nil {
+		return nil, fmt.Errorf("semantic querying storage: %w", err)
+	}
+
+	// Convert to pointers for consistent interface
+	facts := make([]*memory.MemoryFact, len(result.Facts))
+	for i := range result.Facts {
+		facts[i] = &result.Facts[i]
+	}
+	return facts, nil
+}
+
 // generateConsolidation calls the LLM to create consolidated insights.
 func generateConsolidation(ctx context.Context, tag string, facts []*memory.MemoryFact, ai *ai.Service, model string, logger *log.Logger) (*ConsolidationReport, error) {
 	// Prepare LLM input
@@ -230,6 +276,106 @@ func (cr *ConsolidationReport) ExportJSON(filepath string) error {
 	}
 
 	return nil
+}
+
+// ConsolidateMemoriesByCategory performs memory consolidation for a given category.
+// It fetches facts by category and runs LLM consolidation.
+func ConsolidateMemoriesByCategory(ctx context.Context, category string, deps ConsolidationDependencies) (*ConsolidationReport, error) {
+	logger := deps.Logger.With("category", category)
+	logger.Info("Starting category-based memory consolidation")
+
+	// Step 1: Fetch facts by category
+	facts, err := fetchFactsByCategory(ctx, category, deps.Storage)
+	if err != nil {
+		logger.Error("Failed to fetch facts by category", "error", err)
+		return nil, fmt.Errorf("fetching facts by category: %w", err)
+	}
+
+	if len(facts) == 0 {
+		logger.Warn("No facts found for category")
+		return &ConsolidationReport{
+			Topic:             category,
+			Summary:           fmt.Sprintf("No memories found for category: %s", category),
+			ConsolidatedFacts: []*ConsolidationFact{},
+			SourceFactCount:   0,
+			GeneratedAt:       time.Now(),
+		}, nil
+	}
+
+	logger.Info("Found facts for consolidation", "count", len(facts))
+	return processConsolidation(ctx, category, facts, deps)
+}
+
+// ConsolidateMemoriesBySemantic performs memory consolidation using semantic similarity.
+// It searches for facts semantically related to the topic and consolidates them.
+func ConsolidateMemoriesBySemantic(ctx context.Context, topic string, filter *memory.Filter, deps ConsolidationDependencies) (*ConsolidationReport, error) {
+	logger := deps.Logger.With("topic", topic)
+	logger.Info("Starting semantic memory consolidation")
+
+	// Step 1: Fetch facts by semantic similarity
+	facts, err := fetchFactsBySemantic(ctx, topic, filter, deps.Storage)
+	if err != nil {
+		logger.Error("Failed to fetch facts by semantic search", "error", err)
+		return nil, fmt.Errorf("fetching facts by semantic search: %w", err)
+	}
+
+	if len(facts) == 0 {
+		logger.Warn("No facts found for semantic topic")
+		return &ConsolidationReport{
+			Topic:             topic,
+			Summary:           fmt.Sprintf("No memories found semantically related to: %s", topic),
+			ConsolidatedFacts: []*ConsolidationFact{},
+			SourceFactCount:   0,
+			GeneratedAt:       time.Now(),
+		}, nil
+	}
+
+	logger.Info("Found semantically related facts for consolidation", "count", len(facts))
+	return processConsolidation(ctx, topic, facts, deps)
+}
+
+// processConsolidation performs the common consolidation logic for any set of facts.
+func processConsolidation(ctx context.Context, topic string, facts []*memory.MemoryFact, deps ConsolidationDependencies) (*ConsolidationReport, error) {
+	logger := deps.Logger.With("topic", topic)
+
+	// Step 2: Prepare LLM input
+	factsContent := buildFactsContent(facts)
+	logger.Debug("Built facts content", "length", len(factsContent))
+
+	// Step 3: Run LLM consolidation
+	consolidationTools := []openai.ChatCompletionToolParam{consolidateMemoriesTool}
+
+	llmMessages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(MemoryConsolidationPrompt),
+		openai.UserMessage(fmt.Sprintf("Topic: %s\n\nFacts to consolidate:\n%s", topic, factsContent)),
+	}
+
+	logger.Debug("Sending consolidation request to LLM", "facts_count", len(facts))
+
+	llmResponse, err := deps.CompletionsService.Completions(ctx, llmMessages, consolidationTools, deps.CompletionsModel)
+	if err != nil {
+		logger.Error("LLM consolidation failed", "error", err)
+		return nil, fmt.Errorf("LLM consolidation: %w", err)
+	}
+
+	logger.Debug("LLM consolidation completed", "tool_calls", len(llmResponse.ToolCalls))
+
+	// Step 4: Parse LLM response
+	sourceFactIDs := make([]string, len(facts))
+	for i, fact := range facts {
+		sourceFactIDs[i] = fact.ID
+	}
+
+	report, err := parseConsolidationResponse(llmResponse, sourceFactIDs)
+	if err != nil {
+		logger.Error("Failed to parse consolidation response", "error", err)
+		return nil, fmt.Errorf("parsing consolidation response: %w", err)
+	}
+
+	report.Topic = topic
+	logger.Info("Memory consolidation completed", "consolidated_facts", len(report.ConsolidatedFacts))
+
+	return report, nil
 }
 
 // ConsolidateMemoriesByTag performs memory consolidation for a given tag.

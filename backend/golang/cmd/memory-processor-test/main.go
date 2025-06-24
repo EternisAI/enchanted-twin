@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/go-openapi/strfmt"
 	"github.com/joho/godotenv"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
@@ -354,7 +356,7 @@ func runFacts() {
 }
 
 func runStore() {
-	logger.Info("Storing facts in Weaviate database")
+	logger.Info("Storing facts directly in Weaviate (NO PIPELINE RE-EXTRACTION)")
 
 	// Find X_2 facts file
 	inputFile := findInputFile("pipeline_output/X_2_*.json")
@@ -403,18 +405,11 @@ func runStore() {
 		os.Exit(1)
 	}
 
-	// Create AI services for embeddings
+	// Create AI services for embeddings only (no completions needed for direct storage)
 	aiEmbeddingsService := ai.NewOpenAIService(
 		logger,
 		getEnvOrDefault("EMBEDDINGS_API_KEY", os.Getenv("COMPLETIONS_API_KEY")),
 		getEnvOrDefault("EMBEDDINGS_API_URL", "https://api.openai.com/v1"),
-	)
-
-	// Create AI completions service
-	aiCompletionsService := ai.NewOpenAIService(
-		logger,
-		os.Getenv("COMPLETIONS_API_KEY"),
-		getEnvOrDefault("COMPLETIONS_API_URL", "https://openrouter.ai/api/v1"),
 	)
 
 	// Initialize Weaviate schema
@@ -424,13 +419,14 @@ func runStore() {
 		os.Exit(1)
 	}
 
-	// Create storage and memory system
+	// Create embedding wrapper
 	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, embeddingsModel)
 	if err != nil {
 		logger.Error("Failed to create embedding wrapper", "error", err)
 		os.Exit(1)
 	}
 
+	// Create storage interface
 	storageInterface, err := storage.New(storage.NewStorageInput{
 		Client:            weaviateClient,
 		Logger:            logger,
@@ -441,60 +437,107 @@ func runStore() {
 		os.Exit(1)
 	}
 
-	memoryStorage, err := evolvingmemory.New(evolvingmemory.Dependencies{
-		Logger:             logger,
-		Storage:            storageInterface,
-		CompletionsService: aiCompletionsService,
-		CompletionsModel:   getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
-		EmbeddingsWrapper:  embeddingsWrapper,
-	})
+	// Store facts directly - BYPASS THE PIPELINE COMPLETELY!
+	logger.Info("Creating Weaviate objects directly from facts", "count", len(factsData.Facts))
+
+	// FAST BATCH EMBEDDINGS - collect all content first
+	var factContents []string
+	for _, fact := range factsData.Facts {
+		factContents = append(factContents, fact.GenerateContent())
+	}
+
+	// Generate ALL embeddings in batch - MUCH FASTER! 🚀
+	logger.Info("Generating embeddings in batch", "count", len(factContents))
+	embeddings, err := embeddingsWrapper.Embeddings(ctx, factContents)
 	if err != nil {
-		logger.Error("Failed to create memory storage", "error", err)
+		logger.Error("Failed to generate batch embeddings", "error", err)
 		os.Exit(1)
 	}
 
-	// Convert facts to documents for storage
-	var documents []memory.Document
+	logger.Info("Batch embeddings complete, creating Weaviate objects", "embeddings", len(embeddings))
+
+	var objects []*models.Object
 	for i, fact := range factsData.Facts {
-		// Create a simple text document from each fact
-		textDoc := &memory.TextDocument{
-			FieldID:      fmt.Sprintf("fact-%d", i),
-			FieldContent: fact.GenerateContent(),
-			FieldSource:  "test-harness",
-			FieldTags:    []string{"test-harness"},
-			FieldMetadata: map[string]string{
-				"fact_id":     fact.ID,
-				"category":    fact.Category,
-				"subject":     fact.Subject,
-				"importance":  fmt.Sprintf("%d", fact.Importance),
-				"sensitivity": fact.Sensitivity,
-			},
+		// Use pre-generated embedding
+		embedding := embeddings[i]
+
+		// Build tags
+		tags := fact.Tags
+		if len(tags) == 0 {
+			tags = []string{fact.Category} // Fallback to category
 		}
-		documents = append(documents, textDoc)
+
+		// Build metadata JSON
+		metadata := map[string]string{
+			"fact_id": fact.ID,
+		}
+		if fact.TemporalContext != nil {
+			metadata["temporal_context"] = *fact.TemporalContext
+		}
+		metadataJSON, _ := json.Marshal(metadata)
+
+		// Use sequential fact ID if original ID is empty
+		factID := fact.ID
+		if factID == "" {
+			factID = fmt.Sprintf("fact-%d", i)
+		}
+
+		// Create Weaviate object with structured fields
+		properties := map[string]interface{}{
+			"content":            fact.GenerateContent(),
+			"timestamp":          fact.Timestamp.Format(time.RFC3339),
+			"source":             fact.Source,
+			"tags":               tags,
+			"documentReferences": fact.DocumentReferences,
+			"metadataJson":       string(metadataJSON),
+			// Structured fact fields for precise filtering
+			"factCategory":    fact.Category,
+			"factSubject":     fact.Subject,
+			"factAttribute":   fact.Attribute,
+			"factValue":       fact.Value,
+			"factSensitivity": fact.Sensitivity,
+			"factImportance":  fact.Importance,
+		}
+
+		// Add temporal context if present
+		if fact.TemporalContext != nil {
+			properties["factTemporalContext"] = *fact.TemporalContext
+		}
+
+		obj := &models.Object{
+			Class:      "MemoryFact",
+			Properties: properties,
+			Vector:     embedding,
+		}
+
+		// Only set ID if it's a valid UUID format
+		if fact.ID != "" {
+			obj.ID = strfmt.UUID(fact.ID)
+		}
+		// Otherwise let Weaviate auto-generate the UUID
+
+		objects = append(objects, obj)
 	}
 
-	// Store the facts
-	logger.Info("Storing facts in Weaviate", "count", len(documents))
+	// Store batch directly - bypasses the entire pipeline!
+	logger.Info("Storing facts batch directly in Weaviate", "count", len(objects))
 
-	progressCallback := func(processed, total int) {
-		logger.Info("Storage progress", "processed", processed, "total", total)
-	}
-
-	if err := memoryStorage.Store(ctx, documents, progressCallback); err != nil {
-		logger.Error("Failed to store facts", "error", err)
+	if err := storageInterface.StoreBatch(ctx, objects); err != nil {
+		logger.Error("Failed to store facts batch", "error", err)
 		os.Exit(1)
 	}
 
-	logger.Info("Facts stored successfully", "count", len(factsData.Facts))
+	logger.Info("Facts stored successfully (DIRECT STORAGE)", "count", len(objects))
 
 	// Create a marker file to indicate storage is complete
 	statusFile := "pipeline_output/X_3_storage_complete.json"
 	status := map[string]interface{}{
 		"stored_at":     time.Now().Format(time.RFC3339),
-		"facts_count":   len(factsData.Facts),
+		"facts_count":   len(objects),
 		"weaviate_port": weaviatePort,
 		"weaviate_path": weaviatePath,
-		"step":          "facts_to_storage",
+		"step":          "facts_to_storage_direct",
+		"method":        "direct_storage_bypass_pipeline",
 	}
 	if err := saveJSON(status, statusFile); err != nil {
 		logger.Error("Failed to save status", "error", err)
@@ -533,7 +576,7 @@ func runConsolidation() {
 		"port", storageStatus.WeaviatePort,
 		"facts_stored", storageStatus.FactsCount)
 
-	// Connect to existing Weaviate
+	// Try to connect to existing Weaviate first
 	ctx := context.Background()
 	weaviateClient, err := weaviate.NewClient(weaviate.Config{
 		Host:   fmt.Sprintf("localhost:%s", storageStatus.WeaviatePort),
@@ -542,6 +585,38 @@ func runConsolidation() {
 	if err != nil {
 		logger.Error("Failed to create Weaviate client", "error", err)
 		os.Exit(1)
+	}
+
+	// Test if Weaviate is actually running by trying a simple query
+	ready, err := weaviateClient.Misc().ReadyChecker().Do(ctx)
+	if err != nil || !ready {
+		logger.Info("Existing Weaviate not running, restarting it", "port", storageStatus.WeaviatePort)
+
+		// Restart Weaviate using the same settings
+		weaviatePort := storageStatus.WeaviatePort
+		weaviatePath := storageStatus.WeaviatePath
+
+		logger.Info("Starting Weaviate bootstrap", "port", weaviatePort, "path", weaviatePath)
+
+		_, err = bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, weaviatePath)
+		if err != nil {
+			logger.Error("Failed to restart Weaviate", "error", err)
+			os.Exit(1)
+		}
+
+		// Create new client after restart
+		weaviateClient, err = weaviate.NewClient(weaviate.Config{
+			Host:   fmt.Sprintf("localhost:%s", weaviatePort),
+			Scheme: "http",
+		})
+		if err != nil {
+			logger.Error("Failed to create Weaviate client after restart", "error", err)
+			os.Exit(1)
+		}
+
+		logger.Info("Weaviate restarted successfully")
+	} else {
+		logger.Info("Connected to existing Weaviate instance")
 	}
 
 	// Create AI services
@@ -588,9 +663,10 @@ func runConsolidation() {
 		os.Exit(1)
 	}
 
-	// Run consolidation - for now, let's consolidate all facts with "test" tag
-	testTag := "test-harness"
-	logger.Info("Running consolidation", "tag", testTag)
+	// TODO: add more intelligent consolidation logic
+	// Run semantic consolidation - much smarter than tag-based!
+	consolidationTopic := "category theory"
+	logger.Info("Running semantic consolidation", "topic", consolidationTopic)
 
 	consolidationDeps := evolvingmemory.ConsolidationDependencies{
 		Logger:             logger,
@@ -599,9 +675,16 @@ func runConsolidation() {
 		CompletionsModel:   getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
 	}
 
-	report, err := evolvingmemory.ConsolidateMemoriesByTag(ctx, testTag, consolidationDeps)
+	// Use semantic search with filtering for better results
+	filter := &memory.Filter{
+		Distance:          0.75,                                                  // Allow fairly broad semantic matches
+		Limit:             func() *int { limit := 30; return &limit }(),          // Reasonable limit
+		FactImportanceMin: func() *int { importance := 2; return &importance }(), // Only meaningful facts
+	}
+
+	report, err := evolvingmemory.ConsolidateMemoriesBySemantic(ctx, consolidationTopic, filter, consolidationDeps)
 	if err != nil {
-		logger.Error("Consolidation failed", "error", err)
+		logger.Error("Semantic consolidation failed", "error", err)
 		os.Exit(1)
 	}
 
