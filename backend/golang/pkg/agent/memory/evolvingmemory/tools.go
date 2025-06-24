@@ -3,7 +3,15 @@ package evolvingmemory
 import (
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
+
+// ConsolidateMemoriesToolArguments is used for the LLM consolidation tool.
+type ConsolidateMemoriesToolArguments struct {
+	Summary           string              `json:"summary"`
+	ConsolidatedFacts []memory.MemoryFact `json:"consolidated_facts"`
+}
 
 var extractFactsTool = openai.ChatCompletionToolParam{
 	Type: "function",
@@ -72,6 +80,81 @@ var extractFactsTool = openai.ChatCompletionToolParam{
 				},
 			},
 			"required":             []string{"facts"},
+			"additionalProperties": false,
+		},
+	},
+}
+
+var consolidateMemoriesTool = openai.ChatCompletionToolParam{
+	Type: "function",
+	Function: openai.FunctionDefinitionParam{
+		Name: "CONSOLIDATE_MEMORIES",
+		Description: param.NewOpt(
+			"Consolidate multiple raw memory facts into a comprehensive summary and higher-quality consolidated facts. Focus on patterns, trends, and synthetic insights that are more valuable than individual raw facts.",
+		),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"summary": map[string]any{
+					"type":        "string",
+					"description": "1-2 paragraph narrative summary that weaves the facts into coherent insights, focusing on patterns and evolution over time",
+				},
+				"consolidated_facts": map[string]any{
+					"type": "array",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"category": map[string]any{
+								"type": "string",
+								"enum": []string{
+									"profile_stable",
+									"preference",
+									"goal_plan",
+									"routine",
+									"skill",
+									"relationship",
+									"health",
+									"context_env",
+									"affective_marker",
+									"event",
+								},
+								"description": "Category of the consolidated fact - focus on higher-level patterns",
+							},
+							"subject": map[string]any{
+								"type":        "string",
+								"description": "Subject of the fact - typically 'primaryUser' or specific entity name",
+							},
+							"attribute": map[string]any{
+								"type":        "string",
+								"description": "Specific property or pattern being described",
+							},
+							"value": map[string]any{
+								"type":        "string",
+								"description": "Comprehensive description that synthesizes multiple raw facts into broader understanding",
+							},
+							"temporal_context": map[string]any{
+								"type":        "string",
+								"description": "Time context for the consolidated insight (optional)",
+							},
+							"sensitivity": map[string]any{
+								"type":        "string",
+								"enum":        []string{"high", "medium", "low"},
+								"description": "Privacy sensitivity level",
+							},
+							"importance": map[string]any{
+								"type":        "integer",
+								"minimum":     1,
+								"maximum":     3,
+								"description": "Consolidated insights should typically be importance 2-3",
+							},
+						},
+						"required":             []string{"category", "subject", "attribute", "value", "sensitivity", "importance"},
+						"additionalProperties": false,
+					},
+					"description": "Array of high-quality consolidated facts that provide broader insights than raw facts",
+				},
+			},
+			"required":             []string{"summary", "consolidated_facts"},
 			"additionalProperties": false,
 		},
 	},
