@@ -70,6 +70,19 @@ func (ep *ExtendedPersonality) ToReferencePersonality() *ReferencePersonality {
 	return result
 }
 
+// BasePersonality methods.
+func (bp *BasePersonality) ToReferencePersonality() *ReferencePersonality {
+	return &ReferencePersonality{
+		Name:              bp.Name,
+		Description:       bp.Description,
+		Profile:           bp.Profile,
+		MemoryFacts:       bp.MemoryFacts,
+		Conversations:     bp.Conversations,
+		Plans:             bp.Plans,
+		ExpectedBehaviors: []ExpectedBehavior{}, // Base personalities don't have expected behaviors
+	}
+}
+
 // mergeProfiles merges profile overrides with base profile.
 func mergeProfiles(base PersonalityProfile, override PersonalityProfile) PersonalityProfile {
 	result := base
