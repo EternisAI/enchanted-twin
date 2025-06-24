@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -73,7 +75,11 @@ func (r *ConsolidationReport) ExportToJSON(filepath string) error {
 		return fmt.Errorf("marshaling JSON: %w", err)
 	}
 
-	return writeFile(filepath, data)
+	if err := os.WriteFile(filepath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write JSON file: %w", err)
+	}
+
+	return nil
 }
 
 // ConsolidationStorage abstracts storage operations for consolidations.
@@ -212,8 +218,114 @@ func extractFactIDs(facts []*memory.MemoryFact) []string {
 	return ids
 }
 
-// writeFile is a testable file writing abstraction.
-var writeFile = func(filepath string, data []byte) error {
-	// This would typically be os.WriteFile, but abstracted for testing
-	return fmt.Errorf("writeFile not implemented - use os.WriteFile")
+// ExportJSON exports the consolidation report to a JSON file.
+func (cr *ConsolidationReport) ExportJSON(filepath string) error {
+	data, err := json.MarshalIndent(cr, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal ConsolidationReport: %w", err)
+	}
+
+	if err := os.WriteFile(filepath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write JSON file: %w", err)
+	}
+
+	return nil
+}
+
+// ConsolidateMemoriesByTag performs memory consolidation for a given tag.
+// It fetches relevant facts, runs LLM consolidation, and returns a comprehensive report.
+func ConsolidateMemoriesByTag(ctx context.Context, tag string, deps ConsolidationDependencies) (*ConsolidationReport, error) {
+	logger := deps.Logger.With("tag", tag)
+	logger.Info("Starting memory consolidation")
+
+	// Step 1: Fetch facts by tag
+	facts, err := fetchFactsByTag(ctx, tag, deps.Storage)
+	if err != nil {
+		logger.Error("Failed to fetch facts by tag", "error", err)
+		return nil, fmt.Errorf("fetching facts by tag: %w", err)
+	}
+
+	if len(facts) == 0 {
+		logger.Warn("No facts found for tag")
+		return &ConsolidationReport{
+			Topic:             tag,
+			Summary:           fmt.Sprintf("No memories found for topic: %s", tag),
+			ConsolidatedFacts: []*ConsolidationFact{},
+			SourceFactCount:   0,
+			GeneratedAt:       time.Now(),
+		}, nil
+	}
+
+	logger.Info("Found facts for consolidation", "count", len(facts))
+
+	// Step 2: Prepare LLM input
+	factsContent := buildFactsContent(facts)
+	logger.Debug("Built facts content", "length", len(factsContent))
+
+	// Step 3: Run LLM consolidation
+	consolidationTools := []openai.ChatCompletionToolParam{consolidateMemoriesTool}
+
+	llmMessages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(MemoryConsolidationPrompt),
+		openai.UserMessage(fmt.Sprintf("Topic: %s\n\nFacts to consolidate:\n%s", tag, factsContent)),
+	}
+
+	logger.Debug("Sending consolidation request to LLM", "facts_count", len(facts))
+
+	llmResponse, err := deps.CompletionsService.Completions(ctx, llmMessages, consolidationTools, deps.CompletionsModel)
+	if err != nil {
+		logger.Error("LLM consolidation failed", "error", err)
+		return nil, fmt.Errorf("LLM consolidation: %w", err)
+	}
+
+	logger.Debug("LLM consolidation completed", "tool_calls", len(llmResponse.ToolCalls))
+
+	// Step 4: Parse LLM response
+	sourceFactIDs := make([]string, len(facts))
+	for i, fact := range facts {
+		sourceFactIDs[i] = fact.ID
+	}
+
+	report, err := parseConsolidationResponse(llmResponse, sourceFactIDs)
+	if err != nil {
+		logger.Error("Failed to parse consolidation response", "error", err)
+		return nil, fmt.Errorf("parsing consolidation response: %w", err)
+	}
+
+	report.Topic = tag
+	logger.Info("Memory consolidation completed", "consolidated_facts", len(report.ConsolidatedFacts))
+
+	return report, nil
+}
+
+// ConsolidationDependencies contains all dependencies needed for consolidation.
+type ConsolidationDependencies struct {
+	Logger             *log.Logger
+	Storage            memory.Storage
+	CompletionsService *ai.Service
+	CompletionsModel   string
+}
+
+// buildFactsContent creates a formatted string of facts for LLM input.
+func buildFactsContent(facts []*memory.MemoryFact) string {
+	var builder strings.Builder
+
+	for i, fact := range facts {
+		builder.WriteString(fmt.Sprintf("%d. [%s] %s - %s: %s",
+			i+1,
+			fact.Category,
+			fact.Subject,
+			fact.Attribute,
+			fact.Value))
+
+		if fact.TemporalContext != nil {
+			builder.WriteString(fmt.Sprintf(" (%s)", *fact.TemporalContext))
+		}
+
+		builder.WriteString(fmt.Sprintf(" [Importance: %d, Sensitivity: %s]\n",
+			fact.Importance,
+			fact.Sensitivity))
+	}
+
+	return builder.String()
 }
