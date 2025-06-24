@@ -143,6 +143,38 @@ type Dependencies struct {
 	EmbeddingsWrapper  *storage.EmbeddingWrapper
 }
 
+// MemoryEngine implements pure business logic for memory operations.
+// This contains no orchestration concerns (channels, workers, progress reporting).
+type MemoryEngine struct {
+	CompletionsService *ai.Service
+	EmbeddingsWrapper  *storage.EmbeddingWrapper
+	storage            storage.Interface
+	CompletionsModel   string
+}
+
+// NewMemoryEngine creates a new MemoryEngine instance.
+func NewMemoryEngine(completionsService *ai.Service, embeddingsWrapper *storage.EmbeddingWrapper, storage storage.Interface, completionsModel string) (*MemoryEngine, error) {
+	if completionsService == nil {
+		return nil, fmt.Errorf("completions service cannot be nil")
+	}
+	if embeddingsWrapper == nil {
+		return nil, fmt.Errorf("embeddings wrapper cannot be nil")
+	}
+	if storage == nil {
+		return nil, fmt.Errorf("storage cannot be nil")
+	}
+	if completionsModel == "" {
+		return nil, fmt.Errorf("completions model cannot be empty")
+	}
+
+	return &MemoryEngine{
+		CompletionsService: completionsService,
+		EmbeddingsWrapper:  embeddingsWrapper,
+		storage:            storage,
+		CompletionsModel:   completionsModel,
+	}, nil
+}
+
 // StorageImpl is the main implementation of the MemoryStorage interface.
 // It orchestrates memory operations using a clean 3-layer architecture:
 // StorageImpl (public API) -> MemoryOrchestrator (coordination) -> MemoryEngine (business logic).

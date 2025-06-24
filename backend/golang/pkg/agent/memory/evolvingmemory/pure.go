@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -12,7 +11,6 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
@@ -88,105 +86,6 @@ func ExtractFactsFromDocument(ctx context.Context, doc memory.Document, completi
 	default:
 		return nil, fmt.Errorf("unsupported document type: %T", doc)
 	}
-}
-
-// BuildSeparateMemoryDecisionPrompts constructs separate system and user prompts to prevent injection.
-// This is the secure version that properly separates system instructions from user content.
-func BuildSeparateMemoryDecisionPrompts(fact string, similar []ExistingMemory) (systemPrompt string, userPrompt string) {
-	// System prompt contains only instructions and guidelines - no user content
-	systemPrompt = MemoryUpdatePrompt
-
-	// User prompt contains only the user data to be analyzed
-	existingMemoriesContentForPrompt := []string{}
-	existingMemoriesForPromptStr := "No existing relevant memories found."
-
-	if len(similar) > 0 {
-		for _, mem := range similar {
-			memContext := fmt.Sprintf("ID: %s, Content: %s", mem.ID, mem.Content)
-			existingMemoriesContentForPrompt = append(existingMemoriesContentForPrompt, memContext)
-		}
-		existingMemoriesForPromptStr = strings.Join(existingMemoriesContentForPrompt, "\n---\n")
-	}
-
-	userPrompt = fmt.Sprintf(`Context to analyze:
-
-Existing Memories for the primary user (if any, related to the new fact):
-%s
-
-New Fact to consider for the primary user:
-%s
-
-Please analyze this context and decide what action should be taken for the NEW FACT.`, existingMemoriesForPromptStr, fact)
-
-	return systemPrompt, userPrompt
-}
-
-// ParseMemoryDecisionResponse parses LLM tool call response into MemoryDecision.
-// This is pure business logic extracted from the adapter.
-func ParseMemoryDecisionResponse(llmResponse openai.ChatCompletionMessage) (MemoryDecision, error) {
-	if len(llmResponse.ToolCalls) == 0 {
-		return MemoryDecision{
-			Action: ADD,
-			Reason: "No tool call made, defaulting to ADD",
-		}, nil
-	}
-
-	toolCall := llmResponse.ToolCalls[0]
-	action := MemoryAction(toolCall.Function.Name)
-
-	decision := MemoryDecision{
-		Action: action,
-	}
-
-	switch action {
-	case UPDATE:
-		var args UpdateToolArguments
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			return MemoryDecision{}, fmt.Errorf("unmarshaling UPDATE arguments: %w", err)
-		}
-		decision.TargetID = args.MemoryID
-		decision.Reason = args.Reason
-
-	case DELETE:
-		var args DeleteToolArguments
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			return MemoryDecision{}, fmt.Errorf("unmarshaling DELETE arguments: %w", err)
-		}
-		decision.TargetID = args.MemoryID
-		decision.Reason = args.Reason
-
-	case NONE:
-		var args NoneToolArguments
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			// Non-fatal for NONE - this is intentionally lenient
-		} else {
-			decision.Reason = args.Reason
-		}
-	}
-
-	return decision, nil
-}
-
-// SearchSimilarMemories performs semantic search for similar memories.
-// This is pure business logic extracted from the adapter.
-func SearchSimilarMemories(ctx context.Context, fact string, filter *memory.Filter, storage storage.Interface) ([]ExistingMemory, error) {
-	result, err := storage.Query(ctx, fact, filter)
-	if err != nil {
-		return nil, fmt.Errorf("querying similar memories: %w", err)
-	}
-
-	memories := make([]ExistingMemory, 0, len(result.Facts))
-	for _, memoryFact := range result.Facts {
-		mem := ExistingMemory{
-			ID:        memoryFact.ID,
-			Content:   memoryFact.Content,
-			Metadata:  memoryFact.Metadata,
-			Timestamp: memoryFact.Timestamp,
-		}
-		memories = append(memories, mem)
-	}
-
-	return memories, nil
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
