@@ -397,14 +397,17 @@ class LLM(llm.LLM):
         self._chat_history = get_chat_history(chat_id)
         
 
-    def chat( self, *,
+    def chat(
+        self,
+        *,
         chat_ctx: llm.ChatContext,
-        tools = None,
-        conn_options = None,
-        parallel_tool_calls = None,
-        tool_choice = False,
-        response_format = False,
-        extra_kwargs = False):
+        tools=None,
+        conn_options=None,
+        parallel_tool_calls=None,
+        tool_choice=False,
+        response_format=False,
+        extra_kwargs=False
+    ):
         return LLMStream(llm=self, chat_ctx=chat_ctx, chat_id=self._chat_id, chat_history=self._chat_history)
 
     
