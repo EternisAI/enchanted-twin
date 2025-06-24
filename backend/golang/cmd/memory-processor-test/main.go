@@ -383,10 +383,10 @@ func runStore() {
 
 	logger.Info("Found facts to store", "count", len(factsData.Facts))
 
-	// Bootstrap Weaviate - similar to server setup
+	// Weaviate configuration
 	ctx := context.Background()
 	weaviatePort := getEnvOrDefault("WEAVIATE_PORT", "51414")
-	weaviatePath := filepath.Join(".", "weaviate-test-memory")
+	weaviatePath := filepath.Join(".", "pipeline_output", "weaviate-test-memory")
 
 	logger.Info("Starting Weaviate bootstrap", "port", weaviatePort, "path", weaviatePath)
 
