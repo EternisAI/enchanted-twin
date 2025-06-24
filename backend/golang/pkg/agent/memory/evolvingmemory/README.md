@@ -1082,3 +1082,85 @@ All existing APIs are preserved:
 - ✅ **Faster queries** - Direct field indexing vs JSON pattern matching
 - ✅ **Better search precision** - Rich content generation from structured data
 - ✅ **Scalable architecture** - Clean separation enables easy backend swapping
+
+## Memory Consolidation System 🧠
+
+The evolvingmemory package includes a **standalone consolidation system** that synthesizes raw memory facts into high-quality consolidated insights.
+
+### Overview
+
+The consolidation system operates independently of the main storage pipeline, allowing for:
+- **Scheduled consolidation** - Run consolidation as a separate process
+- **Topic-based synthesis** - Consolidate memories around specific themes
+- **Quality enhancement** - Transform raw facts into coherent insights
+- **Export capabilities** - Generate JSON reports for analysis
+
+### Core Components
+
+```go
+// ConsolidationReport - Complete consolidation output
+type ConsolidationReport struct {
+    Topic             string               `json:"topic"`
+    Summary           string               `json:"summary"`           // Narrative overview
+    ConsolidatedFacts []*ConsolidationFact `json:"consolidated_facts"` // Enhanced facts
+    SourceFactCount   int                  `json:"source_fact_count"`
+    GeneratedAt       time.Time            `json:"generated_at"`
+}
+
+// ConsolidationFact - Enhanced memory fact with source tracking
+type ConsolidationFact struct {
+    memory.MemoryFact
+    ConsolidatedFrom []string `json:"consolidated_from"` // Source fact IDs
+}
+```
+
+### Usage Example
+
+```go
+// Set up consolidation dependencies
+deps := ConsolidationDependencies{
+    Logger:             logger,
+    Storage:            storage,
+    CompletionsService: aiService,
+    CompletionsModel:   "gpt-4",
+}
+
+// Consolidate memories by tag
+report, err := ConsolidateMemoriesByTag(ctx, "health", deps)
+if err != nil {
+    log.Fatal("Consolidation failed:", err)
+}
+
+// Export results
+err = report.ExportJSON("health-consolidation-2025-01-15.json")
+if err != nil {
+    log.Fatal("Export failed:", err)
+}
+
+log.Printf("Consolidated %d facts into %d insights", 
+    report.SourceFactCount, 
+    len(report.ConsolidatedFacts))
+```
+
+### Consolidation Flow
+
+1. **Fact Retrieval** - Fetch all facts tagged with the specified topic
+2. **LLM Processing** - Send facts to LLM with consolidation prompt
+3. **Synthesis** - LLM generates summary + consolidated facts
+4. **Source Tracking** - Link consolidated facts back to original sources
+5. **Report Generation** - Package results with metadata
+
+### Architecture Benefits
+
+- **Standalone Operation** - No impact on main storage pipeline
+- **Clean Separation** - Pure functions separated from side effects
+- **Consistent Patterns** - Follows same LLM tool call patterns as fact extraction
+- **Export Ready** - JSON export for analysis and reporting
+- **Source Traceability** - Full audit trail from consolidated facts to raw sources
+
+### Future Enhancements
+
+- **Similarity Search** - Include semantically related facts beyond tags
+- **Weaviate Storage** - Dedicated consolidation schema for persistent storage
+- **Scheduled Processing** - Automated consolidation workflows
+- **Multi-topic Synthesis** - Cross-topic relationship discovery
