@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
@@ -20,10 +19,6 @@ const (
 	tagsProperty      = "tags"
 	metadataProperty  = "metadataJson"
 
-	AddMemoryToolName    = "ADD"
-	UpdateMemoryToolName = "UPDATE"
-	DeleteMemoryToolName = "DELETE"
-	NoneMemoryToolName   = "NONE"
 	ExtractFactsToolName = "EXTRACT_FACTS"
 )
 
@@ -47,7 +42,6 @@ type Config struct {
 
 	// Timeouts
 	FactExtractionTimeout time.Duration
-	MemoryDecisionTimeout time.Duration
 	StorageTimeout        time.Duration
 
 	// Features
@@ -61,38 +55,10 @@ type ExtractMemoryFactsToolArguments struct {
 	Facts []memory.MemoryFact `json:"facts"`
 }
 
-// Memory actions.
-type MemoryAction string
-
-const (
-	ADD    MemoryAction = AddMemoryToolName
-	UPDATE MemoryAction = UpdateMemoryToolName
-	DELETE MemoryAction = DeleteMemoryToolName
-	NONE   MemoryAction = NoneMemoryToolName
-)
-
-// Memory decision from LLM.
-type MemoryDecision struct {
-	Action     MemoryAction
-	TargetID   string // For UPDATE/DELETE
-	Reason     string
-	Confidence float64
-}
-
-// Processing result.
+// Simplified processing result - only contains what we actually use.
 type FactResult struct {
-	Fact     *memory.MemoryFact
-	Source   memory.Document // Source document for the fact
-	Decision MemoryDecision
-	Object   *models.Object // Only for ADD
-	Error    error
-}
-
-// Document result.
-type DocumentResult struct {
-	DocumentID string
-	Facts      []FactResult
-	Error      error
+	Fact   *memory.MemoryFact
+	Source memory.Document // Source document for the fact
 }
 
 // Progress reporting.
@@ -110,21 +76,6 @@ type ExistingMemory struct {
 	Timestamp time.Time
 	Score     float64
 	Metadata  map[string]string
-}
-
-type UpdateToolArguments struct {
-	MemoryID      string `json:"id"`
-	UpdatedMemory string `json:"updated_content"`
-	Reason        string `json:"reason,omitempty"`
-}
-
-type DeleteToolArguments struct {
-	MemoryID string `json:"id"`
-	Reason   string `json:"reason,omitempty"`
-}
-
-type NoneToolArguments struct {
-	Reason string `json:"reason"`
 }
 
 type MemoryStorage interface {
