@@ -64,9 +64,40 @@ func TestPersonalityThreadProcessingIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("RunPersonalityMatrix", func(t *testing.T) {
-		// Run the personality test matrix
-		results, err := framework.RunPersonalityTests(ctx, mockStorage, mockRepo)
-		require.NoError(t, err, "Failed to run personality tests")
+		// Add timeout protection
+		ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+		defer cancel()
+
+		// Add debug logging
+		logger.Info("Starting personality test matrix")
+		logger.Info("Test data loaded",
+			"personalities_count", len(personalities),
+			"scenarios_count", len(scenarios))
+
+		// Run the personality test matrix with timeout protection
+		done := make(chan struct{})
+		var results []TestResult
+		var err error
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("Panic in RunPersonalityTests", "panic", r)
+				}
+				close(done)
+			}()
+			logger.Info("Calling RunPersonalityTests...")
+			results, err = framework.RunPersonalityTests(ctx, mockStorage, mockRepo)
+			logger.Info("RunPersonalityTests completed", "results_count", len(results))
+		}()
+
+		select {
+		case <-done:
+			require.NoError(t, err, "Failed to run personality tests")
+			logger.Info("Personality tests completed successfully")
+		case <-ctx.Done():
+			t.Fatal("RunPersonalityTests timed out after 30 seconds")
+		}
 
 		// We expect results for each personality × scenario combination
 		assert.Len(t, results, len(personalities)*len(scenarios), "Expected results for all personality-scenario combinations")

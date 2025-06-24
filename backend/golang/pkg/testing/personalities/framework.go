@@ -28,6 +28,7 @@ type PersonalityTestFramework struct {
 	extensions        map[string]map[string]*PersonalityExtension // personality -> extension name -> extension
 	scenarios         []ThreadTestScenario
 	genericScenarios  []GenericTestScenario
+	useMockEvaluation bool // New field to control evaluation mode
 }
 
 // NewPersonalityTestFramework creates a new personality test framework.
@@ -40,7 +41,18 @@ func NewPersonalityTestFramework(logger *log.Logger, aiService *ai.Service, test
 		basePersonalities: make(map[string]*BasePersonality),
 		extensions:        make(map[string]map[string]*PersonalityExtension),
 		scenarios:         make([]ThreadTestScenario, 0),
+		useMockEvaluation: aiService == nil, // Use mock mode if no AI service provided
 	}
+}
+
+// SetEvaluationMode sets whether to use mock evaluation or real evaluation.
+func (ptf *PersonalityTestFramework) SetEvaluationMode(useMock bool) {
+	ptf.useMockEvaluation = useMock
+}
+
+// IsUsingMockEvaluation returns whether the framework is using mock evaluation.
+func (ptf *PersonalityTestFramework) IsUsingMockEvaluation() bool {
+	return ptf.useMockEvaluation
 }
 
 // LoadPersonalities loads all personality profiles from the test data directory.
@@ -291,6 +303,8 @@ func (ptf *PersonalityTestFramework) GetGenericScenarios() []GenericTestScenario
 func (ptf *PersonalityTestFramework) RunPersonalityTests(ctx context.Context, memoryStorage interface{}, holonRepo interface{}) ([]TestResult, error) {
 	var results []TestResult
 
+	ptf.logger.Debug("Starting RunPersonalityTests")
+
 	// Collect all personality names from both maps for compatibility
 	allPersonalities := make(map[string]bool)
 
@@ -304,39 +318,88 @@ func (ptf *PersonalityTestFramework) RunPersonalityTests(ctx context.Context, me
 		allPersonalities[name] = true
 	}
 
+	ptf.logger.Debug("Collected personalities", "count", len(allPersonalities))
+
 	// Test all personalities
+	personalityCount := 0
 	for personalityName := range allPersonalities {
+		personalityCount++
+		ptf.logger.Debug("Processing personality", "name", personalityName, "index", personalityCount, "total", len(allPersonalities))
+
+		scenarioCount := 0
 		for _, scenario := range ptf.scenarios {
+			scenarioCount++
+			ptf.logger.Debug("Processing scenario", "personality", personalityName, "scenario", scenario.Name, "scenario_index", scenarioCount, "total_scenarios", len(ptf.scenarios))
+
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+			}
+
 			// Test base personality
 			baseExpectation := scenario.GetExpectedOutcomeForPersonality(personalityName, []string{})
 			if baseExpectation != nil {
+				ptf.logger.Debug("Running base personality test", "personality", personalityName, "scenario", scenario.Name)
 				result, err := ptf.runTestForPersonalityExtensionCombo(ctx, scenario, personalityName, []string{}, *baseExpectation, memoryStorage, holonRepo)
 				if err == nil {
 					results = append(results, *result)
+					ptf.logger.Debug("Base personality test completed", "personality", personalityName, "scenario", scenario.Name, "score", result.Score)
+				} else {
+					ptf.logger.Warn("Base personality test failed", "personality", personalityName, "scenario", scenario.Name, "error", err)
 				}
 			}
 
 			// Only test extensions if they are actually loaded for this personality
 			if extensions, exists := ptf.extensions[personalityName]; exists && len(extensions) > 0 {
+				ptf.logger.Debug("Testing extensions", "personality", personalityName, "extension_count", len(extensions))
+
 				// Test single extensions
+				extensionIndex := 0
 				for extensionName := range extensions {
+					extensionIndex++
+					ptf.logger.Debug("Testing single extension", "personality", personalityName, "extension", extensionName, "extension_index", extensionIndex)
+
+					// Check for context cancellation
+					select {
+					case <-ctx.Done():
+						return nil, ctx.Err()
+					default:
+					}
+
 					expectation := scenario.GetExpectedOutcomeForPersonality(personalityName, []string{extensionName})
 					if expectation != nil {
 						result, err := ptf.runTestForPersonalityExtensionCombo(ctx, scenario, personalityName, []string{extensionName}, *expectation, memoryStorage, holonRepo)
 						if err == nil {
 							results = append(results, *result)
+							ptf.logger.Debug("Single extension test completed", "personality", personalityName, "extension", extensionName, "score", result.Score)
+						} else {
+							ptf.logger.Warn("Single extension test failed", "personality", personalityName, "extension", extensionName, "error", err)
 						}
 					}
 				}
 
 				// Test specific multi-extension combinations that have expectations AND are available
+				multiExtensionIndex := 0
 				for _, expectation := range scenario.PersonalityExpectations {
 					if expectation.PersonalityName == personalityName && len(expectation.ExtensionNames) > 1 {
+						multiExtensionIndex++
+						ptf.logger.Debug("Testing multi-extension combination", "personality", personalityName, "extensions", expectation.ExtensionNames, "multi_index", multiExtensionIndex)
+
+						// Check for context cancellation
+						select {
+						case <-ctx.Done():
+							return nil, ctx.Err()
+						default:
+						}
+
 						// Check if all required extensions are actually loaded
 						allExtensionsAvailable := true
 						for _, extName := range expectation.ExtensionNames {
 							if _, extensionExists := extensions[extName]; !extensionExists {
 								allExtensionsAvailable = false
+								ptf.logger.Debug("Extension not available", "personality", personalityName, "missing_extension", extName)
 								break
 							}
 						}
@@ -346,14 +409,22 @@ func (ptf *PersonalityTestFramework) RunPersonalityTests(ctx context.Context, me
 							result, err := ptf.runTestForPersonalityExtensionCombo(ctx, scenario, personalityName, expectation.ExtensionNames, expectation, memoryStorage, holonRepo)
 							if err == nil {
 								results = append(results, *result)
+								ptf.logger.Debug("Multi-extension test completed", "personality", personalityName, "extensions", expectation.ExtensionNames, "score", result.Score)
+							} else {
+								ptf.logger.Warn("Multi-extension test failed", "personality", personalityName, "extensions", expectation.ExtensionNames, "error", err)
 							}
+						} else {
+							ptf.logger.Debug("Skipping multi-extension test - not all extensions available", "personality", personalityName, "extensions", expectation.ExtensionNames)
 						}
 					}
 				}
+			} else {
+				ptf.logger.Debug("No extensions found for personality", "personality", personalityName)
 			}
 		}
 	}
 
+	ptf.logger.Debug("RunPersonalityTests completed", "total_results", len(results))
 	return results, nil
 }
 
@@ -568,12 +639,27 @@ func (ptf *PersonalityTestFramework) runSingleTest(ctx context.Context, scenario
 		return nil, fmt.Errorf("failed to setup test environment: %w", err)
 	}
 
-	// For mock testing, simulate thread evaluation
-	actualResult := &ThreadEvaluationResult{
-		ShouldShow: expectedOutcome.ShouldShow, // Mock: return expected for testing
-		Reason:     fmt.Sprintf("Mock evaluation for %s", personality.Name),
-		Confidence: expectedOutcome.Confidence,
-		NewState:   expectedOutcome.ExpectedState,
+	var actualResult *ThreadEvaluationResult
+
+	if ptf.useMockEvaluation {
+		// Mock evaluation mode - use rule-based evaluation for testing framework logic
+		actualResult = ptf.performMockEvaluation(scenario, personality, expectedOutcome)
+		ptf.logger.Debug("Using mock evaluation",
+			"personality", personality.Name,
+			"scenario", scenario.Name,
+			"result", actualResult.ShouldShow)
+	} else {
+		// Real evaluation mode - use actual thread processor/AI evaluation
+		realResult, err := ptf.performRealEvaluation(ctx, scenario, personality, env)
+		if err != nil {
+			return nil, fmt.Errorf("failed to perform real evaluation: %w", err)
+		}
+		actualResult = realResult
+		ptf.logger.Debug("Using real evaluation",
+			"personality", personality.Name,
+			"scenario", scenario.Name,
+			"result", actualResult.ShouldShow,
+			"confidence", actualResult.Confidence)
 	}
 
 	// Calculate score based on how well actual matches expected
@@ -590,6 +676,457 @@ func (ptf *PersonalityTestFramework) runSingleTest(ctx context.Context, scenario
 		Reasoning:       actualResult.Reason,
 		Timestamp:       time.Now(),
 	}, nil
+}
+
+// performMockEvaluation provides rule-based evaluation for testing the framework logic.
+func (ptf *PersonalityTestFramework) performMockEvaluation(scenario ThreadTestScenario, personality *ReferencePersonality, expectedOutcome PersonalityExpectedOutcome) *ThreadEvaluationResult {
+	// Implement rule-based logic that evaluates based on content analysis
+	threadContent := scenario.ThreadData.Content
+	threadTitle := scenario.ThreadData.Title
+	combinedText := strings.ToLower(threadTitle + " " + threadContent)
+
+	shouldShow := true
+	confidence := 0.7
+	reason := fmt.Sprintf("Rule-based evaluation for personality %s", personality.Name)
+
+	// Extract base personality and extensions from the personality name
+	baseName, extensions := ptf.parsePersonalityName(personality.Name)
+
+	// Apply personality-specific rules with extension bonuses
+	switch baseName {
+	case "tech_entrepreneur":
+		shouldShow, confidence, reason = ptf.evaluateTechEntrepreneurInterest(combinedText, scenario)
+		// Apply extension bonuses for tech entrepreneur
+		confidence = ptf.applyExtensionBonus(confidence, extensions, scenario)
+
+	case "creative_artist":
+		shouldShow, confidence, reason = ptf.evaluateCreativeArtistInterest(combinedText, scenario)
+		// Apply extension bonuses for creative artist
+		confidence = ptf.applyExtensionBonus(confidence, extensions, scenario)
+
+	default:
+		// Generic evaluation based on content quality and length
+		shouldShow, confidence, reason = ptf.evaluateGenericInterest(combinedText, scenario)
+	}
+
+	// Update reason to include extension information
+	if len(extensions) > 0 {
+		reason = fmt.Sprintf("%s (with %d extensions: %v)", reason, len(extensions), extensions)
+	}
+
+	newState := "visible"
+	if !shouldShow {
+		newState = "hidden"
+	}
+
+	return &ThreadEvaluationResult{
+		ShouldShow: shouldShow,
+		Reason:     reason,
+		Confidence: confidence,
+		NewState:   newState,
+	}
+}
+
+// evaluateTechEntrepreneurInterest evaluates content from a tech entrepreneur's perspective.
+func (ptf *PersonalityTestFramework) evaluateTechEntrepreneurInterest(text string, scenario ThreadTestScenario) (bool, float64, string) {
+	// High interest keywords for tech entrepreneurs
+	highInterestKeywords := []string{"ai", "startup", "funding", "technology", "innovation", "venture", "series", "investment", "automation", "machine learning", "artificial intelligence"}
+
+	// Low interest keywords
+	lowInterestKeywords := []string{"celebrity", "gossip", "entertainment", "fashion", "sports"}
+
+	// Negative keywords that should be filtered out
+	negativeKeywords := []string{"scandal", "drama", "reality tv"}
+
+	highMatches := countKeywordMatches(text, highInterestKeywords)
+	lowMatches := countKeywordMatches(text, lowInterestKeywords)
+	negativeMatches := countKeywordMatches(text, negativeKeywords)
+
+	// Strong negative signals
+	if negativeMatches > 0 {
+		return false, 0.9, "Content contains negative keywords that tech entrepreneurs typically avoid"
+	}
+
+	// Strong positive signals
+	if highMatches >= 2 {
+		return true, 0.95, fmt.Sprintf("High relevance content with %d tech-related keywords", highMatches)
+	}
+
+	if highMatches == 1 {
+		return true, 0.8, "Content contains relevant technology keywords"
+	}
+
+	// Low interest content
+	if lowMatches > 0 {
+		return false, 0.85, "Content appears to be entertainment/celebrity focused, not relevant to tech entrepreneurs"
+	}
+
+	// Check domain context if available
+	if domain, ok := scenario.Context["domain"].(string); ok {
+		switch domain {
+		case "artificial_intelligence", "venture_capital", "technical_education":
+			return true, 0.9, fmt.Sprintf("Content is in highly relevant domain: %s", domain)
+		case "entertainment_gossip":
+			return false, 0.9, "Entertainment gossip is not relevant to tech entrepreneurs"
+		}
+	}
+
+	// Default: moderate interest if content is substantial
+	if len(strings.Fields(text)) > 10 {
+		return true, 0.6, "Content appears substantial and potentially relevant"
+	}
+
+	return false, 0.7, "Content too brief or not clearly relevant to tech entrepreneurship"
+}
+
+// evaluateCreativeArtistInterest evaluates content from a creative artist's perspective.
+func (ptf *PersonalityTestFramework) evaluateCreativeArtistInterest(text string, scenario ThreadTestScenario) (bool, float64, string) {
+	// High interest keywords for creative artists
+	highInterestKeywords := []string{"art", "creative", "design", "visual", "artistic", "painting", "illustration", "digital art", "procreate", "adobe", "photoshop", "creativity", "aesthetic"}
+
+	// Moderate interest keywords
+	moderateKeywords := []string{"ai", "tool", "technology", "innovation", "platform"}
+
+	// Low interest keywords
+	lowInterestKeywords := []string{"funding", "venture", "investment", "series", "startup", "business"}
+
+	// Negative keywords
+	negativeKeywords := []string{"celebrity", "gossip", "scandal", "drama"}
+
+	highMatches := countKeywordMatches(text, highInterestKeywords)
+	moderateMatches := countKeywordMatches(text, moderateKeywords)
+	lowMatches := countKeywordMatches(text, lowInterestKeywords)
+	negativeMatches := countKeywordMatches(text, negativeKeywords)
+
+	// Strong negative signals
+	if negativeMatches > 0 {
+		return false, 0.8, "Content contains topics that creative artists typically avoid"
+	}
+
+	// Strong positive signals
+	if highMatches >= 2 {
+		return true, 0.95, fmt.Sprintf("High relevance content with %d creative-related keywords", highMatches)
+	}
+
+	if highMatches == 1 {
+		return true, 0.85, "Content contains relevant creative/artistic keywords"
+	}
+
+	// Moderate interest in tech if it relates to creative tools
+	if moderateMatches > 0 && highMatches > 0 {
+		return true, 0.75, "Content about technology tools that could be relevant to creative work"
+	}
+
+	// Low interest in pure business content
+	if lowMatches > 0 && highMatches == 0 {
+		return false, 0.7, "Pure business/funding content is less relevant to creative artists"
+	}
+
+	// Check domain context
+	if domain, ok := scenario.Context["domain"].(string); ok {
+		switch domain {
+		case "creative_tools":
+			return true, 0.9, "Content is about creative tools, highly relevant"
+		case "artificial_intelligence":
+			return true, 0.65, "AI content has moderate relevance for creative applications"
+		case "entertainment_gossip":
+			return false, 0.8, "Entertainment gossip is not relevant to creative work"
+		case "venture_capital":
+			return false, 0.7, "Venture capital content has limited relevance to creative artists"
+		}
+	}
+
+	// Default evaluation based on content quality
+	if len(strings.Fields(text)) > 10 {
+		return true, 0.5, "Content appears substantial, may have some creative relevance"
+	}
+
+	return false, 0.6, "Content too brief or not clearly relevant to creative arts"
+}
+
+// evaluateGenericInterest provides fallback evaluation for unknown personalities.
+func (ptf *PersonalityTestFramework) evaluateGenericInterest(text string, scenario ThreadTestScenario) (bool, float64, string) {
+	// Basic content quality evaluation
+	wordCount := len(strings.Fields(text))
+
+	// Too short content
+	if wordCount < 5 {
+		return false, 0.9, "Content too short to be meaningful"
+	}
+
+	// Spam indicators
+	spamKeywords := []string{"click here", "limited time", "act now", "free money", "guaranteed"}
+	spamMatches := countKeywordMatches(text, spamKeywords)
+
+	if spamMatches > 0 {
+		return false, 0.95, "Content appears to be spam or promotional"
+	}
+
+	// Quality indicators
+	qualityKeywords := []string{"analysis", "research", "study", "insight", "comprehensive", "detailed"}
+	qualityMatches := countKeywordMatches(text, qualityKeywords)
+
+	if qualityMatches > 0 {
+		return true, 0.8, "Content appears to be high-quality and informative"
+	}
+
+	// Default: accept substantial content
+	if wordCount > 15 {
+		return true, 0.6, "Content appears substantial and potentially interesting"
+	}
+
+	return true, 0.5, "Content meets basic quality threshold"
+}
+
+// performRealEvaluation performs actual thread evaluation using AI services or thread processors.
+func (ptf *PersonalityTestFramework) performRealEvaluation(ctx context.Context, scenario ThreadTestScenario, personality *ReferencePersonality, env *TestEnvironment) (*ThreadEvaluationResult, error) {
+	// If AI service is available, use it for evaluation
+	if ptf.aiService != nil {
+		return ptf.performAIEvaluation(ctx, scenario, personality, env)
+	}
+
+	// TODO: If thread processor is available, use it
+	// This would integrate with the actual thread processing pipeline
+	// if env.ThreadProcessor != nil {
+	//     return env.ThreadProcessor.EvaluateThread(ctx, scenario.Thread, personality)
+	// }
+
+	return nil, fmt.Errorf("no evaluation method available - neither AI service nor thread processor configured")
+}
+
+// performAIEvaluation uses the AI service to evaluate thread relevance.
+func (ptf *PersonalityTestFramework) performAIEvaluation(ctx context.Context, scenario ThreadTestScenario, personality *ReferencePersonality, env *TestEnvironment) (*ThreadEvaluationResult, error) {
+	// Construct prompt for AI evaluation
+	prompt := ptf.buildEvaluationPrompt(scenario, personality)
+
+	ptf.logger.Debug("Performing AI evaluation",
+		"personality", personality.Name,
+		"scenario", scenario.Name,
+		"prompt_length", len(prompt))
+
+	// Create messages for AI service
+	messages := []ai.Message{
+		{
+			Role:    ai.MessageRoleUser,
+			Content: prompt,
+		},
+	}
+
+	// Call AI service using the correct method
+	response, err := ptf.aiService.CompletionsWithMessages(ctx, messages, nil, "gpt-4")
+	if err != nil {
+		return nil, fmt.Errorf("AI evaluation failed: %w", err)
+	}
+
+	// Parse AI response to extract evaluation result
+	result, err := ptf.parseAIEvaluationResponse(response.Content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse AI evaluation response: %w", err)
+	}
+
+	ptf.logger.Debug("AI evaluation completed",
+		"personality", personality.Name,
+		"scenario", scenario.Name,
+		"should_show", result.ShouldShow,
+		"confidence", result.Confidence)
+
+	return result, nil
+}
+
+// buildEvaluationPrompt constructs a prompt for AI-based thread evaluation.
+func (ptf *PersonalityTestFramework) buildEvaluationPrompt(scenario ThreadTestScenario, personality *ReferencePersonality) string {
+	return fmt.Sprintf(`You are evaluating whether a person with the following personality profile would be interested in a specific thread.
+
+PERSONALITY PROFILE:
+Name: %s
+Description: %s
+Interests: %v
+Core Traits: %v
+
+THREAD TO EVALUATE:
+Title: %s
+Content: %s
+Author: %s
+
+Please evaluate whether this person would want to see this thread and respond in the following JSON format:
+{
+  "should_show": true/false,
+  "confidence": 0.0-1.0,
+  "reason": "explanation of your reasoning",
+  "new_state": "visible" or "hidden"
+}
+
+Consider the person's interests, personality traits, and how the content aligns with their likely preferences.`,
+		personality.Name,
+		personality.Description,
+		personality.Profile.Interests,
+		personality.Profile.CoreTraits,
+		scenario.ThreadData.Title,
+		scenario.ThreadData.Content,
+		scenario.ThreadData.AuthorName)
+}
+
+// parseAIEvaluationResponse parses the AI service response into a ThreadEvaluationResult.
+func (ptf *PersonalityTestFramework) parseAIEvaluationResponse(response string) (*ThreadEvaluationResult, error) {
+	// Try to extract JSON from the response
+	var result struct {
+		ShouldShow bool    `json:"should_show"`
+		Confidence float64 `json:"confidence"`
+		Reason     string  `json:"reason"`
+		NewState   string  `json:"new_state"`
+	}
+
+	// Find JSON in the response (AI might include additional text)
+	jsonStart := strings.Index(response, "{")
+	jsonEnd := strings.LastIndex(response, "}") + 1
+
+	if jsonStart == -1 || jsonEnd <= jsonStart {
+		return nil, fmt.Errorf("no valid JSON found in AI response")
+	}
+
+	jsonStr := response[jsonStart:jsonEnd]
+
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
+	}
+
+	// Validate and set defaults
+	if result.Confidence < 0 {
+		result.Confidence = 0
+	}
+	if result.Confidence > 1 {
+		result.Confidence = 1
+	}
+
+	if result.NewState == "" {
+		if result.ShouldShow {
+			result.NewState = "visible"
+		} else {
+			result.NewState = "hidden"
+		}
+	}
+
+	if result.Reason == "" {
+		result.Reason = "AI evaluation completed"
+	}
+
+	return &ThreadEvaluationResult{
+		ShouldShow: result.ShouldShow,
+		Reason:     result.Reason,
+		Confidence: result.Confidence,
+		NewState:   result.NewState,
+	}, nil
+}
+
+// countKeywordMatches counts how many keywords from the list appear in the text.
+func countKeywordMatches(text string, keywords []string) int {
+	count := 0
+	text = strings.ToLower(text)
+
+	for _, keyword := range keywords {
+		if strings.Contains(text, strings.ToLower(keyword)) {
+			count++
+		}
+	}
+
+	return count
+}
+
+// generateCodeBasedScenarios generates scenarios using the code-based scenario system.
+func (ptf *PersonalityTestFramework) generateCodeBasedScenarios() error {
+	generator := NewScenarioGenerator()
+
+	// Generate standard scenarios
+	scenarios, err := generator.GenerateStandardScenarios(ptf)
+	if err != nil {
+		return fmt.Errorf("failed to generate standard scenarios: %w", err)
+	}
+
+	ptf.scenarios = append(ptf.scenarios, scenarios...)
+
+	ptf.logger.Info("Generated scenarios from code", "count", len(scenarios))
+	return nil
+}
+
+// GenerateReport creates a comprehensive test report.
+func (ptf *PersonalityTestFramework) GenerateReport(results []TestResult) PersonalityTestResults {
+	totalTests := len(results)
+	passedTests := 0
+	var totalScore float64
+	highestScore := 0.0
+	lowestScore := 1.0
+
+	testMap := make(map[string]*TestResult)
+
+	for i, result := range results {
+		if result.Success {
+			passedTests++
+		}
+
+		totalScore += result.Score
+
+		if result.Score > highestScore {
+			highestScore = result.Score
+		}
+		if result.Score < lowestScore {
+			lowestScore = result.Score
+		}
+
+		key := fmt.Sprintf("%s_%s", result.PersonalityName, result.ScenarioName)
+		testMap[key] = &results[i]
+	}
+
+	averageScore := 0.0
+	if totalTests > 0 {
+		averageScore = totalScore / float64(totalTests)
+	}
+
+	return PersonalityTestResults{
+		TestID:    generateTestID(),
+		Timestamp: time.Now(),
+		Tests:     testMap,
+		Summary: TestSummary{
+			TotalTests:   totalTests,
+			PassedTests:  passedTests,
+			FailedTests:  totalTests - passedTests,
+			AverageScore: averageScore,
+			HighestScore: highestScore,
+			LowestScore:  lowestScore,
+		},
+		Duration: 0, // Would be calculated in real implementation
+	}
+}
+
+// PrintSummary prints a summary of test results.
+func (ptf *PersonalityTestFramework) PrintSummary(report PersonalityTestResults) {
+	ptf.logger.Info("Personality Test Results Summary",
+		"test_id", report.TestID,
+		"total_tests", report.Summary.TotalTests,
+		"passed_tests", report.Summary.PassedTests,
+		"failed_tests", report.Summary.FailedTests,
+		"average_score", fmt.Sprintf("%.3f", report.Summary.AverageScore),
+		"highest_score", fmt.Sprintf("%.3f", report.Summary.HighestScore),
+		"lowest_score", fmt.Sprintf("%.3f", report.Summary.LowestScore))
+}
+
+// SaveReport saves the test report to a file.
+func (ptf *PersonalityTestFramework) SaveReport(report PersonalityTestResults, filename string) error {
+	// Ensure the directory exists
+	dir := filepath.Dir(filename)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create reports directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal report: %w", err)
+	}
+
+	if err := os.WriteFile(filename, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write report file: %w", err)
+	}
+
+	return nil
 }
 
 // Helper functions for loading data.
@@ -729,99 +1266,149 @@ func (ptf *PersonalityTestFramework) calculateBasicScore(expectedOutcome Persona
 	return score
 }
 
-// GenerateReport creates a comprehensive test report.
-func (ptf *PersonalityTestFramework) GenerateReport(results []TestResult) PersonalityTestResults {
-	totalTests := len(results)
-	passedTests := 0
-	var totalScore float64
-	highestScore := 0.0
-	lowestScore := 1.0
+// parsePersonalityName extracts the base personality name and extensions from a combined name.
+func (ptf *PersonalityTestFramework) parsePersonalityName(fullName string) (string, []string) {
+	// Handle names like "tech_entrepreneur_ai_research_focused_startup_ecosystem_focused"
 
-	testMap := make(map[string]*TestResult)
-
-	for i, result := range results {
-		if result.Success {
-			passedTests++
-		}
-
-		totalScore += result.Score
-
-		if result.Score > highestScore {
-			highestScore = result.Score
-		}
-		if result.Score < lowestScore {
-			lowestScore = result.Score
-		}
-
-		key := fmt.Sprintf("%s_%s", result.PersonalityName, result.ScenarioName)
-		testMap[key] = &results[i]
+	// Common base personality patterns
+	basePatterns := []string{
+		"tech_entrepreneur",
+		"creative_artist",
 	}
 
-	averageScore := 0.0
-	if totalTests > 0 {
-		averageScore = totalScore / float64(totalTests)
+	for _, pattern := range basePatterns {
+		if strings.HasPrefix(fullName, pattern) {
+			// Extract extensions by removing the base pattern
+			remainder := strings.TrimPrefix(fullName, pattern)
+			remainder = strings.TrimPrefix(remainder, "_")
+
+			if remainder == "" {
+				return pattern, []string{} // No extensions
+			}
+
+			// Split remaining parts as extensions
+			extensionParts := strings.Split(remainder, "_")
+
+			// Group extension parts back together (e.g., "ai_research_focused")
+			extensions := ptf.reconstructExtensionNames(extensionParts)
+			return pattern, extensions
+		}
 	}
 
-	return PersonalityTestResults{
-		TestID:    generateTestID(),
-		Timestamp: time.Now(),
-		Tests:     testMap,
-		Summary: TestSummary{
-			TotalTests:   totalTests,
-			PassedTests:  passedTests,
-			FailedTests:  totalTests - passedTests,
-			AverageScore: averageScore,
-			HighestScore: highestScore,
-			LowestScore:  lowestScore,
-		},
-		Duration: 0, // Would be calculated in real implementation
-	}
+	// Fallback: treat the whole name as base with no extensions
+	return fullName, []string{}
 }
 
-// PrintSummary prints a summary of test results.
-func (ptf *PersonalityTestFramework) PrintSummary(report PersonalityTestResults) {
-	ptf.logger.Info("Personality Test Results Summary",
-		"test_id", report.TestID,
-		"total_tests", report.Summary.TotalTests,
-		"passed_tests", report.Summary.PassedTests,
-		"failed_tests", report.Summary.FailedTests,
-		"average_score", fmt.Sprintf("%.3f", report.Summary.AverageScore),
-		"highest_score", fmt.Sprintf("%.3f", report.Summary.HighestScore),
-		"lowest_score", fmt.Sprintf("%.3f", report.Summary.LowestScore))
+// reconstructExtensionNames groups extension parts back into meaningful extension names.
+func (ptf *PersonalityTestFramework) reconstructExtensionNames(parts []string) []string {
+	if len(parts) == 0 {
+		return []string{}
+	}
+
+	// Known extension patterns
+	knownExtensions := []string{
+		"ai_research_focused",
+		"startup_ecosystem_focused",
+		"creative_tools_focused",
+		"ai_creative_applications",
+	}
+
+	var extensions []string
+	remaining := strings.Join(parts, "_")
+
+	// Try to match known extension patterns
+	for _, ext := range knownExtensions {
+		if strings.Contains(remaining, ext) {
+			extensions = append(extensions, ext)
+			remaining = strings.ReplaceAll(remaining, ext, "")
+			remaining = strings.Trim(remaining, "_")
+		}
+	}
+
+	// If we couldn't match known patterns, treat each part as an extension
+	if len(extensions) == 0 && len(parts) > 0 {
+		// Fallback: group parts in reasonable chunks
+		for i := 0; i < len(parts); i += 3 {
+			end := i + 3
+			if end > len(parts) {
+				end = len(parts)
+			}
+			extensionName := strings.Join(parts[i:end], "_")
+			extensions = append(extensions, extensionName)
+		}
+	}
+
+	return extensions
 }
 
-// SaveReport saves the test report to a file.
-func (ptf *PersonalityTestFramework) SaveReport(report PersonalityTestResults, filename string) error {
-	// Ensure the directory exists
-	dir := filepath.Dir(filename)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("failed to create reports directory: %w", err)
+// applyExtensionBonus applies confidence bonuses based on the number and relevance of extensions.
+func (ptf *PersonalityTestFramework) applyExtensionBonus(baseConfidence float64, extensions []string, scenario ThreadTestScenario) float64 {
+	if len(extensions) == 0 {
+		return baseConfidence
 	}
 
-	data, err := json.MarshalIndent(report, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal report: %w", err)
+	combinedText := strings.ToLower(scenario.ThreadData.Title + " " + scenario.ThreadData.Content)
+
+	// Calculate relevance bonus based on extensions and scenario content
+	extensionBonus := 0.0
+
+	for _, extension := range extensions {
+		switch extension {
+		case "ai_research_focused":
+			if strings.Contains(combinedText, "ai") || strings.Contains(combinedText, "artificial intelligence") ||
+				strings.Contains(combinedText, "machine learning") || strings.Contains(combinedText, "constitutional ai") {
+				extensionBonus += 0.1
+			}
+		case "startup_ecosystem_focused":
+			if strings.Contains(combinedText, "funding") || strings.Contains(combinedText, "startup") ||
+				strings.Contains(combinedText, "series") || strings.Contains(combinedText, "investment") ||
+				strings.Contains(combinedText, "valuation") {
+				extensionBonus += 0.1
+			}
+		case "creative_tools_focused":
+			if strings.Contains(combinedText, "creative") || strings.Contains(combinedText, "design") ||
+				strings.Contains(combinedText, "art") || strings.Contains(combinedText, "tool") {
+				extensionBonus += 0.1
+			}
+		case "ai_creative_applications":
+			if (strings.Contains(combinedText, "ai") || strings.Contains(combinedText, "artificial intelligence")) &&
+				(strings.Contains(combinedText, "creative") || strings.Contains(combinedText, "art") || strings.Contains(combinedText, "design")) {
+				extensionBonus += 0.15 // Higher bonus for AI+creative combination
+			}
+		}
 	}
 
-	if err := os.WriteFile(filename, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write report file: %w", err)
+	// Multiple extension synergy bonus
+	if len(extensions) >= 2 {
+		// Check for specific high-value combinations
+		hasAIResearch := false
+		hasStartupEcosystem := false
+
+		for _, ext := range extensions {
+			if strings.Contains(ext, "ai_research") {
+				hasAIResearch = true
+			}
+			if strings.Contains(ext, "startup_ecosystem") {
+				hasStartupEcosystem = true
+			}
+		}
+
+		// AI + Startup combination gets extra synergy bonus for relevant scenarios
+		if hasAIResearch && hasStartupEcosystem {
+			if strings.Contains(combinedText, "ai") && (strings.Contains(combinedText, "funding") || strings.Contains(combinedText, "startup")) {
+				extensionBonus += 0.2 // Strong synergy bonus
+			}
+		}
+
+		// General multi-extension bonus
+		extensionBonus += float64(len(extensions)-1) * 0.05
 	}
 
-	return nil
-}
-
-// generateCodeBasedScenarios generates scenarios using the code-based scenario system.
-func (ptf *PersonalityTestFramework) generateCodeBasedScenarios() error {
-	generator := NewScenarioGenerator()
-
-	// Generate standard scenarios
-	scenarios, err := generator.GenerateStandardScenarios(ptf)
-	if err != nil {
-		return fmt.Errorf("failed to generate standard scenarios: %w", err)
+	// Apply the bonus but cap at 0.98 to be realistic
+	newConfidence := baseConfidence + extensionBonus
+	if newConfidence > 0.98 {
+		newConfidence = 0.98
 	}
 
-	ptf.scenarios = append(ptf.scenarios, scenarios...)
-
-	ptf.logger.Info("Generated scenarios from code", "count", len(scenarios))
-	return nil
+	return newConfidence
 }
