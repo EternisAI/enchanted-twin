@@ -476,12 +476,6 @@ func runStore() {
 		}
 		metadataJSON, _ := json.Marshal(metadata)
 
-		// Use sequential fact ID if original ID is empty
-		factID := fact.ID
-		if factID == "" {
-			factID = fmt.Sprintf("fact-%d", i)
-		}
-
 		// Create Weaviate object with structured fields
 		properties := map[string]interface{}{
 			"content":            fact.GenerateContent(),
