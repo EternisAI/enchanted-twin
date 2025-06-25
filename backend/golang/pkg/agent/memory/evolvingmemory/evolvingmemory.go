@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -89,6 +90,12 @@ type MemoryStorage interface {
 
 	// Direct fact storage - bypasses extraction for testing and consolidation
 	StoreFactsDirectly(ctx context.Context, facts []*memory.MemoryFact, progressCallback memory.ProgressCallback) error
+
+	// Batch fact retrieval for intelligent querying
+	GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error)
+
+	// Intelligent 3-stage query system
+	IntelligentQuery(ctx context.Context, queryText string, filter *memory.Filter) (*IntelligentQueryResult, error)
 }
 
 // Dependencies holds all the required dependencies for creating a MemoryStorage instance.
@@ -242,6 +249,11 @@ func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string
 	return s.storage.GetDocumentReferences(ctx, memoryID)
 }
 
+// GetFactsByIDs retrieves multiple memory facts by their IDs.
+func (s *StorageImpl) GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error) {
+	return s.storage.GetFactsByIDs(ctx, factIDs)
+}
+
 // StoreFactsDirectly stores memory facts directly without going through the extraction pipeline.
 // This is useful for:
 // - Test suite: storing pre-extracted facts from JSON
@@ -361,4 +373,181 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 
 	s.logger.Infof("Successfully stored %d memory objects", processed)
 	return nil
+}
+
+// IntelligentQueryResult represents the structured result of intelligent querying.
+type IntelligentQueryResult struct {
+	Query                string              `json:"query"`
+	ConsolidatedInsights []memory.MemoryFact `json:"consolidated_insights"`
+	CitedEvidence        []memory.MemoryFact `json:"cited_evidence"`
+	AdditionalContext    []memory.MemoryFact `json:"additional_context"`
+	Metadata             QueryMetadata       `json:"metadata"`
+}
+
+// QueryMetadata provides information about the query execution.
+type QueryMetadata struct {
+	QueriedAt                string `json:"queried_at"`
+	ConsolidatedInsightCount int    `json:"consolidated_insight_count"`
+	CitedEvidenceCount       int    `json:"cited_evidence_count"`
+	AdditionalContextCount   int    `json:"additional_context_count"`
+	TotalResults             int    `json:"total_results"`
+	QueryStrategy            string `json:"query_strategy"`
+}
+
+// IntelligentQuery executes a 3-stage intelligent query that prioritizes consolidated insights
+// with supporting evidence and additional context.
+func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, filter *memory.Filter) (*IntelligentQueryResult, error) {
+	s.logger.Info("Starting intelligent query", "query", queryText)
+
+	// Stage 1: Find relevant consolidated insights
+	consolidatedFilter := &memory.Filter{
+		Distance: 0.7,
+		Limit:    func() *int { limit := 10; return &limit }(),
+		Tags:     &memory.TagsFilter{Any: []string{"consolidated"}},
+	}
+
+	// Merge user-provided filter options
+	if filter != nil {
+		if filter.Distance > 0 {
+			consolidatedFilter.Distance = filter.Distance
+		}
+		if filter.Source != nil {
+			consolidatedFilter.Source = filter.Source
+		}
+		if filter.Subject != nil {
+			consolidatedFilter.Subject = filter.Subject
+		}
+	}
+
+	consolidatedResults, err := s.storage.Query(ctx, queryText, consolidatedFilter)
+	if err != nil {
+		return nil, fmt.Errorf("stage 1 - consolidated query failed: %w", err)
+	}
+
+	s.logger.Info("Stage 1 completed", "consolidated_insights", len(consolidatedResults.Facts))
+
+	// Stage 2: Retrieve cited source facts from consolidation metadata
+	var citedFactIDs []string
+	var citedFacts []memory.MemoryFact
+
+	if len(consolidatedResults.Facts) > 0 {
+		// Extract source fact IDs from consolidation metadata
+		citedIDSet := make(map[string]bool)
+		for _, fact := range consolidatedResults.Facts {
+			if fact.Metadata != nil {
+				// Look for source_fact_* keys in metadata
+				for key, value := range fact.Metadata {
+					if strings.HasPrefix(key, "source_fact_") && value != "" {
+						if !citedIDSet[value] {
+							citedFactIDs = append(citedFactIDs, value)
+							citedIDSet[value] = true
+						}
+					}
+				}
+			}
+		}
+
+		// Retrieve cited facts by ID
+		if len(citedFactIDs) > 0 {
+			citedFactPointers, err := s.storage.GetFactsByIDs(ctx, citedFactIDs)
+			if err != nil {
+				s.logger.Warn("Stage 2 - failed to retrieve cited facts", "error", err)
+			} else {
+				// Convert pointers to values
+				for _, factPtr := range citedFactPointers {
+					if factPtr != nil {
+						citedFacts = append(citedFacts, *factPtr)
+					}
+				}
+			}
+		}
+	}
+
+	s.logger.Info("Stage 2 completed", "cited_evidence", len(citedFacts))
+
+	// Stage 3: Query additional raw facts for context, removing duplicates
+	rawFilter := &memory.Filter{
+		Distance: 0.8,
+		Limit:    func() *int { limit := 15; return &limit }(),
+	}
+
+	// Merge user-provided filter options
+	if filter != nil {
+		if filter.Distance > 0 {
+			rawFilter.Distance = filter.Distance
+		}
+		if filter.Source != nil {
+			rawFilter.Source = filter.Source
+		}
+		if filter.Subject != nil {
+			rawFilter.Subject = filter.Subject
+		}
+	}
+
+	rawResults, err := s.storage.Query(ctx, queryText, rawFilter)
+	if err != nil {
+		s.logger.Warn("Stage 3 - raw query failed", "error", err)
+	}
+
+	// Remove duplicates: facts already in consolidated or cited results
+	existingIDs := make(map[string]bool)
+
+	// Mark consolidated fact IDs
+	for _, fact := range consolidatedResults.Facts {
+		existingIDs[fact.ID] = true
+	}
+
+	// Mark cited fact IDs
+	for _, fact := range citedFacts {
+		existingIDs[fact.ID] = true
+	}
+
+	// Filter out consolidated facts and duplicates from raw results
+	var additionalContext []memory.MemoryFact
+	for _, fact := range rawResults.Facts {
+		// Skip if already included or if it's a consolidated fact
+		if existingIDs[fact.ID] {
+			continue
+		}
+
+		// Skip consolidated facts (double-check via tags)
+		isConsolidated := false
+		for _, tag := range fact.Tags {
+			if tag == "consolidated" {
+				isConsolidated = true
+				break
+			}
+		}
+
+		if !isConsolidated {
+			additionalContext = append(additionalContext, fact)
+		}
+	}
+
+	s.logger.Info("Stage 3 completed", "additional_context", len(additionalContext))
+
+	// Build result
+	result := &IntelligentQueryResult{
+		Query:                queryText,
+		ConsolidatedInsights: consolidatedResults.Facts,
+		CitedEvidence:        citedFacts,
+		AdditionalContext:    additionalContext,
+		Metadata: QueryMetadata{
+			QueriedAt:                time.Now().Format(time.RFC3339),
+			ConsolidatedInsightCount: len(consolidatedResults.Facts),
+			CitedEvidenceCount:       len(citedFacts),
+			AdditionalContextCount:   len(additionalContext),
+			TotalResults:             len(consolidatedResults.Facts) + len(citedFacts) + len(additionalContext),
+			QueryStrategy:            "3-stage-intelligent",
+		},
+	}
+
+	s.logger.Info("Intelligent query completed",
+		"query", queryText,
+		"insights", len(result.ConsolidatedInsights),
+		"evidence", len(result.CitedEvidence),
+		"context", len(result.AdditionalContext),
+		"total", result.Metadata.TotalResults)
+
+	return result, nil
 }
