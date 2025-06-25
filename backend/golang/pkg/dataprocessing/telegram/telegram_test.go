@@ -65,7 +65,7 @@ func TestToDocuments(t *testing.T) {
 	}
 
 	logger := log.New(os.Stdout)
-	telegramProcessor, err := NewTelegramProcessor(store, logger)
+	telegramProcessor, err := NewTelegramProcessor(store, logger, nil)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestProcessDirectoryInput(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	processor, err := NewTelegramProcessor(store, logger)
+	processor, err := NewTelegramProcessor(store, logger, nil)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	processor, err := NewTelegramProcessor(store, logger)
+	processor, err := NewTelegramProcessor(store, logger, nil)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
@@ -361,7 +361,7 @@ func TestProcessDirectoryNoJsonFiles(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	processor, err := NewTelegramProcessor(store, logger)
+	processor, err := NewTelegramProcessor(store, logger, nil)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
@@ -399,7 +399,7 @@ func TestProcessRealTelegramExport(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	processor, err := NewTelegramProcessor(store, logger)
+	processor, err := NewTelegramProcessor(store, logger, nil)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
@@ -501,7 +501,7 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 	}
 
 	logger := log.New(os.Stdout)
-	processor, err := NewTelegramProcessor(store, logger)
+	processor, err := NewTelegramProcessor(store, logger, nil)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}

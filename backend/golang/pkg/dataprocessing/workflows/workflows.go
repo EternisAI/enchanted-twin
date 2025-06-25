@@ -18,6 +18,7 @@ type DataProcessingWorkflows struct {
 	Nc            *nats.Conn
 	Memory        memory.Storage
 	OpenAIService *ai.Service
+	ClipService   *ai.ClipEmbeddingService
 }
 
 func (workflows *DataProcessingWorkflows) RegisterWorkflowsAndActivities(worker *worker.Worker) {

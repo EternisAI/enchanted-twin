@@ -18,6 +18,7 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
@@ -100,6 +101,9 @@ type Interface interface {
 	UpsertDocument(ctx context.Context, doc memory.Document) (string, error)
 	GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error)
 	GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*StoredDocument, error)
+
+	// Image query operations
+	QueryImages(ctx context.Context, queryText string, limit int) ([]string, error)
 }
 
 // WeaviateStorage implements the storage interface using Weaviate.
@@ -107,6 +111,7 @@ type WeaviateStorage struct {
 	client            *weaviate.Client
 	logger            *log.Logger
 	embeddingsWrapper *EmbeddingWrapper
+	clipService       *ai.ClipEmbeddingService
 }
 
 // NewStorageInput contains the dependencies needed to create a WeaviateStorage instance.
@@ -605,7 +610,7 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 			{
 				Name:            documentTypeProperty,
 				DataType:        []string{"text"},
-				Description:     "Type of the document (conversation, text, etc.)",
+				Description:     "Type of the document (conversation, text, image, etc.)",
 				IndexFilterable: &indexFilterable,
 			},
 			{
@@ -624,6 +629,17 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 				DataType:        []string{"date"},
 				Description:     "When the document was stored",
 				IndexFilterable: &indexFilterable,
+			},
+			// Image-specific properties
+			{
+				Name:        "imagePath",
+				DataType:    []string{"text"},
+				Description: "Path of the image (for image documents)",
+			},
+			{
+				Name:        "imageEmbedding",
+				DataType:    []string{"vector"},
+				Description: "Embedding of the image (for image documents)",
 			},
 		},
 		Vectorizer: "none",
@@ -1516,6 +1532,8 @@ func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Documen
 		docType = "conversation"
 	case *memory.TextDocument:
 		docType = "text"
+	case *memory.ImageDocument:
+		docType = "image"
 	default:
 		docType = "unknown"
 	}
@@ -1537,6 +1555,19 @@ func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Documen
 		documentMetadataProperty:    string(metadataJSON),
 	}
 
+	// Add image-specific properties if it's an ImageDocument
+	if imageDoc, ok := doc.(*memory.ImageDocument); ok {
+		props["imagePath"] = imageDoc.ImagePath
+		if len(imageDoc.ImageEmbedding) > 0 {
+			// Convert float64 embedding to float32 for Weaviate
+			embedding := make([]float32, len(imageDoc.ImageEmbedding))
+			for i, v := range imageDoc.ImageEmbedding {
+				embedding[i] = float32(v)
+			}
+			props["imageEmbedding"] = embedding
+		}
+	}
+
 	obj := &models.Object{
 		Class:      DocumentClassName,
 		ID:         strfmt.UUID(id),
@@ -1556,4 +1587,77 @@ func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Documen
 	}
 
 	return id, nil
+}
+
+// QueryImages finds similar images using CLIP text-to-image search
+func (s *WeaviateStorage) QueryImages(ctx context.Context, queryText string, limit int) ([]string, error) {
+	// Get text embedding from CLIP service
+	textEmbedding, err := s.clipService.TextEmbedding(ctx, queryText)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create text embedding: %w", err)
+	}
+
+	// Convert to float32 for Weaviate
+	queryVector := make([]float32, len(textEmbedding))
+	for i, v := range textEmbedding {
+		queryVector[i] = float32(v)
+	}
+
+	// Build GraphQL query for image documents only
+	fields := []weaviateGraphql.Field{
+		{Name: "imagePath"},
+		{Name: "_additional", Fields: []weaviateGraphql.Field{{Name: "id"}, {Name: "distance"}}},
+	}
+
+	// Filter for image documents only
+	whereFilter := filters.Where().
+		WithPath([]string{"documentType"}).
+		WithOperator(filters.Equal).
+		WithValueText("image")
+
+	// Execute vector search
+	result, err := s.client.GraphQL().Get().
+		WithClassName(DocumentClassName).
+		WithFields(fields...).
+		WithNearVector(s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector)).
+		WithWhere(whereFilter).
+		WithLimit(limit).
+		Do(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("executing image query: %w", err)
+	}
+
+	if len(result.Errors) > 0 {
+		var errorMsgs []string
+		for _, err := range result.Errors {
+			errorMsgs = append(errorMsgs, err.Message)
+		}
+		return nil, fmt.Errorf("GraphQL errors: %s", strings.Join(errorMsgs, "; "))
+	}
+
+	// Extract image paths
+	var imagePaths []string
+	data, ok := result.Data["Get"].(map[string]interface{})
+	if !ok {
+		return imagePaths, nil
+	}
+
+	classData, ok := data[DocumentClassName].([]interface{})
+	if !ok {
+		return imagePaths, nil
+	}
+
+	for _, item := range classData {
+		obj, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		if imagePath, ok := obj["imagePath"].(string); ok && imagePath != "" {
+			imagePaths = append(imagePaths, imagePath)
+		}
+	}
+
+	s.logger.Info("Image query completed", "query", queryText, "results", len(imagePaths))
+	return imagePaths, nil
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -42,6 +43,7 @@ type Message struct {
 	SavedFrom     string       `json:"saved_from,omitempty"`
 	Text          interface{}  `json:"text"`
 	TextEntities  []TextEntity `json:"text_entities"`
+	Photo         string       `json:"photo"`
 }
 
 type Chat struct {
@@ -73,8 +75,9 @@ type TelegramData struct {
 }
 
 type TelegramProcessor struct {
-	store  *db.Store
-	logger *log.Logger
+	store       *db.Store
+	logger      *log.Logger
+	clipService *ai.ClipEmbeddingService
 }
 
 type conversationData struct {
@@ -93,13 +96,19 @@ type messageData struct {
 	From          string    `json:"from"`
 	To            string    `json:"to"`
 	Text          string    `json:"text"`
+	Photo         string    `json:"photo"`
 	Timestamp     time.Time `json:"timestamp"`
 	ForwardedFrom string    `json:"forwardedFrom"`
 	SavedFrom     string    `json:"savedFrom"`
 	MyMessage     bool      `json:"myMessage"`
 }
 
-func NewTelegramProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+func NewTelegramProcessor(
+	store *db.Store,
+	logger *log.Logger,
+	clipService *ai.ClipEmbeddingService,
+) (processor.Processor, error) {
+
 	if store == nil {
 		return nil, fmt.Errorf("store is nil")
 	}
@@ -107,7 +116,7 @@ func NewTelegramProcessor(store *db.Store, logger *log.Logger) (processor.Proces
 	if logger == nil {
 		return nil, fmt.Errorf("logger is nil")
 	}
-	return &TelegramProcessor{store: store, logger: logger}, nil
+	return &TelegramProcessor{store: store, logger: logger, clipService: clipService}, nil
 }
 
 func (s *TelegramProcessor) Name() string {
@@ -357,6 +366,7 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 					From:          message.From,
 					To:            to,
 					Text:          fullText,
+					Photo:         message.Photo,
 					Timestamp:     timestamp,
 					ForwardedFrom: message.ForwardedFrom,
 					SavedFrom:     message.SavedFrom,
@@ -444,6 +454,80 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		}
 
 		records = append(records, record)
+	}
+
+	// Process images if clip service is available
+	if s.clipService != nil {
+		processedImages := 0
+		totalImages := 0
+
+		// Count total images first
+		for _, chat := range telegramData.Chats.List {
+			for _, message := range chat.Messages {
+				if message.Photo != "" {
+					totalImages++
+				}
+			}
+		}
+
+		s.logger.Info("Processing images", "totalImages", totalImages)
+
+		for _, chat := range telegramData.Chats.List {
+			for _, message := range chat.Messages {
+				if message.Photo == "" {
+					continue
+				}
+
+				// Create image record
+				imageID := fmt.Sprintf("telegram-image-%d-%s", message.ID, chat.ID)
+
+				// Generate description from message context
+				description := "Telegram photo"
+				if message.Text != "" {
+					if textStr, ok := message.Text.(string); ok {
+						description = fmt.Sprintf("Telegram photo: %s", textStr)
+					}
+				}
+
+				// Parse timestamp
+				timestamp, err := parseTimestamp(message.Date, message.DateUnixtime)
+				if err != nil {
+					s.logger.Warn("Failed to parse image message timestamp", "error", err, "messageId", message.ID)
+					continue
+				}
+
+				// Create image record
+				imageData := map[string]interface{}{
+					"type":        "image",
+					"imageId":     imageID,
+					"imagePath":   message.Photo,
+					"chatId":      chat.ID,
+					"chatName":    chat.Name,
+					"messageId":   message.ID,
+					"from":        message.From,
+					"messageType": message.Type,
+					"description": description,
+				}
+
+				record := types.Record{
+					Data:      imageData,
+					Timestamp: timestamp,
+					Source:    s.Name(),
+				}
+
+				records = append(records, record)
+				processedImages++
+
+				if totalImages > 100 && (processedImages%50 == 0 || processedImages == totalImages) {
+					s.logger.Info("Image processing progress",
+						"processed", processedImages,
+						"total", totalImages,
+						"percentage", fmt.Sprintf("%.1f%%", float64(processedImages)/float64(totalImages)*100))
+				}
+			}
+		}
+
+		s.logger.Info("Image processing completed", "processedImages", processedImages)
 	}
 
 	s.logger.Info("Processing completed", "totalRecords", len(records))
@@ -619,6 +703,64 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 				},
 			}
 			documents = append(documents, textDoc)
+		}
+
+		if record.Data["type"] == "image" {
+			imageID, ok := record.Data["imageId"].(string)
+			if !ok {
+				continue
+			}
+			imagePath, ok := record.Data["imagePath"].(string)
+			if !ok {
+				continue
+			}
+			description, ok := record.Data["description"].(string)
+			if !ok {
+				description = "Telegram photo"
+			}
+
+			// Create image document
+			imageDoc := &memory.ImageDocument{
+				FieldID:       imageID,
+				FieldTags:     []string{"social", "image", "telegram"},
+				FieldMetadata: make(map[string]string),
+				ImagePath:     imagePath,
+			}
+
+			// Set timestamp
+			imageDoc.FieldTimestamp = &record.Timestamp
+
+			// Add metadata
+			if chatId, ok := record.Data["chatId"].(int); ok {
+				imageDoc.FieldMetadata["chatId"] = strconv.Itoa(chatId)
+			}
+			if chatName, ok := record.Data["chatName"].(string); ok {
+				imageDoc.FieldMetadata["chatName"] = chatName
+			}
+			if messageId, ok := record.Data["messageId"].(int); ok {
+				imageDoc.FieldMetadata["messageId"] = strconv.Itoa(messageId)
+			}
+			if from, ok := record.Data["from"].(string); ok {
+				imageDoc.FieldMetadata["from"] = from
+			}
+			if messageType, ok := record.Data["messageType"].(string); ok {
+				imageDoc.FieldMetadata["messageType"] = messageType
+			}
+			imageDoc.FieldMetadata["description"] = description
+
+			// Generate image embedding if clip service is available
+			if s.clipService != nil {
+				embedding, err := s.clipService.ImageEmbedding(ctx, imagePath)
+				if err != nil {
+					s.logger.Warn("Failed to generate image embedding",
+						"imagePath", imagePath,
+						"error", err)
+				} else {
+					imageDoc.ImageEmbedding = embedding
+				}
+			}
+
+			documents = append(documents, imageDoc)
 		}
 	}
 

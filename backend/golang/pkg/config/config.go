@@ -17,6 +17,7 @@ type Config struct {
 	GraphqlPort        string
 	EmbeddingsAPIURL   string
 	EmbeddingsAPIKey   string
+	ClipEmbeddingsURL  string
 	EmbeddingsModel    string
 	DBPath             string
 	AppDataPath        string
@@ -70,6 +71,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
 		InviteServerURL:    getEnv("INVITE_SERVER_URL", "", printEnv),
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
+		ClipEmbeddingsURL:  getEnv("CLIP_EMBEDDINGS_URL", "http://localhost:8000", printEnv),
 	}
 	return conf, nil
 }

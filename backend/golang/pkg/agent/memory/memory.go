@@ -694,3 +694,66 @@ func (be *BooleanExpression) IsLeaf() bool {
 func (be *BooleanExpression) IsBranch() bool {
 	return be != nil && be.Left != nil && be.Right != nil
 }
+
+// ImageDocument represents a document containing image data with embeddings.
+type ImageDocument struct {
+	FieldID        string            `json:"id"`
+	FieldTags      []string          `json:"tags,omitempty"`
+	FieldMetadata  map[string]string `json:"metadata,omitempty"`
+	FieldTimestamp *time.Time        `json:"timestamp"`
+	ImagePath      string            `json:"imagePath"`
+	ImageEmbedding []float64         `json:"imageEmbedding"`
+}
+
+func (id *ImageDocument) ID() string {
+	return id.FieldID
+}
+
+func (id *ImageDocument) Content() string {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("IMAGE|%s|%s\n", id.FieldID, id.Source()))
+	builder.WriteString(fmt.Sprintf("PATH|%s\n", id.ImagePath))
+
+	if len(id.FieldMetadata) > 0 {
+		builder.WriteString("METADATA|")
+		for k, v := range id.FieldMetadata {
+			builder.WriteString(fmt.Sprintf("%s:%s|", k, v))
+		}
+		builder.WriteString("\n")
+	}
+
+	if len(id.FieldTags) > 0 {
+		builder.WriteString("TAGS|")
+		builder.WriteString(strings.Join(id.FieldTags, "|"))
+		builder.WriteString("\n")
+	}
+
+	return builder.String()
+}
+
+func (id *ImageDocument) Timestamp() *time.Time {
+	return id.FieldTimestamp
+}
+
+func (id *ImageDocument) Tags() []string {
+	return id.FieldTags
+}
+
+func (id *ImageDocument) Metadata() map[string]string {
+	metadata := make(map[string]string)
+	if id.FieldMetadata != nil {
+		for k, v := range id.FieldMetadata {
+			metadata[k] = v
+		}
+	}
+	metadata["imagePath"] = id.ImagePath
+	return metadata
+}
+
+func (id *ImageDocument) Source() string {
+	return id.ImagePath
+}
+
+func (id *ImageDocument) Chunk() []Document {
+	return []Document{id}
+}

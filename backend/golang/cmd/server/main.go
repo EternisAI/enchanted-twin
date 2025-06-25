@@ -196,6 +196,10 @@ func main() {
 		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	}
 
+	// Initialize CLIP service for image processing
+	clipService := ai.NewClipEmbeddingService(logger, envs.ClipEmbeddingsURL)
+	logger.Info("CLIP service initialized", "url", envs.ClipEmbeddingsURL)
+
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	weaviatePath := filepath.Join(envs.AppDataPath, "db", "weaviate")
@@ -389,6 +393,7 @@ func main() {
 			toolsRegistry:        toolRegistry,
 			notifications:        notificationsSvc,
 			twinchatService:      twinChatService,
+			clipService:          clipService,
 		},
 	)
 	if err != nil {
@@ -513,6 +518,7 @@ type bootstrapTemporalWorkerInput struct {
 	aiCompletionsService *ai.Service
 	notifications        *notifications.Service
 	twinchatService      *twinchat.Service
+	clipService          *ai.ClipEmbeddingService
 }
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
@@ -544,6 +550,7 @@ func bootstrapTemporalWorker(
 		Nc:            input.nc,
 		Memory:        input.memory,
 		OpenAIService: input.aiCompletionsService,
+		ClipService:   input.clipService,
 	}
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 

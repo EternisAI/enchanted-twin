@@ -341,7 +341,15 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 		input.DataSourceName,
 		input.DataSourceID,
 	)
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
+
+	dataprocessingService := dataprocessing.NewDataProcessingServiceWithCLIP(
+		w.OpenAIService,
+		w.Config.CompletionsModel,
+		w.Store,
+		w.Logger,
+		w.ClipService,
+	)
+
 	success, err := dataprocessingService.ProcessSource(
 		ctx,
 		input.DataSourceName,
@@ -468,14 +476,13 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 			Success:         true,
 		}, nil
 	}
-
-	dataprocessingService := dataprocessing.NewDataProcessingService(
+	dataprocessingService := dataprocessing.NewDataProcessingServiceWithCLIP(
 		w.OpenAIService,
 		w.Config.CompletionsModel,
 		w.Store,
 		w.Logger,
+		w.ClipService,
 	)
-
 	documents, err := dataprocessingService.ToDocuments(ctx, input.DataSourceName, records)
 	if err != nil {
 		return IndexBatchActivityResponse{}, err

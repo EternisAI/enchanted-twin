@@ -259,6 +259,7 @@ type DataProcessingService struct {
 	completionsModel string
 	store            *db.Store
 	logger           *log.Logger
+	clipService      *ai.ClipEmbeddingService
 }
 
 func NewDataProcessingService(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger) *DataProcessingService {
@@ -267,6 +268,16 @@ func NewDataProcessingService(openAiService *ai.Service, completionsModel string
 		completionsModel: completionsModel,
 		store:            store,
 		logger:           logger,
+	}
+}
+
+func NewDataProcessingServiceWithCLIP(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger, clipService *ai.ClipEmbeddingService) *DataProcessingService {
+	return &DataProcessingService{
+		openAiService:    openAiService,
+		completionsModel: completionsModel,
+		store:            store,
+		logger:           logger,
+		clipService:      clipService,
 	}
 }
 
@@ -305,11 +316,11 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 
 	switch strings.ToLower(sourceType) {
 	case "telegram":
-		processor, err := telegram.NewTelegramProcessor(s.store, s.logger)
+		telegramProcessor, err := telegram.NewTelegramProcessor(s.store, s.logger, s.clipService)
 		if err != nil {
 			return false, err
 		}
-		records, err = processor.ProcessFile(ctx, inputPath)
+		records, err = telegramProcessor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
@@ -394,7 +405,7 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 			return nil, err
 		}
 	case "telegram":
-		telegramProcessor, err := telegram.NewTelegramProcessor(s.store, s.logger)
+		telegramProcessor, err := telegram.NewTelegramProcessor(s.store, s.logger, s.clipService)
 		if err != nil {
 			return nil, err
 		}

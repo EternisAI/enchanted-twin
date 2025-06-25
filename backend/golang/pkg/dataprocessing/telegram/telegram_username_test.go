@@ -102,7 +102,7 @@ func TestUsernameExtraction(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	source, err := NewTelegramProcessor(store, logger)
+	source, err := NewTelegramProcessor(store, logger, nil)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestUsernameExtractionFallback(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	source, err := NewTelegramProcessor(store, logger)
+	source, err := NewTelegramProcessor(store, logger, nil)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestProcessFileWithStoreExample(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	source, err := NewTelegramProcessor(store, logger)
+	source, err := NewTelegramProcessor(store, logger, nil)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
@@ -428,7 +428,7 @@ func TestUsernameExtractionAndDocumentGeneration(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	processor, err := NewTelegramProcessor(store, logger)
+	processor, err := NewTelegramProcessor(store, logger, nil)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
