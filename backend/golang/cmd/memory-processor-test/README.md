@@ -281,7 +281,7 @@ make chatgpt           # Stage 0: ChatGPT JSON → ConversationDocument (X_0)
 make gmail             # Stage 0: Gmail MBOX → ConversationDocument (X_0)
 make chunks            # Stage 1: ConversationDocument (X_0) → chunks (X_1)
 make facts             # Stage 2: Chunks (X_1) → extracted facts (X_2)
-make store-facts       # Stage 3: Facts → Weaviate storage
+make store             # Stage 3: Facts → Weaviate storage
 make consolidate       # Stage 4: Consolidation analysis
 make store-consolidations  # Stage 5: Store consolidations in Weaviate
 
