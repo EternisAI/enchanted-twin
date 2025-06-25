@@ -36,6 +36,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/imagememory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	schedulerTools "github.com/EternisAI/enchanted-twin/pkg/agent/scheduler/tools"
@@ -299,6 +300,12 @@ func main() {
 
 	// Tools
 	toolRegistry := tools.NewRegistry()
+
+	imageSearchTool := imagememory.ImageSearchTool{
+		Logger:      logger,
+		ClipService: clipService,
+	}
+	toolRegistry.Register(&imageSearchTool)
 
 	if err := toolRegistry.Register(memory.NewMemorySearchTool(logger, mem)); err != nil {
 		logger.Error("Failed to register memory search tool", "error", err)
