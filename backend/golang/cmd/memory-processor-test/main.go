@@ -23,7 +23,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 var logger = log.NewWithOptions(os.Stderr, log.Options{
@@ -793,7 +792,7 @@ func runQueryConsolidations() {
 		os.Exit(1)
 	}
 
-	logger.Info("Querying consolidated facts", "query", queryText)
+	logger.Info("Executing intelligent 3-stage query", "query", queryText)
 
 	// Check if consolidations are stored
 	statusFile := "pipeline_output/X_4_consolidation_storage_status.json"
@@ -809,95 +808,49 @@ func runQueryConsolidations() {
 		os.Exit(1)
 	}
 
-	logger.Info("Executing vector search on consolidated facts", "query", queryText)
+	logger.Info("Executing intelligent query", "query", queryText)
 
-	// Query all facts (raw + consolidated)
-	allResults, err := infra.MemoryStorage.Query(infra.Context, queryText, &memory.Filter{
+	// Execute the new 3-stage intelligent query
+	intelligentResult, err := infra.MemoryStorage.IntelligentQuery(infra.Context, queryText, &memory.Filter{
 		Distance: 0.7,
-		Limit:    func() *int { limit := 10; return &limit }(),
 	})
 	if err != nil {
-		logger.Error("Query failed", "query", queryText, "error", err)
+		logger.Error("Intelligent query failed", "query", queryText, "error", err)
 		os.Exit(1)
 	}
 
-	// Query only consolidated facts (vector search on consolidated content)
-	consolidatedResults, err := infra.MemoryStorage.Query(infra.Context, queryText, &memory.Filter{
-		Distance: 0.7,
-		Limit:    func() *int { limit := 10; return &limit }(),
-		Tags:     &memory.TagsFilter{Any: []string{"consolidated"}},
-	})
-	if err != nil {
-		logger.Error("Consolidated query failed", "query", queryText, "error", err)
-		os.Exit(1)
-	}
-
-	// Query only summary facts (vector search on summary content)
-	summaryResults, err := infra.MemoryStorage.Query(infra.Context, queryText, &memory.Filter{
-		Distance:     0.7,
-		Limit:        func() *int { limit := 5; return &limit }(),
-		FactCategory: helpers.Ptr("summary"),
-	})
-	if err != nil {
-		logger.Error("Summary query failed", "query", queryText, "error", err)
-		os.Exit(1)
-	}
-
-	// Query only raw facts (non-consolidated)
-	rawResults, err := infra.MemoryStorage.Query(infra.Context, queryText, &memory.Filter{
-		Distance: 0.7,
-		Limit:    func() *int { limit := 20; return &limit }(),
-	})
-	if err != nil {
-		logger.Error("Raw query failed", "query", queryText, "error", err)
-		os.Exit(1)
-	}
-
-	// Filter out consolidated facts from raw results
-	var filteredRawFacts []memory.MemoryFact
-	for _, fact := range rawResults.Facts {
-		isConsolidated := false
-		for _, tag := range fact.Tags {
-			if tag == "consolidated" {
-				isConsolidated = true
-				break
-			}
-		}
-		if !isConsolidated {
-			filteredRawFacts = append(filteredRawFacts, fact)
-		}
-	}
-
-	// Create comprehensive query result
+	// Create comprehensive query result with backwards compatibility
 	queryResult := map[string]interface{}{
-		"query":      queryText,
-		"queried_at": time.Now().Format(time.RFC3339),
-		"vector_search_results": map[string]interface{}{
+		"query":                     queryText,
+		"queried_at":                time.Now().Format(time.RFC3339),
+		"intelligent_query_results": intelligentResult,
+		"legacy_vector_search_results": map[string]interface{}{
 			"all_facts": map[string]interface{}{
-				"count":       len(allResults.Facts),
-				"facts":       allResults.Facts,
-				"description": "All facts (raw + consolidated) matching the query",
+				"count":       intelligentResult.Metadata.TotalResults,
+				"facts":       append(append(intelligentResult.ConsolidatedInsights, intelligentResult.CitedEvidence...), intelligentResult.AdditionalContext...),
+				"description": "All facts from intelligent 3-stage query",
 			},
 			"consolidated_only": map[string]interface{}{
-				"count":       len(consolidatedResults.Facts),
-				"facts":       consolidatedResults.Facts,
-				"description": "Only consolidated insights matching the query",
+				"count":       intelligentResult.Metadata.ConsolidatedInsightCount,
+				"facts":       intelligentResult.ConsolidatedInsights,
+				"description": "Consolidated insights (Stage 1 results)",
 			},
-			"summaries_only": map[string]interface{}{
-				"count":       len(summaryResults.Facts),
-				"facts":       summaryResults.Facts,
-				"description": "Only topic summaries matching the query",
+			"cited_evidence": map[string]interface{}{
+				"count":       intelligentResult.Metadata.CitedEvidenceCount,
+				"facts":       intelligentResult.CitedEvidence,
+				"description": "Source facts cited by consolidated insights (Stage 2 results)",
 			},
-			"raw_only": map[string]interface{}{
-				"count":       len(filteredRawFacts),
-				"facts":       filteredRawFacts,
-				"description": "Only raw facts (non-consolidated) matching the query",
+			"additional_context": map[string]interface{}{
+				"count":       intelligentResult.Metadata.AdditionalContextCount,
+				"facts":       intelligentResult.AdditionalContext,
+				"description": "Additional raw facts for context (Stage 3 results)",
 			},
 		},
 		"query_metadata": map[string]interface{}{
 			"embeddings_model":   getEnvOrDefault("EMBEDDINGS_MODEL", "text-embedding-3-small"),
 			"weaviate_port":      getEnvOrDefault("WEAVIATE_PORT", "51414"),
 			"distance_threshold": 0.7,
+			"query_strategy":     intelligentResult.Metadata.QueryStrategy,
 		},
 	}
 
@@ -908,22 +861,25 @@ func runQueryConsolidations() {
 		os.Exit(1)
 	}
 
-	logger.Info("Vector search completed",
+	logger.Info("Intelligent query completed",
 		"query", queryText,
-		"all_results", len(allResults.Facts),
-		"consolidated_results", len(consolidatedResults.Facts),
-		"summary_results", len(summaryResults.Facts),
-		"raw_results", len(filteredRawFacts),
+		"total_results", intelligentResult.Metadata.TotalResults,
+		"consolidated_insights", intelligentResult.Metadata.ConsolidatedInsightCount,
+		"cited_evidence", intelligentResult.Metadata.CitedEvidenceCount,
+		"additional_context", intelligentResult.Metadata.AdditionalContextCount,
 		"output", outputFile)
 
 	// Print top results for immediate feedback
-	fmt.Printf("\n🔍 Vector Search Results for: \"%s\"\n", queryText)
-	fmt.Printf("📊 Total: %d | 🔗 Consolidated: %d | 📝 Summaries: %d | 📄 Raw: %d\n\n",
-		len(allResults.Facts), len(consolidatedResults.Facts), len(summaryResults.Facts), len(filteredRawFacts))
+	fmt.Printf("\n🧠 Intelligent Query Results for: \"%s\"\n", queryText)
+	fmt.Printf("📊 Total: %d | 🔗 Insights: %d | 🔗 Evidence: %d | 📄 Context: %d\n\n",
+		intelligentResult.Metadata.TotalResults,
+		intelligentResult.Metadata.ConsolidatedInsightCount,
+		intelligentResult.Metadata.CitedEvidenceCount,
+		intelligentResult.Metadata.AdditionalContextCount)
 
-	if len(consolidatedResults.Facts) > 0 {
+	if len(intelligentResult.ConsolidatedInsights) > 0 {
 		fmt.Println("🔗 Top Consolidated Insights:")
-		for i, fact := range consolidatedResults.Facts {
+		for i, fact := range intelligentResult.ConsolidatedInsights {
 			if i >= 3 {
 				break
 			} // Show top 3
@@ -932,9 +888,20 @@ func runQueryConsolidations() {
 		fmt.Println()
 	}
 
-	if len(summaryResults.Facts) > 0 {
-		fmt.Println("📝 Topic Summaries:")
-		for i, fact := range summaryResults.Facts {
+	if len(intelligentResult.CitedEvidence) > 0 {
+		fmt.Println("📋 Supporting Evidence:")
+		for i, fact := range intelligentResult.CitedEvidence {
+			if i >= 2 {
+				break
+			} // Show top 2
+			fmt.Printf("  %d. %s\n", i+1, fact.Content)
+		}
+		fmt.Println()
+	}
+
+	if len(intelligentResult.AdditionalContext) > 0 {
+		fmt.Println("📄 Additional Context:")
+		for i, fact := range intelligentResult.AdditionalContext {
 			if i >= 2 {
 				break
 			} // Show top 2

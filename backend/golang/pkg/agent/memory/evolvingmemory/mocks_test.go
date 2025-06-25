@@ -88,8 +88,17 @@ func (m *MockStorage) GetStoredDocumentsBatch(ctx context.Context, documentIDs [
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	storedDocs, _ := args.Get(0).([]*storage.StoredDocument)
-	return storedDocs, args.Error(1)
+	docs, _ := args.Get(0).([]*storage.StoredDocument)
+	return docs, args.Error(1)
+}
+
+func (m *MockStorage) GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error) {
+	args := m.Called(ctx, factIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	facts, _ := args.Get(0).([]*memory.MemoryFact)
+	return facts, args.Error(1)
 }
 
 // Ensure MockStorage implements the storage interface.
