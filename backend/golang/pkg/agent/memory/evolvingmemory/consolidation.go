@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/google/uuid"
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -51,21 +52,118 @@ func ConsolidateByTag(ctx context.Context, tag string, storage memory.Storage, a
 	return consolidation, nil
 }
 
-// StoreConsolidationReport saves the consolidation to storage.
-func StoreConsolidationReport(ctx context.Context, report *ConsolidationReport, storage ConsolidationStorage) error {
-	// Store summary as special consolidation fact
-	if err := storage.StoreSummary(ctx, report.Topic, report.Summary, report.GeneratedAt); err != nil {
-		return fmt.Errorf("storing summary: %w", err)
-	}
+// StoreConsolidationReport saves the consolidation using the modular storage approach.
+func StoreConsolidationReport(ctx context.Context, report *ConsolidationReport, memoryStorage MemoryStorage) error {
+	// Convert consolidated facts to regular MemoryFacts for storage
+	var facts []*memory.MemoryFact
 
-	// Store consolidation facts
-	for _, fact := range report.ConsolidatedFacts {
-		if err := storage.StoreConsolidationFact(ctx, fact); err != nil {
-			return fmt.Errorf("storing consolidation fact: %w", err)
+	// Add summary as a special fact
+	summaryFact := &memory.MemoryFact{
+		ID:                 deterministicID(fmt.Sprintf("summary-%s-%d", report.Topic, report.GeneratedAt.Unix())),
+		Content:            report.Summary,
+		Category:           "summary",
+		Subject:            report.Topic,
+		Attribute:          "consolidated_summary",
+		Value:              report.Summary,
+		Sensitivity:        "low",
+		Importance:         3,
+		Source:             "consolidation",
+		Timestamp:          report.GeneratedAt,
+		Tags:               []string{"consolidated", "summary", report.Topic},
+		DocumentReferences: []string{},
+		Metadata: map[string]string{
+			"consolidation_type": "summary",
+			"source_fact_count":  fmt.Sprintf("%d", report.SourceFactCount),
+		},
+	}
+	facts = append(facts, summaryFact)
+
+	// Add all consolidated facts
+	for _, consolidatedFact := range report.ConsolidatedFacts {
+		// Update metadata to track source facts
+		if consolidatedFact.Metadata == nil {
+			consolidatedFact.Metadata = make(map[string]string)
 		}
+		consolidatedFact.Metadata["consolidation_type"] = "fact"
+		consolidatedFact.Metadata["consolidated_from_count"] = fmt.Sprintf("%d", len(consolidatedFact.ConsolidatedFrom))
+
+		// Store source fact IDs in metadata
+		for i, sourceID := range consolidatedFact.ConsolidatedFrom {
+			consolidatedFact.Metadata[fmt.Sprintf("source_fact_%d", i)] = sourceID
+		}
+
+		facts = append(facts, &consolidatedFact.MemoryFact)
 	}
 
-	return nil
+	// Use the modular StoreFactsDirectly function! 🚀
+	return memoryStorage.StoreFactsDirectly(ctx, facts, nil)
+}
+
+// StoreConsolidationReports saves multiple consolidation reports using the modular storage approach.
+// This is optimized for batch processing of multiple reports (e.g., comprehensive consolidation).
+func StoreConsolidationReports(ctx context.Context, reports []*ConsolidationReport, memoryStorage MemoryStorage, progressCallback memory.ProgressCallback) error {
+	if len(reports) == 0 {
+		return nil
+	}
+
+	// Convert all consolidated facts to regular MemoryFacts for storage
+	var allFacts []*memory.MemoryFact
+	totalSourceFacts := 0
+	totalConsolidatedFacts := 0
+
+	for _, report := range reports {
+		// Add summary as a special fact
+		summaryFact := &memory.MemoryFact{
+			ID:                 deterministicID(fmt.Sprintf("summary-%s-%d", report.Topic, report.GeneratedAt.Unix())),
+			Content:            report.Summary,
+			Category:           "summary",
+			Subject:            report.Topic,
+			Attribute:          "consolidated_summary",
+			Value:              report.Summary,
+			Sensitivity:        "low",
+			Importance:         3,
+			Source:             "consolidation",
+			Timestamp:          report.GeneratedAt,
+			Tags:               []string{"consolidated", "summary", report.Topic},
+			DocumentReferences: []string{},
+			Metadata: map[string]string{
+				"consolidation_type":  "summary",
+				"source_fact_count":   fmt.Sprintf("%d", report.SourceFactCount),
+				"consolidation_topic": report.Topic,
+			},
+		}
+		allFacts = append(allFacts, summaryFact)
+
+		// Add all consolidated facts from this report
+		for _, consolidatedFact := range report.ConsolidatedFacts {
+			// Create a copy of the MemoryFact
+			fact := consolidatedFact.MemoryFact
+
+			// Update metadata to track source facts
+			if fact.Metadata == nil {
+				fact.Metadata = make(map[string]string)
+			}
+			fact.Metadata["consolidation_type"] = "fact"
+			fact.Metadata["consolidated_from_count"] = fmt.Sprintf("%d", len(consolidatedFact.ConsolidatedFrom))
+			fact.Metadata["consolidation_topic"] = report.Topic
+
+			// Store source fact IDs in metadata
+			for idx, sourceID := range consolidatedFact.ConsolidatedFrom {
+				fact.Metadata[fmt.Sprintf("source_fact_%d", idx)] = sourceID
+			}
+
+			// Ensure tags include consolidation markers
+			fact.Tags = append(fact.Tags, "consolidated", report.Topic)
+
+			allFacts = append(allFacts, &fact)
+		}
+
+		totalSourceFacts += report.SourceFactCount
+		totalConsolidatedFacts += len(report.ConsolidatedFacts)
+	}
+
+	// Use the modular StoreFactsDirectly function for batch storage! 🚀
+	return memoryStorage.StoreFactsDirectly(ctx, allFacts, progressCallback)
 }
 
 // ExportToJSON writes the consolidation report to a JSON file.
@@ -125,11 +223,46 @@ func parseConsolidationResponse(response openai.ChatCompletionMessage, sourceFac
 
 		summary = args.Summary
 
-		// Convert to ConsolidationFacts with source tracking
-		for _, fact := range args.ConsolidatedFacts {
+		// Convert to ConsolidationFacts with proper field population
+		for i, rawFact := range args.ConsolidatedFacts {
+			// Generate unique ID for consolidated fact
+			consolidatedID := deterministicID(fmt.Sprintf("consolidated-%d-%d", time.Now().Unix(), i))
+
+			// Create properly populated MemoryFact
+			fact := memory.MemoryFact{
+				ID:              consolidatedID,
+				Category:        rawFact.Category,
+				Subject:         rawFact.Subject,
+				Attribute:       rawFact.Attribute,
+				Value:           rawFact.Value,
+				TemporalContext: rawFact.TemporalContext,
+				Sensitivity:     rawFact.Sensitivity,
+				Importance:      rawFact.Importance,
+				Source:          "consolidation",                            // Mark as consolidated fact
+				Timestamp:       time.Now(),                                 // Current timestamp for consolidation
+				Tags:            []string{"consolidated", rawFact.Category}, // Add consolidation tags
+			}
+
+			// Generate searchable content from structured fields
+			fact.Content = fact.GenerateContent()
+
+			// Map LLM-provided indices to actual source fact IDs (convert from 1-based to 0-based)
+			var relevantSourceIDs []string
+			for _, index := range rawFact.SourceFactIndices {
+				if index >= 1 && index <= len(sourceFactIDs) {
+					relevantSourceIDs = append(relevantSourceIDs, sourceFactIDs[index-1]) // Convert to 0-based
+				}
+			}
+
+			// Fallback to all source facts if no specific indices provided
+			if len(relevantSourceIDs) == 0 {
+				relevantSourceIDs = sourceFactIDs // Use all as fallback
+			}
+
+			// Create ConsolidationFact with intelligent source tracking
 			consolidatedFacts = append(consolidatedFacts, &ConsolidationFact{
 				MemoryFact:       fact,
-				ConsolidatedFrom: sourceFactIDs, // All facts contributed to this consolidation
+				ConsolidatedFrom: relevantSourceIDs, // Only facts that actually contributed to this insight
 			})
 		}
 	}
@@ -474,4 +607,50 @@ func buildFactsContent(facts []*memory.MemoryFact) string {
 	}
 
 	return builder.String()
+}
+
+// LoadConsolidationReportsFromJSON loads consolidation reports from a comprehensive consolidation JSON file.
+// This handles the format created by the test suite's comprehensive consolidation process.
+func LoadConsolidationReportsFromJSON(filepath string) ([]*ConsolidationReport, error) {
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("reading file: %w", err)
+	}
+
+	// Parse the comprehensive consolidation format
+	var comprehensiveData map[string]interface{}
+	if err := json.Unmarshal(data, &comprehensiveData); err != nil {
+		return nil, fmt.Errorf("parsing JSON: %w", err)
+	}
+
+	// Extract consolidation reports
+	reportsData, ok := comprehensiveData["consolidation_reports"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid format: missing consolidation_reports field")
+	}
+
+	var reports []*ConsolidationReport
+	for i, reportData := range reportsData {
+		// Convert to JSON and parse as ConsolidationReport
+		reportJSON, err := json.Marshal(reportData)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling report %d: %w", i, err)
+		}
+
+		var report ConsolidationReport
+		if err := json.Unmarshal(reportJSON, &report); err != nil {
+			return nil, fmt.Errorf("unmarshaling report %d: %w", i, err)
+		}
+
+		reports = append(reports, &report)
+	}
+
+	return reports, nil
+}
+
+// deterministicID generates a stable UUID5 from originalID for valid Weaviate IDs
+// This matches exactly what storage.go does to avoid UUID validation errors.
+func deterministicID(originalID string) string {
+	namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8") // DNS namespace UUID
+	return uuid.NewSHA1(namespace, []byte(originalID)).String()
 }
