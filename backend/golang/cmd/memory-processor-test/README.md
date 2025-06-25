@@ -268,6 +268,93 @@ make facts
 ./memory-processor-test facts
 ```
 
+## Usage
+
+```bash
+# Build the test binary
+make build
+
+# Run the pipeline stages individually  
+make whatsapp          # Stage 0: WhatsApp SQLite → ConversationDocument (X_0)
+make telegram          # Stage 0: Telegram JSON → ConversationDocument (X_0)  
+make chatgpt           # Stage 0: ChatGPT JSON → ConversationDocument (X_0)
+make gmail             # Stage 0: Gmail MBOX → ConversationDocument (X_0)
+make chunks            # Stage 1: ConversationDocument (X_0) → chunks (X_1)
+make facts             # Stage 2: Chunks (X_1) → extracted facts (X_2)
+make store-facts       # Stage 3: Facts → Weaviate storage
+make consolidate       # Stage 4: Consolidation analysis
+make store-consolidations  # Stage 5: Store consolidations in Weaviate
+
+# 🚀 NEW: Intelligent querying with consolidation-first approach
+make query QUERY="machine learning"
+make query QUERY="romantic relationships"
+
+# Legacy queries (still available)
+make query-raw QUERY="specific conversation content"
+make query-consolidations QUERY="high-level insights only"
+```
+
+### 🧠 Intelligent Query System
+
+The new `make query` command implements a **3-stage intelligent query system**:
+
+**Stage 1**: Find consolidated insights (high-level synthesized knowledge)
+**Stage 2**: Retrieve cited evidence (supporting facts from consolidation metadata)
+**Stage 3**: Add contextual information (related raw facts, deduplicated)
+
+#### Example Output
+```bash
+make query QUERY="category theory"
+
+🧠 Intelligent Query Results for: "category theory"  
+📊 Total: 117 | 🔗 Insights: 12 | 🔗 Evidence: 37 | 📄 Context: 68
+
+🔗 Top Consolidated Insights:
+  1. primaryUser - actively participates in academic communities focused on category theory
+  2. primaryUser - exhibits sustained interest in philosophy of science and category theory  
+  3. primaryUser - regularly teaches advanced mathematical concepts like category theory
+
+📋 Supporting Evidence (first 3):
+  1. David Spivak - discussed potential involvement in category theory platform project
+  2. Dmitry Vagner - receives academic advice regarding research focus and teaching
+  3. sub@cs.cmu.edu - discussed renaming 'applied category theory' to 'categorical design'
+
+💾 Results saved to: pipeline_output/X_5_query_results_1750867953.json
+```
+
+#### Query Result Structure
+```json
+{
+  "intelligent_query_results": {
+    "query": "category theory",
+    "consolidated_insights": [...],  // High-level synthesized facts
+    "cited_evidence": [...],         // Supporting source facts
+    "additional_context": [...],     // Related raw facts (deduplicated)
+    "metadata": {
+      "total_results": 117,
+      "consolidated_count": 12,
+      "cited_evidence_count": 37,
+      "additional_context_count": 68,
+      "stage_1_found": 12,
+      "stage_2_found": 55,
+      "stage_2_retrieved": 37,
+      "stage_3_found": 94,
+      "stage_3_filtered": 26,
+      "execution_time_ms": 127,
+      "deduplication_successful": true
+    }
+  }
+}
+```
+
+### 🎯 Key Benefits
+
+- **Insights First**: Prioritizes synthesized knowledge over raw search results
+- **Evidence Trail**: Shows which conversations led to each insight
+- **Smart Deduplication**: No fact appears in multiple result sections  
+- **Performance**: Pure vector search, no LLM calls during querying
+- **Audit Trail**: Full traceability from insights to source conversations
+
 ## Output Files
 
 ### X_0_whatsapp.json / X_0_telegram.json
