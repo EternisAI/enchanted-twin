@@ -9,8 +9,14 @@ import (
 
 // ConsolidateMemoriesToolArguments is used for the LLM consolidation tool.
 type ConsolidateMemoriesToolArguments struct {
-	Summary           string              `json:"summary"`
-	ConsolidatedFacts []memory.MemoryFact `json:"consolidated_facts"`
+	Summary           string                        `json:"summary"`
+	ConsolidatedFacts []ConsolidatedMemoryFactInput `json:"consolidated_facts"`
+}
+
+// ConsolidatedMemoryFactInput represents the LLM input for consolidated facts.
+type ConsolidatedMemoryFactInput struct {
+	memory.MemoryFact
+	SourceFactIndices []int `json:"source_fact_indices"` // 1-based indices from LLM
 }
 
 var extractFactsTool = openai.ChatCompletionToolParam{
@@ -147,11 +153,16 @@ var consolidateMemoriesTool = openai.ChatCompletionToolParam{
 								"maximum":     3,
 								"description": "Consolidated insights should typically be importance 2-3",
 							},
+							"source_fact_indices": map[string]any{
+								"type":        "array",
+								"items":       map[string]any{"type": "integer", "minimum": 1},
+								"description": "Array of fact numbers (1-based index) from the input that contributed to this consolidated insight",
+							},
 						},
-						"required":             []string{"category", "subject", "attribute", "value", "sensitivity", "importance"},
+						"required":             []string{"category", "subject", "attribute", "value", "sensitivity", "importance", "source_fact_indices"},
 						"additionalProperties": false,
 					},
-					"description": "Array of high-quality consolidated facts that provide broader insights than raw facts",
+					"description": "Array of consolidated facts - each should synthesize multiple raw facts into higher-level insights",
 				},
 			},
 			"required":             []string{"summary", "consolidated_facts"},

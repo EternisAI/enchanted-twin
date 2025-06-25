@@ -1142,6 +1142,47 @@ log.Printf("Consolidated %d facts into %d insights",
     len(report.ConsolidatedFacts))
 ```
 
+### Consolidation Storage
+
+The consolidation system includes powerful storage capabilities for persisting consolidated facts back into the memory system:
+
+```go
+// Store a single consolidation report
+err = StoreConsolidationReport(ctx, report, memoryStorage)
+if err != nil {
+    log.Fatal("Storage failed:", err)
+}
+
+// Store multiple consolidation reports (batch processing)
+reports := []*ConsolidationReport{report1, report2, report3}
+err = StoreConsolidationReports(ctx, reports, memoryStorage, func(processed, total int) {
+    log.Printf("Storage progress: %d/%d", processed, total)
+})
+if err != nil {
+    log.Fatal("Batch storage failed:", err)
+}
+
+// Load consolidation reports from comprehensive JSON
+reports, err := LoadConsolidationReportsFromJSON("X_3_consolidation_report.json")
+if err != nil {
+    log.Fatal("Loading failed:", err)
+}
+
+// Store the loaded reports
+err = StoreConsolidationReports(ctx, reports, memoryStorage, nil)
+if err != nil {
+    log.Fatal("Storage failed:", err)
+}
+```
+
+#### Storage Features
+
+- **Structured metadata** - Each consolidated fact includes source tracking and consolidation metadata
+- **Batch processing** - Efficiently store multiple reports with progress callbacks
+- **Tag augmentation** - Automatically adds "consolidated" and topic tags for easy filtering
+- **Summary facts** - Creates special summary facts for narrative overviews
+- **Source traceability** - Maintains full audit trail to original facts
+
 ### Consolidation Flow
 
 1. **Fact Retrieval** - Fetch all facts tagged with the specified topic
@@ -1149,6 +1190,7 @@ log.Printf("Consolidated %d facts into %d insights",
 3. **Synthesis** - LLM generates summary + consolidated facts
 4. **Source Tracking** - Link consolidated facts back to original sources
 5. **Report Generation** - Package results with metadata
+6. **Storage** - Persist consolidated facts back into memory system (optional)
 
 ### Architecture Benefits
 
@@ -1157,10 +1199,36 @@ log.Printf("Consolidated %d facts into %d insights",
 - **Consistent Patterns** - Follows same LLM tool call patterns as fact extraction
 - **Export Ready** - JSON export for analysis and reporting
 - **Source Traceability** - Full audit trail from consolidated facts to raw sources
+- **Persistent Storage** - Store consolidated insights for enhanced querying
+
+### Querying Consolidated Facts
+
+After storage, consolidated facts can be queried alongside raw facts:
+
+```go
+// Query only consolidated facts
+filter := &memory.Filter{
+    Tags: &memory.TagsFilter{Any: []string{"consolidated"}},
+}
+result, err := storage.Query(ctx, "user preferences", filter)
+
+// Query facts from specific consolidation topic
+filter := &memory.Filter{
+    Tags: &memory.TagsFilter{Any: []string{"Family & Close Kin"}},
+}
+result, err := storage.Query(ctx, "family relationships", filter)
+
+// Query consolidated summaries only
+filter := &memory.Filter{
+    FactCategory: helpers.Ptr("summary"),
+    Tags: &memory.TagsFilter{Any: []string{"consolidated"}},
+}
+result, err := storage.Query(ctx, "topic summaries", filter)
+```
 
 ### Future Enhancements
 
 - **Similarity Search** - Include semantically related facts beyond tags
-- **Weaviate Storage** - Dedicated consolidation schema for persistent storage
 - **Scheduled Processing** - Automated consolidation workflows
 - **Multi-topic Synthesis** - Cross-topic relationship discovery
+- **Intelligent Querying** - Hybrid raw + consolidated fact ranking

@@ -533,7 +533,7 @@ Transform fragmented, atomic facts into coherent, comprehensive insights while p
 ## Input Format
 You will receive:
 - **Topic/Tag**: The theme being consolidated (e.g., "health", "work", "relationships") 
-- **Raw Facts**: Array of atomic memory facts related to this topic
+- **Raw Facts**: Numbered array of atomic memory facts related to this topic
 - **Context**: Any additional context about the user
 
 ## Output Requirements
@@ -552,7 +552,14 @@ Use the CONSOLIDATE_MEMORIES tool to provide:
 - **Broader patterns** that emerge from the data
 - **Key relationships** between different aspects
 - Each fact should be more **comprehensive and valuable** than individual raw facts
+- **CRITICAL**: Use source_fact_indices to specify which numbered facts (1-based) contributed to each insight
 - Follow the same structure as MemoryFact but with **enhanced scope and quality**
+
+## Intelligent Source Tracking
+- **ALWAYS specify source_fact_indices**: For each consolidated fact, list the numbers of the input facts that contributed to it
+- **Be selective**: Only include facts that genuinely support the consolidated insight
+- **Group logically**: Facts that form natural patterns should be consolidated together
+- **Example**: If facts #3, #7, and #12 all relate to coffee preferences, consolidate them into one insight with source_fact_indices: [3, 7, 12]
 
 ## Quality Standards
 
@@ -570,9 +577,10 @@ Use the CONSOLIDATE_MEMORIES tool to provide:
 ### Consolidation Facts Quality
 ✅ **Synthetic insight**: Combines multiple raw facts into broader understanding
 ✅ **Enhanced value**: More useful than sum of parts
-✅ **Clear attribution**: Based on identifiable patterns in raw data
+✅ **Clear attribution**: Based on identifiable patterns in raw data (specify in source_fact_indices)
 ✅ **Appropriate scope**: Neither too narrow nor overly broad
 ✅ **Actionable relevance**: Meaningful for understanding the person
+✅ **Intelligent grouping**: Only consolidate facts that genuinely belong together
 
 ## Categories for Consolidation Facts
 Use the same categories as regular facts, but focus on higher-level patterns:
@@ -591,38 +599,44 @@ Use the same categories as regular facts, but focus on higher-level patterns:
 
 **Input Topic**: "fitness"
 **Raw Facts**: 
-- "switched to 6am morning runs, finds them better than evening runs"
-- "training for a marathon scheduled in May 2025" 
-- "attends CrossFit classes 4 times a week"
-- "experiences anxiety triggered by presentations"
-- "tracking daily step count using fitness watch"
+1. "switched to 6am morning runs, finds them better than evening runs"
+2. "training for a marathon scheduled in May 2025" 
+3. "attends CrossFit classes 4 times a week"
+4. "experiences anxiety triggered by presentations"
+5. "tracking daily step count using fitness watch"
 
 **Output Summary**:
-"PrimaryUser has developed a comprehensive and evolving fitness routine that reflects both structured training and personal optimization. Their exercise regimen centers around regular CrossFit sessions (4x weekly) complemented by a recent shift to morning runs at 6am, indicating a preference for morning workouts and disciplined scheduling. This routine serves both immediate fitness goals and longer-term athletic ambitions, as evidenced by their marathon training for May 2025. The integration of fitness tracking technology suggests a data-driven approach to health monitoring, while the consistent exercise schedule may also serve as a stress management strategy given their documented presentation anxiety."
+"PrimaryUser has developed a comprehensive and evolving fitness routine that reflects both structured training and personal optimization. Their exercise regimen centers around regular CrossFit sessions (4x weekly) complemented by a recent shift to morning runs at 6am, indicating a preference for morning workouts and disciplined scheduling. This routine serves both immediate fitness goals and longer-term athletic ambitions, as evidenced by their marathon training for May 2025. The integration of fitness tracking technology suggests a data-driven approach to health monitoring."
 
 **Consolidation Facts**:
-<json>
-{
-  "category": "routine",
-  "subject": "primaryUser", 
-  "attribute": "exercise_pattern",
-  "value": "maintains disciplined morning-focused fitness routine combining 4x weekly CrossFit with 6am runs, optimized through personal experimentation",
-  "sensitivity": "low",
-  "importance": 3
-}
-</json>
 
-<json>
-{
-  "category": "goal_plan",
-  "subject": "primaryUser",
-  "attribute": "athletic_development", 
-  "value": "pursuing structured athletic progression from regular CrossFit training to marathon competition, indicating escalating fitness ambitions",
-  "temporal_context": "2025-05",
-  "sensitivity": "low", 
-  "importance": 3
-}
-</json>
+Example Fact 1:
+  category: "routine"
+  subject: "primaryUser"
+  attribute: "exercise_pattern"
+  value: "maintains disciplined morning-focused fitness routine combining 4x weekly CrossFit with 6am runs, optimized through personal experimentation"
+  source_fact_indices: [1, 3] (Facts about morning runs and CrossFit schedule)
+  sensitivity: "low"
+  importance: 3
+
+Example Fact 2:
+  category: "goal_plan"
+  subject: "primaryUser"
+  attribute: "athletic_development"
+  value: "pursuing structured athletic progression from regular CrossFit training to marathon competition, indicating escalating fitness ambitions"
+  source_fact_indices: [2, 3] (Facts about marathon training and CrossFit)
+  temporal_context: "2025-05"
+  sensitivity: "low"
+  importance: 3
+
+Example Fact 3:
+  category: "skill"
+  subject: "primaryUser"
+  attribute: "health_tracking"
+  value: "employs data-driven fitness monitoring approach using wearable technology for step count tracking"
+  source_fact_indices: [5] (Only the step tracking fact)
+  sensitivity: "low"
+  importance: 2
 
 ## Key Principles
 1. **Synthesize, don't summarize**: Create new insights from patterns
@@ -630,6 +644,7 @@ Use the same categories as regular facts, but focus on higher-level patterns:
 3. **Maintain accuracy**: Never go beyond what the facts support
 4. **Focus on value**: Each consolidation should be more useful than raw facts
 5. **Respect privacy**: Maintain appropriate sensitivity levels
+6. **Be selective with source tracking**: Only link facts that genuinely support each insight
 
 ## Topic-Specific Guidelines
 
@@ -639,6 +654,6 @@ Use the same categories as regular facts, but focus on higher-level patterns:
 **Goal consolidation**: Show goal evolution, achievement patterns, and planning approaches
 **Preference consolidation**: Identify consistent themes and preference evolution
 
-Remember: You are creating a thoughtful, comprehensive understanding of this aspect of the user's life based on factual evidence. Quality over quantity - better to create fewer, more insightful consolidations than many shallow ones.
+Remember: You are creating a thoughtful, comprehensive understanding of this aspect of the user's life based on factual evidence. Quality over quantity - better to create fewer, more insightful consolidations than many shallow ones. Always specify which source facts support each consolidated insight using source_fact_indices.
 `
 )

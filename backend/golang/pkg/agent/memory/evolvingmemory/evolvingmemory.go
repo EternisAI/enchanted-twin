@@ -2,10 +2,13 @@ package evolvingmemory
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/go-openapi/strfmt"
+	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
@@ -83,6 +86,9 @@ type MemoryStorage interface {
 
 	// Document reference operations - now supports multiple references per memory
 	GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error)
+
+	// Direct fact storage - bypasses extraction for testing and consolidation
+	StoreFactsDirectly(ctx context.Context, facts []*memory.MemoryFact, progressCallback memory.ProgressCallback) error
 }
 
 // Dependencies holds all the required dependencies for creating a MemoryStorage instance.
@@ -234,4 +240,125 @@ func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memor
 // GetDocumentReferences retrieves all document references for a memory.
 func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
 	return s.storage.GetDocumentReferences(ctx, memoryID)
+}
+
+// StoreFactsDirectly stores memory facts directly without going through the extraction pipeline.
+// This is useful for:
+// - Test suite: storing pre-extracted facts from JSON
+// - Consolidation: storing consolidated facts
+// - Production: final step of the pipeline (called by orchestrator).
+func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.MemoryFact, progressCallback memory.ProgressCallback) error {
+	if len(facts) == 0 {
+		s.logger.Info("No facts to store")
+		return nil
+	}
+
+	config := DefaultConfig()
+
+	// Convert facts to storage objects with embeddings
+	var objects []*models.Object
+	processed := 0
+
+	// Batch generate embeddings for efficiency
+	var factContents []string
+	for _, fact := range facts {
+		factContents = append(factContents, fact.GenerateContent())
+	}
+
+	// Generate ALL embeddings in batch - MUCH FASTER! 🚀
+	s.logger.Info("Generating embeddings in batch", "count", len(factContents))
+	embeddings, err := s.engine.EmbeddingsWrapper.Embeddings(ctx, factContents)
+	if err != nil {
+		return fmt.Errorf("failed to generate batch embeddings: %w", err)
+	}
+
+	// Create Weaviate objects with pre-generated embeddings
+	for i, fact := range facts {
+		// Build tags
+		tags := fact.Tags
+		if len(tags) == 0 {
+			tags = []string{fact.Category} // Fallback to category
+		}
+
+		// Build metadata JSON
+		metadata := fact.Metadata
+		if metadata == nil {
+			metadata = make(map[string]string)
+		}
+		metadata["fact_id"] = fact.ID
+		if fact.TemporalContext != nil {
+			metadata["temporal_context"] = *fact.TemporalContext
+		}
+		metadataJSON, _ := json.Marshal(metadata)
+
+		// Create Weaviate object with structured fields
+		properties := map[string]interface{}{
+			"content":            fact.GenerateContent(),
+			"timestamp":          fact.Timestamp.Format(time.RFC3339),
+			"source":             fact.Source,
+			"tags":               tags,
+			"documentReferences": fact.DocumentReferences,
+			"metadataJson":       string(metadataJSON),
+			// Structured fact fields for precise filtering
+			"factCategory":    fact.Category,
+			"factSubject":     fact.Subject,
+			"factAttribute":   fact.Attribute,
+			"factValue":       fact.Value,
+			"factSensitivity": fact.Sensitivity,
+			"factImportance":  fact.Importance,
+		}
+
+		// Add temporal context if present
+		if fact.TemporalContext != nil {
+			properties["factTemporalContext"] = *fact.TemporalContext
+		}
+
+		obj := &models.Object{
+			Class:      "MemoryFact",
+			Properties: properties,
+			Vector:     embeddings[i], // Use pre-generated embedding
+		}
+
+		// Only set ID if it's a valid UUID format
+		if fact.ID != "" {
+			obj.ID = strfmt.UUID(fact.ID)
+		}
+
+		objects = append(objects, obj)
+
+		// Batch storage when we reach the batch size
+		if len(objects) >= config.BatchSize {
+			if err := s.storage.StoreBatch(ctx, objects); err != nil {
+				return fmt.Errorf("batch storage failed: %w", err)
+			}
+
+			processed += len(objects)
+			objects = objects[:0] // Reset slice
+
+			// Report progress
+			if progressCallback != nil {
+				progressCallback(processed, len(facts))
+			}
+
+			s.logger.Infof("Stored batch of %d memory objects", config.BatchSize)
+		}
+	}
+
+	// Store remaining objects
+	if len(objects) > 0 {
+		if err := s.storage.StoreBatch(ctx, objects); err != nil {
+			return fmt.Errorf("final batch storage failed: %w", err)
+		}
+		processed += len(objects)
+
+		// Final progress callback
+		if progressCallback != nil {
+			progressCallback(processed, len(facts))
+		}
+
+		s.logger.Infof("Stored final batch of %d memory objects", len(objects))
+	}
+
+	s.logger.Infof("Successfully stored %d memory objects", processed)
+	return nil
 }

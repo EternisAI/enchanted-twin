@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
-	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
@@ -129,10 +128,31 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			allFacts = append(allFacts, result.Result...)
 		}
 
-		// Step 5: Store facts directly without complex processing
-		if err := o.storeFactsDirectly(ctx, allFacts, progressCh, config); err != nil {
+		// Step 5: Convert FactResults to MemoryFacts and use modular storage
+		var facts []*memory.MemoryFact
+		for _, factResult := range allFacts {
+			if factResult.Fact != nil {
+				facts = append(facts, factResult.Fact)
+			}
+		}
+
+		// Use the new modular StoreFactsDirectly function
+		storageImpl := &StorageImpl{
+			logger:       o.logger,
+			orchestrator: o,
+			storage:      o.storage,
+			engine:       o.engine,
+		}
+
+		if err := storageImpl.StoreFactsDirectly(ctx, facts, func(processed, total int) {
+			progressCh <- Progress{
+				Processed: processed,
+				Total:     total,
+				Stage:     "storage",
+			}
+		}); err != nil {
 			select {
-			case errorCh <- fmt.Errorf("direct storage failed: %w", err):
+			case errorCh <- fmt.Errorf("modular storage failed: %w", err):
 			case <-ctx.Done():
 			}
 			return
@@ -147,78 +167,4 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 	}()
 
 	return progressCh, errorCh
-}
-
-// storeFactsDirectly converts extracted facts to memory objects and stores them in batches.
-// This replaces the complex aggregation, decision-making, and worker pool logic.
-func (o *MemoryOrchestrator) storeFactsDirectly(ctx context.Context, facts []FactResult, progressCh chan<- Progress, config Config) error {
-	if len(facts) == 0 {
-		o.logger.Info("No facts to store")
-		return nil
-	}
-
-	var objects []*models.Object
-	processed := 0
-
-	// Convert facts to memory objects
-	for _, factResult := range facts {
-		if factResult.Fact == nil {
-			continue
-		}
-
-		// Store the source document and get its ID
-		documentID, err := o.storage.UpsertDocument(ctx, factResult.Source)
-		if err != nil {
-			o.logger.Errorf("Failed to store document for fact: %v", err)
-			continue
-		}
-
-		// Create memory object with document reference
-		obj := CreateMemoryObjectWithDocumentReferences(factResult.Fact, factResult.Source, []string{documentID})
-
-		// Generate embedding for the fact
-		embedding, err := o.engine.EmbeddingsWrapper.Embedding(ctx, factResult.Fact.GenerateContent())
-		if err != nil {
-			o.logger.Errorf("Failed to generate embedding for fact: %v", err)
-			continue
-		}
-
-		obj.Vector = embedding
-		objects = append(objects, obj)
-
-		// Batch storage when we reach the batch size
-		if len(objects) >= config.BatchSize {
-			if err := o.storage.StoreBatch(ctx, objects); err != nil {
-				return fmt.Errorf("batch storage failed: %w", err)
-			}
-
-			processed += len(objects)
-			objects = objects[:0] // Reset slice
-
-			// Report progress
-			select {
-			case progressCh <- Progress{
-				Processed: processed,
-				Total:     len(facts),
-				Stage:     "storage",
-			}:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-
-			o.logger.Infof("Stored batch of %d memory objects", config.BatchSize)
-		}
-	}
-
-	// Store remaining objects
-	if len(objects) > 0 {
-		if err := o.storage.StoreBatch(ctx, objects); err != nil {
-			return fmt.Errorf("final batch storage failed: %w", err)
-		}
-		processed += len(objects)
-		o.logger.Infof("Stored final batch of %d memory objects", len(objects))
-	}
-
-	o.logger.Infof("Successfully stored %d memory objects from %d facts", processed, len(facts))
-	return nil
 }

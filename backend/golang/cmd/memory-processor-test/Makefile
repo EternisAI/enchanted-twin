@@ -137,15 +137,47 @@ store:
 	@go run . store
 	@echo "✅ Facts stored in Weaviate database"
 
-# Run memory consolidation (Weaviate → X_4)
+# Run comprehensive memory consolidation for all 20 subjects (Weaviate → X_3)
 consolidation:
-	@echo "🧩 Running memory consolidation..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_3_storage_complete.json" ]; then \
-		echo "❌ Storage not complete. Run 'make store' first."; \
+	@echo "🧩 Running comprehensive memory consolidation for all subjects..."
+	@go run . consolidation
+	@echo "✅ Comprehensive consolidation report created: $(OUTPUT_DIR)/X_3_consolidation_report.json"
+
+# Store consolidated facts back into Weaviate (X_3 → Weaviate consolidations)
+store-consolidations:
+	@echo "📦 Storing consolidated facts in Weaviate database..."
+	@if [ ! -f "$(OUTPUT_DIR)/X_3_consolidation_report.json" ]; then \
+		echo "❌ X_3_consolidation_report.json not found. Run 'make consolidation' first."; \
 		exit 1; \
 	fi
-	@go run . consolidation
-	@echo "✅ Consolidation report created: $(OUTPUT_DIR)/X_4_consolidation_report.json"
+	@go run . store-consolidations
+	@echo "✅ Consolidated facts stored in Weaviate database: $(OUTPUT_DIR)/X_4_consolidation_storage_status.json"
+
+# Query consolidated facts vs raw facts (Interactive demonstration)
+query-consolidations:
+	@echo "🔍 Querying consolidated vs raw facts (demonstration)..."
+	@if [ ! -f "$(OUTPUT_DIR)/X_4_consolidation_storage_status.json" ]; then \
+		echo "❌ Consolidations not stored yet. Run 'make store-consolidations' first."; \
+		exit 1; \
+	fi
+	@go run . query-consolidations
+	@echo "✅ Query comparison completed: $(OUTPUT_DIR)/X_5_consolidation_query_results.json"
+
+# Query consolidated facts with custom query (Vector search)
+query:
+	@echo "🔍 Vector search on consolidated facts..."
+	@if [ ! -f "$(OUTPUT_DIR)/X_4_consolidation_storage_status.json" ]; then \
+		echo "❌ Consolidations not stored yet. Run 'make store-consolidations' first."; \
+		exit 1; \
+	fi
+	@if [ -z "$(QUERY)" ]; then \
+		echo "❌ Query required. Usage: make query QUERY=\"your search query\""; \
+		echo "💡 Example: make query QUERY=\"family relationships\""; \
+		exit 1; \
+	fi
+	@echo "🔍 Searching for: \"$(QUERY)\""
+	@QUERY="$(QUERY)" go run . query-consolidations
+	@echo "✅ Vector search completed!"
 
 # Run complete pipeline - auto-detects data source
 all:
@@ -239,8 +271,9 @@ status:
 	@if [ -f "$(OUTPUT_DIR)/X_0_gmail.json" ]; then echo "✅ Gmail X_0 ConversationDocument ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_1_chunked_documents.json" ]; then echo "✅ X_1 chunks ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_2_extracted_facts.json" ]; then echo "✅ X_2 facts ready"; fi
-	@if [ -f "$(OUTPUT_DIR)/X_3_storage_complete.json" ]; then echo "✅ X_3 facts stored in Weaviate"; fi
-	@if [ -f "$(OUTPUT_DIR)/X_4_consolidation_report.json" ]; then echo "✅ X_4 consolidation report ready"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_3_consolidation_report.json" ]; then echo "✅ X_3 consolidation report ready"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_4_consolidation_storage_status.json" ]; then echo "✅ X_4 consolidation storage completed"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_5_consolidation_query_results.json" ]; then echo "✅ X_5 consolidation query testing completed"; fi
 
 # Help
 help:
@@ -256,7 +289,10 @@ help:
 	@echo "  make chunks     - X_0 ConversationDocument → X_1 chunks"
 	@echo "  make facts      - X_1 chunks → X_2 facts"
 	@echo "  make store      - X_2 facts → Weaviate database"
-	@echo "  make consolidation - Weaviate → X_4 consolidation report"
+	@echo "  make consolidation - Weaviate → X_3 comprehensive consolidation (all 20 subjects)"
+	@echo "  make store-consolidations - X_3 consolidation → Weaviate consolidations storage"
+	@echo "  make query-consolidations - Test consolidated vs raw fact querying"
+	@echo "  make query QUERY=\"...\" - Vector search on consolidated facts"
 	@echo
 	@echo "⚡ Utilities:"
 	@echo "  make all        - Auto-detect data source and run complete pipeline (Raw → X_2)"
@@ -272,29 +308,33 @@ help:
 	@echo "  make chunks     # X_0 → X_1 chunks"
 	@echo "  make facts      # X_1 → X_2 facts"
 	@echo "  make store      # X_2 → Weaviate database"
-	@echo "  make consolidation # Weaviate → X_4 report"
+	@echo "  make consolidation # Weaviate → X_3 report"
 	@echo
 	@echo "For Telegram:"
 	@echo "  make telegram   # JSON → X_0 ConversationDocument"  
 	@echo "  make chunks     # X_0 → X_1 chunks"
 	@echo "  make facts      # X_1 → X_2 facts"
 	@echo "  make store      # X_2 → Weaviate database"
-	@echo "  make consolidation # Weaviate → X_4 report"
+	@echo "  make consolidation # Weaviate → X_3 report"
 	@echo
 	@echo "For ChatGPT:"
 	@echo "  make chatgpt    # JSON → X_0 ConversationDocument"
 	@echo "  make chunks     # X_0 → X_1 chunks"
 	@echo "  make facts      # X_1 → X_2 facts"
 	@echo "  make store      # X_2 → Weaviate database"
-	@echo "  make consolidation # Weaviate → X_4 report"
+	@echo "  make consolidation # Weaviate → X_3 report"
 	@echo
 	@echo "For Gmail:"
 	@echo "  make gmail      # MBOX → X_0 ConversationDocument"
 	@echo "  make chunks     # X_0 → X_1 chunks"
 	@echo "  make facts      # X_1 → X_2 facts"
 	@echo "  make store      # X_2 → Weaviate database"
-	@echo "  make consolidation # Weaviate → X_4 report"
+	@echo "  make consolidation # Weaviate → X_3 report"
 	@echo
 	@echo "🔥 Clean Pipeline - No intermediate JSONL step!"
+	@echo
+	@echo "💡 Comprehensive Consolidation:"
+	@echo "  make consolidation  # Runs consolidation for all 20 canonical subjects"
+	@echo "                      # Creates comprehensive X_3 report with all subject insights"
 
-.PHONY: build whatsapp telegram chatgpt gmail gmail-senders chunks facts store consolidation all clean status help 
+.PHONY: build whatsapp telegram chatgpt gmail gmail-senders chunks facts store consolidation store-consolidations query-consolidations query all clean status help 
