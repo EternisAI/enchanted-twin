@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -26,7 +27,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/jaytaylor/html2text"
-	"github.com/sirupsen/logrus"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
@@ -39,8 +39,16 @@ type GmailProcessor struct {
 	logger *log.Logger
 }
 
-func NewGmailProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &GmailProcessor{store: store, logger: logger}
+func NewGmailProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+
+	if store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
+	return &GmailProcessor{store: store, logger: logger}, nil
 }
 
 func (g *GmailProcessor) Name() string { return "gmail" }
@@ -572,7 +580,7 @@ func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string) ([]ty
 		}
 		recs, err := g.ProcessFile(ctx, p)
 		if err != nil {
-			logrus.Errorf("process %s: %v", p, err)
+			g.logger.Error("process", "path", p, "error", err)
 			return nil
 		}
 		mu.Lock()
@@ -584,7 +592,7 @@ func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string) ([]ty
 }
 
 func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) ([]memory.Document, error) {
-	out := []memory.TextDocument{}
+	out := []memory.ConversationDocument{}
 	for _, r := range recs {
 		get := func(k string) string {
 			if v, ok := r.Data[k]; ok {
@@ -597,15 +605,45 @@ func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) (
 		if get("content") == "" {
 			continue
 		}
-		out = append(out, memory.TextDocument{
-			FieldSource:    "gmail",
-			FieldContent:   get("content"),
-			FieldTimestamp: &r.Timestamp,
-			FieldTags:      []string{"email"},
+		user := ""
+
+		sourceUsername, err := g.store.GetSourceUsername(ctx, "gmail")
+		if err != nil {
+			g.logger.Error("get source username", "error", err)
+		}
+		if sourceUsername != nil {
+			user = sourceUsername.Username
+		}
+
+		people := []string{user, get("from"), get("to")}
+
+		idComponents := fmt.Sprintf("%d-%s-%s-%s",
+			r.Timestamp.Unix(),
+			get("from"),
+			get("to"),
+			get("subject"))
+		hasher := sha256.New()
+		hasher.Write([]byte(idComponents))
+		emailHash := fmt.Sprintf("%x", hasher.Sum(nil))[:16]
+		documentID := fmt.Sprintf("gmail-email-%s", emailHash)
+
+		out = append(out, memory.ConversationDocument{
+			FieldID:     documentID,
+			User:        user,
+			People:      people,
+			FieldSource: "gmail",
+			FieldTags:   []string{"email"},
 			FieldMetadata: map[string]string{
 				"from":    get("from"),
 				"to":      get("to"),
 				"subject": get("subject"),
+			},
+			Conversation: []memory.ConversationMessage{
+				{
+					Content: get("content"),
+					Speaker: extractEmailAddress(get("from")),
+					Time:    r.Timestamp,
+				},
 			},
 		})
 	}
@@ -613,6 +651,7 @@ func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) (
 	for _, document := range out {
 		documents = append(documents, &document)
 	}
+
 	return documents, nil
 }
 
@@ -672,10 +711,6 @@ func cleanEmailText(content string) string {
 
 // extractAndStoreUserEmail stores the detected user email in the database.
 func (g *GmailProcessor) extractAndStoreUserEmail(ctx context.Context, userEmail string) error {
-	if g.store == nil {
-		return fmt.Errorf("store is nil")
-	}
-
 	if userEmail == "" {
 		return fmt.Errorf("user email is empty")
 	}

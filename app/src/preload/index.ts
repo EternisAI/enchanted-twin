@@ -109,6 +109,28 @@ const api = {
     get: (key: string) => screenpipeStore.get(key),
     set: (key: string, value: unknown) => screenpipeStore.set(key, value)
   },
+  livekit: {
+    setup: () => ipcRenderer.invoke('livekit:setup'),
+    start: (chatId: string, isOnboarding?: boolean) =>
+      ipcRenderer.invoke('livekit:start', chatId, isOnboarding),
+    stop: () => ipcRenderer.invoke('livekit:stop'),
+    isRunning: () => ipcRenderer.invoke('livekit:is-running'),
+    isSessionReady: () => ipcRenderer.invoke('livekit:is-session-ready'),
+    getState: () => ipcRenderer.invoke('livekit:get-state'),
+    mute: () => ipcRenderer.invoke('livekit:mute'),
+    unmute: () => ipcRenderer.invoke('livekit:unmute'),
+    getAgentState: () => ipcRenderer.invoke('livekit:get-agent-state'),
+    onSessionStateChange: (callback: (data: { sessionReady: boolean }) => void) => {
+      const cleanup = () => ipcRenderer.removeAllListeners('livekit-session-state')
+      ipcRenderer.on('livekit-session-state', (_event, data) => callback(data))
+      return cleanup
+    },
+    onAgentStateChange: (callback: (data: { state: string }) => void) => {
+      const cleanup = () => ipcRenderer.removeAllListeners('livekit-agent-state')
+      ipcRenderer.on('livekit-agent-state', (_event, data) => callback(data))
+      return cleanup
+    }
+  },
   onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => {
     const listener = (_: unknown, data: { source: 'stdout' | 'stderr'; line: string }) =>
       callback(data)

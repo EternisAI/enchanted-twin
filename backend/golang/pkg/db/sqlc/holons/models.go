@@ -92,15 +92,17 @@ type SourceUsername struct {
 }
 
 type Thread struct {
-	ID             string       `json:"id"`
-	Title          string       `json:"title"`
-	Content        string       `json:"content"`
-	AuthorIdentity string       `json:"authorIdentity"`
-	CreatedAt      time.Time    `json:"createdAt"`
-	ExpiresAt      sql.NullTime `json:"expiresAt"`
-	ImageUrls      interface{}  `json:"imageUrls"`
-	Actions        interface{}  `json:"actions"`
-	Views          int64        `json:"views"`
+	ID             string        `json:"id"`
+	Title          string        `json:"title"`
+	Content        string        `json:"content"`
+	AuthorIdentity string        `json:"authorIdentity"`
+	CreatedAt      time.Time     `json:"createdAt"`
+	ExpiresAt      sql.NullTime  `json:"expiresAt"`
+	ImageUrls      interface{}   `json:"imageUrls"`
+	Actions        interface{}   `json:"actions"`
+	Views          int64         `json:"views"`
+	State          string        `json:"state"`
+	RemoteThreadID sql.NullInt64 `json:"remoteThreadId"`
 }
 
 type ThreadMessage struct {
@@ -111,10 +113,23 @@ type ThreadMessage struct {
 	CreatedAt      time.Time   `json:"createdAt"`
 	IsDelivered    bool        `json:"isDelivered"`
 	Actions        interface{} `json:"actions"`
+	State          string      `json:"state"`
 }
 
 type UserProfile struct {
 	ID   string         `json:"id"`
 	Name sql.NullString `json:"name"`
 	Bio  sql.NullString `json:"bio"`
+}
+
+type WhatsappMessage struct {
+	ID             string    `json:"id"`
+	ConversationID string    `json:"conversationId"`
+	SenderJid      string    `json:"senderJid"`
+	SenderName     string    `json:"senderName"`
+	Content        string    `json:"content"`
+	MessageType    string    `json:"messageType"`
+	SentAt         time.Time `json:"sentAt"`
+	FromMe         bool      `json:"fromMe"`
+	CreatedAt      time.Time `json:"createdAt"`
 }

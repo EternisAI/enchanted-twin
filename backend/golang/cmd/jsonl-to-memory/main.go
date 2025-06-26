@@ -136,7 +136,11 @@ func main() {
 
 	// Convert records to ConversationDocuments using WhatsApp processor
 	logger.Info("Converting records to ConversationDocuments...")
-	processor := whatsapp.NewWhatsappProcessor(nil, logger)
+	processor, err := whatsapp.NewWhatsappProcessor(nil, logger)
+	if err != nil {
+		logger.Error("Failed to create WhatsApp processor", "error", err)
+		os.Exit(1)
+	}
 
 	ctx := context.Background()
 	documents, err := processor.ToDocuments(ctx, records)
@@ -222,15 +226,26 @@ func main() {
 		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	}
 
-	weaviateStorage := storage.New(weaviateClient, logger, aiEmbeddingsService)
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, envs.EmbeddingsModel)
+	if err != nil {
+		logger.Fatal("Failed to create embedding wrapper", "error", err)
+	}
+
+	weaviateStorage, err := storage.New(storage.NewStorageInput{
+		Client:            weaviateClient,
+		Logger:            logger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
+	if err != nil {
+		logger.Fatal("Failed to create weaviate storage", "error", err)
+	}
 
 	memoryDeps := evolvingmemory.Dependencies{
 		Logger:             logger,
 		Storage:            weaviateStorage,
 		CompletionsService: aiCompletionsService,
-		EmbeddingsService:  aiEmbeddingsService,
 		CompletionsModel:   envs.CompletionsModel,
-		EmbeddingsModel:    envs.EmbeddingsModel,
+		EmbeddingsWrapper:  embeddingsWrapper,
 	}
 
 	memoryStorage, err := evolvingmemory.New(memoryDeps)

@@ -56,6 +56,7 @@ type Chat {
   createdAt: DateTime!
   category: ChatCategory!
   holonThreadId: String #include this in the system prompt so user does not have to excit. on twinchat.go
+    initialMessage: String
 }
 
 type Message {
@@ -133,12 +134,18 @@ type Mutation {
     name: String!
     category: ChatCategory! = TEXT
     holonThreadId: String
+    initialMessage: String
   ): Chat!
   sendMessage(
     chatId: ID!
     text: String!
     reasoning: Boolean! = False
     voice: Boolean! = False
+  ): Message!
+  processMessageHistory(
+    chatId: ID!
+    messages: [MessageInput!]!
+    isOnboarding: Boolean! = False
   ): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
@@ -161,6 +168,11 @@ type Subscription {
   notificationAdded: AppNotification!
   telegramMessageAdded(chatUUID: ID!): Message!
   messageStream(chatId: ID!): MessageStreamPayload!
+  processMessageHistoryStream(
+    chatId: ID!
+    messages: [MessageInput!]!
+    isOnboarding: Boolean! = False
+  ): MessageStreamPayload!
   whatsAppSyncStatus: WhatsAppSyncStatus!
 }
 
@@ -323,4 +335,9 @@ type Thread {
   actions: [String!]
   views: Int!
   remoteThreadId: Int
+}
+
+input MessageInput {
+  text: String!
+  role: Role!
 }

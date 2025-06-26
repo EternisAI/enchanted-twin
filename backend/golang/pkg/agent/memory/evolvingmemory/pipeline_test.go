@@ -12,16 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // createMockStorage creates a StorageImpl instance with mocked services for testing.
 func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 	completionsService := ai.NewOpenAIService(logger, "test-key", "https://enchanted.ngrok.pro/v1")
-	embeddingsService := ai.NewOpenAIService(logger, "test-key", "https://enchanted.ngrok.pro/v1")
 
 	mockStorage := &MockStorage{}
-	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.Anything, mock.AnythingOfType("string")).Return(memory.QueryResult{
+	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.Anything).Return(memory.QueryResult{
 		Facts: []memory.MemoryFact{},
 	}, nil)
 	mockStorage.On("EnsureSchemaExists", mock.Anything).Return(nil)
@@ -31,9 +31,8 @@ func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 		Logger:             logger,
 		Storage:            mockStorage,
 		CompletionsService: completionsService,
-		EmbeddingsService:  embeddingsService,
 		CompletionsModel:   "qwen3:8b",
-		EmbeddingsModel:    "nomic-embed-text:latest",
+		EmbeddingsWrapper:  &storage.EmbeddingWrapper{},
 	})
 	if err != nil {
 		return nil, err

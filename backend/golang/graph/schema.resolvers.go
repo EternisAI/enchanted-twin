@@ -200,33 +200,84 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 }
 
 // CreateChat is the resolver for the createChat field.
-func (r *mutationResolver) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (*model.Chat, error) {
+func (r *mutationResolver) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) (*model.Chat, error) {
 	chat, err := r.TwinChatService.CreateChat(ctx, name, category, holonThreadID)
 	if err != nil {
+		r.Logger.Error("Failed to create chat", "error", err)
 		return nil, err
 	}
+
+	if initialMessage != nil && *initialMessage != "" {
+		go func() {
+			bgCtx := context.Background()
+
+			isVoice := category == model.ChatCategoryVoice
+			_, err := r.TwinChatService.SendMessage(bgCtx, chat.ID, *initialMessage, false, isVoice)
+			if err != nil {
+				r.Logger.Error("Failed to send initial message asynchronously", "error", err, "chat_id", chat.ID)
+
+				errorMsg := map[string]interface{}{
+					"type":    "error",
+					"message": "Failed to send initial message",
+					"chatId":  chat.ID,
+				}
+				if errorData, marshalErr := json.Marshal(errorMsg); marshalErr == nil {
+					err := r.Nc.Publish(fmt.Sprintf("chat.%s.error", chat.ID), errorData)
+					if err != nil {
+						r.Logger.Error("Failed to publish error message", "error", err, "chat_id", chat.ID)
+					}
+				}
+			}
+		}()
+	}
+
 	return &chat, nil
 }
 
 // SendMessage is the resolver for the sendMessage field.
 func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error) {
-	subject := fmt.Sprintf("chat.%s", chatID)
+	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
+}
 
-	userMessageJson, err := json.Marshal(model.Message{
-		ID:        uuid.New().String(),
-		Text:      &text,
-		CreatedAt: time.Now().Format(time.RFC3339),
-		Role:      model.RoleUser,
+// ProcessMessageHistory processes a list of messages and saves them to the database.
+func (r *mutationResolver) ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (*model.Message, error) {
+	// Convert input messages to the format expected by the service for logging purposes
+	historyJson, err := json.Marshal(map[string]interface{}{
+		"chatId":     chatID,
+		"messages":   messages,
+		"count":      len(messages),
+		"onboarding": isOnboarding,
 	})
 	if err != nil {
 		return nil, err
 	}
-	err = r.Nc.Publish(subject, userMessageJson)
-	if err != nil {
-		return nil, err
+
+	r.Logger.Info("Processing message history", "data", string(historyJson))
+
+	// Only publish the last user message to NATS
+	subject := fmt.Sprintf("chat.%s", chatID)
+	if len(messages) > 0 {
+		lastMsg := messages[len(messages)-1]
+		if lastMsg.Role == model.RoleUser {
+			text := lastMsg.Text
+			userMessageJson, err := json.Marshal(model.Message{
+				ID:        uuid.New().String(),
+				Text:      &text,
+				CreatedAt: time.Now().Format(time.RFC3339),
+				Role:      model.RoleUser,
+			})
+			if err != nil {
+				return nil, err
+			}
+			err = r.Nc.Publish(subject, userMessageJson)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
-	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
+	// Process the messages and save them to the database
+	return r.TwinChatService.ProcessMessageHistory(ctx, chatID, messages, isOnboarding)
 }
 
 // DeleteChat is the resolver for the deleteChat field.
@@ -928,6 +979,48 @@ func (r *subscriptionResolver) MessageStream(ctx context.Context, chatID string)
 	}()
 
 	return ch, nil
+}
+
+// ProcessMessageHistoryStream is the resolver for the processMessageHistoryStream subscription.
+func (r *subscriptionResolver) ProcessMessageHistoryStream(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (<-chan *model.MessageStreamPayload, error) {
+	// Convert input messages to the format expected by the service for logging purposes
+	historyJson, err := json.Marshal(map[string]interface{}{
+		"chatId":     chatID,
+		"messages":   messages,
+		"count":      len(messages),
+		"onboarding": isOnboarding,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.Logger.Info("Processing message history with streaming", "data", string(historyJson))
+
+	// Use the streaming service method
+	streamChan, err := r.TwinChatService.ProcessMessageHistoryStream(ctx, chatID, messages, isOnboarding)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert the service channel to the expected GraphQL channel
+	gqlChan := make(chan *model.MessageStreamPayload, 10)
+
+	go func() {
+		defer close(gqlChan)
+		for {
+			select {
+			case payload, ok := <-streamChan:
+				if !ok {
+					return
+				}
+				gqlChan <- &payload
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return gqlChan, nil
 }
 
 // WhatsAppSyncStatus is the resolver for the whatsAppSyncStatus field.
