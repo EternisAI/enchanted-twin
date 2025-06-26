@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+import 'dotenv/config'
+
 import { app, BrowserWindow, session } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import log from 'electron-log/main'
@@ -15,7 +18,8 @@ import { setupMenu } from './menuSetup'
 import { setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
 import { cleanupGoServer, initializeGoServer } from './goServer'
-import { startKokoro, cleanupKokoro } from './kokoroManager'
+// import { startKokoro, cleanupKokoro } from './kokoroManager'
+import { startLiveKitSetup, cleanupLiveKitAgent } from './livekitManager'
 import { initializeAnalytics } from './analytics'
 
 const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
@@ -27,6 +31,17 @@ const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 log.transports.file.level = 'info' // Log info level and above to file
 log.info(`Log file will be written to: ${log.transports.file.getFile().path}`)
 log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
+
+// Inject build-time environment variables into runtime process.env
+// __APP_ENV__ is replaced with a JSON object by electron-vite at build time
+// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+declare const __APP_ENV__: Record<string, string>
+
+for (const [key, val] of Object.entries(typeof __APP_ENV__ === 'object' ? __APP_ENV__ : {})) {
+  if (!(key in process.env)) {
+    process.env[key] = val
+  }
+}
 
 app.whenReady().then(async () => {
   log.info(`App version: ${app.getVersion()}`)
@@ -45,7 +60,8 @@ app.whenReady().then(async () => {
   setupAutoUpdater()
   setupMenu()
 
-  startKokoro(mainWindow)
+  // startKokoro(mainWindow)
+  startLiveKitSetup(mainWindow)
   autoStartScreenpipeIfEnabled()
 
   electronApp.setAppUserModelId('com.electron')
@@ -70,6 +86,7 @@ app.on('activate', function () {
 app.on('will-quit', async () => {
   cleanupGoServer()
   cleanupOAuthServer()
-  await cleanupKokoro()
+  // await cleanupKokoro()
+  await cleanupLiveKitAgent()
   cleanupScreenpipe()
 })

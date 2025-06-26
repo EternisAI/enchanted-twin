@@ -2,7 +2,7 @@
 
 ## What is this?
 
-This package stores and retrieves user memories using hot-swappable storage backends (currently Weaviate). It processes documents, extracts facts using LLMs with **structured fact extraction**, and manages memory updates intelligently through a clean 3-layer architecture.
+This package stores and retrieves user memories using hot-swappable storage backends (currently Weaviate). It processes documents, extracts memory facts using LLMs with **structured extraction**, and manages memory updates intelligently through a clean 3-layer architecture.
 
 ## Architecture Overview
 
@@ -36,16 +36,22 @@ The package follows clean architecture principles with clear separation of conce
 3. **MemoryEngine** - Pure business logic struct (fact extraction, memory decisions)
 4. **storage.Interface** - Hot-swappable storage abstraction
 
-## Structured Fact Extraction 🧠
+## Memory Fact Structure 🧠
 
-The evolving memory system uses **advanced structured fact extraction** to create rich, categorized memories with privacy controls and importance scoring.
+The evolving memory system uses **advanced structured extraction** to create rich, categorized memories with privacy controls and importance scoring.
 
-### Fact Structure
+### MemoryFact Structure
 
-Each extracted fact contains:
+Each memory fact contains:
 
 ```go
-type StructuredFact struct {
+type MemoryFact struct {
+    // Identity and display
+    ID        string    `json:"id"`
+    Content   string    `json:"content"` // Searchable content
+    Timestamp time.Time `json:"timestamp"`
+
+    // Structured fields
     Category        string  `json:"category"`         // Semantic category
     Subject         string  `json:"subject"`          // Who/what the fact is about
     Attribute       string  `json:"attribute"`        // Property being described
@@ -53,6 +59,14 @@ type StructuredFact struct {
     TemporalContext *string `json:"temporal_context"` // When this happened (optional)
     Sensitivity     string  `json:"sensitivity"`      // Privacy level: high/medium/low
     Importance      int     `json:"importance"`       // Priority score: 1-3
+
+    // Source tracking
+    Source             string   `json:"source"`              // Source document type
+    DocumentReferences []string `json:"document_references"` // Source document IDs
+    Tags               []string `json:"tags"`                // Categorization tags
+
+    // Legacy support
+    Metadata map[string]string `json:"metadata,omitempty"` // Additional metadata
 }
 ```
 
@@ -100,7 +114,7 @@ The system prioritizes **quality over quantity** with:
 // Example extraction from conversation
 Input: "I've been using high temperature settings with GPT-4 for creative writing"
 
-Extracted Facts:
+Extracted MemoryFact:
 {
     Category: "preference",
     Subject: "user", 
@@ -108,17 +122,22 @@ Extracted Facts:
     Value: "prefers high temperature settings with GPT-4 for creative writing tasks",
     TemporalContext: "2025-01-15",
     Sensitivity: "low",
-    Importance: 2
+    Importance: 2,
+    Content: "user - prefers high temperature settings with GPT-4 for creative writing tasks",
+    Source: "conversation",
+    // ... other fields auto-populated
 }
 ```
 
-### Storage Integration
+### Storage Architecture
 
-Structured facts are stored with **dual representation**:
+Memory facts are stored with all structured fields directly accessible:
 
-**Database Storage** (structured fields for precise filtering):
+**Database Storage** (direct fields for precise filtering):
 ```go
-properties := map[string]interface{}{
+// Direct storage in Weaviate with structured fields
+{
+    "content": fact.GenerateContent(), // Auto-generated searchable string
     "factCategory":        fact.Category,
     "factSubject":         fact.Subject,
     "factAttribute":       fact.Attribute, 
@@ -126,15 +145,19 @@ properties := map[string]interface{}{
     "factSensitivity":     fact.Sensitivity,
     "factImportance":      fact.Importance,
     "factTemporalContext": fact.TemporalContext,
-    // Plus generated content for semantic search...
-    "content": "User: prefers high temperature settings with GPT-4...",
+    "documentReferences":  fact.DocumentReferences,
+    "tags":                fact.Tags,
+    "source":              fact.Source,
+    "timestamp":           fact.Timestamp,
+    // Legacy metadata stored as JSON
 }
 ```
 
-**Searchable Content** (optimized for semantic queries):
-- **User-prefixed**: `"User: implementing system for LLM agents..."`
-- **Category-labeled**: `"...(goal_plan) (2025-01-15)"`
-- **Rich context**: Subject + attribute + value + temporal info
+**Unified Type Benefits**:
+- **No conversions**: MemoryFact used throughout the pipeline
+- **Type safety**: All fields properly typed, no string metadata parsing
+- **Direct queries**: Filter by any structured field without JSON extraction
+- **Performance**: Indexed fields for fast filtering
 
 ### Query Capabilities 🚀
 
@@ -271,7 +294,7 @@ The evolving memory system includes a sophisticated document storage architectur
 
 ```go
 // When creating a memory, documents are stored separately first
-func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
+func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact MemoryFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
     // 1. Store document separately with automatic deduplication
     documentID, err := e.storage.StoreDocument(
         ctx,
@@ -736,11 +759,11 @@ filter := &memory.Filter{
 
 1. **Documents come in** → Text documents or conversation transcripts
 2. **Store documents separately** → Documents stored in `SourceDocument` table with deduplication
-3. **Extract structured facts** → MemoryEngine uses LLM with advanced prompts to extract categorized facts
-4. **Check existing memories** → Search storage for similar facts
+3. **Extract memory facts** → MemoryEngine uses LLM with advanced prompts to extract `MemoryFact` objects
+4. **Check existing memories** → Search storage for similar facts (returns `MemoryFact` objects)
 5. **Decide what to do** → LLM decides: ADD new memory, UPDATE existing, DELETE outdated, or NONE
 6. **Execute decision** → MemoryEngine executes immediately (UPDATE/DELETE) or batches (ADD)
-7. **Store memory with references** → Memory stored with structured fact fields + document references
+7. **Store memory facts** → Memory facts stored with all structured fields directly accessible
 8. **Store in backend** → MemoryOrchestrator coordinates batched inserts via storage.Interface
 
 ### Key Concepts
@@ -797,18 +820,20 @@ evolvingmemory/
 
 **engine.go** - Pure business logic (no infrastructure concerns):
 - `MemoryEngine` - Core business operations struct
-- `ExtractFacts()` - LLM-based structured fact extraction
-- `ProcessFact()` - Memory decision making
-- `ExecuteDecision()` - Memory updates
+- `ProcessFact()` - Processes a MemoryFact through the pipeline
+- `DecideAction()` - Memory decision making using LLM
+- `ExecuteDecision()` - Executes memory operations (ADD/UPDATE/DELETE/NONE)
+- `UpdateMemory()` - Updates existing memory facts
+- `CreateMemoryObject()` - Creates Weaviate objects from MemoryFacts
 
 **orchestrator.go** - Infrastructure coordination:
 - `MemoryOrchestrator` - Coordinates workers and channels
 - `ProcessDocuments()` - Main processing pipeline
 - Worker management and progress reporting
 
-**tools.go** - Structured fact extraction tools:
-- `extractFactsTool` - OpenAI function definition for structured extraction
-- `StructuredFact` types and tool arguments
+**tools.go** - Memory fact extraction tools:
+- `extractFactsTool` - OpenAI function definition for memory extraction
+- Tool argument definitions for extraction
 - Category enums and validation schemas
 
 **prompts.go** - LLM prompts:
@@ -831,10 +856,17 @@ evolvingmemory/
 1. Implement `storage.Interface` in a new package:
 ```go
 type RedisStorage struct { ... }
-func (r *RedisStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) { ... }
+
+// Core memory operations - now returns MemoryFact, not TextDocument!
+func (r *RedisStorage) GetByID(ctx context.Context, id string) (*memory.MemoryFact, error) { ... }
+func (r *RedisStorage) Update(ctx context.Context, id string, fact *memory.MemoryFact, vector []float32) error { ... }
+func (r *RedisStorage) Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error) { ... }
+
+// Document storage operations
 func (r *RedisStorage) StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) { ... }
 func (r *RedisStorage) GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error) { ... }
-// ... implement all interface methods including structured fact fields
+
+// ... implement all interface methods
 ```
 
 2. Update your application to use the new storage:
@@ -854,11 +886,14 @@ storage, err := evolvingmemory.New(evolvingmemory.Dependencies{
 
 ### Changing how facts are extracted
 
-Look in `engine.go`:
-- `extractFactsFromConversation()` - For chat conversations with structured fact extraction
-- `extractFactsFromTextDocument()` - For plain text with structured fact extraction
-- Prompts are defined in `prompts.go` (including new `FactExtractionPrompt`)
-- Tool definitions in `tools.go` (including new structured extraction tools)
+Look in `pure.go`:
+- `ExtractFactsFromDocument()` - Main extraction router that returns `[]*memory.MemoryFact`
+- `extractFactsFromConversation()` - Extracts MemoryFact objects from conversations
+- `extractFactsFromTextDocument()` - Extracts MemoryFact objects from text documents
+
+Supporting files:
+- Prompts are defined in `prompts.go` (see `FactExtractionPrompt`)
+- Tool definitions in `tools.go` (see `extractFactsTool` definition)
 
 ### Modifying memory decision logic
 
@@ -867,11 +902,11 @@ Check `engine.go`:
 - `BuildSeparateMemoryDecisionPrompts()` - Constructs the decision prompt (in pure.go)
 - `ParseMemoryDecisionResponse()` - Parses LLM's decision (in pure.go)
 
-### Working with structured facts
+### Working with memory facts
 
 ```go
-// Working with structured facts
-fact := StructuredFact{
+// Creating a memory fact
+fact := &memory.MemoryFact{
     Category:        "preference",
     Subject:         "user",
     Attribute:       "coffee_type", 
@@ -879,15 +914,25 @@ fact := StructuredFact{
     TemporalContext: helpers.Ptr("2025-01-15"),
     Sensitivity:     "low",
     Importance:      2,
+    Source:          "conversation",
+    Timestamp:       time.Now(),
 }
 
 // Generate searchable content
 content := fact.GenerateContent() 
 // Result: "user - prefers dark roast over light roast"
 
-// Future: Query by structured fields (when implemented)
-facts := storage.QueryByCategory(ctx, "preference")
-facts = storage.QueryByImportance(ctx, 3) // Critical facts only
+// Query by structured fields
+filter := &memory.Filter{
+    FactCategory: helpers.Ptr("preference"),
+}
+facts, err := storage.Query(ctx, "preferences", filter)
+
+// Query by importance
+filter := &memory.Filter{
+    FactImportance: helpers.Ptr(3), // Critical facts only
+}
+facts, err := storage.Query(ctx, "critical facts", filter)
 ```
 
 ### Working with document references
@@ -938,7 +983,7 @@ config := evolvingmemory.Config{
     // Timeouts
     FactExtractionTimeout: 30 * time.Second,
     MemoryDecisionTimeout: 30 * time.Second,
-    StorageTimeout:       30 * time.Second,
+    StorageTimeout:        30 * time.Second,
     
     // Features
     EnableRichContext:      true,  // Include rich document context
@@ -968,14 +1013,14 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
 2. `MemoryOrchestrator.ProcessDocuments()` coordinates the pipeline
 3. Documents are chunked if too large (via `doc.Chunk()`)
 4. Document is stored separately in `SourceDocument` table with deduplication
-5. `MemoryEngine.ExtractFacts()` extracts **structured facts**: `{Category: "preference", Subject: "user", Value: "likes pizza"}`
+5. `MemoryEngine.ExtractFacts()` extracts **MemoryFact objects**: `{Category: "preference", Subject: "user", Value: "likes pizza", ...}`
 6. For each fact, `MemoryEngine.ProcessFact()`:
-   - Searches for similar memories via storage
+   - Searches for similar memories via storage (returns `MemoryFact` objects)
    - LLM decides what to do
    - Validates the operation
    - Executes (immediate for UPDATE/DELETE, batched for ADD)
-7. New memories reference the stored document by ID + store structured fact fields
-8. `MemoryOrchestrator` batches new memories and flushes to storage directly
+7. New memory facts are stored with all structured fields directly accessible
+8. `MemoryOrchestrator` batches new memories and flushes to storage
 
 ### Error handling:
 - Each stage returns errors through channels
@@ -1039,7 +1084,13 @@ All existing APIs are preserved:
 
 ### Quality & Performance Improvements
 
-**Structured Fact Extraction:**
+**Unified Type System:**
+- ✅ **Single MemoryFact type** - No more conversions between MemoryFact and MemoryFact
+- ✅ **Type safety throughout** - Structured fields properly typed, no string metadata parsing
+- ✅ **Direct field access** - All fields accessible without JSON extraction
+- ✅ **Clean architecture** - Documents → MemoryFacts → Storage (no intermediate types)
+
+**Memory Extraction:**
 - ✅ **10x richer memory data** - Semantic categories, privacy levels, importance scores
 - ✅ **Quality-first approach** - Confidence thresholds filter low-quality facts  
 - ✅ **Privacy compliance** - Automatic GDPR-ready sensitivity classification

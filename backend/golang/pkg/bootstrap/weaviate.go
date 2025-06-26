@@ -180,8 +180,19 @@ func InitSchema(client *weaviate.Client, logger *log.Logger, embeddingsService *
 	logger.Debug("Starting schema initialization")
 	start := time.Now()
 
-	// Create storage instance and call EnsureSchemaExists
-	storageInstance := storage.New(client, logger, embeddingsService)
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(embeddingsService, embeddingsModel)
+	if err != nil {
+		return fmt.Errorf("creating embedding wrapper: %w", err)
+	}
+
+	storageInstance, err := storage.New(storage.NewStorageInput{
+		Client:            client,
+		Logger:            logger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
+	if err != nil {
+		return fmt.Errorf("creating storage instance: %w", err)
+	}
 	if err := storageInstance.EnsureSchemaExists(context.Background()); err != nil {
 		return err
 	}

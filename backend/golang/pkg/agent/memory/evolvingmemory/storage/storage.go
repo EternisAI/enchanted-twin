@@ -7,17 +7,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/go-openapi/strfmt"
+	"github.com/google/uuid"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 	weaviateGraphql "github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
@@ -47,6 +47,24 @@ const (
 	documentCreatedAtProperty   = "createdAt"
 )
 
+// WeaviateMemoryFact represents the structure stored in Weaviate for clean deserialization.
+type WeaviateMemoryFact struct {
+	Content            string   `json:"content"`
+	Timestamp          string   `json:"timestamp"` // RFC3339 string from Weaviate
+	MetadataJson       string   `json:"metadataJson"`
+	Source             string   `json:"source"`
+	Tags               []string `json:"tags"`
+	DocumentReferences []string `json:"documentReferences"`
+	// Structured fact fields
+	FactCategory        string `json:"factCategory"`
+	FactSubject         string `json:"factSubject"`
+	FactAttribute       string `json:"factAttribute"`
+	FactValue           string `json:"factValue"`
+	FactTemporalContext string `json:"factTemporalContext"`
+	FactSensitivity     string `json:"factSensitivity"`
+	FactImportance      int    `json:"factImportance"`
+}
+
 // DocumentReference holds the original document information.
 type DocumentReference struct {
 	ID      string
@@ -67,19 +85,19 @@ type StoredDocument struct {
 
 // Interface defines the storage operations needed by evolvingmemory.
 type Interface interface {
-	GetByID(ctx context.Context, id string) (*memory.TextDocument, error)
-	Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error
+	GetByID(ctx context.Context, id string) (*memory.MemoryFact, error)
+	Update(ctx context.Context, id string, fact *memory.MemoryFact, vector []float32) error
 	Delete(ctx context.Context, id string) error
 	StoreBatch(ctx context.Context, objects []*models.Object) error
 	DeleteAll(ctx context.Context) error
-	Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error)
+	Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error)
 	EnsureSchemaExists(ctx context.Context) error
 
 	// Document reference operations - now supports multiple references
 	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 
 	// Document storage operations
-	StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error)
+	UpsertDocument(ctx context.Context, doc memory.Document) (string, error)
 	GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error)
 	GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*StoredDocument, error)
 }
@@ -88,27 +106,36 @@ type Interface interface {
 type WeaviateStorage struct {
 	client            *weaviate.Client
 	logger            *log.Logger
-	embeddingsService *ai.Service
-	vectorPool        sync.Pool
+	embeddingsWrapper *EmbeddingWrapper
+}
+
+// NewStorageInput contains the dependencies needed to create a WeaviateStorage instance.
+type NewStorageInput struct {
+	Client            *weaviate.Client
+	Logger            *log.Logger
+	EmbeddingsWrapper *EmbeddingWrapper
 }
 
 // New creates a new WeaviateStorage instance.
-func New(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service) Interface {
-	return &WeaviateStorage{
-		client:            client,
-		logger:            logger,
-		embeddingsService: embeddingsService,
-		vectorPool: sync.Pool{
-			New: func() interface{} {
-				slice := make([]float32, 0, 3072)
-				return &slice
-			},
-		},
+func New(input NewStorageInput) (Interface, error) {
+	if input.Client == nil {
+		return nil, fmt.Errorf("client cannot be nil")
 	}
+	if input.Logger == nil {
+		return nil, fmt.Errorf("logger cannot be nil")
+	}
+	if input.EmbeddingsWrapper == nil {
+		return nil, fmt.Errorf("embeddingsWrapper cannot be nil")
+	}
+	return &WeaviateStorage{
+		client:            input.Client,
+		logger:            input.Logger,
+		embeddingsWrapper: input.EmbeddingsWrapper,
+	}, nil
 }
 
-// GetByID retrieves a specific memory document from Weaviate by its ID.
-func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
+// GetByID retrieves a specific memory fact from Weaviate by its ID.
+func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.MemoryFact, error) {
 	result, err := s.client.Data().ObjectsGetter().
 		WithID(id).
 		WithClassName(ClassName).
@@ -127,53 +154,59 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		return nil, fmt.Errorf("invalid properties type for object %s", id)
 	}
 
-	content, ok := props[contentProperty].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid content type for object %s", id)
+	// Clean struct deserialization approach (CTO's suggestion!)
+	propsJSON, err := json.Marshal(props)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling properties for deserialization: %w", err)
 	}
 
-	var timestamp *time.Time
-	if ts, ok := props[timestampProperty].(string); ok {
-		parsed, err := time.Parse(time.RFC3339, ts)
-		if err == nil {
-			timestamp = &parsed
+	var weaviateFact WeaviateMemoryFact
+	if err := json.Unmarshal(propsJSON, &weaviateFact); err != nil {
+		return nil, fmt.Errorf("deserializing properties to struct: %w", err)
+	}
+
+	// Parse timestamp
+	var timestamp time.Time
+	if weaviateFact.Timestamp != "" {
+		if parsed, err := time.Parse(time.RFC3339, weaviateFact.Timestamp); err == nil {
+			timestamp = parsed
 		}
 	}
 
-	// Parse direct fields
-	source, _ := props[sourceProperty].(string)
+	// Handle temporal context pointer
+	var temporalContext *string
+	if weaviateFact.FactTemporalContext != "" {
+		temporalContext = &weaviateFact.FactTemporalContext
+	}
 
-	// Parse metadata
+	// Parse legacy metadata
 	metadata := make(map[string]string)
-	if metaStr, ok := props[metadataProperty].(string); ok {
-		if err := json.Unmarshal([]byte(metaStr), &metadata); err != nil {
+	if weaviateFact.MetadataJson != "" && weaviateFact.MetadataJson != "{}" {
+		if err := json.Unmarshal([]byte(weaviateFact.MetadataJson), &metadata); err != nil {
 			s.logger.Warnf("Failed to unmarshal metadata for object %s: %v", id, err)
 		}
 	}
 
-	var tags []string
-	if tagsInterface, ok := props[tagsProperty].([]interface{}); ok {
-		for _, tagInterface := range tagsInterface {
-			if tagStr, ok := tagInterface.(string); ok {
-				tags = append(tags, tagStr)
-			}
-		}
-	}
-
-	doc := &memory.TextDocument{
-		FieldID:        string(obj.ID),
-		FieldContent:   content,
-		FieldTimestamp: timestamp,
-		FieldMetadata:  metadata,
-		FieldSource:    source, // Populate the direct source field
-		FieldTags:      tags,
-	}
-
-	return doc, nil
+	return &memory.MemoryFact{
+		ID:                 string(obj.ID),
+		Content:            weaviateFact.Content,
+		Timestamp:          timestamp,
+		Category:           weaviateFact.FactCategory,
+		Subject:            weaviateFact.FactSubject,
+		Attribute:          weaviateFact.FactAttribute,
+		Value:              weaviateFact.FactValue,
+		TemporalContext:    temporalContext,
+		Sensitivity:        weaviateFact.FactSensitivity,
+		Importance:         weaviateFact.FactImportance,
+		Source:             weaviateFact.Source,
+		DocumentReferences: weaviateFact.DocumentReferences,
+		Tags:               weaviateFact.Tags,
+		Metadata:           metadata,
+	}, nil
 }
 
-// Update updates an existing memory document in Weaviate.
-func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
+// Update updates an existing memory fact in Weaviate.
+func (s *WeaviateStorage) Update(ctx context.Context, id string, fact *memory.MemoryFact, vector []float32) error {
 	// Step 1: Fetch the existing object to preserve all fields
 	existing, err := s.client.Data().ObjectsGetter().
 		WithID(id).
@@ -194,25 +227,56 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 	}
 
 	// Step 3: Update only the fields that should change
-	properties[contentProperty] = doc.Content()
+	properties[contentProperty] = fact.Content
+	properties[timestampProperty] = fact.Timestamp.Format(time.RFC3339)
 
-	// Only update metadata if the TextDocument has non-empty metadata
-	if len(doc.Metadata()) > 0 {
-		metadataJSON, err := json.Marshal(doc.Metadata())
+	// Update structured fact fields
+	if fact.Category != "" {
+		properties[factCategoryProperty] = fact.Category
+	}
+	if fact.Subject != "" {
+		properties[factSubjectProperty] = fact.Subject
+	}
+	if fact.Attribute != "" {
+		properties[factAttributeProperty] = fact.Attribute
+	}
+	if fact.Value != "" {
+		properties[factValueProperty] = fact.Value
+	}
+	if fact.Sensitivity != "" {
+		properties[factSensitivityProperty] = fact.Sensitivity
+	}
+	if fact.Importance > 0 {
+		properties[factImportanceProperty] = fact.Importance
+	}
+	if fact.TemporalContext != nil {
+		properties[factTemporalContextProperty] = *fact.TemporalContext
+	}
+
+	// Update source if provided
+	if fact.Source != "" {
+		properties[sourceProperty] = fact.Source
+	}
+
+	// Update document references
+	if len(fact.DocumentReferences) > 0 {
+		properties[documentReferencesProperty] = fact.DocumentReferences
+	}
+
+	// Update tags
+	if len(fact.Tags) > 0 {
+		properties[tagsProperty] = fact.Tags
+	}
+
+	// Store metadata as JSON if present
+	if len(fact.Metadata) > 0 {
+		metadataJSON, err := json.Marshal(fact.Metadata)
 		if err != nil {
 			return fmt.Errorf("marshaling metadata: %w", err)
 		}
 		properties[metadataProperty] = string(metadataJSON)
-	}
-
-	// Update source if provided
-	if source := doc.Source(); source != "" {
-		properties[sourceProperty] = source
-	}
-
-	// Update timestamp
-	if doc.Timestamp() != nil {
-		properties[timestampProperty] = doc.Timestamp().Format(time.RFC3339)
+	} else {
+		properties[metadataProperty] = "{}"
 	}
 
 	// Step 4: Save with all fields preserved
@@ -367,7 +431,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 
 			if needsUpdate {
 				s.logger.Info("Schema needs update to add new structured fact fields")
-				return s.addStructuredFactFields(ctx)
+				return s.addMemoryFactFields(ctx)
 			}
 
 			s.logger.Info("Schema validation successful")
@@ -575,15 +639,14 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 }
 
 // Query retrieves memories relevant to the query text.
-func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error) {
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
 	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
 	// Step 1: Generate query vector
-	vector, err := s.embeddingsService.Embedding(ctx, queryText, embeddingsModel)
+	queryVector, err := s.embeddingsWrapper.Embedding(ctx, queryText)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("failed to create embedding: %w", err)
 	}
-	queryVector := s.convertToFloat32(vector)
 
 	// Step 2: Build GraphQL query
 	queryBuilder, err := s.buildQueryBuilder(queryVector, filter)
@@ -891,63 +954,68 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 		return memory.MemoryFact{}, fmt.Errorf("item is not a map")
 	}
 
-	// Extract basic fields
-	content, _ := obj[contentProperty].(string)
-	metadataJSON, _ := obj[metadataProperty].(string)
-	source, _ := obj[sourceProperty].(string)
-	subject, _ := obj[factSubjectProperty].(string)
-
-	// Parse timestamp
-	var timestamp time.Time
-	if tsStr, ok := obj[timestampProperty].(string); ok {
-		if t, err := time.Parse(time.RFC3339, tsStr); err == nil {
-			timestamp = t
-		} else {
-			s.logger.Warn("Failed to parse timestamp from Weaviate", "timestamp_str", tsStr, "error", err)
-		}
-	}
-
-	// Extract ID from _additional
+	// Extract ID from _additional (special field not in main struct)
 	additional, _ := obj["_additional"].(map[string]interface{})
 	id, _ := additional["id"].(string)
 
-	// Build metadata map
-	metaMap := make(map[string]string)
-	if metadataJSON != "" {
-		if err := json.Unmarshal([]byte(metadataJSON), &metaMap); err != nil {
-			s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", err)
+	// Remove _additional from obj to avoid JSON deserialization issues
+	objCopy := make(map[string]interface{})
+	for k, v := range obj {
+		if k != "_additional" {
+			objCopy[k] = v
 		}
 	}
 
-	// Extract structured fact fields and add to metadata (except factSubject which is now top-level)
-	if factCategory, ok := obj[factCategoryProperty].(string); ok && factCategory != "" {
-		metaMap["factCategory"] = factCategory
-	}
-	if factAttribute, ok := obj[factAttributeProperty].(string); ok && factAttribute != "" {
-		metaMap["factAttribute"] = factAttribute
-	}
-	if factValue, ok := obj[factValueProperty].(string); ok && factValue != "" {
-		metaMap["factValue"] = factValue
-	}
-	if factTemporalContext, ok := obj[factTemporalContextProperty].(string); ok && factTemporalContext != "" {
-		metaMap["factTemporalContext"] = factTemporalContext
-	}
-	if factSensitivity, ok := obj[factSensitivityProperty].(string); ok && factSensitivity != "" {
-		metaMap["factSensitivity"] = factSensitivity
-	}
-	if factImportance, ok := obj[factImportanceProperty].(float64); ok {
-		metaMap["factImportance"] = fmt.Sprintf("%d", int(factImportance))
+	// Clean struct deserialization approach (CTO's suggestion!)
+	objJSON, err := json.Marshal(objCopy)
+	if err != nil {
+		return memory.MemoryFact{}, fmt.Errorf("marshaling item for deserialization: %w", err)
 	}
 
-	// Tags and documentReferences are direct fields now, not in metadata
+	var weaviateFact WeaviateMemoryFact
+	if err := json.Unmarshal(objJSON, &weaviateFact); err != nil {
+		return memory.MemoryFact{}, fmt.Errorf("deserializing item to struct: %w", err)
+	}
+
+	// Parse timestamp
+	var timestamp time.Time
+	if weaviateFact.Timestamp != "" {
+		if t, err := time.Parse(time.RFC3339, weaviateFact.Timestamp); err == nil {
+			timestamp = t
+		} else {
+			s.logger.Warn("Failed to parse timestamp", "timestamp_str", weaviateFact.Timestamp, "error", err)
+		}
+	}
+
+	// Handle temporal context pointer
+	var temporalContext *string
+	if weaviateFact.FactTemporalContext != "" {
+		temporalContext = &weaviateFact.FactTemporalContext
+	}
+
+	// Parse legacy metadata
+	metaMap := make(map[string]string)
+	if weaviateFact.MetadataJson != "" && weaviateFact.MetadataJson != "{}" {
+		if err := json.Unmarshal([]byte(weaviateFact.MetadataJson), &metaMap); err != nil {
+			s.logger.Debug("Could not unmarshal metadata", "id", id, "error", err)
+		}
+	}
 
 	return memory.MemoryFact{
-		ID:        id,
-		Content:   content,
-		Subject:   subject,
-		Timestamp: timestamp,
-		Source:    source,
-		Metadata:  metaMap,
+		ID:                 id,
+		Content:            weaviateFact.Content,
+		Timestamp:          timestamp,
+		Category:           weaviateFact.FactCategory,
+		Subject:            weaviateFact.FactSubject,
+		Attribute:          weaviateFact.FactAttribute,
+		Value:              weaviateFact.FactValue,
+		TemporalContext:    temporalContext,
+		Sensitivity:        weaviateFact.FactSensitivity,
+		Importance:         weaviateFact.FactImportance,
+		Source:             weaviateFact.Source,
+		DocumentReferences: weaviateFact.DocumentReferences,
+		Tags:               weaviateFact.Tags,
+		Metadata:           metaMap,
 	}, nil
 }
 
@@ -1127,91 +1195,6 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 	return refs, nil
 }
 
-// StoreDocument stores a document in the separate document storage system.
-// It returns the document ID if successful.
-func (s *WeaviateStorage) StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
-	hasher := sha256.New()
-	hasher.Write([]byte(content))
-	contentHash := hex.EncodeToString(hasher.Sum(nil))
-
-	whereFilter := filters.Where().
-		WithPath([]string{documentContentHashProperty}).
-		WithOperator(filters.Equal).
-		WithValueText(contentHash)
-
-	fields := []weaviateGraphql.Field{
-		{Name: contentProperty},
-		{Name: documentContentHashProperty},
-		{Name: "_additional", Fields: []weaviateGraphql.Field{{Name: "id"}}},
-	}
-
-	result, err := s.client.GraphQL().Get().
-		WithClassName(DocumentClassName).
-		WithFields(fields...).
-		WithWhere(whereFilter).
-		Do(ctx)
-	if err != nil {
-		return "", fmt.Errorf("checking for existing document: %w", err)
-	}
-
-	if data, ok := result.Data["Get"].(map[string]interface{}); ok {
-		if docs, ok := data[DocumentClassName].([]interface{}); ok && len(docs) > 0 {
-			for _, doc := range docs {
-				if docMap, ok := doc.(map[string]interface{}); ok {
-					if existingContent, ok := docMap[contentProperty].(string); ok {
-						if existingContent == content {
-							if additional, ok := docMap["_additional"].(map[string]interface{}); ok {
-								if id, ok := additional["id"].(string); ok {
-									s.logger.Debug("Found existing document with same content", "id", id)
-									return id, nil
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	metadataJSON, err := json.Marshal(metadata)
-	if err != nil {
-		return "", fmt.Errorf("marshaling metadata: %w", err)
-	}
-
-	properties := map[string]interface{}{
-		contentProperty:             content,
-		documentContentHashProperty: contentHash,
-		documentTypeProperty:        docType,
-		documentOriginalIDProperty:  originalID,
-		documentMetadataProperty:    string(metadataJSON),
-		documentCreatedAtProperty:   time.Now().Format(time.RFC3339),
-	}
-
-	batcher := s.client.Batch().ObjectsBatcher()
-	obj := &models.Object{
-		Class:      DocumentClassName,
-		Properties: properties,
-	}
-	batcher = batcher.WithObjects(obj)
-
-	batchResult, err := batcher.Do(ctx)
-	if err != nil {
-		return "", fmt.Errorf("creating document: %w", err)
-	}
-
-	if len(batchResult) == 0 {
-		return "", fmt.Errorf("no result returned from document creation")
-	}
-
-	if batchResult[0].Result.Errors != nil && len(batchResult[0].Result.Errors.Error) > 0 {
-		return "", fmt.Errorf("error creating document: %s", batchResult[0].Result.Errors.Error[0].Message)
-	}
-
-	id := string(batchResult[0].ID)
-	s.logger.Debug("Stored new document", "id", id)
-	return id, nil
-}
-
 // GetStoredDocument retrieves a document from the separate document table.
 func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error) {
 	result, err := s.client.Data().ObjectsGetter().
@@ -1264,33 +1247,8 @@ func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID stri
 	return doc, nil
 }
 
-// convertToFloat32 efficiently converts []float64 to []float32 using memory pooling.
-func (s *WeaviateStorage) convertToFloat32(vector []float64) []float32 {
-	if len(vector) == 0 {
-		return nil
-	}
-
-	pooledSlicePtr, ok := s.vectorPool.Get().(*[]float32)
-	if !ok {
-		s.logger.Error("Failed to get vector pool")
-		return nil
-	}
-
-	*pooledSlicePtr = (*pooledSlicePtr)[:0]
-
-	for _, val := range vector {
-		*pooledSlicePtr = append(*pooledSlicePtr, float32(val))
-	}
-
-	result := make([]float32, len(*pooledSlicePtr))
-	copy(result, *pooledSlicePtr)
-
-	s.vectorPool.Put(pooledSlicePtr)
-	return result
-}
-
-// addStructuredFactFields adds the new structured fact fields to the existing schema.
-func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
+// addMemoryFactFields adds the new structured fact fields to the existing schema.
+func (s *WeaviateStorage) addMemoryFactFields(ctx context.Context) error {
 	// Get existing properties to check what needs to be added
 	existingProps, err := s.getExistingProperties(ctx)
 	if err != nil {
@@ -1520,4 +1478,82 @@ func (s *WeaviateStorage) buildBooleanExpressionFilter(expr *memory.BooleanExpre
 	}
 
 	return nil, fmt.Errorf("boolean expression must be either a leaf node (with tags) or a branch node (with left/right operands)")
+}
+
+// deterministicID generates a stable UUID5 from originalID for idempotent upserts.
+func deterministicID(originalID string) string {
+	// Use UUID v5 with a namespace to generate deterministic UUIDs
+	namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8") // DNS namespace UUID
+	return uuid.NewSHA1(namespace, []byte(originalID)).String()
+}
+
+// sha256hex returns the SHA256 hash of content as hex string.
+func sha256hex(content string) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(content))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// UpsertDocument uses deterministic UUID + batch upsert for idempotent document storage.
+func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Document) (string, error) {
+	docID := doc.ID()
+	if docID == "" {
+		return "", fmt.Errorf("document ID cannot be empty")
+	}
+	if len(docID) > 255 {
+		s.logger.Warn("Document ID too long, truncating", "original_length", len(docID), "original_id", docID[:50]+"...")
+		// Generate a hash-based ID for very long IDs
+		docID = fmt.Sprintf("long_id_%s", sha256hex(docID)[:32])
+	}
+	if doc.Content() == "" {
+		return "", fmt.Errorf("content must be non-empty")
+	}
+
+	// Determine document type based on concrete type
+	var docType string
+	switch doc.(type) {
+	case *memory.ConversationDocument:
+		docType = "conversation"
+	case *memory.TextDocument:
+		docType = "text"
+	default:
+		docType = "unknown"
+	}
+
+	id := deterministicID(docID)
+
+	// Marshal metadata
+	metadataJSON, err := json.Marshal(doc.Metadata())
+	if err != nil {
+		return "", fmt.Errorf("marshaling document metadata: %w", err)
+	}
+
+	// Build properties - omit createdAt to preserve original timestamps on updates
+	props := map[string]any{
+		contentProperty:             doc.Content(),
+		documentContentHashProperty: sha256hex(doc.Content()),
+		documentTypeProperty:        docType,
+		documentOriginalIDProperty:  docID,
+		documentMetadataProperty:    string(metadataJSON),
+	}
+
+	obj := &models.Object{
+		Class:      DocumentClassName,
+		ID:         strfmt.UUID(id),
+		Properties: props,
+	}
+
+	// One call, acts as upsert
+	res, err := s.client.Batch().
+		ObjectsBatcher().
+		WithObjects(obj).
+		Do(ctx)
+	if err != nil {
+		return "", fmt.Errorf("batch upsert failed: %w", err)
+	}
+	if len(res) == 0 || (res[0].Result != nil && res[0].Result.Errors != nil) {
+		return "", fmt.Errorf("upsert error: %+v", res)
+	}
+
+	return id, nil
 }

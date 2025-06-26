@@ -482,8 +482,8 @@ func TestTagsFilteringIntegration(t *testing.T) {
 	})
 }
 
-// TestStructuredFactFiltering tests the new structured fact filtering capabilities.
-func TestStructuredFactFiltering(t *testing.T) {
+// TestMemoryFactFiltering tests the new structured fact filtering capabilities.
+func TestMemoryFactFiltering(t *testing.T) {
 	t.Run("fact category filtering", func(t *testing.T) {
 		filter := &memory.Filter{
 			FactCategory: helpers.Ptr("preference"),
@@ -544,8 +544,8 @@ func TestStructuredFactFiltering(t *testing.T) {
 	})
 }
 
-// TestStructuredFactFilteringEdgeCases tests edge cases and validation scenarios.
-func TestStructuredFactFilteringEdgeCases(t *testing.T) {
+// TestMemoryFactFilteringEdgeCases tests edge cases and validation scenarios.
+func TestMemoryFactFilteringEdgeCases(t *testing.T) {
 	t.Run("empty string structured fact fields", func(t *testing.T) {
 		filter := &memory.Filter{
 			FactCategory:  helpers.Ptr(""),
@@ -614,8 +614,8 @@ func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 	})
 }
 
-// TestStructuredFactFilteringCombinations tests realistic filtering scenarios.
-func TestStructuredFactFilteringCombinations(t *testing.T) {
+// TestMemoryFactFilteringCombinations tests realistic filtering scenarios.
+func TestMemoryFactFilteringCombinations(t *testing.T) {
 	t.Run("user preferences with importance", func(t *testing.T) {
 		filter := &memory.Filter{
 			FactCategory:   helpers.Ptr("preference"),
@@ -650,8 +650,8 @@ func TestStructuredFactFilteringCombinations(t *testing.T) {
 	})
 }
 
-// TestStructuredFactFilteringBackwardCompatibility tests backward compatibility.
-func TestStructuredFactFilteringBackwardCompatibility(t *testing.T) {
+// TestMemoryFactFilteringBackwardCompatibility tests backward compatibility.
+func TestMemoryFactFilteringBackwardCompatibility(t *testing.T) {
 	t.Run("legacy filter without structured facts", func(t *testing.T) {
 		filter := &memory.Filter{
 			Source:   helpers.Ptr("conversations"),
@@ -684,8 +684,8 @@ func TestStructuredFactFilteringBackwardCompatibility(t *testing.T) {
 	})
 }
 
-// TestStructuredFactFilteringPerformance tests performance characteristics of fact filtering.
-func TestStructuredFactFilteringPerformance(t *testing.T) {
+// TestMemoryFactFilteringPerformance tests performance characteristics of fact filtering.
+func TestMemoryFactFilteringPerformance(t *testing.T) {
 	t.Run("direct field indexing vs JSON pattern matching", func(t *testing.T) {
 		// Document expected performance improvements:
 		// OLD: LIKE pattern matching on JSON strings
