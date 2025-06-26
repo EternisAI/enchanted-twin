@@ -447,6 +447,12 @@ async def entrypoint(ctx: JobContext):
     await ctx.connect()
     logger.info(f"Connected to LiveKit room: {ctx.room.name}")
     
+    if os.getenv("FAKE_INIT") == "true":
+        logger.info("Fake init enabled, sleeping for 1 second")
+        await asyncio.sleep(1)
+        logger.info("Fake init done, exiting")
+        return
+    
     # Create the agent with instructions
     agent = Agent(instructions="")
     logger.info("Agent created with instructions")
