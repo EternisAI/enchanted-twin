@@ -16,6 +16,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func TestSimpleConversationProcessing(t *testing.T) {
@@ -72,7 +73,14 @@ func TestSimpleConversationProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := log.New(os.Stdout)
-	dataSource := NewChatGPTProcessor(nil, logger)
+	store, err := db.NewStore(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	dataSource, err := NewChatGPTProcessor(store, logger)
+	if err != nil {
+		t.Fatalf("Failed to create chatgpt processor: %v", err)
+	}
 
 	ctx := context.Background()
 	records, err := dataSource.ProcessFile(ctx, tempFilePath)
@@ -132,7 +140,14 @@ func TestConversationToDocuments(t *testing.T) {
 	}
 
 	logger := log.New(os.Stdout)
-	chatgptProcessor := NewChatGPTProcessor(nil, logger)
+	store, err := db.NewStore(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	chatgptProcessor, err := NewChatGPTProcessor(store, logger)
+	if err != nil {
+		t.Fatalf("Failed to create chatgpt processor: %v", err)
+	}
 	documents, err := chatgptProcessor.ToDocuments(context.Background(), records)
 	require.NoError(t, err)
 	require.Len(t, documents, 1)
@@ -255,7 +270,14 @@ func TestJSONLRoundTrip(t *testing.T) {
 
 	// Test conversion to Document format
 	logger := log.New(os.Stdout)
-	chatgptProcessor := NewChatGPTProcessor(nil, logger)
+	store, err := db.NewStore(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	chatgptProcessor, err := NewChatGPTProcessor(store, logger)
+	if err != nil {
+		t.Fatalf("Failed to create chatgpt processor: %v", err)
+	}
 	docs, err := chatgptProcessor.ToDocuments(context.Background(), readRecords)
 	require.NoError(t, err, "Error converting records to documents")
 	require.Len(t, docs, 1, "Expected 1 document after conversion")

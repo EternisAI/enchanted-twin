@@ -27,10 +27,15 @@ export function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
     }
   }
 
-  livekitAgent = new LiveKitAgentBootstrap(agentProgress, agentSessionReady, agentStateChange)
+  livekitAgent = new LiveKitAgentBootstrap({
+    onProgress: agentProgress,
+    onSessionReady: agentSessionReady,
+    onStateChange: agentStateChange
+  })
 
   try {
     livekitAgent.setup()
+    startLiveKitAgent("FAKE_CHAT_ID", false, true)
   } catch (error) {
     log.error('Failed to setup LiveKit agent environment:', error)
   }
@@ -57,14 +62,14 @@ export async function setupLiveKitAgent(): Promise<void> {
   }
 }
 
-export async function startLiveKitAgent(chatId: string, isOnboarding = false): Promise<void> {
+export async function startLiveKitAgent(chatId: string, isOnboarding = false, isInitialising = false): Promise<void> {
   if (!livekitAgent) {
     throw new Error('LiveKit agent not initialized')
   }
 
   try {
     sessionReady = false // Reset session state when starting
-    await livekitAgent.startAgent(chatId, isOnboarding)
+    await livekitAgent.startAgent(chatId, isOnboarding, isInitialising)
     log.info('LiveKit agent started successfully')
   } catch (error) {
     log.error('Failed to start LiveKit agent:', error)
