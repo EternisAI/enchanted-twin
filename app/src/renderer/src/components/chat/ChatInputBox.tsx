@@ -64,7 +64,9 @@ export default function ChatInputBox({
           <SendButton
             className="w-9 h-9"
             text={query}
-            onSend={handleCreateChat}
+            onSend={() => {
+              handleCreateChat()
+            }}
             isWaitingTwinResponse={false}
           />
         )}
