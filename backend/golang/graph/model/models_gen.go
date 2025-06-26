@@ -39,12 +39,13 @@ type Author struct {
 }
 
 type Chat struct {
-	ID            string       `json:"id"`
-	Name          string       `json:"name"`
-	Messages      []*Message   `json:"messages"`
-	CreatedAt     string       `json:"createdAt"`
-	Category      ChatCategory `json:"category"`
-	HolonThreadID *string      `json:"holonThreadId,omitempty"`
+	ID             string       `json:"id"`
+	Name           string       `json:"name"`
+	Messages       []*Message   `json:"messages"`
+	CreatedAt      string       `json:"createdAt"`
+	Category       ChatCategory `json:"category"`
+	HolonThreadID  *string      `json:"holonThreadId,omitempty"`
+	InitialMessage *string      `json:"initialMessage,omitempty"`
 }
 
 type ChatSuggestionsCategory struct {
@@ -118,6 +119,11 @@ type Message struct {
 	ToolCalls   []*ToolCall `json:"toolCalls"`
 	ToolResults []string    `json:"toolResults"`
 	CreatedAt   string      `json:"createdAt"`
+}
+
+type MessageInput struct {
+	Text string `json:"text"`
+	Role Role   `json:"role"`
 }
 
 type MessageStreamPayload struct {
