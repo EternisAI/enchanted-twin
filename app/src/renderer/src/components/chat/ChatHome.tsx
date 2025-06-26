@@ -10,7 +10,8 @@ import {
   GetProfileDocument,
   GetChatsDocument,
   CreateChatDocument,
-  ChatCategory
+  ChatCategory,
+  SendMessageDocument
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
 import { ContextCard } from './ContextCard'
@@ -51,6 +52,7 @@ export function Home() {
 
   const [createChat] = useMutation(CreateChatDocument)
   const [updateProfile] = useMutation(UPDATE_PROFILE)
+  const [sendMessage] = useMutation(SendMessageDocument)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -157,8 +159,7 @@ export function Home() {
         const { data: createData } = await createChat({
           variables: {
             name: chatTitle || reducedMessage,
-            category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
-            initialMessage: message
+            category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text
           }
         })
         const newChatId = createData?.createChat?.id
@@ -167,6 +168,15 @@ export function Home() {
           navigate({
             to: `/chat/${newChatId}`,
             search: { initialMessage: query }
+          })
+
+          sendMessage({
+            variables: {
+              chatId: newChatId,
+              text: query,
+              reasoning: isReasonSelected,
+              voice: isVoiceMode || false
+            }
           })
 
           await client.cache.evict({ fieldName: 'getChats' })
@@ -181,7 +191,7 @@ export function Home() {
         console.error('Failed to create chat:', error)
       }
     },
-    [query, navigate, createChat, router, startVoiceMode]
+    [query, navigate, createChat, router, startVoiceMode, isReasonSelected, sendMessage]
   )
 
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -190,10 +200,11 @@ export function Home() {
       if (
         debouncedQuery &&
         filteredChats.length > 0 &&
-        selectedIndex < filteredChats.length &&
-        selectedIndex >= 0
+        selectedIndex < filteredChats.length + 1 &&
+        selectedIndex >= 1
       ) {
-        navigate({ to: `/chat/${filteredChats[selectedIndex].id}` })
+        // selectedIndex 1 corresponds to filteredChats[0], selectedIndex 2 to filteredChats[1], etc.
+        navigate({ to: `/chat/${filteredChats[selectedIndex - 1].id}` })
         setQuery('')
       } else {
         handleCreateChat()
@@ -214,7 +225,8 @@ export function Home() {
     const handleArrowKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex((prev) => Math.min(prev + 1, suggestions.length - 1))
+        const maxIndex = debouncedQuery ? filteredChats.length : dummySuggestions.length - 1
+        setSelectedIndex((prev) => Math.min(prev + 1, maxIndex))
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
@@ -224,7 +236,7 @@ export function Home() {
 
     window.addEventListener('keydown', handleArrowKeyDown)
     return () => window.removeEventListener('keydown', handleArrowKeyDown)
-  }, [selectedIndex, suggestions])
+  }, [selectedIndex, debouncedQuery, filteredChats.length, dummySuggestions.length])
 
   const handleSuggestionClick = async (suggestion: (typeof dummySuggestions)[0]) => {
     try {
@@ -367,6 +379,23 @@ export function Home() {
                 <ScrollArea className="h-[280px]">
                   {debouncedQuery ? (
                     <>
+                      <motion.button
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.15, delay: 0 }}
+                        type="button"
+                        onClick={() => {
+                          handleCreateChat()
+                          setQuery('')
+                        }}
+                        className={cn(
+                          'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
+                          'hover:bg-muted/80',
+                          selectedIndex === 0 && 'bg-primary/10 text-primary'
+                        )}
+                      >
+                        <span className="truncate">Create new chat</span>
+                      </motion.button>
                       {filteredChats.map((chat, index) => (
                         <motion.button
                           key={chat.id}
@@ -381,7 +410,7 @@ export function Home() {
                           className={cn(
                             'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
                             'hover:bg-muted/80',
-                            selectedIndex === index && 'bg-primary/10 text-primary'
+                            selectedIndex === index + 1 && 'bg-primary/10 text-primary'
                           )}
                         >
                           <span className="truncate">{chat.name}</span>
