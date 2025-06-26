@@ -22,12 +22,14 @@ func (mf *MemoryFact) GenerateContent() string {
 // ExtendedPersonality methods.
 func (ep *ExtendedPersonality) ToReferencePersonality() *ReferencePersonality {
 	result := &ReferencePersonality{
-		Name:              ep.Base.Name,
-		Description:       ep.Base.Description,
-		Profile:           ep.Base.Profile,
-		MemoryFacts:       make([]MemoryFact, len(ep.Base.MemoryFacts)),
-		Conversations:     ep.Base.Conversations,
-		Plans:             ep.Base.Plans,
+		BasePersonality: BasePersonality{
+			Name:          ep.Base.Name,
+			Description:   ep.Base.Description,
+			Profile:       ep.Base.Profile,
+			MemoryFacts:   make([]MemoryFact, len(ep.Base.MemoryFacts)),
+			Conversations: ep.Base.Conversations,
+			Plans:         ep.Base.Plans,
+		},
 		ExpectedBehaviors: make([]ExpectedBehavior, 0),
 	}
 
@@ -73,12 +75,14 @@ func (ep *ExtendedPersonality) ToReferencePersonality() *ReferencePersonality {
 // BasePersonality methods.
 func (bp *BasePersonality) ToReferencePersonality() *ReferencePersonality {
 	return &ReferencePersonality{
-		Name:              bp.Name,
-		Description:       bp.Description,
-		Profile:           bp.Profile,
-		MemoryFacts:       bp.MemoryFacts,
-		Conversations:     bp.Conversations,
-		Plans:             bp.Plans,
+		BasePersonality: BasePersonality{
+			Name:          bp.Name,
+			Description:   bp.Description,
+			Profile:       bp.Profile,
+			MemoryFacts:   bp.MemoryFacts,
+			Conversations: bp.Conversations,
+			Plans:         bp.Plans,
+		},
 		ExpectedBehaviors: []ExpectedBehavior{}, // Base personalities don't have expected behaviors
 	}
 }

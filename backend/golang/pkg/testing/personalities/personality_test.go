@@ -677,10 +677,12 @@ func TestFlexibleScenarioEvaluation(t *testing.T) {
 
 		// Create test personality
 		personality := &ReferencePersonality{
-			Name: "creative_artist",
-			Profile: PersonalityProfile{
-				Interests:  []string{"digital art", "AI", "creativity", "technology"},
-				CoreTraits: []string{"creative", "innovative", "artistic"},
+			BasePersonality: BasePersonality{
+				Name: "creative_artist",
+				Profile: PersonalityProfile{
+					Interests:  []string{"digital art", "AI", "creativity", "technology"},
+					CoreTraits: []string{"creative", "innovative", "artistic"},
+				},
 			},
 		}
 
@@ -715,10 +717,12 @@ func TestFlexibleScenarioEvaluation(t *testing.T) {
 
 		// Create test personality
 		personality := &ReferencePersonality{
-			Name: "tech_entrepreneur",
-			Profile: PersonalityProfile{
-				Interests:  []string{"startups", "AI", "venture capital", "funding"},
-				CoreTraits: []string{"analytical", "business-focused", "strategic"},
+			BasePersonality: BasePersonality{
+				Name: "tech_entrepreneur",
+				Profile: PersonalityProfile{
+					Interests:  []string{"startups", "AI", "venture capital", "funding"},
+					CoreTraits: []string{"analytical", "business-focused", "strategic"},
+				},
 			},
 		}
 
@@ -755,10 +759,12 @@ func TestFlexibleScenarioEvaluation(t *testing.T) {
 
 		// Create test personality
 		personality := &ReferencePersonality{
-			Name: "tech_entrepreneur",
-			Profile: PersonalityProfile{
-				Interests:  []string{"startups", "funding", "AI", "business"},
-				CoreTraits: []string{"ambitious", "strategic", "networking"},
+			BasePersonality: BasePersonality{
+				Name: "tech_entrepreneur",
+				Profile: PersonalityProfile{
+					Interests:  []string{"startups", "funding", "AI", "business"},
+					CoreTraits: []string{"ambitious", "strategic", "networking"},
+				},
 			},
 		}
 
