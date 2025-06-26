@@ -324,7 +324,7 @@ export class LiveKitAgentBootstrap {
     }
   }
 
-  async startAgent(chatId: string, isOnboarding: boolean = false) {
+  async startAgent(chatId: string, isOnboarding: boolean = false, isInitialising: boolean = false) {
     if (this.agentProc) {
       log.warn('[LiveKit] Agent is already running')
       return
@@ -350,13 +350,15 @@ export class LiveKitAgentBootstrap {
 
     isOnboarding && console.log('isOnboarding starting', isOnboarding)
 
+    const initialising = isInitialising ? 'true' : 'false'
+
     // Start the agent using the virtual environment Python
     this.agentProc = spawn(this.pythonBin(), ['agent.py', 'console'], {
       cwd: this.LIVEKIT_DIR,
       env: {
         ...process.env,
         CHAT_ID: chatId,
-
+        FAKE_INIT: initialising,
         TINFOIL_API_KEY: process.env.TINFOIL_API_KEY,
         TINFOIL_AUDIO_URL: process.env.TINFOIL_AUDIO_URL,
         TINFOIL_STT_MODEL: process.env.TINFOIL_STT_MODEL,
