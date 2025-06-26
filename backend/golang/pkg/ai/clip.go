@@ -27,12 +27,22 @@ type TextEmbeddingResponse struct {
 }
 
 type ImageEmbeddingRequest struct {
-	ImageURLs []string `json:"image_paths"`
+	ImagePaths []string `json:"image_paths"`
 }
 
 type ImageEmbeddingResponse struct {
 	Embeddings [][]float64 `json:"embeddings"`
-	ImageURLs  []string    `json:"image_paths"`
+	ImagePaths []string    `json:"image_paths"`
+}
+
+type TextToImageSearchRequest struct {
+	Text  string `json:"text"`
+	Limit int    `json:"limit"`
+}
+
+type TextToImageSearchResponse struct {
+	ImagePaths []string `json:"image_paths"`
+	TotalFound int      `json:"total_found"`
 }
 
 func NewClipEmbeddingService(logger *log.Logger, baseURL string) *ClipEmbeddingService {
@@ -125,13 +135,13 @@ func (s *ClipEmbeddingService) TextEmbedding(
 
 func (s *ClipEmbeddingService) ImageEmbeddings(
 	ctx context.Context,
-	imageURLs []string,
+	imagePaths []string,
 ) ([][]float64, error) {
 
-	s.logger.Info("starting batch image embeddings", "count", len(imageURLs))
+	s.logger.Info("starting batch image embeddings", "count", len(imagePaths))
 
 	requestBody := ImageEmbeddingRequest{
-		ImageURLs: imageURLs,
+		ImagePaths: imagePaths,
 	}
 
 	jsonData, err := json.Marshal(requestBody)
@@ -148,7 +158,7 @@ func (s *ClipEmbeddingService) ImageEmbeddings(
 
 	req.Header.Set("Content-Type", "application/json")
 
-	s.logger.Debug("making image embedding request", "url", req.URL.String(), "image_count", len(imageURLs))
+	s.logger.Debug("making image embedding request", "url", req.URL.String(), "image_count", len(imagePaths))
 	resp, err := s.client.Do(req)
 	if err != nil {
 		s.logger.Error("failed to make image embedding request", "error", err)
@@ -177,19 +187,70 @@ func (s *ClipEmbeddingService) ImageEmbedding(
 	imagePath string,
 ) ([]float64, error) {
 
-	s.logger.Debug("creating single image embedding", "image_url", imagePath)
+	s.logger.Debug("creating single image embedding", "image_path", imagePath)
 
 	embeddings, err := s.ImageEmbeddings(ctx, []string{imagePath})
 	if err != nil {
-		s.logger.Error("failed to create single image embedding", "image_url", imagePath, "error", err)
+		s.logger.Error("failed to create single image embedding", "image_path", imagePath, "error", err)
 		return nil, err
 	}
 
 	if len(embeddings) == 0 {
-		s.logger.Error("no embedding returned for image", "image_url", imagePath)
+		s.logger.Error("no embedding returned for image", "image_path", imagePath)
 		return nil, fmt.Errorf("no embedding returned for image")
 	}
 
 	s.logger.Debug("successfully created single image embedding", "embedding_size", len(embeddings[0]))
 	return embeddings[0], nil
+}
+
+func (s *ClipEmbeddingService) ImageSearch(
+	ctx context.Context,
+	text string,
+	limit int,
+) (*TextToImageSearchResponse, error) {
+
+	s.logger.Debug("creating image search request", "text", text, "limit", limit)
+
+	requestBody := TextToImageSearchRequest{
+		Text:  text,
+		Limit: limit,
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		s.logger.Error("failed to marshal image search request", "error", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/search/images", bytes.NewBuffer(jsonData))
+	if err != nil {
+		s.logger.Error("failed to create image search request", "error", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	s.logger.Debug("making image search request", "url", req.URL.String())
+	resp, err := s.client.Do(req)
+	if err != nil {
+		s.logger.Error("failed to make image search request", "error", err)
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	s.logger.Debug("received image search response", "status", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		s.logger.Error("image search request failed", "status", resp.StatusCode)
+		return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	var response TextToImageSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		s.logger.Error("failed to decode image search response", "error", err)
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	s.logger.Debug("successfully completed image search", "total_found", response.TotalFound, "image_count", len(response.ImagePaths))
+	return &response, nil
 }

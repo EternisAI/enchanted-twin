@@ -50,23 +50,17 @@ func (t *ImageSearchTool) Execute(ctx context.Context, input map[string]any) (ty
 
 	t.Logger.Info("query", "llm_query", query)
 
-	// _, err := t.ClipService.TextEmbedding(ctx, query)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	images, err := t.ClipService.ImageSearch(ctx, query, 1)
+	if err != nil {
+		return nil, err
+	}
 
-	// t.Logger.Info("embedding", "embedding", embedding)
-
-	// perform image search
-	// Production: Weaviate
-	// Development: ClipService.Search
-
-	images := []string{"https://i.ibb.co/39C7tVWm/Thortextless-1.jpg"}
+	t.Logger.Info("images", "images", images)
 
 	return &types.StructuredToolResult{
 		ToolName: t.Definition().Function.Name,
 		Output: map[string]any{
-			"images": images,
+			"images": images.ImagePaths,
 		},
 	}, nil
 }
