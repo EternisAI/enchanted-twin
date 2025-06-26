@@ -40,4 +40,8 @@ func (workflows *DataProcessingWorkflows) RegisterWorkflowsAndActivities(worker 
 	(*worker).RegisterWorkflow(workflows.GmailHistoryWorkflow)
 	(*worker).RegisterActivity(workflows.GmailFetchHistoryActivity)
 	(*worker).RegisterActivity(workflows.GmailHistoryIndexActivity)
+
+	(*worker).RegisterWorkflow(workflows.DriveSyncWorkflow)
+	(*worker).RegisterActivity(workflows.DriveFetchActivity)
+	(*worker).RegisterActivity(workflows.DriveIndexActivity)
 }

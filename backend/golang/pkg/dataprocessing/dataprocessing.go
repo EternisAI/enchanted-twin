@@ -20,6 +20,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/drive"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/misc"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
@@ -576,6 +577,15 @@ func (d *DataProcessingService) Sync(ctx context.Context, sourceName string, acc
 			return nil, err
 		}
 		records, authorized, err = xProcessor.Sync(ctx, accessToken)
+		if err != nil {
+			return nil, err
+		}
+	case "drive":
+		driveProcessor, err := drive.NewDriveProcessor(d.store, d.logger)
+		if err != nil {
+			return nil, err
+		}
+		records, authorized, err = driveProcessor.Sync(ctx, accessToken)
 		if err != nil {
 			return nil, err
 		}
