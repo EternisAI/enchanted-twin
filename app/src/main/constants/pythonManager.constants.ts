@@ -20,6 +20,7 @@ livekit-plugins-deepgram==1.0.23
 livekit-plugins-silero==1.0.23
 python-dotenv>=1.0.0
 requests
+certifi>=2024.2.2
 websockets>=12.0`
 
 export const PROGRESS_STEPS = {
