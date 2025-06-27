@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -20,71 +20,26 @@ type TwitterClient struct {
 
 func (c *TwitterClient) ListTools(
 	ctx context.Context,
-	cursor *string,
-) (*mcp_golang.ToolsResponse, error) {
-	inputSchema, err := utils.ConverToInputSchema(ListFeedTweetsArguments{})
-	if err != nil {
-		return nil, err
+	request mcp_golang.ListToolsRequest,
+) (*mcp_golang.ListToolsResult, error) {
+	// Create tools using the new SDK
+	tools := []mcp_golang.Tool{
+		mcp_golang.NewTool(LIST_FEED_TOOL_NAME, mcp_golang.WithDescription(LIST_FEED_TOOL_DESCRIPTION)),
+		mcp_golang.NewTool(POST_TWEET_TOOL_NAME, mcp_golang.WithDescription(POST_TWEET_TOOL_DESCRIPTION)),
+		mcp_golang.NewTool(SEARCH_TWEETS_TOOL_NAME, mcp_golang.WithDescription(SEARCH_TWEETS_TOOL_DESCRIPTION)),
+		mcp_golang.NewTool(LIST_BOOKMARKS_TOOL_NAME, mcp_golang.WithDescription(LIST_BOOKMARKS_TOOL_DESCRIPTION)),
 	}
 
-	description := LIST_FEED_TOOL_DESCRIPTION
-	tools := []mcp_golang.ToolRetType{
-		{
-			Name:        LIST_FEED_TOOL_NAME,
-			Description: &description,
-			InputSchema: inputSchema,
-		},
-	}
-
-	inputSchema, err = utils.ConverToInputSchema(PostTweetArguments{})
-	if err != nil {
-		return nil, err
-	}
-
-	description = POST_TWEET_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        POST_TWEET_TOOL_NAME,
-		Description: &description,
-		InputSchema: inputSchema,
-	})
-
-	inputSchema, err = utils.ConverToInputSchema(SearchTweetsArguments{})
-	if err != nil {
-		return nil, err
-	}
-
-	description = SEARCH_TWEETS_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        SEARCH_TWEETS_TOOL_NAME,
-		Description: &description,
-		InputSchema: inputSchema,
-	})
-
-	inputSchema, err = utils.ConverToInputSchema(ListBookmarksArguments{})
-	if err != nil {
-		return nil, err
-	}
-
-	description = LIST_BOOKMARKS_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        LIST_BOOKMARKS_TOOL_NAME,
-		Description: &description,
-		InputSchema: inputSchema,
-	})
-
-	return &mcp_golang.ToolsResponse{
-		Tools: tools,
-	}, nil
+	return mcp_golang.NewListToolsResult(tools, ""), nil
 }
 
 func (c *TwitterClient) CallTool(
 	ctx context.Context,
-	name string,
-	arguments any,
-) (*mcp_golang.ToolResponse, error) {
-	fmt.Println("Call tool TWITTER", name, arguments)
+	request mcp_golang.CallToolRequest,
+) (*mcp_golang.CallToolResult, error) {
+	fmt.Println("Call tool TWITTER", request.Params.Name, request.Params.Arguments)
 
-	bytes, err := utils.ConvertToBytes(arguments)
+	bytes, err := utils.ConvertToBytes(request.Params.Arguments)
 	if err != nil {
 		return nil, err
 	}
@@ -107,54 +62,48 @@ func (c *TwitterClient) CallTool(
 		}
 	}
 
-	var content []*mcp_golang.Content
-
-	switch name {
+	switch request.Params.Name {
 	case LIST_FEED_TOOL_NAME:
 		var argumentsTyped ListFeedTweetsArguments
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-			return nil, err
+			return mcp_golang.NewToolResultErrorFromErr("Failed to parse arguments", err), nil
 		}
-		result, err := processListFeedTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
+		content, err := processListFeedTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
 		if err != nil {
-			return nil, err
+			return mcp_golang.NewToolResultErrorFromErr("Failed to list feed tweets", err), nil
 		}
-		content = result
+		return &mcp_golang.CallToolResult{Content: content}, nil
 	case POST_TWEET_TOOL_NAME:
 		var argumentsTyped PostTweetArguments
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-			return nil, err
+			return mcp_golang.NewToolResultErrorFromErr("Failed to parse arguments", err), nil
 		}
-		result, err := processPostTweet(ctx, oauthTokens.AccessToken, argumentsTyped)
+		content, err := processPostTweet(ctx, oauthTokens.AccessToken, argumentsTyped)
 		if err != nil {
-			return nil, err
+			return mcp_golang.NewToolResultErrorFromErr("Failed to post tweet", err), nil
 		}
-		content = result
+		return &mcp_golang.CallToolResult{Content: content}, nil
 	case SEARCH_TWEETS_TOOL_NAME:
 		var argumentsTyped SearchTweetsArguments
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-			return nil, err
+			return mcp_golang.NewToolResultErrorFromErr("Failed to parse arguments", err), nil
 		}
-		result, err := processSearchTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
+		content, err := processSearchTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
 		if err != nil {
-			return nil, err
+			return mcp_golang.NewToolResultErrorFromErr("Failed to search tweets", err), nil
 		}
-		content = result
+		return &mcp_golang.CallToolResult{Content: content}, nil
 	case LIST_BOOKMARKS_TOOL_NAME:
 		var argumentsTyped ListBookmarksArguments
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-			return nil, err
+			return mcp_golang.NewToolResultErrorFromErr("Failed to parse arguments", err), nil
 		}
-		result, err := processListBookmarks(ctx, oauthTokens.AccessToken, argumentsTyped)
+		content, err := processListBookmarks(ctx, oauthTokens.AccessToken, argumentsTyped)
 		if err != nil {
-			return nil, err
+			return mcp_golang.NewToolResultErrorFromErr("Failed to list bookmarks", err), nil
 		}
-		content = result
+		return &mcp_golang.CallToolResult{Content: content}, nil
 	default:
-		return nil, fmt.Errorf("tool not found")
+		return mcp_golang.NewToolResultError("Tool not found"), nil
 	}
-
-	return &mcp_golang.ToolResponse{
-		Content: content,
-	}, nil
 }

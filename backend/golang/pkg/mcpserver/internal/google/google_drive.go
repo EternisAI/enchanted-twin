@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
@@ -103,7 +103,7 @@ func processSearchFiles(
 	ctx context.Context,
 	store *db.Store,
 	args SearchFilesArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	accessToken, err := GetAccessToken(ctx, store, args.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -149,21 +149,18 @@ func processSearchFiles(
 		return nil, fmt.Errorf("error searching files: %v", err)
 	}
 
-	contents := []*mcp_golang.Content{}
+	contents := []mcp_golang.Content{}
 
 	for _, file := range fileList.Files {
-		contents = append(contents, &mcp_golang.Content{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf(
-					"File: %s - %s, Modified: %s, Type: %s",
-					file.Name,
-					file.Id,
-					file.ModifiedTime,
-					file.MimeType,
-				),
-			},
-		})
+		fileText := fmt.Sprintf(
+			"File: %s - %s, Modified: %s, Type: %s",
+			file.Name,
+			file.Id,
+			file.ModifiedTime,
+			file.MimeType,
+		)
+		textContent := mcp_golang.NewTextContent(fileText)
+		contents = append(contents, textContent)
 	}
 
 	return contents, nil
@@ -173,7 +170,7 @@ func processReadFile(
 	ctx context.Context,
 	store *db.Store,
 	args ReadFileArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	accessToken, err := GetAccessToken(ctx, store, args.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -194,18 +191,13 @@ func processReadFile(
 		Do()
 	if err != nil {
 		fmt.Println("Error retrieving file metadata", err)
-		return []*mcp_golang.Content{
-			{
-				Type: "text",
-				TextContent: &mcp_golang.TextContent{
-					Text: fmt.Sprintf(
-						"Error retrieving file metadata for ID %s: %v",
-						args.FileID,
-						err,
-					),
-				},
-			},
-		}, nil
+		errorText := fmt.Sprintf(
+			"Error retrieving file metadata for ID %s: %v",
+			args.FileID,
+			err,
+		)
+		textContent := mcp_golang.NewTextContent(errorText)
+		return []mcp_golang.Content{textContent}, nil
 	}
 
 	var contentText string
@@ -297,42 +289,32 @@ func processReadFile(
 		// Check size before attempting download to avoid large files
 		const maxDownloadSize = 5 * 1024 * 1024 // 5 MB limit
 		if fileMeta.Size > maxDownloadSize {
-			return []*mcp_golang.Content{
-				{
-					Type: "text",
-					TextContent: &mcp_golang.TextContent{
-						Text: fmt.Sprintf(
-							"File '%s' (ID: %s, Type: %s) is too large (%d bytes) to download directly. Maximum size is %d bytes. Use the webViewLink: %s",
-							fileMeta.OriginalFilename,
-							fileMeta.Id,
-							fileMeta.MimeType,
-							fileMeta.Size,
-							maxDownloadSize,
-							fileMeta.WebViewLink,
-						),
-					},
-				},
-			}, nil
+			warningText := fmt.Sprintf(
+				"File '%s' (ID: %s, Type: %s) is too large (%d bytes) to download directly. Maximum size is %d bytes. Use the webViewLink: %s",
+				fileMeta.OriginalFilename,
+				fileMeta.Id,
+				fileMeta.MimeType,
+				fileMeta.Size,
+				maxDownloadSize,
+				fileMeta.WebViewLink,
+			)
+			textContent := mcp_golang.NewTextContent(warningText)
+			return []mcp_golang.Content{textContent}, nil
 		}
 
 		resp, err := driveService.Files.Get(args.FileID).SupportsAllDrives(true).Download()
 		if err != nil {
 			if gerr, ok := err.(*googleapi.Error); ok && gerr.Code == 403 {
 				// Handle specific errors like inability to download Google Apps Script etc.
-				return []*mcp_golang.Content{
-					{
-						Type: "text",
-						TextContent: &mcp_golang.TextContent{
-							Text: fmt.Sprintf(
-								"Could not directly download file '%s' (ID: %s, Type: %s). This might be due to file type restrictions (e.g., Google Apps Script) or permissions. Try the web view link: %s",
-								fileMeta.OriginalFilename,
-								fileMeta.Id,
-								fileMeta.MimeType,
-								fileMeta.WebViewLink,
-							),
-						},
-					},
-				}, nil
+				errorText := fmt.Sprintf(
+					"Could not directly download file '%s' (ID: %s, Type: %s). This might be due to file type restrictions (e.g., Google Apps Script) or permissions. Try the web view link: %s",
+					fileMeta.OriginalFilename,
+					fileMeta.Id,
+					fileMeta.MimeType,
+					fileMeta.WebViewLink,
+				)
+				textContent := mcp_golang.NewTextContent(errorText)
+				return []mcp_golang.Content{textContent}, nil
 			}
 			return nil, fmt.Errorf(
 				"unable to download file content for '%s' (ID: %s): %w",
@@ -387,14 +369,8 @@ func processReadFile(
 		contentText = contentText[:maxReturnLength] + "... (truncated)"
 	}
 
-	return []*mcp_golang.Content{
-		{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: contentText,
-			},
-		},
-	}, nil
+	textContent := mcp_golang.NewTextContent(contentText)
+	return []mcp_golang.Content{textContent}, nil
 }
 
 func getDriveService(ctx context.Context, accessToken string) (*drive.Service, error) {
@@ -411,18 +387,21 @@ func getDriveService(ctx context.Context, accessToken string) (*drive.Service, e
 	return driveService, nil
 }
 
-func GenerateGoogleDriveTools() ([]mcp_golang.ToolRetType, error) {
-	var tools []mcp_golang.ToolRetType
+func GenerateGoogleDriveTools() ([]mcp_golang.Tool, error) {
+	var tools []mcp_golang.Tool
 
 	searchFilesSchema, err := utils.ConverToInputSchema(SearchFilesArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for search_drive_files: %w", err)
 	}
 	desc := SEARCH_FILES_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
+	tools = append(tools, mcp_golang.Tool{
 		Name:        SEARCH_FILES_TOOL_NAME,
-		Description: &desc,
-		InputSchema: searchFilesSchema,
+		Description: desc,
+		InputSchema: mcp_golang.ToolInputSchema{
+			Type:       "object",
+			Properties: searchFilesSchema,
+		},
 	})
 
 	readFileSchema, err := utils.ConverToInputSchema(ReadFileArguments{})
@@ -430,10 +409,13 @@ func GenerateGoogleDriveTools() ([]mcp_golang.ToolRetType, error) {
 		return nil, fmt.Errorf("error generating schema for read_drive_file: %w", err)
 	}
 	desc = READ_FILE_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
+	tools = append(tools, mcp_golang.Tool{
 		Name:        READ_FILE_TOOL_NAME,
-		Description: &desc,
-		InputSchema: readFileSchema,
+		Description: desc,
+		InputSchema: mcp_golang.ToolInputSchema{
+			Type:       "object",
+			Properties: readFileSchema,
+		},
 	})
 
 	return tools, nil

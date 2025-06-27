@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
@@ -119,7 +119,7 @@ func processSearchContent(
 	ctx context.Context,
 	client *ScreenpipeClient,
 	arguments SearchContentArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	if arguments.Limit < 10 {
 		arguments.Limit = 10
 	}
@@ -127,16 +127,16 @@ func processSearchContent(
 		arguments.Limit = 50
 	}
 	resp, err := client.SearchContent(ctx, arguments)
+	content := []mcp_golang.Content{}
 	if err != nil {
-		return []*mcp_golang.Content{{
-			Type: "text", TextContent: &mcp_golang.TextContent{Text: fmt.Sprintf("failed to search screenpipe: %v", err)},
-		}}, nil
+		textContent := mcp_golang.NewTextContent(fmt.Sprintf("failed to search screenpipe: %v", err))
+		content = append(content, textContent)
+		return content, nil
 	}
 
 	if len(resp.Data) == 0 {
-		return []*mcp_golang.Content{{
-			Type: "text", TextContent: &mcp_golang.TextContent{Text: "no results found"},
-		}}, nil
+		textContent := mcp_golang.NewTextContent("no results found")
+		return []mcp_golang.Content{textContent}, nil
 	}
 
 	var formattedResults []string
@@ -167,9 +167,8 @@ func processSearchContent(
 
 	fmt.Println("Search content response:", formattedResults)
 
-	return []*mcp_golang.Content{{
-		Type: "text", TextContent: &mcp_golang.TextContent{Text: "Search Results:\n\n" + strings.Join(formattedResults, "\n")},
-	}}, nil
+	textContent := mcp_golang.NewTextContent("Search Results:\n\n" + strings.Join(formattedResults, "\n"))
+	return []mcp_golang.Content{textContent}, nil
 }
 
 func GetInputSchema(args any) map[string]any {
@@ -181,18 +180,21 @@ func GetInputSchema(args any) map[string]any {
 	return inputSchema
 }
 
-func GetScreenpipeTools(client *ScreenpipeClient, isMacOS bool) (*mcp_golang.ToolsResponse, error) {
+func GetScreenpipeTools(client *ScreenpipeClient, isMacOS bool) (*mcp_golang.ListToolsResult, error) {
 	searchContentDesc := SearchContentToolDescription
 
-	tools := []mcp_golang.ToolRetType{
+	tools := []mcp_golang.Tool{
 		{
 			Name:        SearchContentToolName,
-			Description: &searchContentDesc,
-			InputSchema: GetInputSchema(SearchContentArguments{}),
+			Description: searchContentDesc,
+			InputSchema: mcp_golang.ToolInputSchema{
+				Type:       "object",
+				Properties: GetInputSchema(SearchContentArguments{}),
+			},
 		},
 	}
 
-	return &mcp_golang.ToolsResponse{
+	return &mcp_golang.ListToolsResult{
 		Tools: tools,
 	}, nil
 }

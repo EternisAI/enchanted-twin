@@ -19,7 +19,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/lnquy/cron v1.1.1
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
-	github.com/metoro-io/mcp-golang v0.12.0
+	github.com/mark3labs/mcp-go v0.32.0
 	github.com/nats-io/nats-server/v2 v2.11.3
 	github.com/nats-io/nats.go v1.42.0
 	github.com/openai/openai-go v1.3.0
@@ -151,6 +151,7 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
+	github.com/mark3labs/mcp-go v0.32.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/miekg/dns v1.1.43 // indirect
@@ -217,6 +218,7 @@ require (
 	github.com/weaviate/tiktoken-go v0.0.2 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.etcd.io/bbolt v1.3.11 // indirect
 	go.mau.fi/libsignal v0.1.2 // indirect
