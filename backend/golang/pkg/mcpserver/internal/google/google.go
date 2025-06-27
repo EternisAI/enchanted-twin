@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
@@ -17,9 +17,9 @@ type GoogleClient struct {
 
 func (c *GoogleClient) ListTools(
 	ctx context.Context,
-	cursor *string,
-) (*mcp_golang.ToolsResponse, error) {
-	tools := []mcp_golang.ToolRetType{}
+	request mcp_golang.ListToolsRequest,
+) (*mcp_golang.ListToolsResult, error) {
+	tools := []mcp_golang.Tool{}
 
 	gmailTools, err := GenerateGmailTools()
 	if err != nil {
@@ -39,17 +39,18 @@ func (c *GoogleClient) ListTools(
 	}
 	tools = append(tools, googleDriveTools...)
 
-	return &mcp_golang.ToolsResponse{
+	return &mcp_golang.ListToolsResult{
 		Tools: tools,
 	}, nil
 }
 
 func (c *GoogleClient) CallTool(
 	ctx context.Context,
-	name string,
-	arguments any,
-) (*mcp_golang.ToolResponse, error) {
+	request mcp_golang.CallToolRequest,
+) (*mcp_golang.CallToolResult, error) {
 	// Convert generic arguments to the expected Go struct.
+	name := request.Params.Name
+	arguments := request.Params.Arguments
 	fmt.Println("Call tool GOOGLE", name, arguments)
 
 	bytes, err := utils.ConvertToBytes(arguments)
@@ -57,7 +58,7 @@ func (c *GoogleClient) CallTool(
 		return nil, err
 	}
 
-	var content []*mcp_golang.Content
+	var content []mcp_golang.Content
 
 	switch name {
 	case LIST_EMAIL_ACCOUNTS_TOOL_NAME:
@@ -150,7 +151,7 @@ func (c *GoogleClient) CallTool(
 		return nil, fmt.Errorf("tool not found")
 	}
 
-	return &mcp_golang.ToolResponse{
+	return &mcp_golang.CallToolResult{
 		Content: content,
 	}, nil
 }

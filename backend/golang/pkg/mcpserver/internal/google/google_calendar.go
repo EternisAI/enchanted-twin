@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
@@ -49,7 +49,7 @@ func processListEvents(
 	ctx context.Context,
 	store *db.Store,
 	args ListEventsArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	accessToken, err := GetAccessToken(ctx, store, args.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func processListEvents(
 		return nil, fmt.Errorf("error listing calendar events: %w", err)
 	}
 
-	contents := []*mcp_golang.Content{}
+	contents := []mcp_golang.Content{}
 
 	for _, event := range events.Items {
 		sourceTitle := "Unknown"
@@ -111,18 +111,15 @@ func processListEvents(
 			sourceTitle = event.Source.Title
 		}
 
-		contents = append(contents, &mcp_golang.Content{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf(
-					"Event: %s - %s, Start: %s, End: %s",
-					sourceTitle,
-					event.Summary,
-					event.Start.DateTime,
-					event.End.DateTime,
-				),
-			},
-		})
+		eventText := fmt.Sprintf(
+			"Event: %s - %s, Start: %s, End: %s",
+			sourceTitle,
+			event.Summary,
+			event.Start.DateTime,
+			event.End.DateTime,
+		)
+		textContent := mcp_golang.NewTextContent(eventText)
+		contents = append(contents, textContent)
 	}
 
 	return contents, nil
@@ -132,7 +129,7 @@ func processCreateEvent(
 	ctx context.Context,
 	store *db.Store,
 	args CreateEventArgs,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	accessToken, err := GetAccessToken(ctx, store, args.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -187,18 +184,13 @@ func processCreateEvent(
 		return nil, fmt.Errorf("error creating calendar event: %w", err)
 	}
 
-	return []*mcp_golang.Content{
-		{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf(
-					"Successfully created event: %s (ID: %s)",
-					createdEvent.Summary,
-					createdEvent.Id,
-				),
-			},
-		},
-	}, nil
+	successText := fmt.Sprintf(
+		"Successfully created event: %s (ID: %s)",
+		createdEvent.Summary,
+		createdEvent.Id,
+	)
+	textContent := mcp_golang.NewTextContent(successText)
+	return []mcp_golang.Content{textContent}, nil
 }
 
 func getCalendarService(ctx context.Context, accessToken string) (*calendar.Service, error) {
@@ -215,18 +207,21 @@ func getCalendarService(ctx context.Context, accessToken string) (*calendar.Serv
 	return calendarService, nil
 }
 
-func GenerateGoogleCalendarTools() ([]mcp_golang.ToolRetType, error) {
-	var tools []mcp_golang.ToolRetType
+func GenerateGoogleCalendarTools() ([]mcp_golang.Tool, error) {
+	var tools []mcp_golang.Tool
 
 	listEventsSchema, err := utils.ConverToInputSchema(ListEventsArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for list_calendar_events: %w", err)
 	}
 	desc := LIST_CALENDAR_EVENTS_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
+	tools = append(tools, mcp_golang.Tool{
 		Name:        LIST_CALENDAR_EVENTS_TOOL_NAME,
-		Description: &desc,
-		InputSchema: listEventsSchema,
+		Description: desc,
+		InputSchema: mcp_golang.ToolInputSchema{
+			Type:       "object",
+			Properties: listEventsSchema,
+		},
 	})
 
 	createEventSchema, err := utils.ConverToInputSchema(CreateEventArgs{})
@@ -234,10 +229,13 @@ func GenerateGoogleCalendarTools() ([]mcp_golang.ToolRetType, error) {
 		return nil, fmt.Errorf("error generating schema for create_calendar_event: %w", err)
 	}
 	desc = CREATE_CALENDAR_EVENT_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
+	tools = append(tools, mcp_golang.Tool{
 		Name:        CREATE_CALENDAR_EVENT_TOOL_NAME,
-		Description: &desc,
-		InputSchema: createEventSchema,
+		Description: desc,
+		InputSchema: mcp_golang.ToolInputSchema{
+			Type:       "object",
+			Properties: createEventSchema,
+		},
 	})
 
 	return tools, nil

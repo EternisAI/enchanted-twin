@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -20,8 +20,8 @@ type SlackClient struct {
 
 func (c *SlackClient) ListTools(
 	ctx context.Context,
-	cursor *string,
-) (*mcp_golang.ToolsResponse, error) {
+	request mcp_golang.ListToolsRequest,
+) (*mcp_golang.ListToolsResult, error) {
 	tools, err := GenerateSlackTools()
 	if err != nil {
 		return nil, err
@@ -30,19 +30,16 @@ func (c *SlackClient) ListTools(
 	// Slack ListTools doesn't seem to support pagination in the same way as Twitter's API in the example.
 	// If Slack API does support pagination for listing tools (which is unlikely), this would need adjustment.
 	// For now, return all tools without considering the cursor.
-	return &mcp_golang.ToolsResponse{
-		Tools: tools,
-	}, nil
+	return mcp_golang.NewListToolsResult(tools, ""), nil
 }
 
 func (c *SlackClient) CallTool(
 	ctx context.Context,
-	name string,
-	arguments any,
-) (*mcp_golang.ToolResponse, error) {
-	fmt.Println("Call tool SLACK", name, arguments)
+	request mcp_golang.CallToolRequest,
+) (*mcp_golang.CallToolResult, error) {
+	fmt.Println("Call tool SLACK", request.Params.Name, request.Params.Arguments)
 
-	bytes, err := utils.ConvertToBytes(arguments)
+	bytes, err := utils.ConvertToBytes(request.Params.Arguments)
 	if err != nil {
 		return nil, err
 	}
@@ -65,9 +62,9 @@ func (c *SlackClient) CallTool(
 		}
 	}
 
-	var content []*mcp_golang.Content
+	var content []mcp_golang.Content
 
-	switch name {
+	switch request.Params.Name {
 	case LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_NAME:
 		var argumentsTyped ListDirectMessageConversationsArguments
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
@@ -105,10 +102,10 @@ func (c *SlackClient) CallTool(
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("tool not found: %s", name)
+		return mcp_golang.NewToolResultError(fmt.Sprintf("tool not found: %s", request.Params.Name)), nil
 	}
 
-	return &mcp_golang.ToolResponse{
+	return &mcp_golang.CallToolResult{
 		Content: content,
 	}, nil
 }
