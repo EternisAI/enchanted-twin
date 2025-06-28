@@ -2,9 +2,11 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -290,50 +292,118 @@ func (env *testEnvironment) LoadDocuments(t *testing.T, source, inputPath string
 	_, err := env.dataprocessing.ProcessSource(env.ctx, source, inputPath, env.config.OutputPath)
 	require.NoError(t, err)
 
-	count, err := jsonHelpers.CountJSONLLines(env.config.OutputPath)
-	if err != nil {
-		t.Fatalf("Failed to count JSONL lines: %v", err)
-	}
+	// Check if this is a conversation processor that outputs ConversationDocuments directly
+	sourceType := strings.ToLower(source)
+	isConversationProcessor := sourceType == "telegram" || sourceType == "whatsapp" || sourceType == "gmail" || sourceType == "chatgpt"
 
-	batchSize := 3
-	var allRecords []types.Record
-
-	env.logger.Info("Loading documents in batches", "totalRecords", count, "batchSize", batchSize)
-
-	for batchIndex := 0; ; batchIndex++ {
-		startIndex := batchIndex * batchSize
-		records, err := jsonHelpers.ReadJSONLBatch(env.config.OutputPath, startIndex, batchSize)
+	if isConversationProcessor {
+		// Load ConversationDocuments directly from JSON array
+		var conversationDocs []memory.ConversationDocument
+		fileContent, err := os.ReadFile(env.config.OutputPath)
 		require.NoError(t, err)
 
-		if len(records) == 0 {
-			break
+		err = json.Unmarshal(fileContent, &conversationDocs)
+		require.NoError(t, err, "Failed to parse ConversationDocuments JSON array")
+
+		// Convert to Document interface
+		env.documents = make([]memory.Document, len(conversationDocs))
+		for i := range conversationDocs {
+			env.documents[i] = &conversationDocs[i]
 		}
 
-		env.logger.Info("Loaded batch", "batchIndex", batchIndex, "recordCount", len(records), "startIndex", startIndex)
-		allRecords = append(allRecords, records...)
+		env.logger.Info("Loaded ConversationDocuments directly from JSON", "count", len(env.documents))
+	} else {
+		// Legacy path for processors that still use records
+		fileContent, err := os.ReadFile(env.config.OutputPath)
+		require.NoError(t, err)
 
-		for i, record := range records {
-			env.logger.Info("Record in batch",
-				"batchIndex", batchIndex,
-				"recordIndex", i,
-				"globalIndex", startIndex+i,
-				"source", record.Source,
-				"content_preview", truncateString(record.Data["content"], 100))
+		var allRecords []types.Record
+
+		// Try to parse as JSON array first (for legacy processors that output JSON)
+		trimmedContent := strings.TrimSpace(string(fileContent))
+		if strings.HasPrefix(trimmedContent, "[") && strings.HasSuffix(trimmedContent, "]") {
+			// This is a JSON array
+			var jsonRecords []struct {
+				Data      map[string]interface{} `json:"data"`
+				Timestamp string                 `json:"timestamp"`
+				Source    string                 `json:"source"`
+			}
+
+			if err := json.Unmarshal(fileContent, &jsonRecords); err == nil {
+				// Successfully parsed as JSON array
+				for _, jsonRecord := range jsonRecords {
+					var timestamp time.Time
+					if jsonRecord.Timestamp != "" {
+						var err error
+						timestamp, err = time.Parse(time.RFC3339, jsonRecord.Timestamp)
+						if err != nil {
+							t.Fatalf("Failed to parse timestamp: %v", err)
+						}
+					} else {
+						// Use current time as default for empty timestamps
+						timestamp = time.Now()
+					}
+
+					record := types.Record{
+						Data:      jsonRecord.Data,
+						Timestamp: timestamp,
+						Source:    jsonRecord.Source,
+					}
+					allRecords = append(allRecords, record)
+				}
+				env.logger.Info("Loaded records from JSON array", "recordCount", len(allRecords))
+			} else {
+				t.Fatalf("Failed to parse JSON array: %v", err)
+			}
+		} else {
+			// Fall back to JSONL parsing
+			count, err := jsonHelpers.CountJSONLLines(env.config.OutputPath)
+			if err != nil {
+				t.Fatalf("Failed to count JSONL lines: %v", err)
+			}
+
+			batchSize := 3
+			env.logger.Info("Loading documents in batches", "totalRecords", count, "batchSize", batchSize)
+
+			for batchIndex := 0; ; batchIndex++ {
+				startIndex := batchIndex * batchSize
+				records, err := jsonHelpers.ReadJSONLBatch(env.config.OutputPath, startIndex, batchSize)
+				require.NoError(t, err)
+
+				if len(records) == 0 {
+					break
+				}
+
+				env.logger.Info("Loaded batch", "batchIndex", batchIndex, "recordCount", len(records), "startIndex", startIndex)
+				allRecords = append(allRecords, records...)
+
+				for i, record := range records {
+					env.logger.Info("Record in batch",
+						"batchIndex", batchIndex,
+						"recordIndex", i,
+						"globalIndex", startIndex+i,
+						"source", record.Source,
+						"content_preview", truncateString(record.Data["content"], 100))
+				}
+			}
+
+			env.logger.Info("All records processed", "totalLoaded", len(allRecords), "expectedCount", count)
+			require.Equal(t, count, len(allRecords), "Should load all records across batches")
 		}
+
+		// Convert records to documents using ToDocuments
+		documents, err := env.dataprocessing.ToDocuments(env.ctx, source, allRecords)
+		require.NoError(t, err)
+
+		env.documents = documents
+		env.logger.Info("Documents converted from records", "count", len(documents))
 	}
 
-	env.logger.Info("All records processed", "totalLoaded", len(allRecords), "expectedCount", count)
-	require.Equal(t, count, len(allRecords), "Should load all records across batches")
+	require.NotEmpty(t, env.documents, "no documents to test with")
 
-	documents, err := env.dataprocessing.ToDocuments(env.ctx, source, allRecords)
-	require.NoError(t, err)
-
-	require.NotEmpty(t, documents, "no documents to test with")
-	env.documents = documents
-
-	env.logger.Info("Documents converted", "count", len(documents))
-	for i, fact := range documents {
-		env.logger.Info("Document", "index", i, "id", fact.ID(), "source", fact.Source(), "content_preview", truncateString(fact.Content(), 150))
+	env.logger.Info("Final documents loaded", "count", len(env.documents))
+	for i, doc := range env.documents {
+		env.logger.Info("Document", "index", i, "id", doc.ID(), "source", doc.Source(), "content_preview", truncateString(doc.Content(), 150))
 	}
 }
 
@@ -543,6 +613,7 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 func TestMemoryIntegration(t *testing.T) {
+	fmt.Println("DEBUG: TestMemoryIntegration STARTED")
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -603,6 +674,7 @@ func TestMemoryIntegration(t *testing.T) {
 }
 
 func TestMemoryFactFiltering(t *testing.T) {
+	fmt.Println("DEBUG: TestMemoryFactFiltering STARTED")
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -719,6 +791,7 @@ func TestMemoryFactFiltering(t *testing.T) {
 }
 
 func TestMemoryIntegrationSimple(t *testing.T) {
+	fmt.Println("DEBUG: TestMemoryIntegrationSimple STARTED")
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
