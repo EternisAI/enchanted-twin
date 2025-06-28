@@ -71,7 +71,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
 		InviteServerURL:    getEnv("INVITE_SERVER_URL", "", printEnv),
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
-		ClipEmbeddingsURL:  getEnv("CLIP_EMBEDDINGS_URL", "http://localhost:8000", printEnv),
+		ClipEmbeddingsURL:  getEnv("CLIP_EMBEDDINGS_URL", "", printEnv),
 	}
 	return conf, nil
 }
