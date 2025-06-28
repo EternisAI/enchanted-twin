@@ -331,7 +331,7 @@ func runFacts() {
 	logger.Info("Fact extraction done", "documents", len(documents), "facts", len(allFacts))
 }
 
-// 🔥 PARALLEL FACT EXTRACTION WORKER POOL
+// 🔥 PARALLEL FACT EXTRACTION WORKER POOL.
 func extractFactsParallel(documents []memory.Document, numWorkers int) []*memory.MemoryFact {
 	aiService := ai.NewOpenAIService(
 		logger,
