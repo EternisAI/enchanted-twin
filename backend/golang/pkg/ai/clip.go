@@ -47,7 +47,7 @@ type TextToImageSearchResponse struct {
 
 func NewClipEmbeddingService(logger *log.Logger, baseURL string) *ClipEmbeddingService {
 	if baseURL == "" {
-		baseURL = "http://localhost:8000" //need to be changed to ip
+		baseURL = "http://64.23.138.29:8000" //need to be changed to ip
 	}
 
 	httpClient := &http.Client{
