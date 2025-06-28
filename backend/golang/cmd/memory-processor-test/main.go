@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -305,27 +306,11 @@ func runFacts() {
 		}
 	}
 
-	aiService := ai.NewOpenAIService(
-		logger,
-		os.Getenv("COMPLETIONS_API_KEY"),
-		getEnvOrDefault("COMPLETIONS_API_URL", "https://openrouter.ai/api/v1"),
-	)
+	logger.Info("Starting parallel fact extraction", "documents", len(documents))
 
-	var allFacts []*memory.MemoryFact
-	for _, doc := range documents {
-		facts, err := evolvingmemory.ExtractFactsFromDocument(
-			context.Background(),
-			doc,
-			aiService,
-			getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
-			logger,
-		)
-		if err != nil {
-			logger.Error("Fact extraction failed", "id", doc.ID(), "error", err)
-			continue
-		}
-		allFacts = append(allFacts, facts...)
-	}
+	// 🚀 PARALLEL FACT EXTRACTION WITH WORKER POOL
+	numWorkers := 100 // YOLO mode - maximize those OpenAI credits! 💸
+	allFacts := extractFactsParallel(documents, numWorkers)
 
 	output := map[string]interface{}{
 		"facts": allFacts,
@@ -344,6 +329,104 @@ func runFacts() {
 	}
 
 	logger.Info("Fact extraction done", "documents", len(documents), "facts", len(allFacts))
+}
+
+// 🔥 PARALLEL FACT EXTRACTION WORKER POOL
+func extractFactsParallel(documents []memory.Document, numWorkers int) []*memory.MemoryFact {
+	aiService := ai.NewOpenAIService(
+		logger,
+		os.Getenv("COMPLETIONS_API_KEY"),
+		getEnvOrDefault("COMPLETIONS_API_URL", "https://openrouter.ai/api/v1"),
+	)
+
+	// Input channel for documents
+	docChan := make(chan memory.Document, len(documents))
+
+	// Results channel for facts
+	type factResult struct {
+		facts []*memory.MemoryFact
+		docID string
+		err   error
+	}
+	resultChan := make(chan factResult, len(documents))
+
+	// Start workers
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+
+			for doc := range docChan {
+				start := time.Now()
+				logger.Debug("Processing document", "worker", workerID, "doc", doc.ID())
+
+				facts, err := evolvingmemory.ExtractFactsFromDocument(
+					context.Background(),
+					doc,
+					aiService,
+					getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
+					logger,
+				)
+
+				duration := time.Since(start)
+				if err != nil {
+					logger.Error("Fact extraction failed",
+						"worker", workerID,
+						"doc", doc.ID(),
+						"duration", duration,
+						"error", err)
+				} else {
+					logger.Info("Document processed",
+						"worker", workerID,
+						"doc", doc.ID(),
+						"facts", len(facts),
+						"duration", duration)
+				}
+
+				resultChan <- factResult{
+					facts: facts,
+					docID: doc.ID(),
+					err:   err,
+				}
+			}
+		}(i)
+	}
+
+	// Send all documents to workers
+	for _, doc := range documents {
+		docChan <- doc
+	}
+	close(docChan)
+
+	// Close results channel when all workers are done
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Collect results with progress tracking
+	var allFacts []*memory.MemoryFact
+	processed := 0
+	totalDocs := len(documents)
+
+	for result := range resultChan {
+		processed++
+		if result.err == nil {
+			allFacts = append(allFacts, result.facts...)
+		}
+
+		// Progress logging every 10 documents or at completion
+		if processed%10 == 0 || processed == totalDocs {
+			logger.Info("Progress update",
+				"processed", processed,
+				"total", totalDocs,
+				"facts_so_far", len(allFacts),
+				"percent", fmt.Sprintf("%.1f%%", float64(processed)/float64(totalDocs)*100))
+		}
+	}
+
+	return allFacts
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
