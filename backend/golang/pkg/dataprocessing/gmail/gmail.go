@@ -38,6 +38,13 @@ type GmailProcessor struct {
 	logger *log.Logger
 }
 
+// PaginatedSyncResult represents the result of a paginated sync operation.
+type PaginatedSyncResult struct {
+	Documents     []memory.ConversationDocument
+	NextPageToken string
+	HasMore       bool
+}
+
 type emailWithMeta struct {
 	email     *letters.Email
 	threadID  string
@@ -106,6 +113,15 @@ func (g *GmailProcessor) SyncWithDateRange(ctx context.Context, accessToken stri
 
 // syncWithQuery is the common implementation for fetching emails from Gmail API.
 func (g *GmailProcessor) syncWithQuery(ctx context.Context, accessToken, query string, maxResults int64) ([]memory.ConversationDocument, error) {
+	result, err := g.syncWithQueryPaginated(ctx, accessToken, query, maxResults, "")
+	if err != nil {
+		return nil, err
+	}
+	return result.Documents, nil
+}
+
+// syncWithQueryPaginated is the paginated version that returns pagination info.
+func (g *GmailProcessor) syncWithQueryPaginated(ctx context.Context, accessToken, query string, maxResults int64, pageToken string) (*PaginatedSyncResult, error) {
 	// Configure OAuth2 token
 	token := &oauth2.Token{
 		AccessToken: accessToken,
@@ -121,8 +137,12 @@ func (g *GmailProcessor) syncWithQuery(ctx context.Context, accessToken, query s
 		return nil, fmt.Errorf("error initializing Gmail service: %w", err)
 	}
 
-	// List messages
+	// List messages with pagination support
 	request := gmailService.Users.Messages.List("me").Q(query).MaxResults(maxResults)
+	if pageToken != "" {
+		request = request.PageToken(pageToken)
+	}
+
 	response, err := request.Do()
 	if err != nil {
 		return nil, fmt.Errorf("error listing emails: %w", err)
@@ -171,8 +191,23 @@ func (g *GmailProcessor) syncWithQuery(ctx context.Context, accessToken, query s
 	// Convert threads to conversation documents
 	documents := g.toConversationDocuments(threads, userEmail)
 
-	g.logger.Info("Gmail sync completed", "threads", len(threads), "documents", len(documents))
-	return documents, nil
+	// Build pagination result
+	result := &PaginatedSyncResult{
+		Documents:     documents,
+		NextPageToken: response.NextPageToken,
+		HasMore:       response.NextPageToken != "",
+	}
+
+	g.logger.Info("Gmail sync completed", "threads", len(threads), "documents", len(documents), "hasMore", result.HasMore)
+	return result, nil
+}
+
+// SyncWithDateRangePaginated implements the PaginatedDateRangeSync interface.
+func (g *GmailProcessor) SyncWithDateRangePaginated(ctx context.Context, accessToken string, startDate, endDate time.Time, pageToken string) (*PaginatedSyncResult, error) {
+	startUnix := startDate.Unix()
+	endUnix := endDate.Unix()
+	query := fmt.Sprintf("in:inbox after:%d before:%d", startUnix, endUnix)
+	return g.syncWithQueryPaginated(ctx, accessToken, query, 1000, pageToken)
 }
 
 // convertGmailMessageToEmail converts a Gmail API message to our internal emailWithMeta format.
