@@ -185,20 +185,6 @@ func (cd *ConversationDocument) Source() string {
 	return cd.FieldSource
 }
 
-// ExportJSON saves ConversationDocument as pretty JSON for debugging.
-func (cd *ConversationDocument) ExportJSON(filepath string) error {
-	data, err := json.MarshalIndent(cd, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal ConversationDocument: %w", err)
-	}
-
-	if err := os.WriteFile(filepath, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write JSON file: %w", err)
-	}
-
-	return nil
-}
-
 // LoadConversationDocumentsFromJSON loads ConversationDocuments from JSON array file.
 func LoadConversationDocumentsFromJSON(filepath string) ([]ConversationDocument, error) {
 	data, err := os.ReadFile(filepath)
