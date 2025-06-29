@@ -162,6 +162,27 @@ func TeardownSharedInfrastructure() {
 				sharedLogger.Error("Failed to clean up temp directory", "error", err)
 			}
 		}
+
+		// Clean up any remaining test artifact directories
+		globalArtifactDirs := []string{
+			"output",
+			"pipeline_output",
+			filepath.Join("pkg", "dataprocessing", "integration", "output"),
+			filepath.Join("pkg", "dataprocessing", "integration", "pipeline_output"),
+			filepath.Join("pkg", "dataprocessing", "gmail", "pipeline_output"),
+			filepath.Join("cmd", "server", "output"),
+			filepath.Join("cmd", "memory-processor-test", "pipeline_output"),
+		}
+
+		for _, dir := range globalArtifactDirs {
+			if _, err := os.Stat(dir); err == nil {
+				if err := os.RemoveAll(dir); err != nil {
+					sharedLogger.Error("Failed to clean up global artifact directory", "dir", dir, "error", err)
+				} else {
+					sharedLogger.Info("Cleaned up global artifact directory", "dir", dir)
+				}
+			}
+		}
 	})
 }
 
@@ -283,6 +304,27 @@ func (env *testEnvironment) Cleanup(t *testing.T) {
 
 	if err := os.RemoveAll(env.tempDir); err != nil {
 		t.Logf("Failed to clean up temp directory: %v", err)
+	}
+
+	// Clean up test artifact directories
+	artifactDirs := []string{
+		"output",
+		"pipeline_output",
+		filepath.Join("pkg", "dataprocessing", "integration", "output"),
+		filepath.Join("pkg", "dataprocessing", "integration", "pipeline_output"),
+		filepath.Join("pkg", "dataprocessing", "gmail", "pipeline_output"),
+		filepath.Join("cmd", "server", "output"),
+		filepath.Join("cmd", "memory-processor-test", "pipeline_output"),
+	}
+
+	for _, dir := range artifactDirs {
+		if _, err := os.Stat(dir); err == nil {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("Failed to clean up artifact directory %s: %v", dir, err)
+			} else {
+				t.Logf("Cleaned up artifact directory: %s", dir)
+			}
+		}
 	}
 }
 
