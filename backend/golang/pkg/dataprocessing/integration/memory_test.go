@@ -613,7 +613,6 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 func TestMemoryIntegration(t *testing.T) {
-	fmt.Println("DEBUG: TestMemoryIntegration STARTED")
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -674,7 +673,6 @@ func TestMemoryIntegration(t *testing.T) {
 }
 
 func TestMemoryFactFiltering(t *testing.T) {
-	fmt.Println("DEBUG: TestMemoryFactFiltering STARTED")
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -791,7 +789,6 @@ func TestMemoryFactFiltering(t *testing.T) {
 }
 
 func TestMemoryIntegrationSimple(t *testing.T) {
-	fmt.Println("DEBUG: TestMemoryIntegrationSimple STARTED")
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
