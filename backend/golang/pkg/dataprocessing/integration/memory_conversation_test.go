@@ -170,7 +170,7 @@ func TestMemoryIntegrationChatGPT(t *testing.T) {
 
 	t.Run("Query chatgpt from export", func(t *testing.T) {
 		source := "chatgpt"
-		inputPath := "testdata/chatgpt.zip"
+		inputPath := "testdata/conversations.json"
 
 		env.LoadDocuments(t, source, inputPath)
 		env.StoreDocuments(t)
