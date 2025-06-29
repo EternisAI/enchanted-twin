@@ -33,7 +33,20 @@ import (
 // DocumentProcessor represents the new clean interface - each source implements this
 // to convert raw input directly to ConversationDocument, eliminating the lossy types.Record step.
 type DocumentProcessor interface {
+	// File processing (required for all processors)
 	ProcessFile(ctx context.Context, filepath string) ([]memory.ConversationDocument, error)
+}
+
+// LiveSync is an optional interface that processors can implement
+// if they support syncing from live APIs.
+type LiveSync interface {
+	Sync(ctx context.Context, accessToken string) ([]memory.ConversationDocument, error)
+}
+
+// DateRangeSync is an optional interface that processors can implement
+// if they support syncing within specific date ranges.
+type DateRangeSync interface {
+	SyncWithDateRange(ctx context.Context, accessToken string, startDate, endDate time.Time) ([]memory.ConversationDocument, error)
 }
 
 func validateInputPath(inputPath string) error {
