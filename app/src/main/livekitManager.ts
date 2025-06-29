@@ -62,8 +62,11 @@ export async function setupLiveKitAgent(): Promise<void> {
   }
 }
 
-export async function startLiveKitAgent(chatId: string, isOnboarding = false, isInitialising = false): Promise<void> {
-
+export async function startLiveKitAgent(
+  chatId: string,
+  isOnboarding = false,
+  isInitialising = false
+): Promise<void> {
   log.info('Starting LiveKit agent. Is initialising: ' + isInitialising)
 
   if (!livekitAgent) {

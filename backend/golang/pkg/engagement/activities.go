@@ -85,13 +85,6 @@ func (s *FriendService) CheckForSimilarFriendMessages(ctx context.Context, messa
 	return false, nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func (s *FriendService) FetchMemory(ctx context.Context) (string, error) {
 	if s.memoryService == nil {
 		return "", nil
