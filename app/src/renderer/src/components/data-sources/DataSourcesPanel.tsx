@@ -60,9 +60,9 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     label: 'ChatGPT',
     description: 'Import your ChatGPT history',
     selectType: 'files',
-    fileRequirement: 'Select ChatGPT export file',
+    fileRequirement: 'Select ChatGPT JSON or ZIP export file',
     icon: <OpenAI className="h-4 w-4" />,
-    fileFilters: [{ name: 'ChatGPT', extensions: ['zip'] }]
+    fileFilters: [{ name: 'ChatGPT Files', extensions: ['json', 'zip'] }]
   },
   {
     name: 'WhatsApp',
@@ -100,9 +100,9 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     label: 'Gmail',
     description: 'Import your Gmail emails and attachments',
     selectType: 'files',
-    fileRequirement: 'Select Google Takeout ZIP file',
+    fileRequirement: 'Select Gmail MBOX or Google Takeout ZIP file',
     icon: <GmailIcon className="h-5 w-5" />,
-    fileFilters: [{ name: 'Google Takeout', extensions: ['zip'] }]
+    fileFilters: [{ name: 'Gmail Files', extensions: ['mbox', 'zip'] }]
   }
 ]
 

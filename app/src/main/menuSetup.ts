@@ -3,7 +3,7 @@ import { windowManager } from './windows'
 
 export function setupMenu() {
   const isMac = process.platform === 'darwin'
-  
+
   const template: Electron.MenuItemConstructorOptions[] = [
     // On macOS, create the Application menu
     ...(isMac
@@ -86,7 +86,7 @@ export function setupMenu() {
     {
       label: 'Window',
       submenu: [
-        { role: 'minimize' }, 
+        { role: 'minimize' },
         { role: 'zoom' },
         ...(isMac
           ? [
@@ -95,9 +95,7 @@ export function setupMenu() {
               { type: 'separator' as const },
               { role: 'window' as const }
             ]
-          : [
-              { role: 'close' as const }
-            ])
+          : [{ role: 'close' as const }])
       ]
     }
   ]

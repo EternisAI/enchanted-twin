@@ -31,85 +31,85 @@ import { Route as ChatChatIdImport } from './routes/chat/$chatId'
 const TasksRoute = TasksImport.update({
   id: '/tasks',
   path: '/tasks',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRoute
 } as any)
 
 const SettingsRoute = SettingsImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRoute
 } as any)
 
 const OnboardingRoute = OnboardingImport.update({
   id: '/onboarding',
   path: '/onboarding',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRoute
 } as any)
 
 const AdminRoute = AdminImport.update({
   id: '/admin',
   path: '/admin',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRoute
 } as any)
 
 const IndexRoute = IndexImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRoute
 } as any)
 
 const HolonIndexRoute = HolonIndexImport.update({
   id: '/holon/',
   path: '/holon/',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRoute
 } as any)
 
 const SettingsUpdatesRoute = SettingsUpdatesImport.update({
   id: '/updates',
   path: '/updates',
-  getParentRoute: () => SettingsRoute,
+  getParentRoute: () => SettingsRoute
 } as any)
 
 const SettingsPermissionsRoute = SettingsPermissionsImport.update({
   id: '/permissions',
   path: '/permissions',
-  getParentRoute: () => SettingsRoute,
+  getParentRoute: () => SettingsRoute
 } as any)
 
 const SettingsImportDataRoute = SettingsImportDataImport.update({
   id: '/import-data',
   path: '/import-data',
-  getParentRoute: () => SettingsRoute,
+  getParentRoute: () => SettingsRoute
 } as any)
 
 const SettingsConnectionsRoute = SettingsConnectionsImport.update({
   id: '/connections',
   path: '/connections',
-  getParentRoute: () => SettingsRoute,
+  getParentRoute: () => SettingsRoute
 } as any)
 
 const SettingsAppearanceRoute = SettingsAppearanceImport.update({
   id: '/appearance',
   path: '/appearance',
-  getParentRoute: () => SettingsRoute,
+  getParentRoute: () => SettingsRoute
 } as any)
 
 const SettingsAdvancedRoute = SettingsAdvancedImport.update({
   id: '/advanced',
   path: '/advanced',
-  getParentRoute: () => SettingsRoute,
+  getParentRoute: () => SettingsRoute
 } as any)
 
 const HolonThreadIdRoute = HolonThreadIdImport.update({
   id: '/holon/$threadId',
   path: '/holon/$threadId',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRoute
 } as any)
 
 const ChatChatIdRoute = ChatChatIdImport.update({
   id: '/chat/$chatId',
   path: '/chat/$chatId',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRoute
 } as any)
 
 // Populate the FileRoutesByPath interface
@@ -234,12 +234,10 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsConnectionsRoute: SettingsConnectionsRoute,
   SettingsImportDataRoute: SettingsImportDataRoute,
   SettingsPermissionsRoute: SettingsPermissionsRoute,
-  SettingsUpdatesRoute: SettingsUpdatesRoute,
+  SettingsUpdatesRoute: SettingsUpdatesRoute
 }
 
-const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
-  SettingsRouteChildren,
-)
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(SettingsRouteChildren)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -364,7 +362,7 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   ChatChatIdRoute: ChatChatIdRoute,
   HolonThreadIdRoute: HolonThreadIdRoute,
-  HolonIndexRoute: HolonIndexRoute,
+  HolonIndexRoute: HolonIndexRoute
 }
 
 export const routeTree = rootRoute

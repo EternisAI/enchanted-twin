@@ -4,7 +4,7 @@ import { AgentState, DependencyProgress, LiveKitAgentBootstrap } from './pythonM
 let livekitAgent: LiveKitAgentBootstrap | null = null
 let sessionReady = false
 
-export function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
+export async function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
   const agentProgress = (data: DependencyProgress) => {
     if (mainWindow) {
       log.info(`[LiveKit] Emitting launch-progress: ${data.progress}, Status: ${data.status}`)
@@ -27,10 +27,15 @@ export function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
     }
   }
 
-  livekitAgent = new LiveKitAgentBootstrap(agentProgress, agentSessionReady, agentStateChange)
+  livekitAgent = new LiveKitAgentBootstrap({
+    onProgress: agentProgress,
+    onSessionReady: agentSessionReady,
+    onStateChange: agentStateChange
+  })
 
   try {
-    livekitAgent.setup()
+    await livekitAgent.setup()
+    await startLiveKitAgent('FAKE_CHAT_ID', false, true)
   } catch (error) {
     log.error('Failed to setup LiveKit agent environment:', error)
   }
@@ -57,14 +62,20 @@ export async function setupLiveKitAgent(): Promise<void> {
   }
 }
 
-export async function startLiveKitAgent(chatId: string, isOnboarding = false): Promise<void> {
+export async function startLiveKitAgent(
+  chatId: string,
+  isOnboarding = false,
+  isInitialising = false
+): Promise<void> {
+  log.info('Starting LiveKit agent. Is initialising: ' + isInitialising)
+
   if (!livekitAgent) {
     throw new Error('LiveKit agent not initialized')
   }
 
   try {
     sessionReady = false // Reset session state when starting
-    await livekitAgent.startAgent(chatId, isOnboarding)
+    await livekitAgent.startAgent(chatId, isOnboarding, isInitialising)
     log.info('LiveKit agent started successfully')
   } catch (error) {
     log.error('Failed to start LiveKit agent:', error)
