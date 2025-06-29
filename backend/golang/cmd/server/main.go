@@ -173,6 +173,12 @@ func main() {
 		}
 	}()
 
+	dbsqlc, err := db.New(store.DB().DB, logger)
+	if err != nil {
+		logger.Error("Error creating database", "error", err)
+		panic(errors.Wrap(err, "Error creating database"))
+	}
+
 	tokenFunc := func() string {
 		return "12345"
 	}
@@ -255,8 +261,19 @@ func main() {
 
 	whatsappClientChan := make(chan *whatsmeow.Client)
 	go func() {
-		client := whatsapp.BootstrapWhatsAppClient(mem, logger, nc, envs.DBPath, envs)
+		client := whatsapp.BootstrapWhatsAppClient(mem, dbsqlc, logger, nc, envs.DBPath, envs, aiCompletionsService)
 		whatsappClientChan <- client
+	}()
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		connectChan := whatsapp.GetConnectChannel()
+		select {
+		case connectChan <- struct{}{}:
+			logger.Info("Sent automatic WhatsApp connect signal on startup")
+		default:
+			logger.Debug("WhatsApp connect channel already has a signal")
+		}
 	}()
 
 	ttsSvc, err := bootstrapTTS(logger)
@@ -435,12 +452,6 @@ func main() {
 		ToolsRegistry:    toolRegistry,
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
-
-	dbsqlc, err := db.New(store.DB().DB, logger)
-	if err != nil {
-		logger.Error("Error creating database", "error", err)
-		panic(errors.Wrap(err, "Error creating database"))
-	}
 
 	go telegram.SubscribePoller(telegramService, logger)
 	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)

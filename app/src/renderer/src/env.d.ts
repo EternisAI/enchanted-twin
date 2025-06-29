@@ -51,7 +51,7 @@ interface IApi {
   checkForUpdates: (silent: boolean) => Promise<void>
   getAppVersion: () => Promise<string>
   restartApp: () => Promise<void>
-  onOpenSettings: (callback: () => void) => void
+  onOpenSettings: (callback: () => void) => () => void
   screenpipe: {
     getStatus: () => Promise<ScreenpipeStatus>
     install: () => Promise<ScreenpipeResult>
