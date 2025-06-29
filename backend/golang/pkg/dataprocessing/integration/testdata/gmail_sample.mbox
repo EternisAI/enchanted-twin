@@ -1,41 +1,113 @@
-From user@example.com Mon Apr 07 14:31:02 +0000 2025
+From mom@family.com Mon Apr 07 14:30:00 +0000 2025
+From: mom@family.com
+To: user@example.com
+Subject: Happy 32nd Birthday!
+Date: Mon, 07 Apr 2025 14:30:00 +0000
+Delivered-To: user@example.com
+
+Happy Birthday my dear son!
+
+I can't believe you're already 32 years old. I'm so proud that you're living in San Francisco and working as a mathematician at Stanford University. 
+
+Your dad and I are planning to visit you next month. Can't wait to see your new apartment on Mission Street!
+
+Love,
+Mom
+
+From user@example.com Mon Apr 07 15:00:00 +0000 2025
 From: user@example.com
-To: friend@example.com
-Subject: Project Discussion
-Date: Mon, 07 Apr 2025 14:31:02 +0000
+To: mom@family.com
+Subject: Re: Happy 32nd Birthday!
+Date: Mon, 07 Apr 2025 15:00:00 +0000
 Delivered-To: user@example.com
 
-Hi friend,
+Hi Mom,
 
-How's the new project going? I'd love to hear about your progress.
+Thanks so much! Yes, I can't believe I'm 32 either. Living in San Francisco has been amazing, and my job as Full Professor at Stanford is going really well - they just bumped my salary to $180,000!
 
-Best,
-User
+I have incredible news: I just won the Fields Medal for my work in algebraic topology! The ceremony is in Paris on August 15th and the prize money is $15,000.
 
-From friend@example.com Mon Apr 07 15:15:00 +0000 2025
-From: friend@example.com
+Please do come visit! The apartment on Mission Street has a great view. I'm also approved for a sabbatical at MIT in the fall with a $25,000 research stipend.
+
+My doctor says I'm in perfect health - blood pressure 120/80 and my vegetarian diet is working great.
+
+Love you both!
+Your son
+
+From colleague@stanford.edu Mon Apr 07 16:30:00 +0000 2025
+From: colleague@stanford.edu
 To: user@example.com
-Subject: Re: Project Discussion
-Date: Mon, 07 Apr 2025 15:15:00 +0000
-Delivered-To: user@example.com
-
-Hi User,
-
-The project is going well! We made great progress this week. Let me know when you have time to review the latest changes.
-
-Thanks,
-Friend
-
-From colleague@company.com Mon Apr 07 16:30:00 +0000 2025
-From: colleague@company.com
-To: user@example.com
-Subject: Meeting Tomorrow
+Subject: Congratulations on the Fields Medal!
 Date: Mon, 07 Apr 2025 16:30:00 +0000
 Delivered-To: user@example.com
 
-Hey User,
+Dear Professor,
 
-Just confirming our meeting tomorrow at 2 PM. Should I send you the agenda beforehand?
+I just heard the amazing news about your Fields Medal! What an incredible achievement. The mathematics department is so proud to have you.
+
+I heard you're taking a sabbatical at MIT next fall - that should be a great opportunity.
+
+Best,
+Dr. Smith
+
+From user@example.com Mon Apr 07 17:00:00 +0000 2025
+From: user@example.com
+To: colleague@stanford.edu
+Subject: Re: Congratulations on the Fields Medal!
+Date: Mon, 07 Apr 2025 17:00:00 +0000
+Delivered-To: user@example.com
+
+Thank you so much! Yes, the Fields Medal was completely unexpected. The work in algebraic topology has been my passion for years.
+
+The MIT sabbatical should be fantastic - they're giving me a $25,000 stipend to collaborate with their topology group. I'm excited to work there while maintaining my Full Professor position here at Stanford.
+
+Thanks for all your support!
+Best,
+Professor User
+
+From hr@stanford.edu Mon Apr 07 16:30:00 +0000 2025
+From: hr@stanford.edu
+To: user@example.com
+Subject: Salary Increase - Effective Immediately
+Date: Mon, 07 Apr 2025 16:30:00 +0000
+Delivered-To: user@example.com
+
+Dear Professor User,
+
+Congratulations on your promotion to Full Professor! Your annual salary has been increased to $180,000, effective immediately.
+
+Also, we've approved your sabbatical request for Fall 2025 to work at MIT.
 
 Best regards,
-Colleague 
+Stanford HR Department
+
+From user@example.com Mon Apr 07 17:00:00 +0000 2025
+From: user@example.com
+To: hr@stanford.edu
+Subject: Re: Sabbatical Confirmation - MIT Fall 2025
+Date: Mon, 07 Apr 2025 17:00:00 +0000
+Delivered-To: user@example.com
+
+Thank you for confirming! I'm excited about this opportunity to collaborate with the MIT mathematics department. The $25,000 stipend will be very helpful.
+
+I'll make sure to wrap up my current research projects before departing.
+
+Best,
+Professor User
+
+From doctor@healthcenter.com Mon Apr 07 17:45:00 +0000 2025
+From: doctor@healthcenter.com  
+To: user@example.com
+Subject: Test Results - All Clear!
+Date: Mon, 07 Apr 2025 17:45:00 +0000
+Delivered-To: user@example.com
+
+Dear Patient,
+
+Your recent blood work and physical exam results are excellent. Your blood pressure is perfect at 120/80, and all vitamin levels are normal.
+
+Please continue taking your daily multivitamin and maintain your vegetarian diet.
+
+Next appointment: June 15th, 2025 at 10 AM.
+
+Dr. Smith 
