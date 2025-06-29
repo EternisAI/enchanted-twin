@@ -32,6 +32,4 @@ export const PROGRESS_STEPS = {
   COMPLETE: 100
 } as const
 
-export const SESSION_READY_INDICATORS = [
-  'Agent session started successfully'
-] as const
+export const SESSION_READY_INDICATORS = ['Agent session started successfully'] as const
