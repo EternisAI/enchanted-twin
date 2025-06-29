@@ -250,7 +250,21 @@ if err != nil {
     log.Fatal("Failed to store documents:", err)
 }
 
-// Query with advanced filtering
+// 🚀 NEW: Intelligent 3-stage query with consolidation-first approach
+intelligentResult, err := storage.IntelligentQuery(ctx, "category theory", &memory.Filter{
+    Distance: 0.7,
+})
+if err != nil {
+    log.Fatal("Intelligent query failed:", err)
+}
+
+// Results organized by intelligence: insights → evidence → context
+fmt.Printf("Insights: %d, Evidence: %d, Context: %d\n", 
+    len(intelligentResult.ConsolidatedInsights),
+    len(intelligentResult.CitedEvidence), 
+    len(intelligentResult.AdditionalContext))
+
+// Legacy semantic query (still available)
 filter := &memory.Filter{
     Source:      helpers.Ptr("conversations"),
     Subject:     helpers.Ptr("alice"),
@@ -443,6 +457,107 @@ func GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentRef
     "metadataJson": "{\"sourceDocumentId\":\"old-doc-123\",\"sourceDocumentType\":\"conversation\"}",
     "timestamp": "2025-01-01T12:00:00Z"
 }
+```
+
+## Intelligent Query System 🧠
+
+The memory system now features a **revolutionary 3-stage intelligent query system** that provides insights with evidence, not just search results.
+
+### 🎯 IntelligentQuery() - Consolidation-First Approach
+
+```go
+// Execute intelligent 3-stage query
+result, err := storage.IntelligentQuery(ctx, "category theory", &memory.Filter{
+    Distance: 0.7,
+    Source:   helpers.Ptr("conversations"),
+})
+
+// Structured results with full audit trail
+type IntelligentQueryResult struct {
+    Query               string              `json:"query"`
+    ConsolidatedInsights []memory.MemoryFact `json:"consolidated_insights"`  // Stage 1
+    CitedEvidence       []memory.MemoryFact `json:"cited_evidence"`         // Stage 2  
+    AdditionalContext   []memory.MemoryFact `json:"additional_context"`     // Stage 3
+    Metadata            QueryMetadata       `json:"metadata"`
+}
+```
+
+### 🔄 3-Stage Execution Flow
+
+**Stage 1: Find Consolidated Insights**
+```go
+// Vector search on consolidated facts only
+consolidatedResults := storage.Query(ctx, query, &memory.Filter{
+    Tags: &memory.TagsFilter{Any: []string{"consolidated"}},
+})
+```
+
+**Stage 2: Retrieve Cited Evidence**
+```go
+// Extract source fact IDs from consolidation metadata
+for key, value := range fact.Metadata {
+    if strings.HasPrefix(key, "source_fact_") {
+        citedFactIDs = append(citedFactIDs, value)
+    }
+}
+// Batch retrieve actual source facts that led to insights
+citedFacts := storage.GetFactsByIDs(ctx, citedFactIDs)
+```
+
+**Stage 3: Additional Context with Deduplication**
+```go
+// Query raw facts, remove duplicates from previous stages
+rawResults := storage.Query(ctx, query, rawFilter)
+additionalContext := removeDuplicates(rawResults, existingIDs)
+```
+
+### 📊 Example Results
+
+Query: `"category theory"` → 117 total results organized intelligently:
+
+```
+🧠 Intelligent Query Results for: "category theory"
+📊 Total: 117 | 🔗 Insights: 12 | 🔗 Evidence: 37 | 📄 Context: 68
+
+🔗 Top Consolidated Insights:
+  1. primaryUser - actively participates in academic communities focused on category theory
+  2. primaryUser - exhibits sustained interest in philosophy of science and category theory
+  3. primaryUser - regularly teaches advanced mathematical concepts like category theory
+
+📋 Supporting Evidence:
+  1. David Spivak - discussed potential involvement in category theory platform project
+  2. Dmitry Vagner - receives academic advice regarding research focus and teaching
+
+📄 Additional Context:
+  1. sub@cs.cmu.edu - discussed renaming 'applied category theory' to 'categorical design'
+  2. Dmitry Vagner - discussed analogies between internal and enriched categories
+```
+
+### 🎯 Key Benefits
+
+- **Insights First**: High-level synthesized knowledge takes priority
+- **Evidence Trail**: Supporting facts show how insights were derived  
+- **Smart Deduplication**: No fact appears in multiple sections
+- **Performance**: Pure vector search, no LLM calls during querying
+- **Audit Trail**: Full traceability from insights back to source conversations
+
+### 🔄 Usage Patterns
+
+```go
+// Quick intelligent query
+result, _ := storage.IntelligentQuery(ctx, "machine learning", nil)
+
+// With custom filtering  
+result, _ := storage.IntelligentQuery(ctx, "career decisions", &memory.Filter{
+    Source:   helpers.Ptr("conversations"),
+    Distance: 0.8,
+})
+
+// Access structured results
+insights := result.ConsolidatedInsights      // High-level knowledge
+evidence := result.CitedEvidence            // Supporting facts
+context := result.AdditionalContext         // Related information
+metadata := result.Metadata                 // Query execution details
 ```
 
 ## Advanced Filtering

@@ -170,7 +170,7 @@ func TestMemoryIntegrationChatGPT(t *testing.T) {
 
 	t.Run("Query chatgpt from export", func(t *testing.T) {
 		source := "chatgpt"
-		inputPath := "testdata/chatgpt.zip"
+		inputPath := "testdata/conversations.json"
 
 		env.LoadDocuments(t, source, inputPath)
 		env.StoreDocuments(t)
@@ -201,7 +201,7 @@ func TestMemoryIntegrationGmail(t *testing.T) {
 
 	t.Run("Query gmail from export", func(t *testing.T) {
 		source := "gmail"
-		inputPath := "testdata/google_export_sample.zip"
+		inputPath := "testdata/gmail_sample.mbox"
 
 		env.LoadDocuments(t, source, inputPath)
 		env.StoreDocuments(t)
