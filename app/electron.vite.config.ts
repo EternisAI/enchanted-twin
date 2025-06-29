@@ -20,11 +20,11 @@ function copyPythonFilesPlugin() {
     writeBundle() {
       const pythonSrcDir = resolve('src/main/python')
       const pythonOutDir = resolve('out/main/python')
-      
+
       if (fs.existsSync(pythonSrcDir)) {
         fs.mkdirSync(pythonOutDir, { recursive: true })
         const files = fs.readdirSync(pythonSrcDir)
-        
+
         for (const file of files) {
           if (file.endsWith('.py')) {
             const srcFile = resolve(pythonSrcDir, file)

@@ -138,8 +138,18 @@ query GetWhitelistStatus {
   whitelistStatus
 }
 
-mutation CreateChat($name: String!, $category: ChatCategory! = TEXT, $holonThreadId: String, $initialMessage: String) {
-  createChat(name: $name, category: $category, holonThreadId: $holonThreadId, initialMessage: $initialMessage) {
+mutation CreateChat(
+  $name: String!
+  $category: ChatCategory! = TEXT
+  $holonThreadId: String
+  $initialMessage: String
+) {
+  createChat(
+    name: $name
+    category: $category
+    holonThreadId: $holonThreadId
+    initialMessage: $initialMessage
+  ) {
     id
     name
     createdAt
