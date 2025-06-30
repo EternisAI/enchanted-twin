@@ -1,0 +1,53 @@
+{
+  "name": "digital_art_showcase",
+  "description": "Social media post showcasing digital art created with AI tools",
+  "type": "social_post",
+  "content": {
+    "post_id": "post_001",
+    "text": "Just finished this incredible piece using the new AI collaboration features in Photoshop! 🎨✨ The way AI understands artistic intent and helps refine details is absolutely magical. This is the future of human-AI creative partnership! #AIArt #DigitalArt #CreativeAI #AdobeAI #ArtistsOfInstagram",
+    "author": {
+      "identity": "digital_artist",
+      "name": "Maya Rodriguez",
+      "alias": "PixelMaya"
+    },
+    "platform": "instagram",
+    "tags": ["AIArt", "DigitalArt", "CreativeAI", "AdobeAI", "ArtistsOfInstagram"],
+    "image_urls": ["https://example.com/ai-art-showcase.jpg"],
+    "likes": 542,
+    "comments": 89,
+    "shares": 76,
+    "created_at": "2024-01-15T18:45:00Z",
+    "metadata": {
+      "location": "Digital Studio",
+      "filter_used": "none",
+      "aspect_ratio": "1:1"
+    }
+  },
+  "context": {
+    "domain": "digital_art",
+    "platform": "instagram",
+    "engagement_level": "high",
+    "content_category": "art_showcase"
+  },
+  "personality_expectations": [
+    {
+      "personality_name": "creative_artist",
+      "should_show": true,
+      "confidence": 0.95,
+      "reason_keywords": ["digital art", "creative", "AI tools", "artistic", "collaboration"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "Creative artists are highly interested in new digital art tools and AI collaboration in creative work"
+    },
+    {
+      "personality_name": "tech_entrepreneur",
+      "should_show": true,
+      "confidence": 0.6,
+      "reason_keywords": ["AI", "technology", "innovation", "creative tools"],
+      "expected_state": "visible",
+      "priority": 2,
+      "rationale": "Tech entrepreneurs have moderate interest in AI applications and creative technology innovations"
+    }
+  ],
+  "created_at": "2024-01-15T18:45:00Z"
+}
