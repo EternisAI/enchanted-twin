@@ -13,7 +13,8 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
-  History
+  History,
+  FilesIcon
 } from 'lucide-react'
 import { useState, useCallback, useEffect, ReactNode } from 'react'
 import WhatsAppIcon from '@renderer/assets/icons/whatsapp'
@@ -103,6 +104,17 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     fileRequirement: 'Select Gmail MBOX or Google Takeout ZIP file',
     icon: <GmailIcon className="h-5 w-5" />,
     fileFilters: [{ name: 'Gmail Files', extensions: ['mbox', 'zip'] }]
+  },
+  {
+    name: 'misc',
+    label: 'Files',
+    description: 'Import your files',
+    selectType: 'files',
+    fileRequirement: 'Select custom files in .txt and .pdf format',
+    icon: <FilesIcon className="h-5 w-5" />,
+    fileFilters: [
+      { name: 'Files', extensions: ['txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv'] }
+    ]
   }
 ]
 
@@ -374,6 +386,44 @@ export function DataSourcesPanel({
     setSelectedSource(null)
   }, [selectedSource])
 
+  const handleFileDrop = useCallback(async (files: File[], sourceName: string) => {
+    const source = SUPPORTED_DATA_SOURCES.find((s) => s.name === sourceName)
+    if (!source) return
+
+    if (source.fileFilters && source.fileFilters.length > 0) {
+      const allowedExtensions = source.fileFilters.flatMap((filter) =>
+        filter.extensions.map((ext) => ext.toLowerCase())
+      )
+
+      const invalidFiles = files.filter((file) => {
+        const extension = file.name.split('.').pop()?.toLowerCase()
+        return !extension || !allowedExtensions.includes(extension)
+      })
+
+      if (invalidFiles.length > 0) {
+        throw new Error(
+          `Invalid file type. Please select ${source.fileFilters.map((f) => f.extensions.join(', ')).join(' or ')} files.`
+        )
+      }
+    }
+
+    const firstFile = files[0]
+
+    const filePath = (window.api.getPathForFile as unknown as (file: File) => string)(firstFile)
+
+    const savedPaths = await window.api.copyDroppedFiles([filePath])
+
+    if (savedPaths.length > 0) {
+      setPendingDataSources((prev) => ({
+        ...prev,
+        [sourceName]: {
+          name: sourceName,
+          path: savedPaths[0]
+        }
+      }))
+    }
+  }, [])
+
   const addDataSources = useCallback(async () => {
     try {
       for (const source of Object.values(pendingDataSources)) {
@@ -507,7 +557,7 @@ export function DataSourcesPanel({
           </p>
         </div>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-6">
         {SUPPORTED_DATA_SOURCES.map((source) => (
           <DataSourceCard
             key={source.name}
@@ -645,6 +695,7 @@ export function DataSourcesPanel({
             pendingDataSources={pendingDataSources}
             onFileSelect={handleFileSelect}
             onAddSource={handleAddSource}
+            onFileDrop={handleFileDrop}
             customComponent={selectedSource?.customView ? selectedSource.customView : undefined}
           />
         </DialogContent>
