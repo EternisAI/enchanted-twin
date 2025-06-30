@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,6 +92,7 @@ type Interface interface {
 	StoreBatch(ctx context.Context, objects []*models.Object) error
 	DeleteAll(ctx context.Context) error
 	Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error)
+	QueryDocuments(ctx context.Context, filter *memory.Filter) (memory.DocumentQueryResult, error)
 	EnsureSchemaExists(ctx context.Context) error
 
 	// Document reference operations - now supports multiple references
@@ -1556,4 +1558,381 @@ func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Documen
 	}
 
 	return id, nil
+}
+
+// QueryDocuments implements document-level querying with filtering support.
+func (s *WeaviateStorage) QueryDocuments(ctx context.Context, filter *memory.Filter) (memory.DocumentQueryResult, error) {
+	s.logger.Info("QueryDocuments method called", "filter", filter)
+
+	// Build base query for SourceDocument class
+	queryBuilder := s.client.GraphQL().Get().WithClassName(DocumentClassName)
+
+	// Add document fields to retrieve
+	fields := s.buildDocumentQueryFields()
+	queryBuilder = queryBuilder.WithFields(fields...)
+
+	// Apply filters
+	if filter != nil {
+		whereBuilder, err := s.buildDocumentWhereFilters(filter)
+		if err != nil {
+			return memory.DocumentQueryResult{}, fmt.Errorf("building document WHERE filters: %w", err)
+		}
+		if whereBuilder != nil {
+			queryBuilder = queryBuilder.WithWhere(whereBuilder)
+			s.logger.Debug("Applied document WHERE filters")
+		}
+
+		// Apply limit
+		if filter.Limit != nil && *filter.Limit > 0 {
+			queryBuilder = queryBuilder.WithLimit(*filter.Limit)
+			s.logger.Debug("Applied limit", "limit", *filter.Limit)
+		} else {
+			// Default limit to prevent huge result sets
+			queryBuilder = queryBuilder.WithLimit(100)
+		}
+	}
+
+	// Execute query
+	result, err := queryBuilder.Do(ctx)
+	if err != nil {
+		return memory.DocumentQueryResult{}, fmt.Errorf("executing document query: %w", err)
+	}
+
+	// Process results
+	return s.parseDocumentQueryResponse(result)
+}
+
+// buildDocumentQueryFields defines all fields to retrieve for document queries.
+func (s *WeaviateStorage) buildDocumentQueryFields() []weaviateGraphql.Field {
+	return []weaviateGraphql.Field{
+		{Name: contentProperty},
+		{Name: documentContentHashProperty},
+		{Name: documentTypeProperty},
+		{Name: documentOriginalIDProperty},
+		{Name: documentMetadataProperty},
+		{Name: documentCreatedAtProperty},
+		{Name: "_additional", Fields: []weaviateGraphql.Field{
+			{Name: "id"},
+		}},
+	}
+}
+
+// buildDocumentWhereFilters builds WHERE clauses for document filtering.
+func (s *WeaviateStorage) buildDocumentWhereFilters(filter *memory.Filter) (*filters.WhereBuilder, error) {
+	var whereFilters []*filters.WhereBuilder
+
+	// Source filter
+	if filter.Source != nil {
+		sourceFilter := filters.Where().
+			WithPath([]string{documentOriginalIDProperty}).
+			WithOperator(filters.Like).
+			WithValueText(fmt.Sprintf("*%s*", *filter.Source))
+		whereFilters = append(whereFilters, sourceFilter)
+		s.logger.Debug("Added document source filter", "source", *filter.Source)
+	}
+
+	// Document-specific filters
+	if filter.Document != nil && !filter.Document.IsEmpty() {
+		docFilters, err := s.buildDocumentSpecificFilters(filter.Document)
+		if err != nil {
+			return nil, fmt.Errorf("building document-specific filters: %w", err)
+		}
+		whereFilters = append(whereFilters, docFilters...)
+	}
+
+	// Temporal filters
+	if filter.Temporal != nil && !filter.Temporal.IsEmpty() {
+		temporalFilters, err := s.buildDocumentTemporalFilters(filter.Temporal)
+		if err != nil {
+			return nil, fmt.Errorf("building temporal filters: %w", err)
+		}
+		whereFilters = append(whereFilters, temporalFilters...)
+	}
+
+	// Combine filters with AND logic
+	if len(whereFilters) == 0 {
+		return nil, nil
+	}
+	if len(whereFilters) == 1 {
+		return whereFilters[0], nil
+	}
+
+	// Combine multiple filters with AND
+	combinedFilter := whereFilters[0]
+	for i := 1; i < len(whereFilters); i++ {
+		combinedFilter = combinedFilter.WithOperator(filters.And).WithOperands([]*filters.WhereBuilder{
+			combinedFilter, whereFilters[i],
+		})
+	}
+
+	return combinedFilter, nil
+}
+
+// buildDocumentSpecificFilters builds filters specific to DocumentFilter.
+func (s *WeaviateStorage) buildDocumentSpecificFilters(docFilter *memory.DocumentFilter) ([]*filters.WhereBuilder, error) {
+	var whereFilters []*filters.WhereBuilder
+
+	// Document type filter
+	if len(docFilter.DocumentTypes) > 0 {
+		if len(docFilter.DocumentTypes) == 1 {
+			typeFilter := filters.Where().
+				WithPath([]string{documentTypeProperty}).
+				WithOperator(filters.Equal).
+				WithValueText(docFilter.DocumentTypes[0])
+			whereFilters = append(whereFilters, typeFilter)
+		} else {
+			// Multiple document types - use OR logic
+			var typeFilters []*filters.WhereBuilder
+			for _, docType := range docFilter.DocumentTypes {
+				typeFilter := filters.Where().
+					WithPath([]string{documentTypeProperty}).
+					WithOperator(filters.Equal).
+					WithValueText(docType)
+				typeFilters = append(typeFilters, typeFilter)
+			}
+			// Combine with OR
+			combinedTypeFilter := typeFilters[0]
+			for i := 1; i < len(typeFilters); i++ {
+				combinedTypeFilter = combinedTypeFilter.WithOperator(filters.Or).WithOperands([]*filters.WhereBuilder{
+					combinedTypeFilter, typeFilters[i],
+				})
+			}
+			whereFilters = append(whereFilters, combinedTypeFilter)
+		}
+		s.logger.Debug("Added document type filter", "types", docFilter.DocumentTypes)
+	}
+
+	// Original document ID filter
+	if docFilter.OriginalDocID != nil {
+		originalIDFilter := filters.Where().
+			WithPath([]string{documentOriginalIDProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*docFilter.OriginalDocID)
+		whereFilters = append(whereFilters, originalIDFilter)
+		s.logger.Debug("Added original document ID filter", "original_id", *docFilter.OriginalDocID)
+	}
+
+	// Multiple original IDs filter
+	if len(docFilter.OriginalIDs) > 0 {
+		if len(docFilter.OriginalIDs) == 1 {
+			idFilter := filters.Where().
+				WithPath([]string{documentOriginalIDProperty}).
+				WithOperator(filters.Equal).
+				WithValueText(docFilter.OriginalIDs[0])
+			whereFilters = append(whereFilters, idFilter)
+		} else {
+			// Multiple IDs - use OR logic
+			var idFilters []*filters.WhereBuilder
+			for _, id := range docFilter.OriginalIDs {
+				idFilter := filters.Where().
+					WithPath([]string{documentOriginalIDProperty}).
+					WithOperator(filters.Equal).
+					WithValueText(id)
+				idFilters = append(idFilters, idFilter)
+			}
+			// Combine with OR
+			combinedIDFilter := idFilters[0]
+			for i := 1; i < len(idFilters); i++ {
+				combinedIDFilter = combinedIDFilter.WithOperator(filters.Or).WithOperands([]*filters.WhereBuilder{
+					combinedIDFilter, idFilters[i],
+				})
+			}
+			whereFilters = append(whereFilters, combinedIDFilter)
+		}
+		s.logger.Debug("Added multiple original IDs filter", "ids", docFilter.OriginalIDs)
+	}
+
+	// Content hash filter
+	if docFilter.ContentHash != nil {
+		hashFilter := filters.Where().
+			WithPath([]string{documentContentHashProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*docFilter.ContentHash)
+		whereFilters = append(whereFilters, hashFilter)
+		s.logger.Debug("Added content hash filter", "hash", *docFilter.ContentHash)
+	}
+
+	// ID pattern filter (regex-like using Like operator)
+	if docFilter.IDPattern != nil {
+		patternFilter := filters.Where().
+			WithPath([]string{documentOriginalIDProperty}).
+			WithOperator(filters.Like).
+			WithValueText(*docFilter.IDPattern)
+		whereFilters = append(whereFilters, patternFilter)
+		s.logger.Debug("Added ID pattern filter", "pattern", *docFilter.IDPattern)
+	}
+
+	return whereFilters, nil
+}
+
+// buildDocumentTemporalFilters builds temporal filters for documents.
+func (s *WeaviateStorage) buildDocumentTemporalFilters(temporalFilter *memory.TemporalFilter) ([]*filters.WhereBuilder, error) {
+	var whereFilters []*filters.WhereBuilder
+
+	// After filter
+	if temporalFilter.After != nil {
+		afterFilter := filters.Where().
+			WithPath([]string{documentCreatedAtProperty}).
+			WithOperator(filters.GreaterThanEqual).
+			WithValueDate(*temporalFilter.After)
+		whereFilters = append(whereFilters, afterFilter)
+		s.logger.Debug("Added document after filter", "after", temporalFilter.After.Format(time.RFC3339))
+	}
+
+	// Before filter
+	if temporalFilter.Before != nil {
+		beforeFilter := filters.Where().
+			WithPath([]string{documentCreatedAtProperty}).
+			WithOperator(filters.LessThanEqual).
+			WithValueDate(*temporalFilter.Before)
+		whereFilters = append(whereFilters, beforeFilter)
+		s.logger.Debug("Added document before filter", "before", temporalFilter.Before.Format(time.RFC3339))
+	}
+
+	// Within filter (relative time)
+	if temporalFilter.Within != nil {
+		duration, err := time.ParseDuration(*temporalFilter.Within)
+		if err != nil {
+			return nil, fmt.Errorf("invalid within duration: %w", err)
+		}
+		
+		since := time.Now().Add(-duration)
+		withinFilter := filters.Where().
+			WithPath([]string{documentCreatedAtProperty}).
+			WithOperator(filters.GreaterThanEqual).
+			WithValueDate(since)
+		whereFilters = append(whereFilters, withinFilter)
+		s.logger.Debug("Added document within filter", "within", *temporalFilter.Within, "since", since.Format(time.RFC3339))
+	}
+
+	// Exactly filter
+	if temporalFilter.Exactly != nil {
+		exactFilter := filters.Where().
+			WithPath([]string{documentCreatedAtProperty}).
+			WithOperator(filters.Equal).
+			WithValueDate(*temporalFilter.Exactly)
+		whereFilters = append(whereFilters, exactFilter)
+		s.logger.Debug("Added document exact time filter", "exactly", temporalFilter.Exactly.Format(time.RFC3339))
+	}
+
+	return whereFilters, nil
+}
+
+// parseDocumentQueryResponse parses the GraphQL response into DocumentQueryResult.
+func (s *WeaviateStorage) parseDocumentQueryResponse(resp *models.GraphQLResponse) (memory.DocumentQueryResult, error) {
+	if resp.Errors != nil {
+		return memory.DocumentQueryResult{}, fmt.Errorf("GraphQL errors: %v", resp.Errors)
+	}
+
+	data := resp.Data
+	if data == nil {
+		return memory.DocumentQueryResult{}, fmt.Errorf("no data in response")
+	}
+
+	classData, ok := data[DocumentClassName].([]interface{})
+	if !ok {
+		s.logger.Warn("No document class data in GraphQL response or not a slice.", "class_name", DocumentClassName)
+		return memory.DocumentQueryResult{Documents: []memory.StoredDocument{}}, nil
+	}
+
+	var documents []memory.StoredDocument
+	for _, item := range classData {
+		doc, err := s.parseDocumentFromGraphQLItem(item)
+		if err != nil {
+			s.logger.Warnf("Failed to parse document item: %v", err)
+			continue
+		}
+		documents = append(documents, *doc)
+	}
+
+	s.logger.Infof("Successfully parsed %d documents from query response", len(documents))
+
+	// For now, we don't have pagination info from Weaviate, so we set simple values
+	total := len(documents)
+	hasMore := false // Would need to implement proper pagination to determine this
+
+	return memory.DocumentQueryResult{
+		Documents: documents,
+		Total:     total,
+		HasMore:   hasMore,
+	}, nil
+}
+
+// parseDocumentFromGraphQLItem parses a single GraphQL item into a StoredDocument.
+func (s *WeaviateStorage) parseDocumentFromGraphQLItem(item interface{}) (*memory.StoredDocument, error) {
+	itemMap, ok := item.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("item is not a map")
+	}
+
+	// Extract _additional.id
+	var id string
+	if additional, ok := itemMap["_additional"].(map[string]interface{}); ok {
+		if idVal, ok := additional["id"].(string); ok {
+			id = idVal
+		}
+	}
+	if id == "" {
+		return nil, fmt.Errorf("missing document ID")
+	}
+
+	// Extract properties
+	content, _ := itemMap[contentProperty].(string)
+	contentHash, _ := itemMap[documentContentHashProperty].(string)
+	docType, _ := itemMap[documentTypeProperty].(string)
+	originalID, _ := itemMap[documentOriginalIDProperty].(string)
+	metadataJSON, _ := itemMap[documentMetadataProperty].(string)
+	createdAtStr, _ := itemMap[documentCreatedAtProperty].(string)
+
+	// Parse metadata
+	var metadata map[string]string
+	if metadataJSON != "" {
+		if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
+			s.logger.Warnf("Failed to unmarshal metadata for document %s: %v", id, err)
+			metadata = make(map[string]string)
+		}
+	} else {
+		metadata = make(map[string]string)
+	}
+
+	// Parse timestamp
+	var createdAt *time.Time
+	if createdAtStr != "" {
+		if parsed, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+			createdAt = &parsed
+		} else {
+			s.logger.Warnf("Failed to parse createdAt for document %s: %v", id, err)
+		}
+	}
+
+	// Determine if this is a chunk and extract chunk info
+	isChunk := strings.Contains(originalID, "-chunk-") || 
+		(metadata != nil && metadata["_enchanted_chunk_type"] != "")
+	
+	var chunkNumber *int
+	var originalDocID *string
+	
+	if isChunk {
+		if chunkNumStr, exists := metadata["_enchanted_chunk_number"]; exists {
+			if num, err := strconv.Atoi(chunkNumStr); err == nil {
+				chunkNumber = &num
+			}
+		}
+		if origID, exists := metadata["_enchanted_original_document_id"]; exists && origID != "" {
+			originalDocID = &origID
+		}
+	}
+
+	return &memory.StoredDocument{
+		ID:            id,
+		Content:       content,
+		ContentHash:   contentHash,
+		DocumentType:  docType,
+		OriginalID:    originalID,
+		Metadata:      metadata,
+		CreatedAt:     createdAt,
+		IsChunk:       isChunk,
+		ChunkNumber:   chunkNumber,
+		OriginalDocID: originalDocID,
+	}, nil
 }
