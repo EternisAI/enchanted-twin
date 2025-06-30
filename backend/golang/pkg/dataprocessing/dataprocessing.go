@@ -333,12 +333,8 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		// For now, save as JSON instead of records
-		documentsJSON, err := json.MarshalIndent(documents, "", "  ")
-		if err != nil {
-			return false, err
-		}
-		if err := os.WriteFile(outputPath, documentsJSON, 0o644); err != nil {
+		// Save using memory package helper (JSONL format)
+		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
 			return false, err
 		}
 		return true, nil

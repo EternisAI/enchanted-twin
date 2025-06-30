@@ -24,52 +24,91 @@ build:
 	go build -o $(TOOL_NAME) .
 
 # Convert WhatsApp SQLite database to ConversationDocument (X_0)
+# Usage: make whatsapp [FILE=path/to/file.sqlite]
 whatsapp:
 	@echo "📱 Converting WhatsApp SQLite to ConversationDocument (X_0)..."
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
+ifdef FILE
+	@echo "📁 Using specified file: $(FILE)"
+	@if [ ! -f "$(FILE)" ]; then \
+		echo "❌ File not found: $(FILE)"; \
+		exit 1; \
+	fi
+	@go run . whatsapp "$(FILE)"
+	@echo "✅ WhatsApp X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_whatsapp.jsonl"
+else
+	@echo "🔍 Auto-detecting WhatsApp database..."
 	@if [ ! -f "$(INPUT_DIR)"/*.sqlite ] && [ ! -f "$(INPUT_DIR)"/*.db ]; then \
 		echo "❌ No SQLite database found in $(INPUT_DIR)/"; \
 		echo "💡 Place your WhatsApp database (ChatStorage.sqlite or *.db) in $(INPUT_DIR)/"; \
+		echo "💡 Or use: make whatsapp FILE=path/to/your/file.sqlite"; \
 		exit 1; \
 	fi
 	@SQLITE_FILE=$$(ls $(INPUT_DIR)/*.sqlite $(INPUT_DIR)/*.db 2>/dev/null | head -1); \
 	if [ -n "$$SQLITE_FILE" ]; then \
 		echo "✅ Found WhatsApp database: $$SQLITE_FILE"; \
 		go run . whatsapp "$$SQLITE_FILE"; \
-		echo "✅ WhatsApp X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_whatsapp.json"; \
+		echo "✅ WhatsApp X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_whatsapp.jsonl"; \
 	fi
+endif
 
 # Convert Telegram JSON export to ConversationDocument (X_0)
+# Usage: make telegram [FILE=path/to/file.json]
 telegram:
 	@echo "📱 Converting Telegram JSON to ConversationDocument (X_0)..."
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
+ifdef FILE
+	@echo "📁 Using specified file: $(FILE)"
+	@if [ ! -f "$(FILE)" ]; then \
+		echo "❌ File not found: $(FILE)"; \
+		exit 1; \
+	fi
+	@go run . telegram "$(FILE)"
+	@echo "✅ Telegram X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_telegram.jsonl"
+else
+	@echo "🔍 Auto-detecting Telegram JSON export..."
 	@if [ ! -f "$(INPUT_DIR)"/*.json ]; then \
 		echo "❌ No JSON export found in $(INPUT_DIR)/"; \
 		echo "💡 Place your Telegram export JSON file in $(INPUT_DIR)/"; \
+		echo "💡 Or use: make telegram FILE=path/to/your/file.json"; \
 		exit 1; \
 	fi
 	@JSON_FILE=$$(ls $(INPUT_DIR)/*.json 2>/dev/null | head -1); \
 	if [ -n "$$JSON_FILE" ]; then \
 		echo "✅ Found Telegram export: $$JSON_FILE"; \
 		go run . telegram "$$JSON_FILE"; \
-		echo "✅ Telegram X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_telegram.json"; \
+		echo "✅ Telegram X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_telegram.jsonl"; \
 	fi
+endif
 
 # Convert ChatGPT JSON export to ConversationDocument (X_0)
+# Usage: make chatgpt [FILE=path/to/conversations.json]
 chatgpt:
 	@echo "🤖 Converting ChatGPT JSON to ConversationDocument (X_0)..."
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
+ifdef FILE
+	@echo "📁 Using specified file: $(FILE)"
+	@if [ ! -f "$(FILE)" ]; then \
+		echo "❌ File not found: $(FILE)"; \
+		exit 1; \
+	fi
+	@go run . chatgpt "$(FILE)"
+	@echo "✅ ChatGPT X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_chatgpt.jsonl"
+else
+	@echo "🔍 Auto-detecting ChatGPT conversations.json..."
 	@if [ ! -f "$(INPUT_DIR)"/conversations.json ] && [ ! -f "$(INPUT_DIR)"/*.json ]; then \
 		echo "❌ No ChatGPT conversations.json found in $(INPUT_DIR)/"; \
 		echo "💡 Place your ChatGPT conversations.json file in $(INPUT_DIR)/"; \
+		echo "💡 Or use: make chatgpt FILE=path/to/your/conversations.json"; \
 		exit 1; \
 	fi
 	@JSON_FILE=$$(ls $(INPUT_DIR)/conversations.json $(INPUT_DIR)/*.json 2>/dev/null | head -1); \
 	if [ -n "$$JSON_FILE" ]; then \
 		echo "✅ Found ChatGPT export: $$JSON_FILE"; \
 		go run . chatgpt "$$JSON_FILE"; \
-		echo "✅ ChatGPT X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_chatgpt.json"; \
+		echo "✅ ChatGPT X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_chatgpt.jsonl"; \
 	fi
+endif
 
 # Convert Gmail MBOX to ConversationDocument (X_0)
 gmail:
@@ -108,10 +147,10 @@ gmail-senders:
 chunks:
 	@echo "🧩 Converting ConversationDocument to chunks (X_0 → X_1)..."
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
-	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ] || [ -f "$(OUTPUT_DIR)/X_0_chatgpt.json" ] || [ -f "$(OUTPUT_DIR)/X_0_gmail.json" ]; then \
+	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.jsonl" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.jsonl" ] || [ -f "$(OUTPUT_DIR)/X_0_chatgpt.jsonl" ] || [ -f "$(OUTPUT_DIR)/X_0_gmail.jsonl" ]; then \
 		echo "✅ Auto-detecting X_0 ConversationDocument..."; \
 		go run . chunks; \
-		echo "✅ X_1 chunks created: $(OUTPUT_DIR)/X_1_chunked_documents.json"; \
+		echo "✅ X_1 chunks created: $(OUTPUT_DIR)/X_1_chunked_documents.jsonl"; \
 	else \
 		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp', 'make telegram', 'make chatgpt', or 'make gmail' first."; \
 		exit 1; \
@@ -120,18 +159,18 @@ chunks:
 # Convert chunks to facts (X_1 → X_2)
 facts:
 	@echo "🧠 Converting chunks to facts (X_1 → X_2)..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_1_chunked_documents.json" ]; then \
-		echo "❌ X_1_chunked_documents.json not found. Run 'make chunks' first."; \
+	@if [ ! -f "$(OUTPUT_DIR)/X_1_chunked_documents.jsonl" ]; then \
+		echo "❌ X_1_chunked_documents.jsonl not found. Run 'make chunks' first."; \
 		exit 1; \
 	fi
 	@go run . facts
-	@echo "✅ X_2 facts created: $(OUTPUT_DIR)/X_2_extracted_facts.json"
+	@echo "✅ X_2 facts created: $(OUTPUT_DIR)/X_2_extracted_facts.jsonl"
 
 # Store facts in Weaviate database (X_2 → Weaviate)
 store:
 	@echo "💾 Storing facts in Weaviate database..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_2_extracted_facts.json" ]; then \
-		echo "❌ X_2_extracted_facts.json not found. Run 'make facts' first."; \
+	@if [ ! -f "$(OUTPUT_DIR)/X_2_extracted_facts.jsonl" ]; then \
+		echo "❌ X_2_extracted_facts.jsonl not found. Run 'make facts' first."; \
 		exit 1; \
 	fi
 	@go run . store

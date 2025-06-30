@@ -189,14 +189,29 @@ func main() {
 
 // Polymorphic data processor - eliminates duplication.
 func runDataProcessor(name string, filePatterns []string, outputFile string, processorFactory func(*db.Store) (dataprocessing.DocumentProcessor, error)) {
-	// Find input file
+	// Check for explicit file argument first (e.g., from Makefile FILE parameter)
 	var inputFile string
-	for _, pattern := range filePatterns {
-		if file := findInputFile(pattern); file != "" {
-			inputFile = file
-			break
+	if len(os.Args) > 2 {
+		// Second argument is the file path (e.g., "go run . telegram /path/to/file.json")
+		candidateFile := os.Args[2]
+		if candidateFile != "--senders" { // Ignore special flags
+			if _, err := os.Stat(candidateFile); err == nil {
+				inputFile = candidateFile
+				logger.Info("Using explicit file argument", "file", inputFile)
+			}
 		}
 	}
+
+	// Fall back to pattern matching if no explicit file provided
+	if inputFile == "" {
+		for _, pattern := range filePatterns {
+			if file := findInputFile(pattern); file != "" {
+				inputFile = file
+				break
+			}
+		}
+	}
+
 	if inputFile == "" {
 		logger.Error("No input file found", "name", name, "patterns", filePatterns)
 		os.Exit(1)
@@ -226,8 +241,8 @@ func runDataProcessor(name string, filePatterns []string, outputFile string, pro
 		os.Exit(1)
 	}
 
-	// Save output
-	if err := saveJSON(documents, outputFile); err != nil {
+	// Save output using memory package helper
+	if err := memory.ExportConversationDocumentsJSON(documents, outputFile); err != nil {
 		logger.Error("Save failed", "error", err)
 		os.Exit(1)
 	}
@@ -245,16 +260,16 @@ func findInputFile(pattern string) string {
 }
 
 func findX0File() string {
-	if f := findInputFile("pipeline_output/X_0_whatsapp.json"); f != "" {
+	if f := findInputFile("pipeline_output/X_0_whatsapp.jsonl"); f != "" {
 		return f
 	}
-	if f := findInputFile("pipeline_output/X_0_telegram.json"); f != "" {
+	if f := findInputFile("pipeline_output/X_0_telegram.jsonl"); f != "" {
 		return f
 	}
-	if f := findInputFile("pipeline_output/X_0_gmail.json"); f != "" {
+	if f := findInputFile("pipeline_output/X_0_gmail.jsonl"); f != "" {
 		return f
 	}
-	return findInputFile("pipeline_output/X_0_chatgpt.json")
+	return findInputFile("pipeline_output/X_0_chatgpt.jsonl")
 }
 
 func saveJSON(data interface{}, filename string) error {
@@ -268,20 +283,12 @@ func saveJSON(data interface{}, filename string) error {
 	return os.WriteFile(filename, jsonData, 0o644)
 }
 
-func loadJSON(filename string, target interface{}) error {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(data, target)
-}
-
 // Data source processors using polymorphic function.
 func runWhatsApp() {
 	runDataProcessor(
 		"WhatsApp",
 		[]string{"pipeline_input/*.sqlite", "pipeline_input/*.db"},
-		"pipeline_output/X_0_whatsapp.json",
+		"pipeline_output/X_0_whatsapp.jsonl",
 		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
 			return whatsapp.NewWhatsappProcessor(store, logger)
 		},
@@ -292,7 +299,7 @@ func runTelegram() {
 	runDataProcessor(
 		"Telegram",
 		[]string{"pipeline_input/*.json"},
-		"pipeline_output/X_0_telegram.json",
+		"pipeline_output/X_0_telegram.jsonl",
 		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
 			return telegram.NewTelegramProcessor(store, logger)
 		},
@@ -303,7 +310,7 @@ func runChatGPT() {
 	runDataProcessor(
 		"ChatGPT",
 		[]string{"pipeline_input/*.json", "pipeline_input/conversations.json"},
-		"pipeline_output/X_0_chatgpt.json",
+		"pipeline_output/X_0_chatgpt.jsonl",
 		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
 			return chatgpt.NewChatGPTProcessor(store, logger)
 		},
@@ -322,7 +329,7 @@ func runGmail() {
 	runDataProcessor(
 		"Gmail",
 		[]string{"pipeline_input/*.mbox"},
-		"pipeline_output/X_0_gmail.json",
+		"pipeline_output/X_0_gmail.jsonl",
 		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
 			return gmail.NewGmailProcessor(store, logger)
 		},
@@ -385,24 +392,19 @@ func runChunks() {
 		os.Exit(1)
 	}
 
-	var chunkedDocs []memory.Document
+	var chunkedDocs []memory.ConversationDocument
 	for _, doc := range documents {
 		docCopy := doc
 		chunks := docCopy.Chunk()
-		chunkedDocs = append(chunkedDocs, chunks...)
+		for _, chunk := range chunks {
+			if convDoc, ok := chunk.(*memory.ConversationDocument); ok {
+				chunkedDocs = append(chunkedDocs, *convDoc)
+			}
+		}
 	}
 
-	output := map[string]interface{}{
-		"chunked_documents": chunkedDocs,
-		"metadata": map[string]interface{}{
-			"processed_at":   time.Now().Format(time.RFC3339),
-			"step":           "document_to_chunks",
-			"original_count": len(documents),
-			"chunked_count":  len(chunkedDocs),
-		},
-	}
-
-	if err := saveJSON(output, "pipeline_output/X_1_chunked_documents.json"); err != nil {
+	// Save chunked documents as JSONL using memory package helper
+	if err := memory.ExportConversationDocumentsJSON(chunkedDocs, "pipeline_output/X_1_chunked_documents.jsonl"); err != nil {
 		logger.Error("Save failed", "error", err)
 		os.Exit(1)
 	}
@@ -516,26 +518,17 @@ func runFacts() {
 
 	logger.Info("Extracting facts")
 
-	var chunkedData struct {
-		ChunkedDocuments []json.RawMessage `json:"chunked_documents"`
-	}
-	if err := loadJSON("pipeline_output/X_1_chunked_documents.json", &chunkedData); err != nil {
+	// Load chunked documents directly from JSONL using memory package helper
+	conversationDocs, err := memory.LoadConversationDocumentsFromJSON("pipeline_output/X_1_chunked_documents.jsonl")
+	if err != nil {
 		logger.Error("Load failed", "error", err)
 		os.Exit(1)
 	}
 
-	// Convert raw JSON to Document instances
+	// Convert to Document interface
 	var documents []memory.Document
-	for _, rawDoc := range chunkedData.ChunkedDocuments {
-		var convDoc memory.ConversationDocument
-		if err := json.Unmarshal(rawDoc, &convDoc); err == nil && len(convDoc.Conversation) > 0 {
-			documents = append(documents, &convDoc)
-			continue
-		}
-		var textDoc memory.TextDocument
-		if err := json.Unmarshal(rawDoc, &textDoc); err == nil && textDoc.Content() != "" {
-			documents = append(documents, &textDoc)
-		}
+	for i := range conversationDocs {
+		documents = append(documents, &conversationDocs[i])
 	}
 
 	logger.Info("Starting parallel fact extraction", "documents", len(documents))
@@ -544,52 +537,46 @@ func runFacts() {
 	numWorkers := 100 // YOLO mode - maximize those OpenAI credits! 💸
 	allFacts := extractFactsParallel(documents, numWorkers)
 
-	output := map[string]interface{}{
-		"facts": allFacts,
-		"metadata": map[string]interface{}{
-			"processed_at":      time.Now().Format(time.RFC3339),
-			"step":              "chunks_to_facts",
-			"documents_count":   len(documents),
-			"facts_count":       len(allFacts),
-			"completions_model": getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
-		},
+	// Convert from []*MemoryFact to []MemoryFact for the helper
+	facts := make([]memory.MemoryFact, len(allFacts))
+	for i, fact := range allFacts {
+		facts[i] = *fact
 	}
 
-	if err := saveJSON(output, "pipeline_output/X_2_extracted_facts.json"); err != nil {
+	// Save facts as JSONL using memory package helper
+	if err := memory.ExportMemoryFactsJSON(facts, "pipeline_output/X_2_extracted_facts.jsonl"); err != nil {
 		logger.Error("Save failed", "error", err)
 		os.Exit(1)
 	}
 
-	logger.Info("Fact extraction done", "documents", len(documents), "facts", len(allFacts))
+	logger.Info("Fact extraction done", "documents", len(documents), "facts", len(facts))
 }
 
 func runStore() {
 	logger.Info("Storing facts using production storage module")
 
 	// Find X_2 facts file
-	inputFile := findInputFile("pipeline_output/X_2_*.json")
+	inputFile := findInputFile("pipeline_output/X_2_*.jsonl")
 	if inputFile == "" {
-		logger.Error("No X_2 facts file found")
+		logger.Error("No X_2 facts JSONL file found")
 		os.Exit(1)
 	}
 
 	logger.Info("Loading facts", "file", inputFile)
 
-	// Load facts from JSON
-	var factsData struct {
-		Facts []memory.MemoryFact `json:"facts"`
-	}
-	if err := loadJSON(inputFile, &factsData); err != nil {
+	// Load facts from JSONL using memory package helper
+	facts, err := memory.LoadMemoryFactsFromJSON(inputFile)
+	if err != nil {
 		logger.Error("Load failed", "error", err)
 		os.Exit(1)
 	}
 
-	if len(factsData.Facts) == 0 {
+	if len(facts) == 0 {
 		logger.Warn("No facts found to store")
 		return
 	}
 
-	logger.Info("Found facts to store", "count", len(factsData.Facts))
+	logger.Info("Found facts to store", "count", len(facts))
 
 	// Set up Weaviate infrastructure with schema initialization
 	infra, err := setupWeaviateMemoryInfrastructureWithSchema()
@@ -599,15 +586,15 @@ func runStore() {
 	}
 
 	// Convert facts to pointers for the interface
-	var facts []*memory.MemoryFact
-	for i := range factsData.Facts {
-		facts = append(facts, &factsData.Facts[i])
+	var factsPtr []*memory.MemoryFact
+	for i := range facts {
+		factsPtr = append(factsPtr, &facts[i])
 	}
 
 	// Use the PRODUCTION StoreFactsDirectly method! 🚀
-	logger.Info("Storing facts using production storage module", "count", len(facts))
+	logger.Info("Storing facts using production storage module", "count", len(factsPtr))
 
-	err = infra.MemoryStorage.StoreFactsDirectly(infra.Context, facts, func(processed, total int) {
+	err = infra.MemoryStorage.StoreFactsDirectly(infra.Context, factsPtr, func(processed, total int) {
 		logger.Info("Storage progress", "processed", processed, "total", total)
 	})
 	if err != nil {
@@ -615,7 +602,7 @@ func runStore() {
 		os.Exit(1)
 	}
 
-	logger.Info("Facts stored successfully using PRODUCTION code", "count", len(facts))
+	logger.Info("Facts stored successfully using PRODUCTION code", "count", len(factsPtr))
 	logger.Info("Storage complete - ready for consolidation")
 }
 

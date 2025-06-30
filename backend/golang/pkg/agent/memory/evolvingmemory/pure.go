@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/google/uuid"
 	"github.com/openai/openai-go"
 	"github.com/weaviate/weaviate/entities/models"
 
@@ -146,9 +147,25 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 		for factIdx := range args.Facts {
 			memoryFact := &args.Facts[factIdx]
+
+			// Set required fields that LLM doesn't provide
+			memoryFact.ID = uuid.New().String()
 			memoryFact.Source = sourceDoc.Source()
+			memoryFact.Content = memoryFact.GenerateContent()
+			if timestamp := sourceDoc.Timestamp(); timestamp != nil {
+				memoryFact.Timestamp = *timestamp
+			} else {
+				memoryFact.Timestamp = time.Now() // fallback if no timestamp available
+			}
+
+			// Set document reference
+			if memoryFact.DocumentReferences == nil {
+				memoryFact.DocumentReferences = []string{sourceDoc.ID()}
+			}
+
 			logger.Debug("Conversation Fact",
 				"index", factIdx+1,
+				"id", memoryFact.ID,
 				"category", memoryFact.Category,
 				"subject", memoryFact.Subject,
 				"attribute", memoryFact.Attribute,
@@ -236,11 +253,24 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		for factIdx := range args.Facts {
 			memoryFact := &args.Facts[factIdx]
 
-			// FIX: Set the Source field from the source document
+			// Set required fields that LLM doesn't provide
+			memoryFact.ID = uuid.New().String()
 			memoryFact.Source = sourceDoc.Source()
+			memoryFact.Content = memoryFact.GenerateContent()
+			if timestamp := sourceDoc.Timestamp(); timestamp != nil {
+				memoryFact.Timestamp = *timestamp
+			} else {
+				memoryFact.Timestamp = time.Now() // fallback if no timestamp available
+			}
+
+			// Set document reference
+			if memoryFact.DocumentReferences == nil {
+				memoryFact.DocumentReferences = []string{sourceDoc.ID()}
+			}
 
 			logger.Debug("Text Document Fact",
 				"index", factIdx+1,
+				"id", memoryFact.ID,
 				"category", memoryFact.Category,
 				"subject", memoryFact.Subject,
 				"attribute", memoryFact.Attribute,
