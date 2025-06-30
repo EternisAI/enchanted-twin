@@ -925,7 +925,7 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 			ImageUrls:  delta.ImageURLs,
 			Chunk:      delta.ContentDelta,
 			Role:       model.RoleAssistant,
-			IsComplete: false, // Never send IsComplete true until all processing is done
+			IsComplete: false, 
 			CreatedAt:  &createdAt,
 		}
 
@@ -1079,13 +1079,12 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 			}
 		}()
 
-		// Send final completion signal after all processing is done
 		finalPayload := model.MessageStreamPayload{
 			MessageID:  assistantMessageId,
 			ImageUrls:  []string{},
 			Chunk:      "",
 			Role:       model.RoleAssistant,
-			IsComplete: true, // Now we're truly done
+			IsComplete: true,
 			CreatedAt:  &createdAt,
 		}
 
@@ -1098,7 +1097,6 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 			s.logger.Warn("Stream channel full, dropping final completion signal")
 		}
 
-		// Also publish final completion to NATS
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), finalPayload)
 	}()
 
