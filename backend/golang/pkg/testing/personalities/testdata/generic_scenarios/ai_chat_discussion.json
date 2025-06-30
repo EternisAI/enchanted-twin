@@ -1,0 +1,47 @@
+{
+  "name": "ai_chat_discussion",
+  "description": "Chat discussion about AI breakthroughs and developments",
+  "type": "chat_message",
+  "content": {
+    "message_id": "chat_msg_001",
+    "content": "Just saw the latest GPT-5 demo and it's absolutely mind-blowing! The reasoning capabilities are on another level. Anyone else think this changes everything for AI applications?",
+    "text": "Just saw the latest GPT-5 demo and it's absolutely mind-blowing! The reasoning capabilities are on another level. Anyone else think this changes everything for AI applications?",
+    "author": {
+      "identity": "ai_enthusiast",
+      "name": "Alex Chen",
+      "alias": "AI Explorer"
+    },
+    "chat_context": "AI Development Discussion Group",
+    "created_at": "2024-01-15T10:30:00Z",
+    "metadata": {
+      "channel": "ai-developments",
+      "thread_id": "thread_123"
+    }
+  },
+  "context": {
+    "domain": "artificial_intelligence",
+    "platform": "discord",
+    "urgency": "normal"
+  },
+  "personality_expectations": [
+    {
+      "personality_name": "tech_entrepreneur",
+      "should_show": true,
+      "confidence": 0.9,
+      "reason_keywords": ["AI", "business", "applications", "technology"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "Tech entrepreneurs are highly interested in AI developments and their business applications"
+    },
+    {
+      "personality_name": "creative_artist",
+      "should_show": true,
+      "confidence": 0.6,
+      "reason_keywords": ["AI", "creative", "tools", "technology"],
+      "expected_state": "visible",
+      "priority": 2,
+      "rationale": "Creative artists have moderate interest in AI tools that could enhance their work"
+    }
+  ],
+  "created_at": "2024-01-15T10:30:00Z"
+}
