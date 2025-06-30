@@ -180,23 +180,23 @@ store:
 consolidation:
 	@echo "🧩 Running comprehensive memory consolidation for all subjects..."
 	@go run . consolidation
-	@echo "✅ Comprehensive consolidation report created: $(OUTPUT_DIR)/X_3_consolidation_report.json"
+	@echo "✅ Comprehensive consolidation reports created: $(OUTPUT_DIR)/X_3_consolidation_reports.jsonl"
 
 # Store consolidated facts back into Weaviate (X_3 → Weaviate consolidations)
 store-consolidations:
 	@echo "📦 Storing consolidated facts in Weaviate database..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_3_consolidation_report.json" ]; then \
-		echo "❌ X_3_consolidation_report.json not found. Run 'make consolidation' first."; \
+	@if [ ! -f "$(OUTPUT_DIR)/X_3_consolidation_reports.jsonl" ]; then \
+		echo "❌ X_3_consolidation_reports.jsonl not found. Run 'make consolidation' first."; \
 		exit 1; \
 	fi
 	@go run . store-consolidations
-	@echo "✅ Consolidated facts stored in Weaviate database: $(OUTPUT_DIR)/X_4_consolidation_storage_status.json"
+	@echo "✅ Consolidated facts stored in Weaviate database"
 
 # Query consolidated facts vs raw facts (Interactive demonstration)
 query-consolidations:
 	@echo "🔍 Querying consolidated vs raw facts (demonstration)..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_4_consolidation_storage_status.json" ]; then \
-		echo "❌ Consolidations not stored yet. Run 'make store-consolidations' first."; \
+	@if [ ! -f "$(OUTPUT_DIR)/X_3_consolidation_reports.jsonl" ]; then \
+		echo "❌ Consolidations not found. Run 'make consolidation' and 'make store-consolidations' first."; \
 		exit 1; \
 	fi
 	@go run . query-consolidations
@@ -205,8 +205,8 @@ query-consolidations:
 # Query consolidated facts with custom query (Vector search)
 query:
 	@echo "🔍 Vector search on consolidated facts..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_4_consolidation_storage_status.json" ]; then \
-		echo "❌ Consolidations not stored yet. Run 'make store-consolidations' first."; \
+	@if [ ! -f "$(OUTPUT_DIR)/X_3_consolidation_reports.jsonl" ]; then \
+		echo "❌ Consolidations not found. Run 'make consolidation' and 'make store-consolidations' first."; \
 		exit 1; \
 	fi
 	@if [ -z "$(QUERY)" ]; then \
@@ -310,8 +310,7 @@ status:
 	@if [ -f "$(OUTPUT_DIR)/X_0_gmail.json" ]; then echo "✅ Gmail X_0 ConversationDocument ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_1_chunked_documents.json" ]; then echo "✅ X_1 chunks ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_2_extracted_facts.json" ]; then echo "✅ X_2 facts ready"; fi
-	@if [ -f "$(OUTPUT_DIR)/X_3_consolidation_report.json" ]; then echo "✅ X_3 consolidation report ready"; fi
-	@if [ -f "$(OUTPUT_DIR)/X_4_consolidation_storage_status.json" ]; then echo "✅ X_4 consolidation storage completed"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_3_consolidation_reports.jsonl" ]; then echo "✅ X_3 consolidation reports ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_5_consolidation_query_results.json" ]; then echo "✅ X_5 consolidation query testing completed"; fi
 
 # Help
