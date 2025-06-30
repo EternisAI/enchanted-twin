@@ -31,74 +31,6 @@ type ConsolidationReport struct {
 	GeneratedAt       time.Time            `json:"generated_at"`
 }
 
-// ConsolidateByTag performs memory consolidation for a given tag.
-func ConsolidateByTag(ctx context.Context, tag string, storage memory.Storage, ai *ai.Service, model string, logger *log.Logger) (*ConsolidationReport, error) {
-	// Fetch raw facts
-	facts, err := fetchFactsByTag(ctx, tag, storage)
-	if err != nil {
-		return nil, fmt.Errorf("fetching facts: %w", err)
-	}
-
-	if len(facts) == 0 {
-		return createEmptyReport(tag), nil
-	}
-
-	// Generate consolidation via LLM
-	consolidation, err := generateConsolidation(ctx, tag, facts, ai, model, logger)
-	if err != nil {
-		return nil, fmt.Errorf("generating consolidation: %w", err)
-	}
-
-	return consolidation, nil
-}
-
-// StoreConsolidationReport saves the consolidation using the modular storage approach.
-func StoreConsolidationReport(ctx context.Context, report *ConsolidationReport, memoryStorage MemoryStorage) error {
-	// Convert consolidated facts to regular MemoryFacts for storage
-	var facts []*memory.MemoryFact
-
-	// Add summary as a special fact
-	summaryFact := &memory.MemoryFact{
-		ID:                 deterministicID(fmt.Sprintf("summary-%s-%d", report.Topic, report.GeneratedAt.Unix())),
-		Content:            report.Summary,
-		Category:           "summary",
-		Subject:            report.Topic,
-		Attribute:          "consolidated_summary",
-		Value:              report.Summary,
-		Sensitivity:        "low",
-		Importance:         3,
-		Source:             "consolidation",
-		Timestamp:          report.GeneratedAt,
-		Tags:               []string{"consolidated", "summary", report.Topic},
-		DocumentReferences: []string{},
-		Metadata: map[string]string{
-			"consolidation_type": "summary",
-			"source_fact_count":  fmt.Sprintf("%d", report.SourceFactCount),
-		},
-	}
-	facts = append(facts, summaryFact)
-
-	// Add all consolidated facts
-	for _, consolidatedFact := range report.ConsolidatedFacts {
-		// Update metadata to track source facts
-		if consolidatedFact.Metadata == nil {
-			consolidatedFact.Metadata = make(map[string]string)
-		}
-		consolidatedFact.Metadata["consolidation_type"] = "fact"
-		consolidatedFact.Metadata["consolidated_from_count"] = fmt.Sprintf("%d", len(consolidatedFact.ConsolidatedFrom))
-
-		// Store source fact IDs in metadata
-		for i, sourceID := range consolidatedFact.ConsolidatedFrom {
-			consolidatedFact.Metadata[fmt.Sprintf("source_fact_%d", i)] = sourceID
-		}
-
-		facts = append(facts, &consolidatedFact.MemoryFact)
-	}
-
-	// Use the modular StoreFactsDirectly function! 🚀
-	return memoryStorage.StoreFactsDirectly(ctx, facts, nil)
-}
-
 // StoreConsolidationReports saves multiple consolidation reports using the modular storage approach.
 // This is optimized for batch processing of multiple reports (e.g., comprehensive consolidation).
 func StoreConsolidationReports(ctx context.Context, reports []*ConsolidationReport, memoryStorage MemoryStorage, progressCallback memory.ProgressCallback) error {
@@ -188,20 +120,6 @@ type ConsolidationStorage interface {
 
 // === PURE FUNCTIONS ===
 
-// formatFactsForLLM converts raw facts into LLM input format.
-func formatFactsForLLM(tag string, facts []*memory.MemoryFact) string {
-	if len(facts) == 0 {
-		return fmt.Sprintf("Topic: %s\nNo facts found for this topic.", tag)
-	}
-
-	content := fmt.Sprintf("Topic: %s\n\nRaw Facts:\n", tag)
-	for i, fact := range facts {
-		content += fmt.Sprintf("%d. %s\n", i+1, fact.GenerateContent())
-	}
-
-	return content
-}
-
 // parseConsolidationResponse extracts consolidation data from LLM response.
 func parseConsolidationResponse(response openai.ChatCompletionMessage, sourceFactIDs []string) (*ConsolidationReport, error) {
 	if len(response.ToolCalls) == 0 {
@@ -275,60 +193,6 @@ func parseConsolidationResponse(response openai.ChatCompletionMessage, sourceFac
 	}, nil
 }
 
-// createEmptyReport creates a report for when no facts are found.
-func createEmptyReport(topic string) *ConsolidationReport {
-	return &ConsolidationReport{
-		Topic:             topic,
-		Summary:           fmt.Sprintf("No memory facts found for topic '%s'.", topic),
-		ConsolidatedFacts: []*ConsolidationFact{},
-		SourceFactCount:   0,
-		GeneratedAt:       time.Now(),
-	}
-}
-
-// === SIDE EFFECT FUNCTIONS ===
-
-// fetchFactsByTag retrieves all facts with the given tag.
-func fetchFactsByTag(ctx context.Context, tag string, storage memory.Storage) ([]*memory.MemoryFact, error) {
-	filter := &memory.Filter{
-		Tags: &memory.TagsFilter{
-			All: []string{tag},
-		},
-	}
-
-	result, err := storage.Query(ctx, tag, filter)
-	if err != nil {
-		return nil, fmt.Errorf("querying storage: %w", err)
-	}
-
-	// Convert to pointers for consistent interface
-	facts := make([]*memory.MemoryFact, len(result.Facts))
-	for i := range result.Facts {
-		facts[i] = &result.Facts[i]
-	}
-	return facts, nil
-}
-
-// fetchFactsByCategory retrieves all facts with the given category.
-func fetchFactsByCategory(ctx context.Context, category string, storage memory.Storage) ([]*memory.MemoryFact, error) {
-	filter := &memory.Filter{
-		FactCategory: &category,
-		Limit:        func() *int { limit := 100; return &limit }(), // Reasonable limit
-	}
-
-	result, err := storage.Query(ctx, fmt.Sprintf("%s related facts", category), filter)
-	if err != nil {
-		return nil, fmt.Errorf("querying storage by category: %w", err)
-	}
-
-	// Convert to pointers for consistent interface
-	facts := make([]*memory.MemoryFact, len(result.Facts))
-	for i := range result.Facts {
-		facts[i] = &result.Facts[i]
-	}
-	return facts, nil
-}
-
 // fetchFactsBySemantic retrieves facts using semantic similarity search.
 func fetchFactsBySemantic(ctx context.Context, topic string, filter *memory.Filter, storage memory.Storage) ([]*memory.MemoryFact, error) {
 	// Set default distance threshold if not provided
@@ -355,47 +219,7 @@ func fetchFactsBySemantic(ctx context.Context, topic string, filter *memory.Filt
 	return facts, nil
 }
 
-// generateConsolidation calls the LLM to create consolidated insights.
-func generateConsolidation(ctx context.Context, tag string, facts []*memory.MemoryFact, ai *ai.Service, model string, logger *log.Logger) (*ConsolidationReport, error) {
-	// Prepare LLM input
-	userPrompt := formatFactsForLLM(tag, facts)
-	sourceFactIDs := extractFactIDs(facts)
-
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(MemoryConsolidationPrompt),
-		openai.UserMessage(userPrompt),
-	}
-
-	tools := []openai.ChatCompletionToolParam{consolidateMemoriesTool}
-
-	logger.Debug("Calling LLM for consolidation", "tag", tag, "fact_count", len(facts))
-
-	// Call LLM
-	response, err := ai.Completions(ctx, messages, tools, model)
-	if err != nil {
-		return nil, fmt.Errorf("LLM completion: %w", err)
-	}
-
-	// Parse response
-	report, err := parseConsolidationResponse(response, sourceFactIDs)
-	if err != nil {
-		return nil, fmt.Errorf("parsing response: %w", err)
-	}
-
-	report.Topic = tag
-	return report, nil
-}
-
 // === UTILITY FUNCTIONS ===
-
-// extractFactIDs gets IDs from a slice of MemoryFacts.
-func extractFactIDs(facts []*memory.MemoryFact) []string {
-	ids := make([]string, len(facts))
-	for i, fact := range facts {
-		ids[i] = fact.ID
-	}
-	return ids
-}
 
 // ExportJSON exports the consolidation report to a JSON file.
 func (cr *ConsolidationReport) ExportJSON(filepath string) error {
@@ -409,34 +233,6 @@ func (cr *ConsolidationReport) ExportJSON(filepath string) error {
 	}
 
 	return nil
-}
-
-// ConsolidateMemoriesByCategory performs memory consolidation for a given category.
-// It fetches facts by category and runs LLM consolidation.
-func ConsolidateMemoriesByCategory(ctx context.Context, category string, deps ConsolidationDependencies) (*ConsolidationReport, error) {
-	logger := deps.Logger.With("category", category)
-	logger.Info("Starting category-based memory consolidation")
-
-	// Step 1: Fetch facts by category
-	facts, err := fetchFactsByCategory(ctx, category, deps.Storage)
-	if err != nil {
-		logger.Error("Failed to fetch facts by category", "error", err)
-		return nil, fmt.Errorf("fetching facts by category: %w", err)
-	}
-
-	if len(facts) == 0 {
-		logger.Warn("No facts found for category")
-		return &ConsolidationReport{
-			Topic:             category,
-			Summary:           fmt.Sprintf("No memories found for category: %s", category),
-			ConsolidatedFacts: []*ConsolidationFact{},
-			SourceFactCount:   0,
-			GeneratedAt:       time.Now(),
-		}, nil
-	}
-
-	logger.Info("Found facts for consolidation", "count", len(facts))
-	return processConsolidation(ctx, category, facts, deps)
 }
 
 // ConsolidateMemoriesBySemantic performs memory consolidation using semantic similarity.
@@ -506,72 +302,6 @@ func processConsolidation(ctx context.Context, topic string, facts []*memory.Mem
 	}
 
 	report.Topic = topic
-	logger.Info("Memory consolidation completed", "consolidated_facts", len(report.ConsolidatedFacts))
-
-	return report, nil
-}
-
-// ConsolidateMemoriesByTag performs memory consolidation for a given tag.
-// It fetches relevant facts, runs LLM consolidation, and returns a comprehensive report.
-func ConsolidateMemoriesByTag(ctx context.Context, tag string, deps ConsolidationDependencies) (*ConsolidationReport, error) {
-	logger := deps.Logger.With("tag", tag)
-	logger.Info("Starting memory consolidation")
-
-	// Step 1: Fetch facts by tag
-	facts, err := fetchFactsByTag(ctx, tag, deps.Storage)
-	if err != nil {
-		logger.Error("Failed to fetch facts by tag", "error", err)
-		return nil, fmt.Errorf("fetching facts by tag: %w", err)
-	}
-
-	if len(facts) == 0 {
-		logger.Warn("No facts found for tag")
-		return &ConsolidationReport{
-			Topic:             tag,
-			Summary:           fmt.Sprintf("No memories found for topic: %s", tag),
-			ConsolidatedFacts: []*ConsolidationFact{},
-			SourceFactCount:   0,
-			GeneratedAt:       time.Now(),
-		}, nil
-	}
-
-	logger.Info("Found facts for consolidation", "count", len(facts))
-
-	// Step 2: Prepare LLM input
-	factsContent := buildFactsContent(facts)
-	logger.Debug("Built facts content", "length", len(factsContent))
-
-	// Step 3: Run LLM consolidation
-	consolidationTools := []openai.ChatCompletionToolParam{consolidateMemoriesTool}
-
-	llmMessages := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(MemoryConsolidationPrompt),
-		openai.UserMessage(fmt.Sprintf("Topic: %s\n\nFacts to consolidate:\n%s", tag, factsContent)),
-	}
-
-	logger.Debug("Sending consolidation request to LLM", "facts_count", len(facts))
-
-	llmResponse, err := deps.CompletionsService.Completions(ctx, llmMessages, consolidationTools, deps.CompletionsModel)
-	if err != nil {
-		logger.Error("LLM consolidation failed", "error", err)
-		return nil, fmt.Errorf("LLM consolidation: %w", err)
-	}
-
-	logger.Debug("LLM consolidation completed", "tool_calls", len(llmResponse.ToolCalls))
-
-	// Step 4: Parse LLM response
-	sourceFactIDs := make([]string, len(facts))
-	for i, fact := range facts {
-		sourceFactIDs[i] = fact.ID
-	}
-
-	report, err := parseConsolidationResponse(llmResponse, sourceFactIDs)
-	if err != nil {
-		logger.Error("Failed to parse consolidation response", "error", err)
-		return nil, fmt.Errorf("parsing consolidation response: %w", err)
-	}
-
-	report.Topic = tag
 	logger.Info("Memory consolidation completed", "consolidated_facts", len(report.ConsolidatedFacts))
 
 	return report, nil
