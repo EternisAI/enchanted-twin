@@ -280,6 +280,49 @@ filter := &memory.Filter{
 result, err := storage.Query(ctx, "work discussions", filter)
 ```
 
+## Main App Integration 🔗
+
+The evolvingmemory package is **fully integrated** into the main application, providing seamless memory functionality:
+
+### Complete End-to-End Flow
+
+**Storage Side (Automatic Consolidation):**
+```go
+// User chats → conversation gets indexed via twinchat.IndexConversation()
+func (s *TwinChat) IndexConversation(ctx context.Context, convo *models.Conversation) error {
+    // Convert conversation to document
+    doc := &memory.ConversationDocument{...}
+    
+    // Store via enhanced memory service - consolidation happens automatically!
+    return s.memoryService.Store(ctx, []memory.Document{&doc}, nil)
+    // ✅ Facts extracted and stored
+    // ✅ Consolidation runs for all 20 canonical subjects  
+    // ✅ Consolidated insights stored with "consolidated" tags
+}
+```
+
+**Query Side (Always Intelligent):**
+```go
+// User asks questions → memory tool called via agent system
+// The memory tool automatically uses IntelligentQuery() - no legacy querying!
+
+func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (types.ToolResult, error) {
+    // Always use intelligent querying (no backward compatibility)
+    intelligentResult, err := t.MemoryStorage.IntelligentQuery(ctx, query, filter)
+    
+    // Results formatted with insights → evidence → context priority
+    return formatIntelligentResults(intelligentResult), nil
+}
+```
+
+### Integration Benefits
+
+- **Zero Configuration** - Consolidation and intelligent querying work automatically  
+- **Seamless UX** - Users get consolidated insights without knowing the complexity
+- **Performance** - Consolidation happens during storage, querying is pure vector search
+- **Quality** - LLM-synthesized insights prioritized over raw facts
+- **Traceability** - Full audit trail from insights back to source conversations
+
 ## Document Storage & References
 
 ### Overview
@@ -467,9 +510,9 @@ func GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentRef
 
 ## Intelligent Query System 🧠
 
-The memory system now features a **revolutionary 3-stage intelligent query system** that provides insights with evidence, not just search results.
+The memory system features a **revolutionary 3-stage intelligent query system** that provides insights with evidence, not just search results. **This is now the default and only querying method** - all memory queries automatically use intelligent querying.
 
-### 🎯 IntelligentQuery() - Consolidation-First Approach
+### 🎯 Always Intelligent - Consolidation-First Approach
 
 ```go
 // Execute intelligent 3-stage query
@@ -1200,15 +1243,16 @@ All existing APIs are preserved:
 
 ## Memory Consolidation System 🧠
 
-The evolvingmemory package includes a **standalone consolidation system** that synthesizes raw memory facts into high-quality consolidated insights.
+The evolvingmemory package includes a **fully integrated consolidation system** that automatically synthesizes raw memory facts into high-quality consolidated insights.
 
 ### Overview
 
-The consolidation system operates independently of the main storage pipeline, allowing for:
-- **Scheduled consolidation** - Run consolidation as a separate process
-- **Topic-based synthesis** - Consolidate memories around specific themes
-- **Quality enhancement** - Transform raw facts into coherent insights
-- **Export capabilities** - Generate JSON reports for analysis
+The consolidation system operates **automatically within the main storage pipeline**, providing:
+- **Automatic consolidation** - Consolidation runs automatically after facts are stored via `Store()`
+- **All canonical subjects** - Consolidates across all 20 semantic subjects from `ConsolidationSubjects`
+- **Zero configuration** - Works out-of-the-box with the main app, no separate processes needed
+- **Quality enhancement** - Transforms raw facts into coherent insights using advanced LLM processing
+- **Standalone capabilities** - Can also be run independently for analysis and exports
 
 ### Core Components
 
@@ -1229,7 +1273,34 @@ type ConsolidationFact struct {
 }
 ```
 
-### Usage Example
+### Automatic Consolidation (Integrated)
+
+The consolidation system **runs automatically** whenever facts are stored via the main `Store()` function:
+
+```go
+// Store documents - consolidation happens automatically!
+docs := []memory.Document{
+    &memory.ConversationDocument{...},
+    &memory.TextDocument{...},
+}
+
+err := storage.Store(ctx, docs, func(processed, total int) {
+    log.Printf("Progress: %d/%d", processed, total)
+})
+if err != nil {
+    log.Fatal("Failed to store documents:", err)
+}
+
+// After storage completes:
+// 1. ✅ Raw facts are stored
+// 2. ✅ Consolidation runs automatically for all 20 canonical subjects
+// 3. ✅ Consolidated insights are stored and tagged "consolidated"
+// 4. ✅ Ready for intelligent querying!
+```
+
+### Manual Consolidation (Standalone)
+
+For analysis and export purposes, you can also run consolidation manually:
 
 ```go
 // Set up consolidation dependencies
@@ -1240,13 +1311,13 @@ deps := ConsolidationDependencies{
     CompletionsModel:   "gpt-4",
 }
 
-// Consolidate memories by tag
-report, err := ConsolidateMemoriesByTag(ctx, "health", deps)
+// Consolidate memories by semantic subject
+report, err := ConsolidateMemoriesBySemantic(ctx, "Physical Health & Fitness", deps)
 if err != nil {
     log.Fatal("Consolidation failed:", err)
 }
 
-// Export results
+// Export results for analysis
 err = report.ExportJSON("health-consolidation-2025-01-15.json")
 if err != nil {
     log.Fatal("Export failed:", err)
@@ -1300,12 +1371,29 @@ if err != nil {
 
 ### Consolidation Flow
 
-1. **Fact Retrieval** - Fetch all facts tagged with the specified topic
-2. **LLM Processing** - Send facts to LLM with consolidation prompt
-3. **Synthesis** - LLM generates summary + consolidated facts
-4. **Source Tracking** - Link consolidated facts back to original sources
-5. **Report Generation** - Package results with metadata
-6. **Storage** - Persist consolidated facts back into memory system (optional)
+1. **Fact Retrieval** - Fetch all facts for the specified semantic subject using `fetchFactsBySemantic()`
+2. **LLM Processing** - Send facts to LLM with consolidation prompt using `processConsolidation()`
+3. **Fact Formatting** - Facts formatted with `buildFactsContent()` (structured format with categories, importance, sensitivity)
+4. **Synthesis** - LLM generates summary + consolidated facts
+5. **Source Tracking** - Link consolidated facts back to original sources  
+6. **Report Generation** - Package results with metadata
+7. **Storage** - Persist consolidated facts back into memory system via `StoreConsolidationReports()`
+
+### Active vs Deprecated Functions
+
+**✅ Currently Used (New System):**
+- `ConsolidateMemoriesBySemantic()` - Main consolidation function for semantic subjects
+- `processConsolidation()` - LLM processing with advanced prompts
+- `buildFactsContent()` - Structured fact formatting: `"1. [category] subject - attribute: value [importance, sensitivity]"`
+- `fetchFactsBySemantic()` - Retrieves facts by semantic subject
+- `StoreConsolidationReports()` - Batch storage of multiple consolidation reports
+
+**❌ Deprecated (Old System):**
+- `ConsolidateByTag()` - Replaced by semantic consolidation
+- `generateConsolidation()` - Replaced by `processConsolidation()`
+- `formatFactsForLLM()` - Replaced by `buildFactsContent()` (simple vs structured format)
+- `fetchFactsByTag()` / `fetchFactsByCategory()` - Replaced by semantic fetching
+- `StoreConsolidationReport()` (singular) - Replaced by plural version
 
 ### Architecture Benefits
 

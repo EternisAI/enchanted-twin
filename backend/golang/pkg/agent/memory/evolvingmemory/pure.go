@@ -9,68 +9,10 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
-	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
-
-// CreateMemoryObject builds the Weaviate object for ADD operations.
-func CreateMemoryObject(fact *memory.MemoryFact, source memory.Document) *models.Object {
-	// Get tags from the source document
-	tags := source.Tags()
-
-	// Get timestamp from source document
-	timestamp := time.Now()
-	if ts := source.Timestamp(); ts != nil && !ts.IsZero() {
-		timestamp = *ts
-	}
-
-	// Prepare properties with new direct fields
-	properties := map[string]interface{}{
-		"content":            fact.GenerateContent(),
-		"metadataJson":       "{}",
-		"timestamp":          timestamp.Format(time.RFC3339),
-		"tags":               tags,
-		"documentReferences": []string{},
-		// Store structured fact fields
-		"factCategory":    fact.Category,
-		"factSubject":     fact.Subject,
-		"factAttribute":   fact.Attribute,
-		"factValue":       fact.Value,
-		"factSensitivity": fact.Sensitivity,
-		"factImportance":  fact.Importance,
-	}
-
-	// Store temporal context if present
-	if fact.TemporalContext != nil {
-		properties["factTemporalContext"] = *fact.TemporalContext
-	}
-
-	// Extract and store source as direct field
-	if sourceField := source.Source(); sourceField != "" {
-		properties["source"] = sourceField
-	}
-
-	return &models.Object{
-		Class:      ClassName,
-		Properties: properties,
-	}
-}
-
-// CreateMemoryObjectWithDocumentReferences builds the Weaviate object with document references.
-func CreateMemoryObjectWithDocumentReferences(fact *memory.MemoryFact, source memory.Document, documentIDs []string) *models.Object {
-	obj := CreateMemoryObject(fact, source)
-
-	// Update with actual document references
-	props, ok := obj.Properties.(map[string]interface{})
-	if !ok {
-		return obj
-	}
-	props["documentReferences"] = documentIDs
-
-	return obj
-}
 
 // ExtractFactsFromDocument routes fact extraction based on document type.
 // This is pure business logic extracted from the adapter.
