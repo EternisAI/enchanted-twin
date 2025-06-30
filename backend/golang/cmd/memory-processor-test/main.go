@@ -283,6 +283,48 @@ func saveJSON(data interface{}, filename string) error {
 	return os.WriteFile(filename, jsonData, 0o644)
 }
 
+func exportConsolidationReportsJSONL(reports []*evolvingmemory.ConsolidationReport, filename string) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+		return err
+	}
+
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	for _, report := range reports {
+		if err := encoder.Encode(report); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func loadConsolidationReportsJSONL(filename string) ([]*evolvingmemory.ConsolidationReport, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var reports []*evolvingmemory.ConsolidationReport
+	decoder := json.NewDecoder(file)
+
+	for decoder.More() {
+		var report evolvingmemory.ConsolidationReport
+		if err := decoder.Decode(&report); err != nil {
+			return nil, err
+		}
+		reports = append(reports, &report)
+	}
+
+	return reports, nil
+}
+
 // Data source processors using polymorphic function.
 func runWhatsApp() {
 	runDataProcessor(
@@ -606,6 +648,100 @@ func runStore() {
 	logger.Info("Storage complete - ready for consolidation")
 }
 
+// 🔥 PARALLEL CONSOLIDATION WORKER POOL.
+func consolidateSubjectsParallel(ctx context.Context, subjects []string, consolidationDeps evolvingmemory.ConsolidationDependencies, numWorkers int) []*evolvingmemory.ConsolidationReport {
+	// Input channel for subjects
+	subjectChan := make(chan string, len(subjects))
+
+	// Results channel for consolidation reports
+	type consolidationResult struct {
+		report  *evolvingmemory.ConsolidationReport
+		subject string
+		err     error
+	}
+	resultChan := make(chan consolidationResult, len(subjects))
+
+	// Start workers
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+
+			for subject := range subjectChan {
+				start := time.Now()
+				logger.Debug("Processing consolidation subject", "worker", workerID, "subject", subject)
+
+				// Use semantic search with filtering for better results
+				filter := &memory.Filter{
+					Distance:          0.75,                                                  // Allow fairly broad semantic matches
+					Limit:             func() *int { limit := 30; return &limit }(),          // Reasonable limit
+					FactImportanceMin: func() *int { importance := 2; return &importance }(), // Only meaningful facts
+				}
+
+				report, err := evolvingmemory.ConsolidateMemoriesBySemantic(ctx, subject, filter, consolidationDeps)
+
+				duration := time.Since(start)
+				if err != nil {
+					logger.Error("Consolidation failed",
+						"worker", workerID,
+						"subject", subject,
+						"duration", duration,
+						"error", err)
+				} else {
+					logger.Info("Subject consolidation completed",
+						"worker", workerID,
+						"subject", subject,
+						"source_facts", report.SourceFactCount,
+						"consolidated_facts", len(report.ConsolidatedFacts),
+						"duration", duration)
+				}
+
+				resultChan <- consolidationResult{
+					report:  report,
+					subject: subject,
+					err:     err,
+				}
+			}
+		}(i)
+	}
+
+	// Send all subjects to workers
+	for _, subject := range subjects {
+		subjectChan <- subject
+	}
+	close(subjectChan)
+
+	// Close results channel when all workers are done
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Collect results with progress tracking
+	var allReports []*evolvingmemory.ConsolidationReport
+	processed := 0
+	totalSubjects := len(subjects)
+
+	for result := range resultChan {
+		processed++
+		if result.err == nil {
+			allReports = append(allReports, result.report)
+		}
+
+		// Progress logging every 5 subjects or at completion
+		if processed%5 == 0 || processed == totalSubjects {
+			logger.Info("Consolidation progress",
+				"processed", processed,
+				"total", totalSubjects,
+				"successful", len(allReports),
+				"percent", fmt.Sprintf("%.1f%%", float64(processed)/float64(totalSubjects)*100))
+		}
+	}
+
+	return allReports
+}
+
 func runConsolidation() {
 	logger.Info("Running comprehensive memory consolidation for all subjects")
 
@@ -713,54 +849,16 @@ func runConsolidation() {
 		CompletionsModel:   getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
 	}
 
-	logger.Info("Starting comprehensive consolidation", "subjects", len(evolvingmemory.ConsolidationSubjects))
+	logger.Info("Starting parallel comprehensive consolidation", "subjects", len(evolvingmemory.ConsolidationSubjects))
 
-	// Run consolidation for all 20 canonical subjects
-	var allReports []*evolvingmemory.ConsolidationReport
+	// Run consolidation for all 20 canonical subjects in parallel
+	numWorkers := 20 // One worker per subject for maximum parallelism
+	allReports := consolidateSubjectsParallel(ctx, evolvingmemory.ConsolidationSubjects[:], consolidationDeps, numWorkers)
 
-	for i, subject := range evolvingmemory.ConsolidationSubjects {
-		logger.Info("Processing consolidation subject",
-			"subject", subject,
-			"progress", fmt.Sprintf("%d/%d", i+1, len(evolvingmemory.ConsolidationSubjects)))
-
-		// Use semantic search with filtering for better results
-		filter := &memory.Filter{
-			Distance:          0.75,                                                  // Allow fairly broad semantic matches
-			Limit:             func() *int { limit := 30; return &limit }(),          // Reasonable limit
-			FactImportanceMin: func() *int { importance := 2; return &importance }(), // Only meaningful facts
-		}
-
-		report, err := evolvingmemory.ConsolidateMemoriesBySemantic(ctx, subject, filter, consolidationDeps)
-		if err != nil {
-			logger.Error("Semantic consolidation failed", "subject", subject, "error", err)
-			continue // Don't fail entire process for one subject
-		}
-
-		logger.Info("Subject consolidation completed",
-			"subject", subject,
-			"source_facts", report.SourceFactCount,
-			"consolidated_facts", len(report.ConsolidatedFacts))
-
-		allReports = append(allReports, report)
-	}
-
-	// Create comprehensive consolidation output
-	comprehensiveOutput := map[string]interface{}{
-		"consolidation_reports": allReports,
-		"metadata": map[string]interface{}{
-			"processed_at":       time.Now().Format(time.RFC3339),
-			"step":               "comprehensive_consolidation",
-			"total_subjects":     len(evolvingmemory.ConsolidationSubjects),
-			"successful_reports": len(allReports),
-			"completions_model":  getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
-			"consolidation_type": "semantic_search",
-		},
-	}
-
-	// Export comprehensive consolidation report
-	outputFile := "pipeline_output/X_3_consolidation_report.json"
-	if err := saveJSON(comprehensiveOutput, outputFile); err != nil {
-		logger.Error("Failed to export comprehensive consolidation report", "error", err)
+	// Export consolidation reports as JSONL (consistent with X_0, X_1, X_2 format)
+	outputFile := "pipeline_output/X_3_consolidation_reports.jsonl"
+	if err := exportConsolidationReportsJSONL(allReports, outputFile); err != nil {
+		logger.Error("Failed to export consolidation reports", "error", err)
 		os.Exit(1)
 	}
 
@@ -782,15 +880,15 @@ func runConsolidation() {
 func runStoreConsolidations() {
 	logger.Info("Storing consolidated facts in Weaviate database")
 
-	// Check if consolidation report exists
-	consolidationFile := "pipeline_output/X_3_consolidation_report.json"
+	// Check if consolidation reports exist (new JSONL format)
+	consolidationFile := "pipeline_output/X_3_consolidation_reports.jsonl"
 	if _, err := os.Stat(consolidationFile); os.IsNotExist(err) {
-		logger.Error("Consolidation report not found. Run 'make consolidation' first.", "file", consolidationFile)
+		logger.Error("Consolidation reports not found. Run 'make consolidation' first.", "file", consolidationFile)
 		os.Exit(1)
 	}
 
-	// Load consolidation reports using evolvingmemory package
-	reports, err := evolvingmemory.LoadConsolidationReportsFromJSON(consolidationFile)
+	// Load consolidation reports from JSONL format (consistent with pipeline)
+	reports, err := loadConsolidationReportsJSONL(consolidationFile)
 	if err != nil {
 		logger.Error("Failed to load consolidation reports", "error", err)
 		os.Exit(1)
@@ -812,7 +910,7 @@ func runStoreConsolidations() {
 		os.Exit(1)
 	}
 
-	// Calculate totals for status
+	// Calculate totals for logging
 	totalSourceFacts := 0
 	totalConsolidatedFacts := 0
 	for _, report := range reports {
@@ -820,31 +918,10 @@ func runStoreConsolidations() {
 		totalConsolidatedFacts += len(report.ConsolidatedFacts)
 	}
 
-	// Create storage status report
-	storageStatus := map[string]interface{}{
-		"stored_at":                time.Now().Format(time.RFC3339),
-		"step":                     "consolidation_storage",
-		"total_reports_processed":  len(reports),
-		"total_source_facts":       totalSourceFacts,
-		"total_consolidated_facts": totalConsolidatedFacts,
-		"storage_metadata": map[string]interface{}{
-			"embeddings_model": getEnvOrDefault("EMBEDDINGS_MODEL", "text-embedding-3-small"),
-			"weaviate_port":    getEnvOrDefault("WEAVIATE_PORT", "51414"),
-		},
-	}
-
-	// Export storage status
-	outputFile := "pipeline_output/X_4_consolidation_storage_status.json"
-	if err := saveJSON(storageStatus, outputFile); err != nil {
-		logger.Error("Failed to export storage status", "error", err)
-		os.Exit(1)
-	}
-
 	logger.Info("Consolidation storage completed",
 		"reports_processed", len(reports),
 		"total_source_facts", totalSourceFacts,
-		"total_consolidated_facts", totalConsolidatedFacts,
-		"output", outputFile)
+		"total_consolidated_facts", totalConsolidatedFacts)
 }
 
 func runQueryConsolidations() {
@@ -863,13 +940,6 @@ func runQueryConsolidations() {
 	}
 
 	logger.Info("Executing intelligent 3-stage query", "query", queryText)
-
-	// Check if consolidations are stored
-	statusFile := "pipeline_output/X_4_consolidation_storage_status.json"
-	if _, err := os.Stat(statusFile); os.IsNotExist(err) {
-		logger.Error("Consolidations not stored yet. Run 'make store-consolidations' first.", "file", statusFile)
-		os.Exit(1)
-	}
 
 	// Set up Weaviate infrastructure
 	infra, err := setupWeaviateMemoryInfrastructure()
