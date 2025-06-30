@@ -633,9 +633,6 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 	}
 
-	s.logger.Info("Executing agent with message history", "onboarding", isOnboarding)
-
-	// Create custom agent for onboarding with specific tools
 	agent := agent.NewAgent(
 		s.logger,
 		s.nc,
@@ -664,10 +661,6 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 		"Agent response for message history",
 		"content",
 		response.Content,
-		"tool_calls",
-		len(response.ToolCalls),
-		"tool_results",
-		len(response.ToolResults),
 	)
 
 	subject := fmt.Sprintf("chat.%s", chatID)
@@ -836,8 +829,6 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 		}
 	}
 
-	s.logger.Info("System prompt for history processing stream", "prompt", systemPrompt, "isOnboarding", isOnboarding)
-
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
 		messageHistory,
@@ -934,7 +925,7 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 			ImageUrls:  delta.ImageURLs,
 			Chunk:      delta.ContentDelta,
 			Role:       model.RoleAssistant,
-			IsComplete: delta.IsCompleted,
+			IsComplete: false, // Never send IsComplete true until all processing is done
 			CreatedAt:  &createdAt,
 		}
 
@@ -942,6 +933,7 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 		select {
 		case streamChan <- payload:
 		case <-ctx.Done():
+			s.logger.Debug("Context canceled in onDelta callback", "error", ctx.Err(), "message_id", assistantMessageId)
 			return
 		default:
 			s.logger.Warn("Stream channel full, dropping chunk")
@@ -954,8 +946,7 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 	// Start processing in a goroutine
 	go func() {
 		defer close(streamChan)
-
-		s.logger.Info("Executing agent with message history stream", "onboarding", isOnboarding)
+		s.logger.Debug("ProcessMessageHistoryStream goroutine started", "context_err", ctx.Err(), "chat_id", chatID)
 
 		// Create custom agent for onboarding with specific tools
 		agent := agent.NewAgent(
@@ -983,15 +974,7 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 			return
 		}
 
-		s.logger.Debug(
-			"Agent response for message history stream",
-			"content",
-			response.Content,
-			"tool_calls",
-			len(response.ToolCalls),
-			"tool_results",
-			len(response.ToolResults),
-		)
+		s.logger.Info("Agent response", "content", response.Content)
 
 		// Save the final assistant message to database
 		subject := fmt.Sprintf("chat.%s", chatID)
@@ -1081,9 +1064,10 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 		if err != nil {
 			s.logger.Error("failed to marshal assistant message for NATS", "error", err)
 		} else {
+			s.logger.Info("Publishing to NATS", "subject", subject)
 			err = s.nc.Publish(subject, assistantMessageJson)
 			if err != nil {
-				s.logger.Error("failed to publish assistant message to NATS", "error", err)
+				s.logger.Error("Failed to publish to NATS", "error", err)
 			}
 		}
 
@@ -1094,6 +1078,28 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 				s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
 			}
 		}()
+
+		// Send final completion signal after all processing is done
+		finalPayload := model.MessageStreamPayload{
+			MessageID:  assistantMessageId,
+			ImageUrls:  []string{},
+			Chunk:      "",
+			Role:       model.RoleAssistant,
+			IsComplete: true, // Now we're truly done
+			CreatedAt:  &createdAt,
+		}
+
+		select {
+		case streamChan <- finalPayload:
+			s.logger.Debug("Sent final completion signal", "message_id", assistantMessageId)
+		case <-ctx.Done():
+			s.logger.Debug("Context canceled before sending final completion", "error", ctx.Err())
+		default:
+			s.logger.Warn("Stream channel full, dropping final completion signal")
+		}
+
+		// Also publish final completion to NATS
+		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), finalPayload)
 	}()
 
 	return streamChan, nil
