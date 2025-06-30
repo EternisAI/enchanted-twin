@@ -55,5 +55,9 @@ export const EXPORT_INSTRUCTIONS: Record<string, ExportInstructions> = {
       '  • Check your email for ZIP file or extract conversations.json'
     ],
     link: 'https://chatgpt.com/#settings/DataControls'
+  },
+  Files: {
+    timeEstimate: '1-2 minutes',
+    steps: ['Upload your files', 'Select the files you want to import', 'Click "Import"']
   }
 }
