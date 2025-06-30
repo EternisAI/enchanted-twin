@@ -15,18 +15,24 @@ function getSphere(count, size, p = new THREE.Vector4()) {
 
 class SimulationMaterial extends THREE.ShaderMaterial {
   constructor() {
-    const positionsTexture = new THREE.DataTexture(getSphere(512 * 512, 128), 512, 512, THREE.RGBAFormat, THREE.FloatType)
+    const positionsTexture = new THREE.DataTexture(
+      getSphere(512 * 512, 128),
+      512,
+      512,
+      THREE.RGBAFormat,
+      THREE.FloatType
+    )
     positionsTexture.needsUpdate = true
 
     super({
-      vertexShader: /* glsl */`
+      vertexShader: /* glsl */ `
         varying vec2 vUv;
         void main() {
           vUv = uv;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
-      fragmentShader: /* glsl */`
+      fragmentShader: /* glsl */ `
         uniform sampler2D positions;
         uniform float uTime;
         uniform float uCurlFreq;

@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -99,7 +98,7 @@ type messageData struct {
 	MyMessage     bool      `json:"myMessage"`
 }
 
-func NewTelegramProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+func NewTelegramProcessor(store *db.Store, logger *log.Logger) (*TelegramProcessor, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store is nil")
 	}
@@ -165,7 +164,7 @@ func (s *TelegramProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 	return nil, false, fmt.Errorf("sync operation not supported for Telegram")
 }
 
-func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([]types.Record, error) {
+func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([]memory.ConversationDocument, error) {
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {
 		return nil, err
@@ -222,32 +221,10 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		return nil, err
 	}
 
-	estimatedRecords := len(telegramData.Contacts.List) + len(telegramData.Chats.List)
-	records := make([]types.Record, 0, estimatedRecords)
 	conversationMap := make(map[string]*conversationData)
 
-	for _, contact := range telegramData.Contacts.List {
-		timestamp, err := parseTimestamp(contact.Date, contact.DateUnixtime)
-		if err != nil {
-			s.logger.Warn("Failed to parse contact timestamp", "error", err)
-			continue
-		}
-
-		contactData := map[string]interface{}{
-			"type":        "contact",
-			"firstName":   contact.FirstName,
-			"lastName":    contact.LastName,
-			"phoneNumber": contact.PhoneNumber,
-		}
-
-		record := types.Record{
-			Data:      contactData,
-			Timestamp: timestamp,
-			Source:    s.Name(),
-		}
-
-		records = append(records, record)
-	}
+	// Skip contacts - they're noise for memory/fact extraction
+	s.logger.Info("Skipping contacts processing", "contactCount", len(telegramData.Contacts.List))
 
 	totalChats := len(telegramData.Chats.List)
 	s.logger.Info("Processing chats", "totalChats", totalChats)
@@ -407,6 +384,8 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 	// Use first name as user display name
 	userDisplayName := telegramData.PersonalInformation.FirstName
 
+	var documents []memory.ConversationDocument
+
 	for _, conv := range conversationMap {
 		var people []string
 		for person := range conv.people {
@@ -427,27 +406,36 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 			continue
 		}
 
-		conversationDataMap := map[string]interface{}{
-			"type":     "conversation",
-			"chatId":   conv.chatId,
-			"chatType": conv.chatType,
-			"chatName": conv.chatName,
-			"messages": conv.messages,
-			"people":   people,
-			"user":     userDisplayName,
+		// Create ConversationDocument directly
+		conversationDoc := memory.ConversationDocument{
+			FieldID:      conv.chatId,
+			FieldSource:  "telegram",
+			FieldTags:    []string{"social", "chat"},
+			People:       people,
+			User:         userDisplayName,
+			Conversation: make([]memory.ConversationMessage, 0, len(conv.messages)),
+			FieldMetadata: map[string]string{
+				"type":     "conversation",
+				"source":   "telegram",
+				"chatType": conv.chatType,
+				"chatName": conv.chatName,
+			},
 		}
 
-		record := types.Record{
-			Data:      conversationDataMap,
-			Timestamp: conv.firstMessage,
-			Source:    s.Name(),
+		// Convert messages directly
+		for _, msg := range conv.messages {
+			conversationDoc.Conversation = append(conversationDoc.Conversation, memory.ConversationMessage{
+				Speaker: msg.From,
+				Content: msg.Text,
+				Time:    msg.Timestamp,
+			})
 		}
 
-		records = append(records, record)
+		documents = append(documents, conversationDoc)
 	}
 
-	s.logger.Info("Processing completed", "totalRecords", len(records))
-	return records, nil
+	s.logger.Info("Processing completed", "totalDocuments", len(documents))
+	return documents, nil
 }
 
 func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
@@ -571,55 +559,7 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 			documents = append(documents, conversationDoc)
 		}
 
-		if record.Data["type"] == "contact" {
-			firstName, ok := record.Data["firstName"].(string)
-			if !ok {
-				firstName = ""
-			}
-			lastName, ok := record.Data["lastName"].(string)
-			if !ok {
-				lastName = ""
-			}
-			phoneNumber, ok := record.Data["phoneNumber"].(string)
-			if !ok {
-				phoneNumber = ""
-			}
-
-			// Create more descriptive content that clearly indicates this is contact information
-			fullName := strings.TrimSpace(firstName + " " + lastName)
-			contactContent := fmt.Sprintf("CONTACT ENTRY: %s", fullName)
-			if phoneNumber != "" {
-				contactContent += fmt.Sprintf(" (Phone: %s)", phoneNumber)
-			}
-			contactContent += " - This is a contact from the user's Telegram contact list, not information about the primary user."
-
-			// Generate a unique ID for the contact
-			contactID := fmt.Sprintf("telegram-contact-%s", phoneNumber)
-			if phoneNumber == "" {
-				// Fallback to name-based ID if no phone number
-				contactID = fmt.Sprintf("telegram-contact-%s", strings.ReplaceAll(fullName, " ", "-"))
-			}
-
-			textDoc := &memory.TextDocument{
-				FieldID:        contactID,
-				FieldSource:    "telegram",
-				FieldContent:   contactContent,
-				FieldTimestamp: &record.Timestamp,
-				FieldTags:      []string{"social", "contact", "contact_list"},
-				FieldMetadata: map[string]string{
-					"type":                "contact",
-					"document_type":       "contact_entry",
-					"data_category":       "contact_list",
-					"is_primary_user":     "false",
-					"contact_source":      "telegram_contacts",
-					"firstName":           firstName,
-					"lastName":            lastName,
-					"phoneNumber":         phoneNumber,
-					"extraction_guidance": "This is contact list data - extract relationship facts only, never facts about primaryUser",
-				},
-			}
-			documents = append(documents, textDoc)
-		}
+		// Skip contact processing - contacts are now filtered out during record creation
 	}
 
 	return documents, nil

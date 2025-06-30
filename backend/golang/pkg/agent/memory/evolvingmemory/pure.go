@@ -247,6 +247,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 		for factIdx := range args.Facts {
 			memoryFact := &args.Facts[factIdx]
+			memoryFact.Source = sourceDoc.Source()
 			logger.Debug("Conversation Fact",
 				"index", factIdx+1,
 				"category", memoryFact.Category,
@@ -254,7 +255,8 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 				"attribute", memoryFact.Attribute,
 				"value", memoryFact.Value,
 				"importance", memoryFact.Importance,
-				"sensitivity", memoryFact.Sensitivity)
+				"sensitivity", memoryFact.Sensitivity,
+				"source", memoryFact.Source)
 
 			extractedFacts = append(extractedFacts, memoryFact)
 		}
@@ -334,6 +336,10 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 
 		for factIdx := range args.Facts {
 			memoryFact := &args.Facts[factIdx]
+
+			// FIX: Set the Source field from the source document
+			memoryFact.Source = sourceDoc.Source()
+
 			logger.Debug("Text Document Fact",
 				"index", factIdx+1,
 				"category", memoryFact.Category,
@@ -341,7 +347,8 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 				"attribute", memoryFact.Attribute,
 				"value", memoryFact.Value,
 				"importance", memoryFact.Importance,
-				"sensitivity", memoryFact.Sensitivity)
+				"sensitivity", memoryFact.Sensitivity,
+				"source", memoryFact.Source)
 
 			extractedFacts = append(extractedFacts, memoryFact)
 		}
