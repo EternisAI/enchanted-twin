@@ -315,9 +315,9 @@ make query QUERY="category theory"
   3. primaryUser - regularly teaches advanced mathematical concepts like category theory
 
 📋 Supporting Evidence (first 3):
-  1. David Spivak - discussed potential involvement in category theory platform project
-  2. Dmitry Vagner - receives academic advice regarding research focus and teaching
-  3. sub@cs.cmu.edu - discussed renaming 'applied category theory' to 'categorical design'
+  1. ***** - discussed potential involvement in category theory platform project
+  2. ***** - receives academic advice regarding research focus and teaching
+  3. ***** - discussed renaming 'applied category theory' to 'categorical design'
 
 💾 Results saved to: pipeline_output/X_5_query_results_1750867953.json
 ```

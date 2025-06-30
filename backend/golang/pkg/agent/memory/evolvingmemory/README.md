@@ -531,12 +531,12 @@ Query: `"category theory"` → 117 total results organized intelligently:
   3. primaryUser - regularly teaches advanced mathematical concepts like category theory
 
 📋 Supporting Evidence:
-  1. David Spivak - discussed potential involvement in category theory platform project
-  2. Dmitry Vagner - receives academic advice regarding research focus and teaching
+  1. ***** - discussed potential involvement in category theory platform project
+  2. ***** - receives academic advice regarding research focus and teaching
 
 📄 Additional Context:
-  1. sub@cs.cmu.edu - discussed renaming 'applied category theory' to 'categorical design'
-  2. Dmitry Vagner - discussed analogies between internal and enriched categories
+  1. ***** - discussed renaming 'applied category theory' to 'categorical design'
+  2. ***** - discussed analogies between internal and enriched categories
 ```
 
 ### 🎯 Key Benefits
