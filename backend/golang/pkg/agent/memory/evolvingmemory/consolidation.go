@@ -339,45 +339,6 @@ func buildFactsContent(facts []*memory.MemoryFact) string {
 	return builder.String()
 }
 
-// LoadConsolidationReportsFromJSON loads consolidation reports from a comprehensive consolidation JSON file.
-// This handles the format created by the test suite's comprehensive consolidation process.
-func LoadConsolidationReportsFromJSON(filepath string) ([]*ConsolidationReport, error) {
-	data, err := os.ReadFile(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("reading file: %w", err)
-	}
-
-	// Parse the comprehensive consolidation format
-	var comprehensiveData map[string]interface{}
-	if err := json.Unmarshal(data, &comprehensiveData); err != nil {
-		return nil, fmt.Errorf("parsing JSON: %w", err)
-	}
-
-	// Extract consolidation reports
-	reportsData, ok := comprehensiveData["consolidation_reports"].([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid format: missing consolidation_reports field")
-	}
-
-	var reports []*ConsolidationReport
-	for i, reportData := range reportsData {
-		// Convert to JSON and parse as ConsolidationReport
-		reportJSON, err := json.Marshal(reportData)
-		if err != nil {
-			return nil, fmt.Errorf("marshaling report %d: %w", i, err)
-		}
-
-		var report ConsolidationReport
-		if err := json.Unmarshal(reportJSON, &report); err != nil {
-			return nil, fmt.Errorf("unmarshaling report %d: %w", i, err)
-		}
-
-		reports = append(reports, &report)
-	}
-
-	return reports, nil
-}
-
 // deterministicID generates a stable UUID5 from originalID for valid Weaviate IDs
 // This matches exactly what storage.go does to avoid UUID validation errors.
 func deterministicID(originalID string) string {
