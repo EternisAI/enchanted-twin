@@ -200,7 +200,7 @@ query-consolidations:
 		exit 1; \
 	fi
 	@go run . query-consolidations
-	@echo "✅ Query comparison completed: $(OUTPUT_DIR)/X_5_consolidation_query_results.json"
+	@echo "✅ Query comparison completed: $(OUTPUT_DIR)/X_4_consolidation_query_results.json"
 
 # Query consolidated facts with custom query (Vector search)
 query:
@@ -311,7 +311,7 @@ status:
 	@if [ -f "$(OUTPUT_DIR)/X_1_chunked_documents.json" ]; then echo "✅ X_1 chunks ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_2_extracted_facts.json" ]; then echo "✅ X_2 facts ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_3_consolidation_reports.jsonl" ]; then echo "✅ X_3 consolidation reports ready"; fi
-	@if [ -f "$(OUTPUT_DIR)/X_5_consolidation_query_results.json" ]; then echo "✅ X_5 consolidation query testing completed"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_4_query_results_*.json" ]; then echo "✅ X_4 query results available"; fi
 
 # Help
 help:

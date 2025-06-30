@@ -995,7 +995,7 @@ func runQueryConsolidations() {
 	}
 
 	// Export query results
-	outputFile := fmt.Sprintf("pipeline_output/X_5_query_results_%d.json", time.Now().Unix())
+	outputFile := fmt.Sprintf("pipeline_output/X_4_query_results_%d.json", time.Now().Unix())
 	if err := saveJSON(queryResult, outputFile); err != nil {
 		logger.Error("Failed to export query results", "error", err)
 		os.Exit(1)
