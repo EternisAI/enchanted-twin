@@ -339,13 +339,9 @@ func (env *testEnvironment) LoadDocuments(t *testing.T, source, inputPath string
 	isConversationProcessor := sourceType == "telegram" || sourceType == "whatsapp" || sourceType == "gmail" || sourceType == "chatgpt"
 
 	if isConversationProcessor {
-		// Load ConversationDocuments directly from JSON array
-		var conversationDocs []memory.ConversationDocument
-		fileContent, err := os.ReadFile(env.config.OutputPath)
-		require.NoError(t, err)
-
-		err = json.Unmarshal(fileContent, &conversationDocs)
-		require.NoError(t, err, "Failed to parse ConversationDocuments JSON array")
+		// Load ConversationDocuments from JSONL format using helper
+		conversationDocs, err := memory.LoadConversationDocumentsFromJSON(env.config.OutputPath)
+		require.NoError(t, err, "Failed to parse ConversationDocuments JSONL")
 
 		// Convert to Document interface
 		env.documents = make([]memory.Document, len(conversationDocs))
@@ -353,7 +349,7 @@ func (env *testEnvironment) LoadDocuments(t *testing.T, source, inputPath string
 			env.documents[i] = &conversationDocs[i]
 		}
 
-		env.logger.Info("Loaded ConversationDocuments directly from JSON", "count", len(env.documents))
+		env.logger.Info("Loaded ConversationDocuments from JSONL", "count", len(env.documents))
 	} else {
 		// Legacy path for processors that still use records
 		fileContent, err := os.ReadFile(env.config.OutputPath)
