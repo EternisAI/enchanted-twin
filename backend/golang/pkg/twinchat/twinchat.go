@@ -925,7 +925,7 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 			ImageUrls:  delta.ImageURLs,
 			Chunk:      delta.ContentDelta,
 			Role:       model.RoleAssistant,
-			IsComplete: false, 
+			IsComplete: false,
 			CreatedAt:  &createdAt,
 		}
 
