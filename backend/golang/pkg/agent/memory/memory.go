@@ -185,33 +185,104 @@ func (cd *ConversationDocument) Source() string {
 	return cd.FieldSource
 }
 
-// LoadConversationDocumentsFromJSON loads ConversationDocuments from JSON array file.
+// LoadConversationDocumentsFromJSON loads ConversationDocuments from JSONL file.
 func LoadConversationDocumentsFromJSON(filepath string) ([]ConversationDocument, error) {
-	data, err := os.ReadFile(filepath)
+	file, err := os.Open(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read JSON file: %w", err)
+		return nil, fmt.Errorf("failed to open JSONL file: %w", err)
 	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log the close error but don't override the main error
+			fmt.Printf("Error closing file: %v\n", closeErr)
+		}
+	}()
 
 	var documents []ConversationDocument
-	if err := json.Unmarshal(data, &documents); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+	decoder := json.NewDecoder(file)
+
+	for decoder.More() {
+		var doc ConversationDocument
+		if err := decoder.Decode(&doc); err != nil {
+			return nil, fmt.Errorf("failed to decode ConversationDocument from JSONL: %w", err)
+		}
+		documents = append(documents, doc)
 	}
 
 	return documents, nil
 }
 
-// ExportConversationDocumentsJSON saves a slice of ConversationDocuments as pretty JSON.
+// ExportConversationDocumentsJSON saves a slice of ConversationDocuments as JSONL format.
 func ExportConversationDocumentsJSON(documents []ConversationDocument, filepath string) error {
-	data, err := json.MarshalIndent(documents, "", "  ")
+	file, err := os.Create(filepath)
 	if err != nil {
-		return fmt.Errorf("failed to marshal ConversationDocuments: %w", err)
+		return fmt.Errorf("failed to create JSONL file: %w", err)
 	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log the close error but don't override the main error
+			fmt.Printf("Error closing file: %v\n", closeErr)
+		}
+	}()
 
-	if err := os.WriteFile(filepath, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write JSON file: %w", err)
+	encoder := json.NewEncoder(file)
+	for _, doc := range documents {
+		if err := encoder.Encode(doc); err != nil {
+			return fmt.Errorf("failed to encode ConversationDocument to JSONL: %w", err)
+		}
 	}
 
 	return nil
+}
+
+// ExportMemoryFactsJSON saves a slice of MemoryFacts as JSONL format.
+func ExportMemoryFactsJSON(facts []MemoryFact, filepath string) error {
+	file, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to create JSONL file: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log the close error but don't override the main error
+			fmt.Printf("Error closing file: %v\n", closeErr)
+		}
+	}()
+
+	encoder := json.NewEncoder(file)
+	for _, fact := range facts {
+		if err := encoder.Encode(fact); err != nil {
+			return fmt.Errorf("failed to encode MemoryFact to JSONL: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// LoadMemoryFactsFromJSON loads MemoryFacts from JSONL file.
+func LoadMemoryFactsFromJSON(filepath string) ([]MemoryFact, error) {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open JSONL file: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log the close error but don't override the main error
+			fmt.Printf("Error closing file: %v\n", closeErr)
+		}
+	}()
+
+	var facts []MemoryFact
+	decoder := json.NewDecoder(file)
+
+	for decoder.More() {
+		var fact MemoryFact
+		if err := decoder.Decode(&fact); err != nil {
+			return nil, fmt.Errorf("failed to decode MemoryFact from JSONL: %w", err)
+		}
+		facts = append(facts, fact)
+	}
+
+	return facts, nil
 }
 
 // Chunk implements intelligent conversation chunking.
@@ -714,6 +785,15 @@ func (tf *TagsFilter) IsEmpty() bool {
 func (mf *MemoryFact) GenerateContent() string {
 	// Simple combination for embeddings and search
 	return fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
+}
+
+// GenerateContentForLLM creates rich content with timestamp for LLM consumption.
+func (mf *MemoryFact) GenerateContentForLLM() string {
+	content := fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
+	if !mf.Timestamp.IsZero() {
+		content += fmt.Sprintf(" [%s]", mf.Timestamp.Format("Jan 2006"))
+	}
+	return content
 }
 
 // IsLeaf returns true if this is a leaf node (has tags).

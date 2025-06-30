@@ -94,7 +94,7 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 			i+1,
 			fact.ID,
 			fact.Subject,
-			fact.Content,
+			fact.GenerateContentForLLM(),
 			fact.Source,
 			fact.Timestamp.Format("2006-01-02 15:04:05"),
 			docRefs,
