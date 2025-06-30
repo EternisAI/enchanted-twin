@@ -55,6 +55,15 @@ func (m *MockStorage) Query(ctx context.Context, queryText string, filter *memor
 	return result, args.Error(1)
 }
 
+func (m *MockStorage) QueryDocuments(ctx context.Context, filter *memory.Filter) (memory.DocumentQueryResult, error) {
+	args := m.Called(ctx, filter)
+	if args.Get(0) == nil {
+		return memory.DocumentQueryResult{}, args.Error(1)
+	}
+	result, _ := args.Get(0).(memory.DocumentQueryResult)
+	return result, args.Error(1)
+}
+
 func (m *MockStorage) EnsureSchemaExists(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)

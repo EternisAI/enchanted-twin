@@ -248,6 +248,30 @@ func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memor
 	return s.storage.Query(ctx, queryText, filter)
 }
 
+// QueryDocuments implements the memory.Storage interface for document querying.
+func (s *StorageImpl) QueryDocuments(ctx context.Context, filter *memory.Filter) (memory.DocumentQueryResult, error) {
+	// Validate filter
+	if filter != nil {
+		if err := filter.Validate(); err != nil {
+			return memory.DocumentQueryResult{}, fmt.Errorf("invalid filter: %w", err)
+		}
+		
+		// Migrate legacy fields for backward compatibility
+		filter.MigrateFromLegacy()
+	}
+	
+	// Log query complexity for monitoring
+	if filter != nil {
+		complexity, suggestions := filter.AnalyzeFilterComplexity()
+		if complexity > 5 {
+			s.logger.Warnf("High complexity document query (score: %d). Suggestions: %v", complexity, suggestions)
+		}
+	}
+	
+	// Delegate to underlying storage implementation
+	return s.storage.QueryDocuments(ctx, filter)
+}
+
 // GetDocumentReferences retrieves all document references for a memory.
 func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
 	return s.storage.GetDocumentReferences(ctx, memoryID)
