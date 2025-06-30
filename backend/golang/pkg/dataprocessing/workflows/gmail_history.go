@@ -2,9 +2,7 @@ package workflows
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/pkg/errors"
@@ -12,7 +10,6 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
@@ -143,95 +140,8 @@ func (w *DataProcessingWorkflows) GmailFetchHistoryActivity(
 		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for Google")
 	}
 
-	records, more, token, err := gmail.SyncWithDateRange(ctx, tokens.AccessToken, input.StartDate, input.EndDate, 50, input.NextPageToken)
-	if err != nil {
-		return GmailHistoryFetchActivityResponse{}, err
-	}
-
-	trimmedRecords, err := ensureRecordsUnderSizeLimit(records)
-	if err != nil {
-		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("failed to process records size: %w", err)
-	}
-
-	if len(trimmedRecords) < len(records) {
-		w.Logger.Info("Trimmed oversized records payload",
-			"original_count", len(records),
-			"trimmed_count", len(trimmedRecords))
-	}
-
-	return GmailHistoryFetchActivityResponse{Records: trimmedRecords, NextPageToken: token, More: more}, nil
-}
-
-// Ensures that the records payload is under the Temporal size limit.
-func ensureRecordsUnderSizeLimit(records []types.Record) ([]types.Record, error) {
-	if len(records) == 0 {
-		return records, nil
-	}
-
-	totalSize, recordSizes, err := calculateRecordsSize(records)
-	if err != nil {
-		return nil, err
-	}
-
-	if totalSize <= MaxTemporalInputSizeBytes {
-		return records, nil
-	}
-
-	type recordWithSize struct {
-		record types.Record
-		size   int
-		index  int
-	}
-
-	recordsWithSize := make([]recordWithSize, len(records))
-	for i, size := range recordSizes {
-		recordsWithSize[i] = recordWithSize{
-			record: records[i],
-			size:   size,
-			index:  i,
-		}
-	}
-
-	sort.Slice(recordsWithSize, func(i, j int) bool {
-		return recordsWithSize[i].size > recordsWithSize[j].size
-	})
-
-	resultRecords := make([]types.Record, len(records))
-	copy(resultRecords, records)
-
-	for i := 0; totalSize > MaxTemporalInputSizeBytes && i < len(recordsWithSize); i++ {
-		idx := recordsWithSize[i].index
-		totalSize -= recordsWithSize[i].size
-
-		resultRecords[idx] = types.Record{}
-	}
-
-	filteredRecords := make([]types.Record, 0, len(resultRecords))
-	for _, r := range resultRecords {
-		if r.Source != "" || r.Timestamp != (time.Time{}) || len(r.Data) > 0 {
-			filteredRecords = append(filteredRecords, r)
-		}
-	}
-
-	return filteredRecords, nil
-}
-
-func calculateRecordsSize(records []types.Record) (int, []int, error) {
-	totalSize := 0
-	recordSizes := make([]int, len(records))
-
-	for i, record := range records {
-		data, err := json.Marshal(record)
-		if err != nil {
-			return 0, nil, fmt.Errorf("failed to marshal record for size calculation: %w", err)
-		}
-
-		size := len(data)
-		recordSizes[i] = size
-		totalSize += size
-	}
-
-	return totalSize, recordSizes, nil
+	// Gmail no longer supports SyncWithDateRange - needs to be updated to new interface
+	return GmailHistoryFetchActivityResponse{}, fmt.Errorf("gmail processor has been upgraded to new DocumentProcessor interface - workflow needs updating")
 }
 
 type GmailHistoryIndexActivityInput struct {

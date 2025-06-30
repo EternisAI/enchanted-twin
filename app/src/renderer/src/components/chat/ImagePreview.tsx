@@ -28,7 +28,7 @@ export default function ImagePreview({ src, alt, thumbClassName, className }: Im
         <VisuallyHidden>
           <DialogDescription>Preview of the selected image</DialogDescription>
         </VisuallyHidden>
-        <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
           <img src={src} alt={alt} className="object-contain rounded-xl" />
         </div>
       </DialogContent>

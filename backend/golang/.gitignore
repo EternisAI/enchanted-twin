@@ -11,5 +11,8 @@ postgres-data/*
 data/*
 weaviate-test-memory/*
 
+**/pipeline_input/*
+**/pipeline_output/*
+
 # Personality testing framework reports
 pkg/testing/personalities/testdata/reports/

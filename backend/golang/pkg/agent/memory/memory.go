@@ -3,7 +3,9 @@ package memory
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -181,6 +183,35 @@ func (cd *ConversationDocument) Metadata() map[string]string {
 
 func (cd *ConversationDocument) Source() string {
 	return cd.FieldSource
+}
+
+// LoadConversationDocumentsFromJSON loads ConversationDocuments from JSON array file.
+func LoadConversationDocumentsFromJSON(filepath string) ([]ConversationDocument, error) {
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read JSON file: %w", err)
+	}
+
+	var documents []ConversationDocument
+	if err := json.Unmarshal(data, &documents); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+	}
+
+	return documents, nil
+}
+
+// ExportConversationDocumentsJSON saves a slice of ConversationDocuments as pretty JSON.
+func ExportConversationDocumentsJSON(documents []ConversationDocument, filepath string) error {
+	data, err := json.MarshalIndent(documents, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal ConversationDocuments: %w", err)
+	}
+
+	if err := os.WriteFile(filepath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write JSON file: %w", err)
+	}
+
+	return nil
 }
 
 // Chunk implements intelligent conversation chunking.
