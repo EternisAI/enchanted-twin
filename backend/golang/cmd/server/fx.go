@@ -472,8 +472,7 @@ type graphqlServerInput struct {
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
 	holonService           *holon.Service
-	whatsAppQRCode         *string
-	whatsAppConnected      bool
+	whatsappService        *whatsapp.Service
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -496,8 +495,8 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 		TelegramService:        input.telegramService,
 		HolonService:           input.holonService,
-		WhatsAppQRCode:         input.whatsAppQRCode,
-		WhatsAppConnected:      input.whatsAppConnected,
+		WhatsAppQRCode:         input.whatsappService.GetCurrentQRCode(),
+		WhatsAppConnected:      input.whatsappService.IsConnected(),
 	}
 
 	srv := handler.New(gqlSchema(resolver))
@@ -567,18 +566,17 @@ func NewGraphQLRouter(
 	whatsappService *whatsapp.Service,
 ) *chi.Mux {
 	return bootstrapGraphqlServer(graphqlServerInput{
-		logger:            logger,
-		temporalClient:    temporalClient,
-		port:              cfg.GraphqlPort,
-		twinChatService:   *twinChatService,
-		natsClient:        nc,
-		store:             store,
-		aiService:         aiServices.Completions,
-		mcpService:        mcpService,
-		telegramService:   telegramService,
-		holonService:      holonService,
-		whatsAppQRCode:    whatsappService.GetCurrentQRCode(),
-		whatsAppConnected: whatsappService.IsConnected(),
+		logger:          logger,
+		temporalClient:  temporalClient,
+		port:            cfg.GraphqlPort,
+		twinChatService: *twinChatService,
+		natsClient:      nc,
+		store:           store,
+		aiService:       aiServices.Completions,
+		mcpService:      mcpService,
+		telegramService: telegramService,
+		holonService:    holonService,
+		whatsappService: whatsappService,
 	})
 }
 
