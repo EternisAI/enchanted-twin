@@ -96,7 +96,7 @@ type PersonalityExtension struct {
 
 // ReferencePersonality represents a complete personality profile for testing.
 type ReferencePersonality struct {
-	BasePersonality                  // Embed BasePersonality to inherit its fields
+	BasePersonality                      // Embed BasePersonality to inherit its fields
 	ExpectedBehaviors []ExpectedBehavior `json:"expected_behaviors"`
 }
 
