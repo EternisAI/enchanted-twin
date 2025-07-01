@@ -1,0 +1,149 @@
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import {
+  User,
+  onAuthStateChanged,
+  signOut as firebaseSignOut,
+  GoogleAuthProvider,
+  signInWithCredential
+} from 'firebase/auth'
+import { auth, firebaseConfig } from '@renderer/lib/firebase'
+
+interface AuthContextType {
+  user: User | null
+  loading: boolean
+  signOut: () => Promise<void>
+  signInWithGoogle: () => Promise<void>
+  authError: string | null
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [authError, setAuthError] = useState<string | null>(null)
+
+  console.log('AuthProvider', user)
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('[Auth] Firebase auth state changed:', user ? user.email : 'null')
+      setUser(user)
+      setLoading(false)
+    })
+
+    return unsubscribe
+  }, [])
+
+  // Listen for Firebase auth success from main process
+  useEffect(() => {
+    console.log('[Auth] Setting up IPC listeners')
+
+    const handleFirebaseAuthSuccess = async (
+      _event: unknown,
+      userData: {
+        uid: string
+        email: string
+        displayName: string
+        photoURL: string
+        accessToken: string
+        idToken: string
+      }
+    ) => {
+      console.log('[Auth] ✅ Received Firebase auth success from main process:', userData?.email)
+      console.log('[Auth] 🔍 Full userData object:', userData)
+      setAuthError(null)
+      setLoading(false)
+
+      try {
+        const credential = GoogleAuthProvider.credential(userData.idToken, userData.accessToken)
+        const userCredential = await signInWithCredential(auth, credential)
+        console.log('[Auth] ✅ Successfully signed in to Firebase:', userCredential.user.email)
+        localStorage.setItem('enchanted_user_data', JSON.stringify(userData))
+        console.log('[Auth] ✅ Stored user data in localStorage')
+      } catch (error) {
+        console.error('[Auth] ❌ Failed to sign in with Google credential:', error)
+        setAuthError(error instanceof Error ? error.message : 'Authentication failed')
+      }
+    }
+
+    const handleFirebaseAuthError = (_event: unknown, errorData: { error: string }) => {
+      console.error('[Auth] ❌ Received Firebase auth error from main process:', errorData)
+      setAuthError(errorData.error)
+      setLoading(false)
+      window.electron.ipcRenderer.invoke('cleanup-oauth-server')
+    }
+
+    console.log('[Auth] Adding IPC listeners for firebase-auth-success and firebase-auth-error')
+    window.electron.ipcRenderer.on('firebase-auth-success', handleFirebaseAuthSuccess)
+    window.electron.ipcRenderer.on('firebase-auth-error', handleFirebaseAuthError)
+
+    return () => {
+      console.log('[Auth] Cleaning up IPC listeners')
+    }
+  }, [])
+
+  const signInWithGoogle = async () => {
+    console.log('[Auth]  Starting Google sign-in flow')
+    setAuthError(null)
+    setLoading(true)
+
+    try {
+      console.log('[Auth]  Invoking start-firebase-oauth')
+      const result = (await window.electron.ipcRenderer.invoke(
+        'start-firebase-oauth',
+        firebaseConfig
+      )) as unknown as {
+        success: boolean
+        loginUrl?: string
+        error?: string
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to start OAuth server')
+      }
+
+      console.log(
+        '[Auth]  Firebase OAuth server started successfully, waiting for auth callback...'
+      )
+      // The authentication flow will continue through IPC events -  wait for the IPC callback
+    } catch (error) {
+      console.error('[Auth]  Failed to start Google sign-in:', error)
+      setAuthError(error instanceof Error ? error.message : 'Failed to start authentication')
+      setLoading(false)
+    }
+  }
+
+  const signOut = async () => {
+    try {
+      await firebaseSignOut(auth)
+      localStorage.removeItem('enchanted_user_data')
+      await window.electron.ipcRenderer.invoke('cleanup-oauth-server')
+    } catch (error) {
+      console.error('Error signing out:', error)
+      throw error
+    }
+  }
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        signOut,
+        signInWithGoogle,
+        authError
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}

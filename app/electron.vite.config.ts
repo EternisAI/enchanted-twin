@@ -61,7 +61,14 @@ export default defineConfig(({ mode }) => {
         }
       },
       define: {
-        __APP_ENV__: JSON.stringify(env)
+        __APP_ENV__: JSON.stringify(env),
+        // Define process.env object for renderer
+        'process.env': JSON.stringify({
+          NODE_ENV: process.env.NODE_ENV,
+          ...Object.fromEntries(
+            Object.entries(env).filter(([key]) => key.startsWith('NEXT_PUBLIC_'))
+          )
+        })
       },
       plugins: [
         TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),

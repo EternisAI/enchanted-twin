@@ -3,7 +3,7 @@ import log from 'electron-log/main'
 import path from 'path'
 import fs from 'fs'
 import { windowManager } from './windows'
-import { openOAuthWindow } from './oauthHandler'
+import { openOAuthWindow, startFirebaseOAuth, cleanupOAuthServer } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
 // import { getKokoroState } from './kokoroManager'
 import {
@@ -26,6 +26,35 @@ export function registerIpcHandlers() {
   ipcMain.on('open-oauth-url', async (_, url, redirectUri) => {
     console.log('[Main] Opening OAuth window for:', url, 'with redirect:', redirectUri)
     openOAuthWindow(url, redirectUri)
+  })
+
+  ipcMain.handle('start-firebase-oauth', async (_, firebaseConfig) => {
+    try {
+      log.info('[Main] Starting Firebase OAuth server with config:', {
+        apiKey: firebaseConfig.apiKey ? '***' : 'missing',
+        authDomain: firebaseConfig.authDomain || 'missing',
+        projectId: firebaseConfig.projectId || 'missing'
+      })
+
+      const loginUrl = await startFirebaseOAuth(firebaseConfig)
+      log.info(`[Main] Firebase OAuth server started at: ${loginUrl}`)
+      await shell.openExternal(loginUrl)
+      return { success: true, loginUrl }
+    } catch (error) {
+      log.error('[Main] Failed to start Firebase OAuth server:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('cleanup-oauth-server', async () => {
+    try {
+      log.info('[Main] Cleaning up OAuth server')
+      cleanupOAuthServer()
+      return { success: true }
+    } catch (error) {
+      log.error('[Main] Failed to cleanup OAuth server:', error)
+      return { success: false, error: error.message }
+    }
   })
 
   ipcMain.handle('get-native-theme', () => {
