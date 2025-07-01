@@ -14,6 +14,7 @@ import { Route as rootRoute } from './routes/__root'
 import { Route as TasksImport } from './routes/tasks'
 import { Route as SettingsImport } from './routes/settings'
 import { Route as OnboardingImport } from './routes/onboarding'
+import { Route as OmnibarOverlayImport } from './routes/omnibar-overlay'
 import { Route as AdminImport } from './routes/admin'
 import { Route as IndexImport } from './routes/index'
 import { Route as HolonIndexImport } from './routes/holon/index'
@@ -43,6 +44,12 @@ const SettingsRoute = SettingsImport.update({
 const OnboardingRoute = OnboardingImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRoute
+} as any)
+
+const OmnibarOverlayRoute = OmnibarOverlayImport.update({
+  id: '/omnibar-overlay',
+  path: '/omnibar-overlay',
   getParentRoute: () => rootRoute
 } as any)
 
@@ -128,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminImport
+      parentRoute: typeof rootRoute
+    }
+    '/omnibar-overlay': {
+      id: '/omnibar-overlay'
+      path: '/omnibar-overlay'
+      fullPath: '/omnibar-overlay'
+      preLoaderRoute: typeof OmnibarOverlayImport
       parentRoute: typeof rootRoute
     }
     '/onboarding': {
@@ -242,6 +256,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(SettingsRouteCh
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/omnibar-overlay': typeof OmnibarOverlayRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRouteWithChildren
   '/tasks': typeof TasksRoute
@@ -259,6 +274,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/omnibar-overlay': typeof OmnibarOverlayRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRouteWithChildren
   '/tasks': typeof TasksRoute
@@ -277,6 +293,7 @@ export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/omnibar-overlay': typeof OmnibarOverlayRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRouteWithChildren
   '/tasks': typeof TasksRoute
@@ -296,6 +313,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/omnibar-overlay'
     | '/onboarding'
     | '/settings'
     | '/tasks'
@@ -312,6 +330,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/omnibar-overlay'
     | '/onboarding'
     | '/settings'
     | '/tasks'
@@ -328,6 +347,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/omnibar-overlay'
     | '/onboarding'
     | '/settings'
     | '/tasks'
@@ -346,6 +366,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  OmnibarOverlayRoute: typeof OmnibarOverlayRoute
   OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   TasksRoute: typeof TasksRoute
@@ -357,6 +378,7 @@ export interface RootRouteChildren {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  OmnibarOverlayRoute: OmnibarOverlayRoute,
   OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRouteWithChildren,
   TasksRoute: TasksRoute,
@@ -377,6 +399,7 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/admin",
+        "/omnibar-overlay",
         "/onboarding",
         "/settings",
         "/tasks",
@@ -390,6 +413,9 @@ export const routeTree = rootRoute
     },
     "/admin": {
       "filePath": "admin.tsx"
+    },
+    "/omnibar-overlay": {
+      "filePath": "omnibar-overlay.tsx"
     },
     "/onboarding": {
       "filePath": "onboarding.tsx"

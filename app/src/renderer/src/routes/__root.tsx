@@ -59,13 +59,28 @@ function RootComponent() {
     const removeOpenSettingsListener = window.api.onOpenSettings(() =>
       navigate({ to: DEFAULT_SETTINGS_ROUTE })
     )
+    const removeNavigateToListener = window.api.onNavigateTo?.((url: string) => {
+      navigate({ to: url as any })
+    })
+
+    // Signal to main process that renderer is ready for navigation (after listener is set up)
+    window.api?.rendererReady?.()
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       removeOpenSettingsListener()
+      removeNavigateToListener?.()
     }
-  }, [sidebarOpen, navigate, isCompleted, omnibar.isOpen, location.pathname, setSidebarOpen])
+  }, [
+    sidebarOpen,
+    navigate,
+    isCompleted,
+    omnibar.isOpen,
+    location.pathname,
+    setSidebarOpen,
+    omnibar
+  ])
 
-  if (location.pathname.startsWith('/settings')) {
+  if (location.pathname.startsWith('/settings') || location.pathname === '/omnibar-overlay') {
     return <Outlet />
   }
 

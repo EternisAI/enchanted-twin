@@ -138,7 +138,18 @@ const api = {
       callback(data)
     ipcRenderer.on('go-log', listener)
     return () => ipcRenderer.removeListener('go-log', listener)
-  }
+  },
+  openMainWindowWithChat: (chatId?: string, initialMessage?: string) =>
+    ipcRenderer.invoke('open-main-window-with-chat', chatId, initialMessage),
+  onNavigateTo: (callback: (url: string) => void) => {
+    const listener = (_: unknown, url: string) => callback(url)
+    ipcRenderer.on('navigate-to', listener)
+    return () => ipcRenderer.removeListener('navigate-to', listener)
+  },
+  resizeOmnibarWindow: (width: number, height: number) =>
+    ipcRenderer.invoke('resize-omnibar-window', width, height),
+  hideOmnibarWindow: () => ipcRenderer.invoke('hide-omnibar-window'),
+  rendererReady: () => ipcRenderer.send('renderer-ready')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

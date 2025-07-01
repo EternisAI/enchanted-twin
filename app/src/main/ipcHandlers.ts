@@ -23,6 +23,19 @@ const PATHNAME = 'input_data'
 export function registerIpcHandlers() {
   ipcMain.on('ping', () => console.log('pong'))
 
+  // Handle new chat creation from menu
+  ipcMain.on('new-chat', () => {
+    if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+      windowManager.mainWindow.webContents.send('new-chat')
+    }
+  })
+
+  // Handle renderer ready state for navigation
+  ipcMain.on('renderer-ready', () => {
+    log.info('Renderer process is ready for navigation')
+    windowManager.processPendingNavigation()
+  })
+
   ipcMain.on('open-oauth-url', async (_, url, redirectUri) => {
     console.log('[Main] Opening OAuth window for:', url, 'with redirect:', redirectUri)
     openOAuthWindow(url, redirectUri)
@@ -277,6 +290,84 @@ export function registerIpcHandlers() {
     } catch (error) {
       log.error('Failed to get LiveKit agent state:', error)
       return 'idle' as const
+    }
+  })
+
+  ipcMain.handle(
+    'open-main-window-with-chat',
+    async (_, chatId?: string, initialMessage?: string) => {
+      try {
+        log.info(`Opening main window with chat: ${chatId}, message: ${initialMessage}`)
+        let windowWasCreated = false
+
+        // Create main window if it doesn't exist
+        if (!windowManager.mainWindow || windowManager.mainWindow.isDestroyed()) {
+          log.info('Creating new main window')
+          windowManager.createMainWindow()
+          windowWasCreated = true
+        } else {
+          log.info('Using existing main window')
+        }
+
+        // Show and focus the window
+        if (windowManager.mainWindow) {
+          windowManager.mainWindow.show()
+          windowManager.mainWindow.focus()
+
+          if (chatId) {
+            const url = initialMessage
+              ? `/chat/${chatId}?initialMessage=${encodeURIComponent(initialMessage)}`
+              : `/chat/${chatId}`
+
+            log.info(`Navigation URL: ${url}`)
+
+            if (windowWasCreated) {
+              // Store the navigation to be processed when renderer is ready
+              log.info('Storing pending navigation for new window')
+              windowManager.setPendingNavigation(url)
+            } else {
+              // Window already exists, navigate immediately
+              log.info('Navigating immediately on existing window')
+              windowManager.mainWindow.webContents.send('navigate-to', url)
+            }
+          }
+
+          return { success: true }
+        }
+        return { success: false, error: 'Failed to create main window' }
+      } catch (error) {
+        log.error('Failed to open main window with chat:', error)
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    }
+  )
+
+  ipcMain.handle('resize-omnibar-window', async (_, width: number, height: number) => {
+    try {
+      if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
+        const minHeight = 80
+        const maxHeight = 500
+        const constrainedHeight = Math.max(minHeight, Math.min(height, maxHeight))
+        windowManager.omnibarWindow.setSize(width, constrainedHeight)
+        return { success: true }
+      }
+      return { success: false, error: 'Omnibar window not available' }
+    } catch (error) {
+      log.error('Failed to resize omnibar window:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('hide-omnibar-window', async () => {
+    try {
+      if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
+        windowManager.omnibarWindow.hide()
+        return { success: true }
+      }
+      return { success: false, error: 'Omnibar window not available' }
+    } catch (error) {
+      log.error('Failed to hide omnibar window:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
 }

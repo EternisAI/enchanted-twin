@@ -1,7 +1,7 @@
 // Load environment variables from .env file
 import 'dotenv/config'
 
-import { app, BrowserWindow, session } from 'electron'
+import { app, BrowserWindow, session, globalShortcut } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import log from 'electron-log/main'
 import { registerNotificationIpc } from './notifications'
@@ -60,6 +60,12 @@ app.whenReady().then(async () => {
   setupAutoUpdater()
   setupMenu()
 
+  // Register global shortcuts
+  globalShortcut.register('CommandOrControl+Shift+Space', () => {
+    log.info('Global shortcut triggered: Toggle Omnibar Overlay')
+    windowManager.toggleOmnibarWindow()
+  })
+
   // startKokoro(mainWindow)
   startLiveKitSetup(mainWindow)
   autoStartScreenpipeIfEnabled()
@@ -72,18 +78,51 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  // Check if only omnibar window is left and close it too
+  if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
+    windowManager.omnibarWindow.destroy()
+  }
+  
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
 app.on('activate', function () {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  // On macOS, re-create the main window when dock icon is clicked
+  if (!windowManager.mainWindow || windowManager.mainWindow.isDestroyed()) {
     windowManager.createMainWindow()
+  } else {
+    windowManager.mainWindow.show()
+    windowManager.mainWindow.focus()
+  }
+})
+
+app.on('before-quit', (event) => {
+  log.info('App before-quit event triggered')
+  
+  // Set the quitting flag so omnibar window can close properly
+  windowManager.setAppQuitting(true)
+  
+  // Destroy omnibar window before quitting to prevent it from blocking the quit process
+  if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
+    log.info('Destroying omnibar window before quit')
+    windowManager.omnibarWindow.destroy()
   }
 })
 
 app.on('will-quit', async () => {
+  log.info('App will-quit event triggered')
+  
+  // Unregister all global shortcuts
+  globalShortcut.unregisterAll()
+
+  // Final cleanup of omnibar window if it still exists
+  if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
+    log.info('Force destroying omnibar window in will-quit')
+    windowManager.omnibarWindow.destroy()
+  }
+
   cleanupGoServer()
   cleanupOAuthServer()
   // await cleanupKokoro()

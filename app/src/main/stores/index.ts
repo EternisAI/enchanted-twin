@@ -14,4 +14,12 @@ export const screenpipeStore = new Store({
   }
 })
 
+export const omnibarStore = new Store({
+  name: 'omnibar-settings',
+  defaults: {
+    position: { x: 0, y: 0 }, // Will be calculated on first show
+    hasCustomPosition: false
+  }
+})
+
 // Add more stores here as needed
