@@ -87,7 +87,11 @@ func TestDirectoryWatcher_CreateAndStart(t *testing.T) {
 	// Create temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "watcher_test_*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("Failed to remove temporary directory: %v", err)
+		}
+	}()
 
 	store := &db.Store{} // Mock store - in real test this would be properly mocked
 	logger := log.New(os.Stdout)

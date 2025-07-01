@@ -28,7 +28,6 @@ type DirectoryWatcher struct {
 	bufferTimer    *time.Timer
 	bufferMu       sync.Mutex
 	bufferDuration time.Duration
-	mu             sync.RWMutex
 }
 
 type FileEvent struct {
