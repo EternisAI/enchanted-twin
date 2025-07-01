@@ -1,0 +1,55 @@
+{
+  "name": "investment_opportunity",
+  "description": "Business email about a startup investment opportunity",
+  "type": "email",
+  "content": {
+    "subject": "Series A Investment Opportunity - AI-Powered Customer Service Platform",
+    "body": "Hi,\n\nI hope this email finds you well. I'm reaching out to share an exciting investment opportunity in our AI-powered customer service platform.\n\nWe're currently raising a $15M Series A round and have already secured commitments from several top-tier VCs. Our platform uses advanced NLP to automate 85% of customer support interactions while maintaining high satisfaction scores.\n\nKey highlights:\n- 300% revenue growth over the past 18 months\n- $2M ARR with strong unit economics\n- Partnership pipeline with Fortune 500 companies\n- Experienced team with previous exits\n\nWould you be interested in learning more? I'd be happy to send over our pitch deck and schedule a call.\n\nBest regards,\nSarah Thompson\nCEO, AI Support Solutions",
+    "from": {
+      "identity": "startup_ceo",
+      "name": "Sarah Thompson",
+      "alias": "Sarah T.",
+      "email": "sarah@aisupport.com"
+    },
+    "to": [
+      {
+        "identity": "investor",
+        "name": "Investor",
+        "email": "investor@example.com"
+      }
+    ],
+    "cc": [],
+    "priority": "high",
+    "created_at": "2024-01-15T14:22:00Z",
+    "metadata": {
+      "attachment_count": 1,
+      "reply_to": "sarah@aisupport.com"
+    }
+  },
+  "context": {
+    "domain": "venture_capital",
+    "recipient_type": "investor",
+    "business_stage": "series_a"
+  },
+  "personality_expectations": [
+    {
+      "personality_name": "tech_entrepreneur",
+      "should_show": true,
+      "confidence": 0.95,
+      "reason_keywords": ["investment", "startup", "AI", "revenue growth", "funding"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "Tech entrepreneurs are extremely interested in investment opportunities and startup success stories"
+    },
+    {
+      "personality_name": "creative_artist",
+      "should_show": false,
+      "confidence": 0.7,
+      "reason_keywords": ["business", "investment", "not relevant"],
+      "expected_state": "hidden",
+      "priority": 1,
+      "rationale": "Creative artists typically have low interest in business investment emails"
+    }
+  ],
+  "created_at": "2024-01-15T14:22:00Z"
+}
