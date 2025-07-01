@@ -4,11 +4,14 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/charmbracelet/log"
@@ -135,6 +138,7 @@ func (s *service) ConnectMCPServer(
 			if err != nil {
 				return nil, fmt.Errorf("failed to create MCP client: %w", err)
 			}
+
 			err = mcpClient.Start(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to start MCP client: %w", err)
@@ -184,16 +188,41 @@ func (s *service) ConnectMCPServer(
 	var mcpClient *mcpclient.Client
 
 	if command == "url" {
-		mcpClient, err = mcpclient.NewStreamableHttpClient(input.Args[0])
+		tokenStore := mcpclient.NewMemoryTokenStore()
+		oauthConfig := mcpclient.OAuthConfig{
+			// The client ID can be set if dynamic clients are not used or if
+			// the MCP server itself acts as the client like Freysa Video MCP
+			ClientID:     os.Getenv("MCP_CLIENT_ID"),
+			ClientSecret: os.Getenv("MCP_CLIENT_SECRET"),
+			RedirectURI:  "http://localhost:8085/oauth/callback",
+			Scopes:       []string{"mcp.read", "mcp.write"},
+			TokenStore:   tokenStore,
+			PKCEEnabled:  true,
+		}
+
+		mcpClient, err = mcpclient.NewOAuthStreamableHttpClient(input.Args[0], oauthConfig)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create HTTP MCP client: %w", err)
+			return nil, fmt.Errorf("failed to create OAuth HTTP MCP client: %w", err)
 		}
 
 		// HTTP clients need manual start
 		err = mcpClient.Start(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to start HTTP MCP client: %w", err)
+			// If requires authorization, handle it
+			if mcpclient.IsOAuthAuthorizationRequiredError(err) {
+				err = s.handleOAuthAuthorization(ctx, err)
+				if err != nil {
+					return nil, fmt.Errorf("failed to complete OAuth authorization: %w", err)
+				}
+				err = mcpClient.Start(ctx)
+				if err != nil {
+					return nil, fmt.Errorf("failed to start HTTP MCP client after OAuth: %w", err)
+				}
+			} else {
+				return nil, fmt.Errorf("failed to start HTTP MCP client: %w", err)
+			}
 		}
+
 		// Initialize the client
 		initRequest := mcp.InitializeRequest{}
 		initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
@@ -203,7 +232,19 @@ func (s *service) ConnectMCPServer(
 		}
 		_, err = mcpClient.Initialize(ctx, initRequest)
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize HTTP MCP client: %w", err)
+			// If requires authorization, handle it, again
+			if mcpclient.IsOAuthAuthorizationRequiredError(err) {
+				err = s.handleOAuthAuthorization(ctx, err)
+				if err != nil {
+					return nil, fmt.Errorf("failed to complete OAuth authorization: %w", err)
+				}
+				_, err = mcpClient.Initialize(ctx, initRequest)
+				if err != nil {
+					return nil, fmt.Errorf("failed to initialize HTTP MCP client after OAuth: %w", err)
+				}
+			} else {
+				return nil, fmt.Errorf("failed to initialize HTTP MCP client: %w", err)
+			}
 		}
 	} else {
 		// Convert envs to string slice
@@ -441,17 +482,42 @@ func (s *service) LoadMCP(ctx context.Context) error {
 
 		var mcpClient *mcpclient.Client
 		if command == "url" {
-			mcpClient, err = mcpclient.NewStreamableHttpClient(server.Args[0])
+			tokenStore := mcpclient.NewMemoryTokenStore()
+			oauthConfig := mcpclient.OAuthConfig{
+				ClientID:     os.Getenv("MCP_CLIENT_ID"),
+				ClientSecret: os.Getenv("MCP_CLIENT_SECRET"),
+				RedirectURI:  "http://localhost:8085/oauth/callback",
+				Scopes:       []string{"mcp.read", "mcp.write"},
+				TokenStore:   tokenStore,
+				PKCEEnabled:  true,
+			}
+
+			mcpClient, err = mcpclient.NewOAuthStreamableHttpClient(server.Args[0], oauthConfig)
 			if err != nil {
-				log.Error("Error creating HTTP MCP client", "server", server.Name, "error", err)
+				log.Error("Error creating OAuth HTTP MCP client", "server", server.Name, "error", err)
 				continue
 			}
+
 			// Start HTTP client
 			err = mcpClient.Start(ctx)
 			if err != nil {
-				log.Error("Error starting HTTP MCP client", "server", server.Name, "error", err)
-				continue
+				if mcpclient.IsOAuthAuthorizationRequiredError(err) {
+					err = s.handleOAuthAuthorization(ctx, err)
+					if err != nil {
+						log.Error("Failed to complete OAuth authorization", "server", server.Name, "error", err)
+						continue
+					}
+					err = mcpClient.Start(ctx)
+					if err != nil {
+						log.Error("Error starting HTTP MCP client after OAuth", "server", server.Name, "error", err)
+						continue
+					}
+				} else {
+					log.Error("Error starting HTTP MCP client", "server", server.Name, "error", err)
+					continue
+				}
 			}
+
 			// Initialize the client
 			initRequest := mcp.InitializeRequest{}
 			initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
@@ -461,8 +527,21 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			}
 			_, err = mcpClient.Initialize(ctx, initRequest)
 			if err != nil {
-				log.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
-				continue
+				if mcpclient.IsOAuthAuthorizationRequiredError(err) {
+					err = s.handleOAuthAuthorization(ctx, err)
+					if err != nil {
+						log.Error("Failed to complete OAuth authorization", "server", server.Name, "error", err)
+						continue
+					}
+					_, err = mcpClient.Initialize(ctx, initRequest)
+					if err != nil {
+						log.Error("Error initializing HTTP MCP client after OAuth", "server", server.Name, "error", err)
+						continue
+					}
+				} else {
+					log.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
+					continue
+				}
 			}
 		} else {
 			// Convert envs to string slice
@@ -775,4 +854,147 @@ func getTools(ctx context.Context, connectedServer *ConnectedMCPServer) ([]*mode
 	}
 
 	return allTools, nil
+}
+
+// handleOAuthAuthorization handles the OAuth authorization flow
+func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error) error {
+	log.Info("OAuth authorization required. Starting authorization flow...")
+
+	oauthHandler := mcpclient.GetOAuthHandler(authErr)
+
+	callbackChan := make(chan map[string]string, 1)
+	server := s.startCallbackServer(callbackChan)
+	defer server.Close()
+
+	codeVerifier, err := mcpclient.GenerateCodeVerifier()
+	if err != nil {
+		return fmt.Errorf("failed to generate code verifier: %w", err)
+	}
+	codeChallenge := mcpclient.GenerateCodeChallenge(codeVerifier)
+
+	state, err := mcpclient.GenerateState()
+	if err != nil {
+		return fmt.Errorf("failed to generate state: %w", err)
+	}
+
+	err = oauthHandler.RegisterClient(ctx, "enchanted-twin-mcp-client")
+	if err != nil {
+		return fmt.Errorf("failed to register client: %w", err)
+	}
+
+	authURL, err := oauthHandler.GetAuthorizationURL(ctx, state, codeChallenge)
+	if err != nil {
+		return fmt.Errorf("failed to get authorization URL: %w", err)
+	}
+
+	log.Info("Opening browser to authorization URL", "url", authURL)
+	s.openBrowser(authURL)
+
+	log.Info("Waiting for authorization callback...")
+	select {
+	case params := <-callbackChan:
+		if params["state"] != state {
+			return fmt.Errorf("state mismatch: expected %s, got %s", state, params["state"])
+		}
+
+		code := params["code"]
+		if code == "" {
+			return fmt.Errorf("no authorization code received")
+		}
+
+		log.Info("Exchanging authorization code for token...")
+		err = oauthHandler.ProcessAuthorizationResponse(ctx, code, state, codeVerifier)
+		if err != nil {
+			return fmt.Errorf("failed to process authorization response: %w", err)
+		}
+
+		log.Info("Authorization successful!")
+		return nil
+
+	case <-time.After(5 * time.Minute):
+		return fmt.Errorf("OAuth authorization timed out")
+	}
+}
+
+// startCallbackServer starts a local HTTP server to handle the OAuth callback
+func (s *service) startCallbackServer(callbackChan chan<- map[string]string) *http.Server {
+	server := &http.Server{
+		Addr: ":8085",
+	}
+
+	http.HandleFunc("/oauth/callback", func(w http.ResponseWriter, r *http.Request) {
+		log.Info("Received OAuth callback", "url", r.URL.String())
+
+		params := make(map[string]string)
+		for key, values := range r.URL.Query() {
+			if len(values) > 0 {
+				params[key] = values[0]
+			}
+		}
+
+		select {
+		case callbackChan <- params:
+			log.Info("Sent OAuth parameters to channel")
+		default:
+			log.Warn("Channel full, dropping OAuth callback parameters")
+		}
+
+		// User-facing response
+		// Similar to the one in oauthHandler.ts
+		w.Header().Set("Content-Type", "text/html")
+		_, err := w.Write([]byte(`
+			<!DOCTYPE html>
+			<html>
+			  <head>
+			    <title>Authentication Successful</title>
+			    <style>
+			      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 40px; }
+			      h1 { color: #333; }
+			      p { color: #666; }
+			      .success { color: #4CAF50; font-weight: bold; }
+			    </style>
+			  </head>
+			  <body>
+			    <h1>Authentication Successful</h1>
+			    <p class="success">You have successfully authenticated!</p>
+			    <p>You can close this window and return to the application.</p>
+			    <script>window.close();</script>
+			  </body>
+			</html>
+        `))
+		if err != nil {
+			log.Error("Error writing OAuth callback response", "error", err)
+		}
+	})
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("OAuth callback server error", "error", err)
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	log.Info("OAuth callback server started on :8085")
+	return server
+}
+
+// openBrowser opens the default browser to the specified URL
+func (s *service) openBrowser(url string) {
+	var err error
+
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+
+	if err != nil {
+		log.Error("Failed to open browser", "error", err)
+		log.Info("Please open the following URL in your browser", "url", url)
+	}
 }
