@@ -412,17 +412,17 @@ func main() {
 	holonConfig := holon.DefaultManagerConfig()
 	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
 
-	// holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
-	// if err := holonManager.Start(); err != nil {
-	// 	logger.Error("Failed to start HolonZero fetcher service", "error", err)
-	// } else {
-	// 	logger.Info("HolonZero API fetcher service started successfully")
-	// 	defer func() {
-	// 		if err := holonManager.Stop(); err != nil {
-	// 			logger.Error("Failed to stop holon manager", "error", err)
-	// 		}
-	// 	}()
-	// }
+	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
+	if err := holonManager.Start(); err != nil {
+		logger.Error("Failed to start HolonZero fetcher service", "error", err)
+	} else {
+		logger.Info("HolonZero API fetcher service started successfully")
+		defer func() {
+			if err := holonManager.Stop(); err != nil {
+				logger.Error("Failed to stop holon manager", "error", err)
+			}
+		}()
+	}
 
 	threadPreviewTool := holon.NewThreadPreviewTool(holonService)
 	if err := toolRegistry.Register(threadPreviewTool); err != nil {
