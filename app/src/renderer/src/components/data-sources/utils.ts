@@ -1,17 +1,11 @@
 export const truncatePath = (path: string): string => {
   if (path.length <= 40) return path
 
-import nodePath from 'path'
-
-export const truncatePath = (fullPath: string): string => {
-  if (fullPath.length <= 40) return fullPath
-
-  const pathParts = fullPath.split(nodePath.sep)
+  const pathParts = path.split('/')
   const fileName = pathParts.pop() || ''
   const parentDir = pathParts.pop() || ''
 
   return `…/${parentDir}/${fileName}`
-}
 }
 
 // Estimate time based on source type and progress
