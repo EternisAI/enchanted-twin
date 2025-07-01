@@ -75,27 +75,13 @@ type SyncStatus struct {
 }
 
 type GlobalState struct {
-	qrChan          chan QRCodeEvent
-	qrChanOnce      sync.Once
-	latestQREvent   *QRCodeEvent
-	connectChan     chan struct{}
-	connectChanOnce sync.Once
-	allContacts     []WhatsappContact
-	syncStatus      SyncStatus
-	mu              sync.RWMutex
+	latestQREvent *QRCodeEvent
+	allContacts   []WhatsappContact
+	syncStatus    SyncStatus
+	mu            sync.RWMutex
 }
 
 var globalState = &GlobalState{}
-
-func GetQRChannel() chan QRCodeEvent {
-	globalState.mu.Lock()
-	defer globalState.mu.Unlock()
-
-	globalState.qrChanOnce.Do(func() {
-		globalState.qrChan = make(chan QRCodeEvent, 100)
-	})
-	return globalState.qrChan
-}
 
 func GetLatestQREvent() *QRCodeEvent {
 	globalState.mu.RLock()
@@ -107,16 +93,6 @@ func SetLatestQREvent(evt QRCodeEvent) {
 	globalState.mu.Lock()
 	defer globalState.mu.Unlock()
 	globalState.latestQREvent = &evt
-}
-
-func GetConnectChannel() chan struct{} {
-	globalState.mu.Lock()
-	defer globalState.mu.Unlock()
-
-	globalState.connectChanOnce.Do(func() {
-		globalState.connectChan = make(chan struct{}, 1)
-	})
-	return globalState.connectChan
 }
 
 func GetSyncStatus() SyncStatus {
