@@ -4,7 +4,7 @@ install:
 	brew install golangci-lint
 
 run:
-	go run cmd/server/main.go
+	go run cmd/server/*.go
 
 build:
 	go build -o bin/enchanted-twin cmd/server/main.go
