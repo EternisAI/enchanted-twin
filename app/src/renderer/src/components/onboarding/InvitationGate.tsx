@@ -21,7 +21,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isActivated, setIsActivated] = useState(false)
 
-  const { user, authError, loading: authLoading } = useAuth()
+  const { user, authError, loading: authLoading, waitingForLogin } = useAuth()
 
   const {
     data: whitelistData,
@@ -89,7 +89,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     return <>{children}</>
   }
 
-  if (authLoading) {
+  if (waitingForLogin) {
     return (
       <div className="flex justify-center py-8 w-full">
         <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">
@@ -104,7 +104,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     )
   }
 
-  if (whitelistLoading) {
+  if (whitelistLoading || authLoading) {
     return (
       <div className="flex justify-center py-8 w-full">
         <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">

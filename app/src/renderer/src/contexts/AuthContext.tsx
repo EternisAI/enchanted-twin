@@ -11,6 +11,7 @@ import { auth, firebaseConfig } from '@renderer/lib/firebase'
 interface AuthContextType {
   user: User | null
   loading: boolean
+  waitingForLogin: boolean
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
   authError: string | null
@@ -22,8 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [authError, setAuthError] = useState<string | null>(null)
-
-  console.log('AuthProvider', user)
+  const [waitingForLogin, setWaitingForLogin] = useState(false)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -52,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ) => {
       console.log('[Auth] ✅ Received Firebase auth success from main process:', userData?.email)
       console.log('[Auth] 🔍 Full userData object:', userData)
+      console.log('[Auth] 🎫 Firebase JWT (idToken):', userData?.idToken)
       setAuthError(null)
       setLoading(false)
 
@@ -86,7 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = async () => {
     console.log('[Auth]  Starting Google sign-in flow')
     setAuthError(null)
-    setLoading(true)
+    // setLoading(true)
+    setWaitingForLogin(true)
 
     try {
       console.log('[Auth]  Invoking start-firebase-oauth')
@@ -110,7 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('[Auth]  Failed to start Google sign-in:', error)
       setAuthError(error instanceof Error ? error.message : 'Failed to start authentication')
-      setLoading(false)
+      // setLoading(false)
+      setWaitingForLogin(false)
     }
   }
 
@@ -130,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
+        waitingForLogin,
         signOut,
         signInWithGoogle,
         authError
