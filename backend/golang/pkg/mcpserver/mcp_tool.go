@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go"
@@ -31,7 +32,7 @@ func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (agenttype
 			ToolError:  "client not found",
 		}, errors.New("client not found")
 	}
-
+	fmt.Println("Executing tool in execute", t.Tool.Name, inputs)
 	request := mcp.CallToolRequest{}
 	request.Params.Name = t.Tool.GetName()
 	request.Params.Arguments = inputs
@@ -79,8 +80,13 @@ type EmptyParams struct{}
 func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 	params := make(openai.FunctionParameters)
 
-	// TODO: Need to get input schema from the new Tool type
-	// This might require changes to how tools are created
+	if t.Tool.InputSchema.Properties != nil {
+		maps.Copy(params, t.Tool.InputSchema.Properties)
+	}
+
+	if len(params) == 1 && params["type"] == "object" {
+		params = openai.FunctionParameters{}
+	}
 
 	return openai.ChatCompletionToolParam{
 		Type: "function",
