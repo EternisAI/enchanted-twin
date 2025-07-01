@@ -61,8 +61,8 @@ func NewService(cfg ServiceConfig) *Service {
 		envs:          cfg.Config,
 		aiService:     cfg.AIService,
 		toolRegistry:  cfg.ToolRegistry,
-		qrChan:        GetQRChannel(),
-		connectChan:   GetConnectChannel(),
+		qrChan:        make(chan QRCodeEvent, 100),
+		connectChan:   make(chan struct{}, 1),
 		clientChan:    make(chan *whatsmeow.Client, 1),
 		ctx:           ctx,
 		cancel:        cancel,
@@ -124,7 +124,7 @@ func (s *Service) Stop(ctx context.Context) error {
 	case <-time.After(5 * time.Second):
 		s.logger.Warn("Timeout waiting for WhatsApp service goroutines to stop")
 	case <-ctx.Done():
-		s.logger.Warn("Context cancelled while waiting for WhatsApp service goroutines to stop")
+		s.logger.Warn("Context canceled while waiting for WhatsApp service goroutines to stop")
 	}
 
 	s.drainChannels()
@@ -136,17 +136,48 @@ func (s *Service) Stop(ctx context.Context) error {
 func (s *Service) drainChannels() {
 	s.logger.Debug("Draining service channels...")
 
-	drained := 0
+	clientDrained := 0
+	qrDrained := 0
+	connectDrained := 0
+
+	// Drain client channel
 	for {
 		select {
 		case <-s.clientChan:
-			drained++
+			clientDrained++
 		default:
-			if drained > 0 {
-				s.logger.Debug("Drained buffered clients from channel", "count", drained)
-			}
-			return
+			break
 		}
+		break
+	}
+
+	// Drain QR channel
+	for {
+		select {
+		case <-s.qrChan:
+			qrDrained++
+		default:
+			break
+		}
+		break
+	}
+
+	// Drain connect channel
+	for {
+		select {
+		case <-s.connectChan:
+			connectDrained++
+		default:
+			break
+		}
+		break
+	}
+
+	if clientDrained > 0 || qrDrained > 0 || connectDrained > 0 {
+		s.logger.Debug("Drained buffered items from channels",
+			"client_items", clientDrained,
+			"qr_items", qrDrained,
+			"connect_items", connectDrained)
 	}
 }
 
@@ -269,6 +300,8 @@ func (s *Service) bootstrapClient() {
 		s.envs.DBPath,
 		s.envs,
 		s.aiService,
+		s.connectChan, // ✅ Pass service-owned connect channel
+		s.qrChan,      // ✅ Pass service-owned QR channel
 	)
 
 	s.mu.Lock()
@@ -319,5 +352,29 @@ func (s *Service) registerToolsWhenReady() {
 				}
 			}
 		}
+	}
+}
+
+// GetQRChannel returns the service's QR code channel
+func (s *Service) GetQRChannel() chan QRCodeEvent {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.qrChan
+}
+
+// GetConnectChannel returns the service's connect channel
+func (s *Service) GetConnectChannel() chan struct{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.connectChan
+}
+
+// TriggerConnect sends a signal to start WhatsApp connection
+func (s *Service) TriggerConnect() {
+	select {
+	case s.connectChan <- struct{}{}:
+		s.logger.Debug("Connection trigger sent successfully")
+	default:
+		s.logger.Debug("Connection trigger already pending")
 	}
 }
