@@ -242,11 +242,11 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 	const progressInterval = 10
 
 	for chatIndex, chat := range telegramData.Chats.List {
-		if chat.Type == "private_supergroup" {
-			s.logger.Info("Skipping private_supergroup chat", "chatId", chat.ID, "chatName", chat.Name)
-			processedChats++
-			continue
-		}
+		// if chat.Type == "private_supergroup" {
+		// 	s.logger.Info("Skipping private_supergroup chat", "chatId", chat.ID, "chatName", chat.Name)
+		// 	processedChats++
+		// 	continue
+		// }
 
 		chatId := strconv.Itoa(chat.ID)
 		chatMessageCount := len(chat.Messages)
@@ -394,9 +394,9 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 			}
 		}
 
-		// Skip conversations where the user is the only participant
-		if len(people) == 1 && people[0] == userDisplayName {
-			s.logger.Debug("Skipping conversation with only user messages", "chatId", conv.chatId, "chatName", conv.chatName)
+		// Skip conversations with no participants or no messages
+		if len(people) == 0 || len(conv.messages) == 0 {
+			s.logger.Debug("Skipping conversation with no participants or messages", "chatId", conv.chatId, "chatName", conv.chatName)
 			continue
 		}
 

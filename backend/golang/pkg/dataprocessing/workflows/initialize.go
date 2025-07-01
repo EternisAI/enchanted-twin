@@ -548,17 +548,39 @@ func (w *DataProcessingWorkflows) isNewFormatProcessor(dataSourceName string) bo
 	}
 }
 
-// readNewFormatBatch reads a batch from JSON array format (ConversationDocument[]).
+// readNewFormatBatch reads a batch from either JSON array format or JSONL format (ConversationDocument[]).
 func (w *DataProcessingWorkflows) readNewFormatBatch(filePath string, batchIndex, batchSize int) ([]memory.Document, error) {
-	// Read the entire JSON file (it's a ConversationDocument array)
+	// Read the entire file first
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
+	// Detect format: JSON array or JSONL
+	isJSONL := w.isJSONLFormat(data)
+
 	var conversationDocs []memory.ConversationDocument
-	if err := json.Unmarshal(data, &conversationDocs); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal ConversationDocument array: %w", err)
+
+	if isJSONL {
+		// JSONL format: each line is a separate JSON object
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+
+			var doc memory.ConversationDocument
+			if err := json.Unmarshal([]byte(line), &doc); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal JSONL line: %w", err)
+			}
+			conversationDocs = append(conversationDocs, doc)
+		}
+	} else {
+		// JSON array format
+		if err := json.Unmarshal(data, &conversationDocs); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal ConversationDocument array: %w", err)
+		}
 	}
 
 	// Calculate batch boundaries
@@ -584,19 +606,56 @@ func (w *DataProcessingWorkflows) readNewFormatBatch(filePath string, batchIndex
 	return documents, nil
 }
 
-// countNewFormatItems counts items in JSON array format.
+// isJSONLFormat detects if the data is in JSONL format (each line is a JSON object)
+// versus JSON array format (the entire file is a JSON array).
+func (w *DataProcessingWorkflows) isJSONLFormat(data []byte) bool {
+	// Trim whitespace and check first character
+	trimmed := strings.TrimSpace(string(data))
+	if len(trimmed) == 0 {
+		return false
+	}
+
+	// If it starts with '[', it's likely a JSON array
+	if trimmed[0] == '[' {
+		return false
+	}
+
+	// If it starts with '{', it's likely JSONL
+	if trimmed[0] == '{' {
+		return true
+	}
+
+	return false
+}
+
+// countNewFormatItems counts items in either JSON array format or JSONL format.
 func (w *DataProcessingWorkflows) countNewFormatItems(filePath string) (int, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	var conversationDocs []memory.ConversationDocument
-	if err := json.Unmarshal(data, &conversationDocs); err != nil {
-		return 0, fmt.Errorf("failed to unmarshal ConversationDocument array: %w", err)
-	}
+	// Detect format: JSON array or JSONL
+	isJSONL := w.isJSONLFormat(data)
 
-	return len(conversationDocs), nil
+	if isJSONL {
+		// JSONL format: count non-empty lines
+		lines := strings.Split(string(data), "\n")
+		count := 0
+		for _, line := range lines {
+			if strings.TrimSpace(line) != "" {
+				count++
+			}
+		}
+		return count, nil
+	} else {
+		// JSON array format
+		var conversationDocs []memory.ConversationDocument
+		if err := json.Unmarshal(data, &conversationDocs); err != nil {
+			return 0, fmt.Errorf("failed to unmarshal ConversationDocument array: %w", err)
+		}
+		return len(conversationDocs), nil
+	}
 }
 
 type PublishIndexingStatusInput struct {

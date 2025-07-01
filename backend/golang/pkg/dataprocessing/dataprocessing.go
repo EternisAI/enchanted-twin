@@ -320,12 +320,8 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		// For now, save as JSON instead of records
-		documentsJSON, err := json.MarshalIndent(documents, "", "  ")
-		if err != nil {
-			return false, err
-		}
-		if err := os.WriteFile(outputPath, documentsJSON, 0o644); err != nil {
+		// Write as JSONL (one JSON object per line) instead of JSON array
+		if err := s.exportConversationDocumentsJSONL(documents, outputPath); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -604,4 +600,36 @@ func (d *DataProcessingService) Sync(ctx context.Context, sourceName string, acc
 	}
 
 	return records, nil
+}
+
+func (s *DataProcessingService) exportConversationDocumentsJSONL(documents []memory.ConversationDocument, outputPath string) error {
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("error creating output file: %v", err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Error closing file: %v", err)
+		}
+	}()
+
+	for _, document := range documents {
+		jsonData, err := json.Marshal(document)
+		if err != nil {
+			log.Printf("Error marshaling document to JSON: %v", err)
+			continue
+		}
+
+		if _, err := file.Write(jsonData); err != nil {
+			log.Printf("Error writing JSONL record: %v", err)
+			continue
+		}
+		if _, err := file.Write([]byte("\n")); err != nil {
+			log.Printf("Error writing newline: %v", err)
+			continue
+		}
+	}
+
+	fmt.Printf("Successfully processed %d documents and wrote to %s\n", len(documents), outputPath)
+	return nil
 }

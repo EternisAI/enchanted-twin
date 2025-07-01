@@ -3,32 +3,41 @@ package db
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type DataSource struct {
 	ID            string  `db:"id"`
 	Name          string  `db:"name"`
 	UpdatedAt     string  `db:"updated_at"`
+	CreatedAt     string  `db:"created_at"`
 	Path          string  `db:"path"`
 	ProcessedPath *string `db:"processed_path"`
 	IsIndexed     *bool   `db:"is_indexed"`
 	HasError      *bool   `db:"has_error"`
+	State         string  `db:"state"`
+}
+
+type CreateDataSourceFromFileInput struct {
+	Name string
+	Path string
 }
 
 // GetDataSources retrieves all data sources.
 func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, processed_path, is_indexed FROM data_sources`)
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
 	return dataSources, nil
 }
 
-// GetUnindexedDataSources retrieves all data sources that are not indexed.
+// GetUnindexedDataSources retrieves all active data sources that are not indexed.
 func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, processed_path, is_indexed, has_error FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE`)
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE AND state = 'active' ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -75,4 +84,64 @@ func (s *Store) DeleteDataSource(ctx context.Context, id string) (*DataSource, e
 		return nil, err
 	}
 	return &DataSource{ID: id}, nil
+}
+
+// DataSourceExistsByPath checks if a data source already exists for the given file path.
+func (s *Store) DataSourceExistsByPath(ctx context.Context, path string) (bool, error) {
+	var count int
+	err := s.db.GetContext(ctx, &count, `SELECT COUNT(*) FROM data_sources WHERE path = ?`, path)
+	return count > 0, err
+}
+
+// ActiveDataSourceExistsByPath checks if an active data source exists for the given file path.
+func (s *Store) ActiveDataSourceExistsByPath(ctx context.Context, path string) (bool, error) {
+	var count int
+	err := s.db.GetContext(ctx, &count, `SELECT COUNT(*) FROM data_sources WHERE path = ? AND state = 'active'`, path)
+	return count > 0, err
+}
+
+// MarkDataSourceAsDeleted marks an active data source as deleted.
+func (s *Store) MarkDataSourceAsDeleted(ctx context.Context, path string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE data_sources 
+		SET state = 'deleted', updated_at = CURRENT_TIMESTAMP 
+		WHERE path = ? AND state = 'active'
+	`, path)
+	return err
+}
+
+// MarkDataSourceAsReplaced marks an active data source as replaced.
+func (s *Store) MarkDataSourceAsReplaced(ctx context.Context, path string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE data_sources 
+		SET state = 'replaced', updated_at = CURRENT_TIMESTAMP 
+		WHERE path = ? AND state = 'active'
+	`, path)
+	return err
+}
+
+// GetDataSourceHistory retrieves the complete history of all data sources for a given path.
+func (s *Store) GetDataSourceHistory(ctx context.Context, path string) ([]*DataSource, error) {
+	var dataSources []*DataSource
+	err := s.db.SelectContext(ctx, &dataSources, `
+		SELECT id, name, path, state, created_at, updated_at, is_indexed, has_error, processed_path
+		FROM data_sources 
+		WHERE path = ? 
+		ORDER BY created_at DESC
+	`, path)
+	return dataSources, err
+}
+
+// CreateDataSourceFromFile creates a new data source from a file.
+func (s *Store) CreateDataSourceFromFile(ctx context.Context, input *CreateDataSourceFromFileInput) (string, error) {
+	id := uuid.New().String()
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO data_sources (id, name, path) 
+		VALUES (?, ?, ?)
+	`, id, input.Name, input.Path)
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
 }

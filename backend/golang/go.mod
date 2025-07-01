@@ -5,6 +5,7 @@ go 1.24.2
 require (
 	github.com/99designs/gqlgen v0.17.73
 	github.com/charmbracelet/log v0.4.2
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/g8rswimmer/go-twitter/v2 v2.1.5
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-openapi/loads v0.22.0
@@ -20,6 +21,7 @@ require (
 	github.com/lnquy/cron v1.1.1
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/metoro-io/mcp-golang v0.12.0
+	github.com/mnako/letters v0.2.5
 	github.com/nats-io/nats-server/v2 v2.11.3
 	github.com/nats-io/nats.go v1.42.0
 	github.com/openai/openai-go v1.3.0
@@ -38,6 +40,7 @@ require (
 	go.mau.fi/whatsmeow v0.0.0-20250501130609-4c93ee4e6efa
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-133.3
+	golang.org/x/net v0.40.0
 	google.golang.org/grpc v1.72.0
 )
 
@@ -156,7 +159,6 @@ require (
 	github.com/miekg/dns v1.1.43 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/minio/minio-go/v7 v7.0.84 // indirect
-	github.com/mnako/letters v0.2.5 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
@@ -223,7 +225,6 @@ require (
 	go.mau.fi/util v0.8.6 // indirect
 	go.mongodb.org/mongo-driver v1.17.3 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/net v0.40.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
