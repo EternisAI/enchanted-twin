@@ -457,7 +457,6 @@ func main() {
 	go telegram.SubscribePoller(telegramService, logger)
 	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
-	// Initialize directory watcher for automatic file detection
 	directoryWatcher, err := directorywatcher.NewDirectoryWatcher(store, logger, temporalClient, envs.WatchDirectoryPath)
 	if err != nil {
 		logger.Error("Failed to create directory watcher", "error", err)
@@ -470,7 +469,6 @@ func main() {
 	}
 	logger.Info("Directory watcher started", "watchDir", envs.WatchDirectoryPath)
 
-	// Cleanup function for directory watcher
 	defer func() {
 		if err := directoryWatcher.Stop(); err != nil {
 			logger.Error("Error stopping directory watcher", "error", err)
