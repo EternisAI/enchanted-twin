@@ -905,7 +905,6 @@ func (ptf *PersonalityTestFramework) performAIEvaluation(ctx context.Context, sc
 		"scenario", scenario.Name,
 		"prompt_length", len(prompt))
 
-	// Create OpenAI messages directly
 	openaiMessages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(prompt),
 	}

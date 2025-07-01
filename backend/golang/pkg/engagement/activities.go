@@ -146,7 +146,6 @@ func (s *FriendService) GeneratePokeMessage(ctx context.Context, input GenerateP
 		return "", fmt.Errorf("failed to build prompt: %w", err)
 	}
 
-	// Create OpenAI messages directly
 	openaiMessages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(prompt),
 	}
@@ -202,7 +201,6 @@ func (s *FriendService) GenerateMemoryPicture(ctx context.Context, input Generat
 		return "", fmt.Errorf("failed to build picture prompt: %w", err)
 	}
 
-	// Create OpenAI messages directly
 	openaiMessages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(prompt),
 	}
