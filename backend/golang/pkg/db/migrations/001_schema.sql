@@ -107,9 +107,14 @@ CREATE TABLE IF NOT EXISTS data_sources (
     path TEXT,
     processed_path TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_indexed BOOLEAN DEFAULT FALSE,
-    has_error BOOLEAN DEFAULT FALSE
+    has_error BOOLEAN DEFAULT FALSE,
+    state TEXT DEFAULT 'active'
 );
+CREATE INDEX IF NOT EXISTS idx_data_sources_state ON data_sources(state);
+CREATE INDEX IF NOT EXISTS idx_data_sources_path_state ON data_sources(path, state);
+CREATE INDEX IF NOT EXISTS idx_data_sources_created_at ON data_sources(created_at DESC);
 
 -- Create config table
 CREATE TABLE IF NOT EXISTS config (
