@@ -177,6 +177,7 @@ type ComplexityRoot struct {
 		StartIndexing             func(childComplexity int) int
 		StartOAuthFlow            func(childComplexity int, provider string, scope string) int
 		StartWhatsAppConnection   func(childComplexity int) int
+		StoreToken                func(childComplexity int, input model.StoreTokenInput) int
 		UpdateAgentTask           func(childComplexity int, id string, notify bool) int
 		UpdateProfile             func(childComplexity int, input model.UpdateProfileInput) int
 	}
@@ -323,6 +324,7 @@ type MutationResolver interface {
 	StartWhatsAppConnection(ctx context.Context) (bool, error)
 	Activate(ctx context.Context, inviteCode string) (bool, error)
 	JoinHolon(ctx context.Context, userID string, network *string) (bool, error)
+	StoreToken(ctx context.Context, input model.StoreTokenInput) (bool, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -1068,6 +1070,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.StartWhatsAppConnection(childComplexity), true
 
+	case "Mutation.storeToken":
+		if e.complexity.Mutation.StoreToken == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_storeToken_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.StoreToken(childComplexity, args["input"].(model.StoreTokenInput)), true
+
 	case "Mutation.updateAgentTask":
 		if e.complexity.Mutation.UpdateAgentTask == nil {
 			break
@@ -1690,6 +1704,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputConnectMCPServerInput,
 		ec.unmarshalInputKeyValueInput,
 		ec.unmarshalInputMessageInput,
+		ec.unmarshalInputStoreTokenInput,
 		ec.unmarshalInputUpdateProfileInput,
 	)
 	first := true
@@ -2377,6 +2392,29 @@ func (ec *executionContext) field_Mutation_startOAuthFlow_argsScope(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_storeToken_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_storeToken_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_storeToken_argsInput(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.StoreTokenInput, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNStoreTokenInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐStoreTokenInput(ctx, tmp)
+	}
+
+	var zeroVal model.StoreTokenInput
 	return zeroVal, nil
 }
 
@@ -7197,6 +7235,61 @@ func (ec *executionContext) fieldContext_Mutation_joinHolon(ctx context.Context,
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_joinHolon_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_storeToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_storeToken(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().StoreToken(rctx, fc.Args["input"].(model.StoreTokenInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_storeToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_storeToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -13297,6 +13390,40 @@ func (ec *executionContext) unmarshalInputMessageInput(ctx context.Context, obj 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputStoreTokenInput(ctx context.Context, obj any) (model.StoreTokenInput, error) {
+	var it model.StoreTokenInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"token", "refreshToken"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "token":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("token"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Token = data
+		case "refreshToken":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("refreshToken"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RefreshToken = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context, obj any) (model.UpdateProfileInput, error) {
 	var it model.UpdateProfileInput
 	asMap := map[string]any{}
@@ -14235,6 +14362,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "joinHolon":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_joinHolon(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "storeToken":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_storeToken(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -16392,6 +16526,11 @@ func (ec *executionContext) marshalNSetupProgress2ᚖgithubᚗcomᚋEternisAIᚋ
 		return graphql.Null
 	}
 	return ec._SetupProgress(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNStoreTokenInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐStoreTokenInput(ctx context.Context, v any) (model.StoreTokenInput, error) {
+	res, err := ec.unmarshalInputStoreTokenInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {

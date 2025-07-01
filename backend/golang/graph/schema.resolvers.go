@@ -454,6 +454,15 @@ func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network
 	return true, nil
 }
 
+func (r *mutationResolver) StoreToken(ctx context.Context, input model.StoreTokenInput) (bool, error) {
+	r.Logger.Info("StoreToken called",
+		"token", input.Token,
+		"refreshToken", input.RefreshToken,
+	)
+
+	return true, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {

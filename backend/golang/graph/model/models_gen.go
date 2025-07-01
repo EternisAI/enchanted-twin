@@ -161,6 +161,11 @@ type SetupProgress struct {
 	Required bool    `json:"required"`
 }
 
+type StoreTokenInput struct {
+	Token        string `json:"token"`
+	RefreshToken string `json:"refreshToken"`
+}
+
 type Subscription struct {
 }
 
