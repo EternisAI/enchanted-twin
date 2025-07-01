@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -106,47 +107,128 @@ func createMockAIService(logger *log.Logger) *ai.Service {
 			}
 
 			if strings.Contains(r.URL.Path, "chat/completions") {
-				// Mock chat completions response
-				response := map[string]interface{}{
-					"id":      "chatcmpl-mock-" + uuid.New().String(),
-					"object":  "chat.completion",
-					"created": time.Now().Unix(),
-					"model":   "gpt-4o-mini",
-					"choices": []map[string]interface{}{
-						{
-							"index": 0,
-							"message": map[string]interface{}{
-								"role": "assistant",
-								"content": `{
-									"facts": [
-										{
-											"id": "mock-fact-1",
-											"content": "User demonstrates strong technical interests and analytical thinking patterns",
-											"category": "personality",
-											"subject": "user",
-											"importance": 3,
-											"confidence": 0.85
-										},
-										{
-											"id": "mock-fact-2", 
-											"content": "User prefers structured, data-driven approaches to problem solving",
-											"category": "preference",
-											"subject": "user",
-											"importance": 2,
-											"confidence": 0.80
-										}
-									]
-								}`,
-							},
-							"finish_reason": "stop",
-						},
-					},
-					"usage": map[string]interface{}{
-						"prompt_tokens":     50,
-						"completion_tokens": 100,
-						"total_tokens":      150,
-					},
+				// Read the request body to determine which type of call this is
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					logger.Error("Failed to read request body", "error", err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
 				}
+
+				// Parse request to determine context
+				var requestData map[string]interface{}
+				if err := json.Unmarshal(body, &requestData); err != nil {
+					logger.Error("Failed to parse request JSON", "error", err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+
+				// Check if this is a memory decision call by looking for memory decision tools
+				isMemoryDecision := false
+				if tools, ok := requestData["tools"].([]interface{}); ok {
+					for _, tool := range tools {
+						if toolMap, ok := tool.(map[string]interface{}); ok {
+							if function, ok := toolMap["function"].(map[string]interface{}); ok {
+								if name, ok := function["name"].(string); ok {
+									if name == "ADD" || name == "UPDATE" || name == "DELETE" || name == "NONE" {
+										isMemoryDecision = true
+										break
+									}
+								}
+							}
+						}
+					}
+				}
+
+				var response map[string]interface{}
+
+				if isMemoryDecision {
+					// Memory decision response - return ADD action
+					response = map[string]interface{}{
+						"id":      "chatcmpl-mock-" + uuid.New().String(),
+						"object":  "chat.completion",
+						"created": time.Now().Unix(),
+						"model":   "gpt-4o-mini",
+						"choices": []map[string]interface{}{
+							{
+								"index": 0,
+								"message": map[string]interface{}{
+									"role":    "assistant",
+									"content": "",
+									"tool_calls": []map[string]interface{}{
+										{
+											"id":   "call_mock_" + uuid.New().String(),
+											"type": "function",
+											"function": map[string]interface{}{
+												"name":      "ADD",
+												"arguments": `{}`,
+											},
+										},
+									},
+								},
+								"finish_reason": "tool_calls",
+							},
+						},
+						"usage": map[string]interface{}{
+							"prompt_tokens":     20,
+							"completion_tokens": 10,
+							"total_tokens":      30,
+						},
+					}
+				} else {
+					// Fact extraction response - return EXTRACT_FACTS
+					response = map[string]interface{}{
+						"id":      "chatcmpl-mock-" + uuid.New().String(),
+						"object":  "chat.completion",
+						"created": time.Now().Unix(),
+						"model":   "gpt-4o-mini",
+						"choices": []map[string]interface{}{
+							{
+								"index": 0,
+								"message": map[string]interface{}{
+									"role":    "assistant",
+									"content": "",
+									"tool_calls": []map[string]interface{}{
+										{
+											"id":   "call_mock_" + uuid.New().String(),
+											"type": "function",
+											"function": map[string]interface{}{
+												"name": "EXTRACT_FACTS",
+												"arguments": `{
+													"facts": [
+														{
+															"category": "profile_stable",
+															"subject": "primaryUser",
+															"attribute": "technical_interest",
+															"value": "demonstrates strong technical interests and analytical thinking patterns",
+															"sensitivity": "low",
+															"importance": 2
+														},
+														{
+															"category": "preference",
+															"subject": "primaryUser",
+															"attribute": "decision_making_style",
+															"value": "prefers structured, data-driven approaches to problem solving",
+															"sensitivity": "low",
+															"importance": 2
+														}
+													]
+												}`,
+											},
+										},
+									},
+								},
+								"finish_reason": "tool_calls",
+							},
+						},
+						"usage": map[string]interface{}{
+							"prompt_tokens":     50,
+							"completion_tokens": 100,
+							"total_tokens":      150,
+						},
+					}
+				}
+
 				if err := json.NewEncoder(w).Encode(response); err != nil {
 					logger.Error("Failed to encode completions response", "error", err)
 				}
