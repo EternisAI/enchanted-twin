@@ -420,18 +420,14 @@ func (r *mutationResolver) RemoveMCPServer(ctx context.Context, id string) (bool
 
 // StartWhatsAppConnection is the resolver for the startWhatsAppConnection field.
 func (r *mutationResolver) StartWhatsAppConnection(ctx context.Context) (bool, error) {
-	connectChan := whatsapp.GetConnectChannel()
-	select {
-	case connectChan <- struct{}{}:
-		r.Logger.Info("Triggered WhatsApp connection start")
-		return true, nil
-	default:
-		go func() {
-			connectChan <- struct{}{}
-		}()
-		r.Logger.Info("Triggered WhatsApp connection start (async)")
-		return true, nil
+	if r.WhatsAppService == nil {
+		r.Logger.Error("WhatsApp service not available")
+		return false, fmt.Errorf("WhatsApp service not available")
 	}
+
+	r.WhatsAppService.TriggerConnect()
+	r.Logger.Info("Triggered WhatsApp connection start")
+	return true, nil
 }
 
 // Activate is the resolver for the activate field.

@@ -140,37 +140,34 @@ func (s *Service) drainChannels() {
 	qrDrained := 0
 	connectDrained := 0
 
-	// Drain client channel
+drainClientLoop:
 	for {
 		select {
 		case <-s.clientChan:
 			clientDrained++
 		default:
-			break
+			break drainClientLoop
 		}
-		break
 	}
 
-	// Drain QR channel
+drainQRLoop:
 	for {
 		select {
 		case <-s.qrChan:
 			qrDrained++
 		default:
-			break
+			break drainQRLoop
 		}
-		break
 	}
 
-	// Drain connect channel
+drainConnectLoop:
 	for {
 		select {
 		case <-s.connectChan:
 			connectDrained++
 		default:
-			break
+			break drainConnectLoop
 		}
-		break
 	}
 
 	if clientDrained > 0 || qrDrained > 0 || connectDrained > 0 {
@@ -300,8 +297,8 @@ func (s *Service) bootstrapClient() {
 		s.envs.DBPath,
 		s.envs,
 		s.aiService,
-		s.connectChan, // ✅ Pass service-owned connect channel
-		s.qrChan,      // ✅ Pass service-owned QR channel
+		s.connectChan,
+		s.qrChan,
 	)
 
 	s.mu.Lock()
@@ -355,21 +352,21 @@ func (s *Service) registerToolsWhenReady() {
 	}
 }
 
-// GetQRChannel returns the service's QR code channel
+// GetQRChannel returns the service's QR code channel.
 func (s *Service) GetQRChannel() chan QRCodeEvent {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.qrChan
 }
 
-// GetConnectChannel returns the service's connect channel
+// GetConnectChannel returns the service's connect channel.
 func (s *Service) GetConnectChannel() chan struct{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.connectChan
 }
 
-// TriggerConnect sends a signal to start WhatsApp connection
+// TriggerConnect sends a signal to start WhatsApp connection.
 func (s *Service) TriggerConnect() {
 	select {
 	case s.connectChan <- struct{}{}:
