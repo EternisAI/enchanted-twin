@@ -90,14 +90,29 @@ func createMockAIService(logger *log.Logger) *ai.Service {
 					},
 				}
 
-				// Generate deterministic embeddings based on request content
+				// Generate deterministic but varied embeddings based on request content hash
+				body, _ := io.ReadAll(r.Body)
+				var requestData map[string]interface{}
+				if err := json.Unmarshal(body, &requestData); err != nil {
+					logger.Error("Failed to parse embeddings request", "error", err)
+				}
+
+				// Create a simple hash from the input text to make embeddings vary with content
+				contentHash := 0
+				if input, ok := requestData["input"].(string); ok {
+					for _, char := range input {
+						contentHash = (contentHash*31 + int(char)) % 10000
+					}
+				}
+
 				embedding, ok := response["data"].([]map[string]interface{})[0]["embedding"].([]float64)
 				if !ok {
 					logger.Error("Failed to assert embedding type")
 					return
 				}
 				for i := range embedding {
-					embedding[i] = float64((i%100))/100.0 - 0.5
+					// Create more varied embeddings based on content and position
+					embedding[i] = float64(((i+contentHash)%200))/200.0 - 0.5
 				}
 
 				if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -195,25 +210,25 @@ func createMockAIService(logger *log.Logger) *ai.Service {
 											"function": map[string]interface{}{
 												"name": "EXTRACT_FACTS",
 												"arguments": `{
-													"facts": [
-														{
-															"category": "profile_stable",
-															"subject": "primaryUser",
-															"attribute": "technical_interest",
-															"value": "demonstrates strong technical interests and analytical thinking patterns",
-															"sensitivity": "low",
-															"importance": 2
-														},
-														{
-															"category": "preference",
-															"subject": "primaryUser",
-															"attribute": "decision_making_style",
-															"value": "prefers structured, data-driven approaches to problem solving",
-															"sensitivity": "low",
-															"importance": 2
-														}
-													]
-												}`,
+												"facts": [
+													{
+														"category": "activity",
+														"subject": "primaryUser",
+														"attribute": "communication_activity",
+														"value": "actively engages in conversations and communications",
+														"sensitivity": "low",
+														"importance": 2
+													},
+													{
+														"category": "preference",
+														"subject": "primaryUser",
+														"attribute": "interaction_style",
+														"value": "participates in digital communications and online activities",
+														"sensitivity": "low",
+														"importance": 2
+													}
+												]
+											}`,
 											},
 										},
 									},
