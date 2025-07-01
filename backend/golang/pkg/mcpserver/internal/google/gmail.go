@@ -47,9 +47,9 @@ type EmailQuery struct {
 
 type SearchEmailsArguments struct {
 	EmailAccount string     `json:"email_account" jsonschema:"required,description=The email account to list emails from"`
-	Query        EmailQuery `json:"query"      jsonschema:"description=The query to list emails, default is 'in:inbox'"`
-	PageToken    string     `json:"page_token" jsonschema:"description=The page token to list, default is empty"`
-	Limit        int        `json:"limit"      jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
+	Query        EmailQuery `json:"query"         jsonschema:"description=The query to list emails, default is 'in:inbox'"`
+	PageToken    string     `json:"page_token"    jsonschema:"description=The page token to list, default is empty"`
+	Limit        int        `json:"limit"         jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
 }
 
 type SendEmailArguments struct {
@@ -526,52 +526,56 @@ func GenerateGmailTools() ([]mcp_golang.Tool, error) {
 		return nil, fmt.Errorf("error generating schema for send_email: %w", err)
 	}
 	desc = SEND_EMAIL_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.Tool{
+	sendEmailTool := mcp_golang.Tool{
 		Name:        SEND_EMAIL_TOOL_NAME,
 		Description: desc,
 		InputSchema: mcp_golang.ToolInputSchema{
 			Type:       "object",
 			Properties: sendEmailSchema,
 		},
-	})
+	}
+	tools = append(tools, sendEmailTool)
 
 	emailByIdSchema, err := utils.ConverToInputSchema(EmailByIdArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for email_by_id: %w", err)
 	}
 	desc = EMAIL_BY_ID_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.Tool{
+	emailByIdTool := mcp_golang.Tool{
 		Name:        EMAIL_BY_ID_TOOL_NAME,
 		Description: desc,
 		InputSchema: mcp_golang.ToolInputSchema{
 			Type:       "object",
 			Properties: emailByIdSchema,
 		},
-	})
+	}
+	tools = append(tools, emailByIdTool)
 
 	desc = LIST_EMAIL_ACCOUNTS_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.Tool{
+	listEmailAccountsTool := mcp_golang.Tool{
 		Name:        LIST_EMAIL_ACCOUNTS_TOOL_NAME,
 		Description: desc,
 		InputSchema: mcp_golang.ToolInputSchema{
 			Type:       "object",
-			Properties: map[string]any{},
+			Properties: map[string]interface{}{},
 		},
-	})
+	}
+	tools = append(tools, listEmailAccountsTool)
 
 	replyEmailSchema, err := utils.ConverToInputSchema(ReplyEmailArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for reply_email: %w", err)
 	}
 	desc = REPLY_EMAIL_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.Tool{
+	replyEmailTool := mcp_golang.Tool{
 		Name:        REPLY_EMAIL_TOOL_NAME,
 		Description: desc,
 		InputSchema: mcp_golang.ToolInputSchema{
 			Type:       "object",
 			Properties: replyEmailSchema,
 		},
-	})
+	}
+	tools = append(tools, replyEmailTool)
 
 	return tools, nil
 }

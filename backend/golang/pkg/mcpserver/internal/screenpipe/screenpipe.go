@@ -2,14 +2,11 @@ package screenpipe
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	mcp_golang "github.com/mark3labs/mcp-go/mcp"
-
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 const (
@@ -43,22 +40,19 @@ func (c *ScreenpipeClient) CallTool(
 ) (*mcp_golang.CallToolResult, error) {
 	fmt.Println("Call tool SCREENPIPE", request.Params.Name, request.Params.Arguments)
 
-	bytes, err := utils.ConvertToBytes(request.Params.Arguments)
-	if err != nil {
-		return nil, err
-	}
 	var content []mcp_golang.Content
 	switch request.Params.Name {
 	case SearchContentToolName:
-		arguments := &SearchContentArguments{}
-		err = json.Unmarshal(bytes, arguments)
+		var argumentsTyped SearchContentArguments
+		err := request.BindArguments(&argumentsTyped)
 		if err != nil {
 			return nil, err
 		}
-		content, err = processSearchContent(ctx, c, *arguments)
+		contentResp, err := processSearchContent(ctx, c, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}
+		content = contentResp
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", request.Params.Name)
 	}

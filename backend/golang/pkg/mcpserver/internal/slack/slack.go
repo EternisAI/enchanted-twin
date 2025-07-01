@@ -2,7 +2,6 @@ package slack
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 type SlackClient struct {
@@ -39,11 +37,6 @@ func (c *SlackClient) CallTool(
 ) (*mcp_golang.CallToolResult, error) {
 	fmt.Println("Call tool SLACK", request.Params.Name, request.Params.Arguments)
 
-	bytes, err := utils.ConvertToBytes(request.Params.Arguments)
-	if err != nil {
-		return nil, err
-	}
-
 	oauthTokens, err := c.Store.GetOAuthTokens(ctx, "slack")
 	if err != nil {
 		return nil, err
@@ -67,7 +60,8 @@ func (c *SlackClient) CallTool(
 	switch request.Params.Name {
 	case LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_NAME:
 		var argumentsTyped ListDirectMessageConversationsArguments
-		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
 			return nil, err
 		}
 		content, err = processListDirectMessageConversations(ctx, oauthTokens.AccessToken, argumentsTyped)
@@ -76,7 +70,8 @@ func (c *SlackClient) CallTool(
 		}
 	case LIST_CHANNELS_TOOL_NAME:
 		var argumentsTyped ListChannelsArguments
-		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
 			return nil, err
 		}
 		content, err = processListChannels(ctx, oauthTokens.AccessToken, argumentsTyped)
@@ -85,7 +80,8 @@ func (c *SlackClient) CallTool(
 		}
 	case POST_MESSAGE_TOOL_NAME:
 		var argumentsTyped PostMessageArguments
-		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
 			return nil, err
 		}
 		content, err = processPostMessage(ctx, oauthTokens.AccessToken, argumentsTyped)
@@ -94,7 +90,8 @@ func (c *SlackClient) CallTool(
 		}
 	case SEARCH_MESSAGES_TOOL_NAME:
 		var argumentsTyped SearchMessagesArguments
-		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
 			return nil, err
 		}
 		content, err = processSearchMessages(ctx, oauthTokens.AccessToken, argumentsTyped)

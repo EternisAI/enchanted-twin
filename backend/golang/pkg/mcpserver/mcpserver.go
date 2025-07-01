@@ -117,15 +117,21 @@ func (s *service) ConnectMCPServer(
 				return nil, fmt.Errorf("failed to refresh oauth tokens: %w", err)
 			}
 
-			// TODO: Add OAuth support for the new client
-			// oauth, err := s.store.GetOAuthTokens(ctx, "google")
-			// if err != nil {
-			// 	return nil, fmt.Errorf("failed to get oauth tokens: %w", err)
-			// }
+			// Add OAuth support for the new client
+			oauth, err := s.store.GetOAuthTokens(ctx, "google")
+			if err != nil {
+				return nil, fmt.Errorf("failed to get oauth tokens: %w", err)
+			}
 
-			// TODO: Need to determine the correct client constructor based on transport type
-			// For now, using NewStreamableHttpClient
-			mcpClient, err := mcpclient.NewStreamableHttpClient(s.config.EnchantedMcpURL)
+			// Create client with OAuth authorization headers
+			options := []transport.StreamableHTTPCOption{}
+			if oauth != nil && oauth.AccessToken != "" {
+				options = append(options, transport.WithHTTPHeaders(map[string]string{
+					"Authorization": "Bearer " + oauth.AccessToken,
+				}))
+			}
+
+			mcpClient, err := mcpclient.NewStreamableHttpClient(s.config.EnchantedMcpURL, options...)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create MCP client: %w", err)
 			}
@@ -182,6 +188,7 @@ func (s *service) ConnectMCPServer(
 		if err != nil {
 			return nil, fmt.Errorf("failed to create HTTP MCP client: %w", err)
 		}
+
 		// HTTP clients need manual start
 		err = mcpClient.Start(ctx)
 		if err != nil {
@@ -349,16 +356,16 @@ func (s *service) LoadMCP(ctx context.Context) error {
 					Store: s.store,
 				}
 			// TODO: Re-enable after fixing compilation issues
-			// case model.MCPServerTypeGoogle:
-			// 	client = &google.GoogleClient{
-			// 		Store: s.store,
-			// 	}
+			case model.MCPServerTypeGoogle:
+				client = &google.GoogleClient{
+					Store: s.store,
+				}
 			case model.MCPServerTypeSLACk:
 				client = &slack.SlackClient{
 					Store: s.store,
 				}
-			// case model.MCPServerTypeScreenpipe:
-			// 	client = screenpipe.NewClient()
+			case model.MCPServerTypeScreenpipe:
+				client = screenpipe.NewClient()
 			case model.MCPServerTypeEnchanted:
 				if s.config == nil {
 					log.Error("Config is nil, cannot connect to Enchanted MCP server", "server", server.Name)
@@ -370,21 +377,22 @@ func (s *service) LoadMCP(ctx context.Context) error {
 					log.Error("Error refreshing oauth tokens", "error", err)
 				}
 
-				// TODO: Add OAuth support
-				// oauth, err := s.store.GetOAuthTokens(ctx, "google")
-				// if err != nil {
-				// 	log.Error("Error getting oauth tokens for MCP server", "server", server.Name, "error", err)
-				// 	continue
-				// }
+				// Add OAuth support
+				oauth, err := s.store.GetOAuthTokens(ctx, "google")
+				if err != nil {
+					log.Error("Error getting oauth tokens for MCP server", "server", server.Name, "error", err)
+					continue
+				}
 
-				// TODO: Add OAuth support
-				// transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL, &oauth.AccessToken)
-				// if err != nil {
-				// 	log.Error("Error getting transport for MCP server", "server", server.Name, "error", err)
-				// 	continue
-				// }
-				// TODO: Replace with new client
-				mcpClient, err := mcpclient.NewStreamableHttpClient(s.config.EnchantedMcpURL)
+				// Create client with OAuth authorization headers
+				options := []transport.StreamableHTTPCOption{}
+				if oauth != nil && oauth.AccessToken != "" {
+					options = append(options, transport.WithHTTPHeaders(map[string]string{
+						"Authorization": "Bearer " + oauth.AccessToken,
+					}))
+				}
+
+				mcpClient, err := mcpclient.NewStreamableHttpClient(s.config.EnchantedMcpURL, options...)
 				if err != nil {
 					log.Error("Error creating MCP client", "server", server.Name, "error", err)
 					continue
@@ -499,7 +507,6 @@ func (s *service) LoadMCP(ctx context.Context) error {
 // GetTools retrieves all tools from the MCP servers.
 func (s *service) GetTools(ctx context.Context) ([]mcp.Tool, error) {
 	var allTools []mcp.Tool
-
 	for _, connectedServer := range s.connectedServers {
 		request := mcp.ListToolsRequest{}
 		// TODO: Handle pagination if needed

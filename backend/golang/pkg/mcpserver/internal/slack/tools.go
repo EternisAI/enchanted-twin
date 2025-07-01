@@ -7,6 +7,8 @@ import (
 
 	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 	"github.com/slack-go/slack"
+
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 const (
@@ -307,13 +309,63 @@ func processSearchMessages(
 }
 
 func GenerateSlackTools() ([]mcp_golang.Tool, error) {
-	// Create tools using the new SDK like Twitter client
-	tools := []mcp_golang.Tool{
-		mcp_golang.NewTool(LIST_CHANNELS_TOOL_NAME, mcp_golang.WithDescription(LIST_CHANNELS_TOOL_DESCRIPTION)),
-		mcp_golang.NewTool(LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_NAME, mcp_golang.WithDescription(LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_DESCRIPTION)),
-		mcp_golang.NewTool(POST_MESSAGE_TOOL_NAME, mcp_golang.WithDescription(POST_MESSAGE_TOOL_DESCRIPTION)),
-		mcp_golang.NewTool(SEARCH_MESSAGES_TOOL_NAME, mcp_golang.WithDescription(SEARCH_MESSAGES_TOOL_DESCRIPTION)),
+	var tools []mcp_golang.Tool
+
+	// List channels tool
+	listChannelsSchema, err := utils.ConverToInputSchema(ListChannelsArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for list_channels: %w", err)
 	}
+	tools = append(tools, mcp_golang.Tool{
+		Name:        LIST_CHANNELS_TOOL_NAME,
+		Description: LIST_CHANNELS_TOOL_DESCRIPTION,
+		InputSchema: mcp_golang.ToolInputSchema{
+			Type:       "object",
+			Properties: listChannelsSchema,
+		},
+	})
+
+	// List direct message conversations tool
+	listDMConversationsSchema, err := utils.ConverToInputSchema(ListDirectMessageConversationsArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for list_direct_message_conversations: %w", err)
+	}
+	tools = append(tools, mcp_golang.Tool{
+		Name:        LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_NAME,
+		Description: LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_DESCRIPTION,
+		InputSchema: mcp_golang.ToolInputSchema{
+			Type:       "object",
+			Properties: listDMConversationsSchema,
+		},
+	})
+
+	// Post message tool
+	postMessageSchema, err := utils.ConverToInputSchema(PostMessageArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for post_message: %w", err)
+	}
+	tools = append(tools, mcp_golang.Tool{
+		Name:        POST_MESSAGE_TOOL_NAME,
+		Description: POST_MESSAGE_TOOL_DESCRIPTION,
+		InputSchema: mcp_golang.ToolInputSchema{
+			Type:       "object",
+			Properties: postMessageSchema,
+		},
+	})
+
+	// Search messages tool
+	searchMessagesSchema, err := utils.ConverToInputSchema(SearchMessagesArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for search_messages: %w", err)
+	}
+	tools = append(tools, mcp_golang.Tool{
+		Name:        SEARCH_MESSAGES_TOOL_NAME,
+		Description: SEARCH_MESSAGES_TOOL_DESCRIPTION,
+		InputSchema: mcp_golang.ToolInputSchema{
+			Type:       "object",
+			Properties: searchMessagesSchema,
+		},
+	})
 
 	return tools, nil
 }
