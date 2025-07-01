@@ -7,7 +7,7 @@ run:
 	go run cmd/server/*.go
 
 build:
-	go build -o bin/enchanted-twin cmd/server/main.go
+	go build -o bin/enchanted-twin cmd/server/*.go
 
 fresh-db:
 	@echo "Removing all Weaviate and SQLite data to restart with fresh schema..."
