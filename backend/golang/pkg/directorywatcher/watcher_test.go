@@ -14,9 +14,9 @@ import (
 )
 
 func TestDirectoryWatcher_isSupportedFile(t *testing.T) {
-	store := &db.Store{} // Mock store
+	store := &db.Store{}
 	logger := log.New(os.Stdout)
-	temporalClient := &mocks.Client{} // Mock temporal client
+	temporalClient := &mocks.Client{}
 
 	watcher, err := NewDirectoryWatcher(store, logger, temporalClient, "./test_data")
 	require.NoError(t, err)
@@ -49,9 +49,9 @@ func TestDirectoryWatcher_isSupportedFile(t *testing.T) {
 }
 
 func TestDirectoryWatcher_determineDataSourceType(t *testing.T) {
-	store := &db.Store{} // Mock store
+	store := &db.Store{}
 	logger := log.New(os.Stdout)
-	temporalClient := &mocks.Client{} // Mock temporal client
+	temporalClient := &mocks.Client{}
 
 	watcher, err := NewDirectoryWatcher(store, logger, temporalClient, "./test_data")
 	require.NoError(t, err)
@@ -70,9 +70,9 @@ func TestDirectoryWatcher_determineDataSourceType(t *testing.T) {
 		{"x_data.zip", "X"},
 		{"chatgpt_conversations.json", "ChatGPT"},
 		{"chatgpt_export.zip", "ChatGPT"},
-		{"random_data.json", "Telegram"}, // Default JSON to Telegram
-		{"unknown_export.zip", "X"},      // Default ZIP to X
-		{"unsupported.txt", ""},          // Not supported
+		{"random_data.json", "Telegram"},
+		{"unknown_export.zip", "X"},
+		{"unsupported.txt", ""},
 	}
 
 	for _, tc := range testCases {
@@ -84,7 +84,6 @@ func TestDirectoryWatcher_determineDataSourceType(t *testing.T) {
 }
 
 func TestDirectoryWatcher_CreateAndStart(t *testing.T) {
-	// Create temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "watcher_test_*")
 	require.NoError(t, err)
 	defer func() {
@@ -93,31 +92,28 @@ func TestDirectoryWatcher_CreateAndStart(t *testing.T) {
 		}
 	}()
 
-	store := &db.Store{} // Mock store - in real test this would be properly mocked
+	store := &db.Store{}
 	logger := log.New(os.Stdout)
-	temporalClient := &mocks.Client{} // Mock temporal client
+	temporalClient := &mocks.Client{}
 
 	watcher, err := NewDirectoryWatcher(store, logger, temporalClient, tempDir)
 	require.NoError(t, err)
 	require.NotNil(t, watcher)
 
-	// Test that the watcher can be created without starting
 	assert.Equal(t, tempDir, watcher.watchDir)
 	assert.NotNil(t, watcher.watcher)
 	assert.NotNil(t, watcher.shutdownCh)
 	assert.NotNil(t, watcher.fileBuffer)
 }
 
-// Integration test helper - would need proper mocking for full test.
 func TestDirectoryWatcher_BufferEvents(t *testing.T) {
-	store := &db.Store{} // Mock store
+	store := &db.Store{}
 	logger := log.New(os.Stdout)
-	temporalClient := &mocks.Client{} // Mock temporal client
+	temporalClient := &mocks.Client{}
 
 	watcher, err := NewDirectoryWatcher(store, logger, temporalClient, "./test_data")
 	require.NoError(t, err)
 
-	// Test buffering functionality
 	event1 := &FileEvent{
 		Path:      "/test/file1.json",
 		Operation: "CREATE",
@@ -125,17 +121,15 @@ func TestDirectoryWatcher_BufferEvents(t *testing.T) {
 	}
 
 	event2 := &FileEvent{
-		Path:      "/test/file1.json", // Same file, should overwrite
+		Path:      "/test/file1.json",
 		Operation: "WRITE",
 		Timestamp: time.Now(),
 	}
 
-	// Buffer events
 	watcher.bufferFileEvent(event1)
-	time.Sleep(10 * time.Millisecond) // Small delay
+	time.Sleep(10 * time.Millisecond)
 	watcher.bufferFileEvent(event2)
 
-	// Check that the second event overwrote the first (deduplication)
 	watcher.bufferMu.Lock()
 	bufferedEvent, exists := watcher.fileBuffer["/test/file1.json"]
 	watcher.bufferMu.Unlock()

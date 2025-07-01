@@ -1,3 +1,4 @@
+// owner: slimane@eternis.ai
 package directorywatcher
 
 import (
@@ -42,7 +43,6 @@ func NewDirectoryWatcher(store *db.Store, logger *log.Logger, temporalClient cli
 		return nil, errors.Wrap(err, "failed to create file watcher")
 	}
 
-	// Default buffer duration of 5 seconds to batch rapid file events
 	bufferDuration := 5 * time.Second
 
 	dw := &DirectoryWatcher{
@@ -62,20 +62,16 @@ func NewDirectoryWatcher(store *db.Store, logger *log.Logger, temporalClient cli
 func (dw *DirectoryWatcher) Start(ctx context.Context) error {
 	dw.logger.Info("Starting directory watcher", "watchDir", dw.watchDir)
 
-	// Ensure the watch directory exists
 	if err := os.MkdirAll(dw.watchDir, 0o755); err != nil {
 		return errors.Wrap(err, "failed to create watch directory")
 	}
 
-	// Add directory to watcher
 	if err := dw.watcher.Add(dw.watchDir); err != nil {
 		return errors.Wrap(err, "failed to add directory to watcher")
 	}
 
-	// Start the main event loop
 	go dw.eventLoop()
 
-	// Perform initial scan for existing files
 	go dw.performInitialScan(ctx)
 
 	dw.logger.Info("Directory watcher started successfully")
@@ -118,25 +114,21 @@ func (dw *DirectoryWatcher) eventLoop() {
 }
 
 func (dw *DirectoryWatcher) handleFileEvent(event fsnotify.Event) {
-	// Skip directory events
 	if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
 		return
 	}
 
-	// Skip temporary files and hidden files
 	fileName := filepath.Base(event.Name)
 	if strings.HasPrefix(fileName, ".") || strings.HasSuffix(fileName, ".tmp") {
 		return
 	}
 
-	// Only process supported file types
 	if !dw.isSupportedFile(event.Name) {
 		return
 	}
 
 	dw.logger.Debug("File event", "path", event.Name, "op", event.Op.String())
 
-	// Buffer the event to handle rapid changes
 	dw.bufferFileEvent(&FileEvent{
 		Path:      event.Name,
 		Operation: event.Op.String(),
@@ -148,10 +140,8 @@ func (dw *DirectoryWatcher) bufferFileEvent(event *FileEvent) {
 	dw.bufferMu.Lock()
 	defer dw.bufferMu.Unlock()
 
-	// Use the file path as the key to deduplicate rapid events
 	dw.fileBuffer[event.Path] = event
 
-	// Reset or create buffer timer
 	if dw.bufferTimer != nil {
 		dw.bufferTimer.Stop()
 	}
@@ -167,7 +157,7 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 	for _, event := range dw.fileBuffer {
 		events = append(events, event)
 	}
-	dw.fileBuffer = make(map[string]*FileEvent) // Clear buffer
+	dw.fileBuffer = make(map[string]*FileEvent)
 	dw.bufferMu.Unlock()
 
 	if len(events) == 0 {
@@ -188,7 +178,6 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 		}
 	}
 
-	// After processing new files, trigger the initialize workflow
 	if err := dw.triggerProcessingWorkflow(); err != nil {
 		dw.logger.Error("Failed to trigger processing workflow", "error", err)
 	}
@@ -197,17 +186,14 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 	ctx := context.Background()
 
-	// Convert to absolute path for consistency
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
 		dw.logger.Error("Failed to resolve absolute path", "error", err, "path", filePath)
-		// Use original path as fallback
 		absPath = filePath
 	}
 
 	dw.logger.Debug("Processing new file", "originalPath", filePath, "absolutePath", absPath)
 
-	// Check if active data source already exists for this path
 	exists, err := dw.store.ActiveDataSourceExistsByPath(ctx, absPath)
 	if err != nil {
 		dw.logger.Error("Failed to check if active data source exists", "error", err, "path", absPath)
@@ -217,14 +203,12 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 	if exists {
 		dw.logger.Info("Active data source exists - marking as replaced and creating new version", "path", absPath)
 
-		// Mark existing active data source as replaced
 		if err := dw.store.MarkDataSourceAsReplaced(ctx, absPath); err != nil {
 			dw.logger.Error("Failed to mark existing data source as replaced", "error", err, "path", absPath)
 			return errors.Wrap(err, "failed to mark existing data source as replaced")
 		}
 	}
 
-	// Determine data source type from file extension/name
 	dataSourceName := dw.determineDataSourceType(filePath)
 	if dataSourceName == "" {
 		dw.logger.Warn("Unsupported file type", "path", filePath)
@@ -233,7 +217,6 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 
 	dw.logger.Debug("Determined data source type", "path", filePath, "type", dataSourceName)
 
-	// Create new data source
 	dataSourceID, err := dw.store.CreateDataSourceFromFile(ctx, &db.CreateDataSourceFromFileInput{
 		Name: dataSourceName,
 		Path: absPath,
@@ -250,7 +233,6 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 func (dw *DirectoryWatcher) processRemovedFile(filePath string) error {
 	ctx := context.Background()
 
-	// Convert to absolute path for consistency
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
 		dw.logger.Error("Failed to resolve absolute path for removal", "error", err, "path", filePath)
@@ -259,7 +241,6 @@ func (dw *DirectoryWatcher) processRemovedFile(filePath string) error {
 
 	dw.logger.Debug("Processing removed file", "originalPath", filePath, "absolutePath", absPath)
 
-	// Mark active data source as deleted
 	if err := dw.store.MarkDataSourceAsDeleted(ctx, absPath); err != nil {
 		dw.logger.Error("Failed to mark data source as deleted", "error", err, "path", absPath)
 		return errors.Wrap(err, "failed to mark data source as deleted")
@@ -301,25 +282,21 @@ func (dw *DirectoryWatcher) performInitialScan(ctx context.Context) {
 			return nil
 		}
 
-		// Skip hidden and temporary files
 		fileName := filepath.Base(path)
 		if strings.HasPrefix(fileName, ".") || strings.HasSuffix(fileName, ".tmp") {
 			return nil
 		}
 
-		// Check if supported file type
 		if !dw.isSupportedFile(path) {
 			return nil
 		}
 
-		// Convert to absolute path for consistency
 		absPath, err := filepath.Abs(path)
 		if err != nil {
 			dw.logger.Error("Failed to resolve absolute path during scan", "error", err, "path", path)
-			absPath = path // Use original path as fallback
+			absPath = path
 		}
 
-		// Check if already tracked as active
 		exists, err := dw.store.ActiveDataSourceExistsByPath(ctx, absPath)
 		if err != nil {
 			dw.logger.Error("Failed to check active data source existence", "error", err, "path", absPath)
@@ -340,7 +317,6 @@ func (dw *DirectoryWatcher) performInitialScan(ctx context.Context) {
 	} else {
 		dw.logger.Info("Initial scan completed")
 
-		// Trigger processing workflow after initial scan
 		if err := dw.triggerProcessingWorkflow(); err != nil {
 			dw.logger.Error("Failed to trigger processing workflow after initial scan", "error", err)
 		}
@@ -351,7 +327,10 @@ func (dw *DirectoryWatcher) isSupportedFile(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	fileName := strings.ToLower(filepath.Base(filePath))
 
-	// Supported file extensions
+	if strings.HasPrefix(fileName, ".") || strings.HasSuffix(fileName, ".tmp") {
+		return false
+	}
+
 	supportedExts := []string{
 		".json", ".mbox", ".zip", ".sqlite", ".db", ".tar", ".tar.gz",
 	}
@@ -362,7 +341,6 @@ func (dw *DirectoryWatcher) isSupportedFile(filePath string) bool {
 		}
 	}
 
-	// Special case for WhatsApp database files
 	if strings.Contains(fileName, "whatsapp") && (ext == ".db" || ext == ".sqlite") {
 		return true
 	}
@@ -374,7 +352,6 @@ func (dw *DirectoryWatcher) determineDataSourceType(filePath string) string {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	fileName := strings.ToLower(filepath.Base(filePath))
 
-	// Determine data source type based on file characteristics
 	switch {
 	case strings.Contains(fileName, "whatsapp") && (ext == ".db" || ext == ".sqlite"):
 		return "WhatsApp"
@@ -384,16 +361,14 @@ func (dw *DirectoryWatcher) determineDataSourceType(filePath string) string {
 		return "Gmail"
 	case strings.Contains(fileName, "slack") && ext == ".zip":
 		return "Slack"
-	case strings.Contains(fileName, "twitter") || strings.Contains(fileName, "x") && ext == ".zip":
-		return "X"
 	case strings.Contains(fileName, "chatgpt") && (ext == ".json" || ext == ".zip"):
 		return "ChatGPT"
+	case (strings.Contains(fileName, "twitter") || strings.Contains(fileName, "x")) && ext == ".zip":
+		return "X"
 	case ext == ".json":
-		// Default JSON files to Telegram (can be adjusted based on content analysis)
 		return "Telegram"
 	case ext == ".zip":
-		// Generic ZIP files, could be any export
-		return "X" // Default to X for now
+		return "X"
 	default:
 		return ""
 	}
