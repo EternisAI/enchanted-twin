@@ -61,7 +61,9 @@ function RootComponent() {
     )
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      removeOpenSettingsListener()
+      if (removeOpenSettingsListener) {
+        removeOpenSettingsListener()
+      }
     }
   }, [sidebarOpen, navigate, isCompleted, omnibar.isOpen, location.pathname, setSidebarOpen])
 
