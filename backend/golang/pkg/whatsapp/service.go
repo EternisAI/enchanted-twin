@@ -352,20 +352,6 @@ func (s *Service) registerToolsWhenReady() {
 	}
 }
 
-// GetQRChannel returns the service's QR code channel.
-func (s *Service) GetQRChannel() chan QRCodeEvent {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.qrChan
-}
-
-// GetConnectChannel returns the service's connect channel.
-func (s *Service) GetConnectChannel() chan struct{} {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.connectChan
-}
-
 // TriggerConnect sends a signal to start WhatsApp connection.
 func (s *Service) TriggerConnect() {
 	select {
