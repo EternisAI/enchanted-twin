@@ -3,14 +3,11 @@ package whatsapp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
-	"github.com/samber/lo"
 	"go.mau.fi/whatsmeow"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -20,31 +17,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	waTools "github.com/EternisAI/enchanted-twin/pkg/whatsapp/tools"
 )
-
-// ServiceQREvent represents a QR code event within the service.
-type ServiceQREvent struct {
-	Event string
-	Code  string
-}
-
-// ServiceSyncStatus represents sync status within the service.
-type ServiceSyncStatus struct {
-	Progress          float64
-	TotalItems        int
-	ProcessedItems    int
-	StartTime         time.Time
-	LastUpdateTime    time.Time
-	StatusMessage     string
-	EstimatedTimeLeft string
-	IsSyncing         bool
-	IsCompleted       bool
-}
-
-// ServiceContact represents a WhatsApp contact within the service.
-type ServiceContact struct {
-	Jid  string
-	Name string
-}
 
 type Service struct {
 	logger        *log.Logger
@@ -57,16 +29,10 @@ type Service struct {
 	client        *whatsmeow.Client
 	currentQRCode *string
 	isConnected   bool
-
-	// Internal state management (no global state)
-	qrChan        chan ServiceQREvent
+	qrChan        chan QRCodeEvent
 	connectChan   chan struct{}
 	clientChan    chan *whatsmeow.Client
-	latestQREvent *ServiceQREvent
-	syncStatus    ServiceSyncStatus
-	contacts      []ServiceContact
 
-	// Lifecycle management
 	ctx     context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -95,15 +61,11 @@ func NewService(cfg ServiceConfig) *Service {
 		envs:          cfg.Config,
 		aiService:     cfg.AIService,
 		toolRegistry:  cfg.ToolRegistry,
-
-		// Initialize internal channels and state
-		qrChan:      make(chan ServiceQREvent, 100),
-		connectChan: make(chan struct{}, 1),
-		clientChan:  make(chan *whatsmeow.Client, 1),
-		contacts:    make([]ServiceContact, 0),
-
-		ctx:    ctx,
-		cancel: cancel,
+		qrChan:        GetQRChannel(),
+		connectChan:   GetConnectChannel(),
+		clientChan:    make(chan *whatsmeow.Client, 1),
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 
 	return service
@@ -174,7 +136,6 @@ func (s *Service) safeGoroutine(name string, fn func()) {
 	fn()
 }
 
-// Public API methods with thread safety.
 func (s *Service) GetCurrentQRCode() *string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -193,178 +154,6 @@ func (s *Service) GetClient() *whatsmeow.Client {
 	return s.client
 }
 
-func (s *Service) GetSyncStatus() ServiceSyncStatus {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.syncStatus
-}
-
-// QR Code management methods.
-func (s *Service) GetQRChannel() chan ServiceQREvent {
-	return s.qrChan
-}
-
-func (s *Service) PublishQREvent(event ServiceQREvent) {
-	select {
-	case s.qrChan <- event:
-	case <-s.ctx.Done():
-	default:
-		s.logger.Warn("QR channel full, dropping event", "event", event.Event)
-	}
-}
-
-func (s *Service) SetLatestQREvent(evt ServiceQREvent) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.latestQREvent = &evt
-}
-
-func (s *Service) GetLatestQREvent() *ServiceQREvent {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.latestQREvent
-}
-
-// Sync status management methods.
-func (s *Service) StartSync() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.syncStatus = ServiceSyncStatus{
-		IsSyncing:         true,
-		Progress:          0,
-		ProcessedItems:    0,
-		TotalItems:        0,
-		StartTime:         time.Now(),
-		LastUpdateTime:    time.Now(),
-		StatusMessage:     "Preparing to sync WhatsApp history...",
-		EstimatedTimeLeft: "Calculating...",
-	}
-}
-
-func (s *Service) UpdateSyncStatus(newStatus ServiceSyncStatus) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	newStatus.LastUpdateTime = time.Now()
-
-	if newStatus.TotalItems > 0 {
-		newStatus.Progress = float64(newStatus.ProcessedItems) / float64(newStatus.TotalItems) * 100
-
-		if newStatus.ProcessedItems > 0 && !newStatus.StartTime.IsZero() {
-			elapsedTime := time.Since(newStatus.StartTime)
-			itemsPerSecond := float64(newStatus.ProcessedItems) / elapsedTime.Seconds()
-			if itemsPerSecond > 0 {
-				remainingItems := newStatus.TotalItems - newStatus.ProcessedItems
-				remainingSeconds := float64(remainingItems) / itemsPerSecond
-				remainingDuration := time.Duration(remainingSeconds) * time.Second
-
-				if remainingDuration > 1*time.Hour {
-					newStatus.EstimatedTimeLeft = fmt.Sprintf("~%.1f hours", remainingDuration.Hours())
-				} else if remainingDuration > 1*time.Minute {
-					newStatus.EstimatedTimeLeft = fmt.Sprintf("~%.1f minutes", remainingDuration.Minutes())
-				} else {
-					newStatus.EstimatedTimeLeft = fmt.Sprintf("~%.0f seconds", remainingDuration.Seconds())
-				}
-			}
-		}
-	}
-
-	if newStatus.IsSyncing && newStatus.ProcessedItems == 0 && newStatus.TotalItems > 0 && newStatus.StartTime.IsZero() {
-		newStatus.StartTime = time.Now()
-	}
-
-	if newStatus.ProcessedItems >= newStatus.TotalItems && newStatus.TotalItems > 0 {
-		newStatus.IsSyncing = false
-		newStatus.IsCompleted = true
-		newStatus.Progress = 100
-		newStatus.EstimatedTimeLeft = "Complete"
-	}
-
-	s.syncStatus = newStatus
-}
-
-func (s *Service) PublishSyncStatus() error {
-	status := s.GetSyncStatus()
-
-	type syncStatusPublish struct {
-		IsSyncing     bool    `json:"isSyncing"`
-		IsCompleted   bool    `json:"isCompleted"`
-		StatusMessage string  `json:"statusMessage"`
-		Error         *string `json:"error"`
-	}
-
-	publishData := syncStatusPublish{
-		IsSyncing:     status.IsSyncing,
-		IsCompleted:   status.IsCompleted,
-		StatusMessage: status.StatusMessage,
-		Error:         nil,
-	}
-
-	data, err := json.Marshal(publishData)
-	if err != nil {
-		s.logger.Error("Failed to marshal WhatsApp sync status", "error", err)
-		return err
-	}
-
-	err = s.nc.Publish("whatsapp.sync.status", data)
-	if err != nil {
-		s.logger.Error("Failed to publish WhatsApp sync status", "error", err)
-		return err
-	}
-
-	s.logger.Debug("Published WhatsApp sync status",
-		"syncing", status.IsSyncing,
-		"completed", status.IsCompleted,
-		"message", status.StatusMessage)
-
-	return nil
-}
-
-// Contact management methods.
-func (s *Service) AddContact(jid, name string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	exists := lo.ContainsBy(s.contacts, func(c ServiceContact) bool {
-		return c.Jid == jid
-	})
-
-	if !exists {
-		s.contacts = append(s.contacts, ServiceContact{
-			Jid:  jid,
-			Name: name,
-		})
-	}
-}
-
-func (s *Service) FindContactByJID(jid string) (ServiceContact, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	contact, found := lo.Find(s.contacts, func(c ServiceContact) bool {
-		return c.Jid == jid
-	})
-
-	if found {
-		return contact, true
-	}
-
-	// Try normalized JID lookup
-	normJID := s.normalizeJID(jid)
-	return lo.Find(s.contacts, func(c ServiceContact) bool {
-		return s.normalizeJID(c.Jid) == normJID
-	})
-}
-
-func (s *Service) normalizeJID(jid string) string {
-	if idx := strings.Index(jid, "@"); idx > 0 {
-		return jid[:idx]
-	}
-	return jid
-}
-
-// Internal goroutine methods.
 func (s *Service) handleQRCodeEvents() {
 	for {
 		select {
@@ -408,8 +197,8 @@ func (s *Service) handleConnectionSuccess() {
 
 	s.logger.Info("WhatsApp connection successful")
 
-	s.StartSync()
-	s.UpdateSyncStatus(ServiceSyncStatus{
+	StartSync()
+	UpdateSyncStatus(SyncStatus{
 		IsSyncing:      true,
 		IsCompleted:    false,
 		ProcessedItems: 0,
@@ -417,7 +206,7 @@ func (s *Service) handleConnectionSuccess() {
 		StatusMessage:  "Waiting for history sync to begin",
 	})
 
-	if err := s.PublishSyncStatus(); err != nil {
+	if err := PublishSyncStatus(s.nc, s.logger); err != nil {
 		s.logger.Error("Failed to publish sync status", "error", err)
 	}
 
@@ -448,8 +237,15 @@ func (s *Service) publishToNATS(subject string, data interface{}) {
 }
 
 func (s *Service) bootstrapClient() {
-	// Pass service instance to bootstrap function so it can use service-specific channels
-	client := s.bootstrapWhatsAppClient()
+	client := BootstrapWhatsAppClient(
+		s.memoryStorage,
+		s.dbsqlc,
+		s.logger,
+		s.nc,
+		s.envs.DBPath,
+		s.envs,
+		s.aiService,
+	)
 
 	s.mu.Lock()
 	s.client = client
@@ -500,19 +296,4 @@ func (s *Service) registerToolsWhenReady() {
 			}
 		}
 	}
-}
-
-// bootstrapWhatsAppClient creates a WhatsApp client with service-specific event handling.
-func (s *Service) bootstrapWhatsAppClient() *whatsmeow.Client {
-	// TODO: This still uses the global state version temporarily
-	// Need to refactor BootstrapWhatsAppClient to accept service instance
-	return BootstrapWhatsAppClient(
-		s.memoryStorage,
-		s.dbsqlc,
-		s.logger,
-		s.nc,
-		s.envs.DBPath,
-		s.envs,
-		s.aiService,
-	)
 }
