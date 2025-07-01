@@ -1,0 +1,49 @@
+{
+  "test_name": "creative_tools_focused",
+  "description": "Extension focused on testing creative tool evaluation and adoption",
+  "additional_facts": [
+    {
+      "id": "memory_005",
+      "content": "Currently beta testing three new AI art generation tools for upcoming project",
+      "category": "current_activity",
+      "importance": 0.9,
+      "created_at": "2025-06-20T10:00:00Z",
+      "tags": ["beta_testing", "AI_tools", "current"],
+      "metadata": {"tools_count": "3", "project_phase": "beta"}
+    }
+  ],
+  "additional_plans": [
+    {
+      "category": "short_term",
+      "title": "Creative Tool Evaluation",
+      "description": "Evaluate and compare latest AI art tools for professional workflow integration",
+      "timeline": "Next 2 weeks",
+      "priority": 3,
+      "status": "active",
+      "created_at": "2025-06-22T09:00:00Z"
+    }
+  ],
+  "expected_behaviors": [
+    {
+      "scenario_type": "creative_tool_announcement",
+      "input": "New creative software or AI tool released",
+      "expected": {
+        "interest_level": "very_high",
+        "likely_response": "immediate_exploration",
+        "key_concerns": ["creative_potential", "workflow_integration", "artistic_integrity"]
+      },
+      "confidence": 0.95
+    },
+    {
+      "scenario_type": "tool_comparison",
+      "input": "Comparison between different creative tools",
+      "expected": {
+        "interest_level": "high",
+        "likely_response": "analytical_comparison",
+        "key_concerns": ["feature_differences", "creative_output_quality", "learning_curve"]
+      },
+      "confidence": 0.88
+    }
+  ],
+  "tags": ["creative_tools", "ai_adoption", "professional_workflow"]
+}
