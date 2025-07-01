@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -904,16 +905,11 @@ func (ptf *PersonalityTestFramework) performAIEvaluation(ctx context.Context, sc
 		"scenario", scenario.Name,
 		"prompt_length", len(prompt))
 
-	// Create messages for AI service
-	messages := []ai.Message{
-		{
-			Role:    ai.MessageRoleUser,
-			Content: prompt,
-		},
+	// Create OpenAI messages directly
+	openaiMessages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
 	}
-
-	// Call AI service using the correct method
-	response, err := ptf.aiService.CompletionsWithMessages(ctx, messages, nil, "gpt-4")
+	response, err := ptf.aiService.Completions(ctx, openaiMessages, nil, "gpt-4")
 	if err != nil {
 		return nil, fmt.Errorf("AI evaluation failed: %w", err)
 	}

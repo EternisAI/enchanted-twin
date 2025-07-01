@@ -8,8 +8,9 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/openai/openai-go"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 )
 
@@ -145,14 +146,12 @@ func (s *FriendService) GeneratePokeMessage(ctx context.Context, input GenerateP
 		return "", fmt.Errorf("failed to build prompt: %w", err)
 	}
 
-	messages := []ai.Message{
-		{
-			Role:    ai.MessageRoleSystem,
-			Content: prompt,
-		},
+	// Create OpenAI messages directly
+	openaiMessages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(prompt),
 	}
 
-	response, err := s.aiService.CompletionsWithMessages(ctx, messages, nil, "gpt-4o-mini")
+	response, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini")
 	if err != nil {
 		return "", fmt.Errorf("failed to generate poke message: %w", err)
 	}
@@ -203,14 +202,12 @@ func (s *FriendService) GenerateMemoryPicture(ctx context.Context, input Generat
 		return "", fmt.Errorf("failed to build picture prompt: %w", err)
 	}
 
-	messages := []ai.Message{
-		{
-			Role:    ai.MessageRoleUser,
-			Content: prompt,
-		},
+	// Create OpenAI messages directly
+	openaiMessages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
 	}
 
-	response, err := s.aiService.CompletionsWithMessages(ctx, messages, nil, "gpt-4o-mini")
+	response, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini")
 	if err != nil {
 		return "", fmt.Errorf("failed to generate picture description: %w", err)
 	}
