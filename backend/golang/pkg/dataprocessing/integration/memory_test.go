@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +39,7 @@ var (
 	sharedTempDir           string
 	setupOnce               sync.Once
 	teardownOnce            sync.Once
+	mockServer              *httptest.Server
 )
 
 type testConfig struct {
@@ -59,11 +62,110 @@ type testEnvironment struct {
 	cancel         context.CancelFunc
 }
 
-// createMockAIService creates an AI service that will be used for testing.
-// We'll skip this for now and just create a simple service that fails fast for debugging.
+// createMockAIService creates an AI service with a mock HTTP server that returns successful responses.
 func createMockAIService(logger *log.Logger) *ai.Service {
-	// For now, just return a service - we'll need to solve the mocking differently
-	return ai.NewOpenAIService(logger, "test-key", "http://localhost:0")
+	if mockServer == nil {
+		// Create a mock HTTP server that returns successful OpenAI API responses
+		mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			logger.Debug("Mock API called", "path", r.URL.Path, "method", r.Method)
+
+			w.Header().Set("Content-Type", "application/json")
+
+			if strings.Contains(r.URL.Path, "embeddings") {
+				// Mock embeddings response
+				response := map[string]interface{}{
+					"object": "list",
+					"data": []map[string]interface{}{
+						{
+							"object":    "embedding",
+							"index":     0,
+							"embedding": make([]float64, 1536), // Standard OpenAI embedding size
+						},
+					},
+					"model": "text-embedding-3-small",
+					"usage": map[string]interface{}{
+						"prompt_tokens": 8,
+						"total_tokens":  8,
+					},
+				}
+
+				// Generate deterministic embeddings based on request content
+				embedding, ok := response["data"].([]map[string]interface{})[0]["embedding"].([]float64)
+				if !ok {
+					logger.Error("Failed to assert embedding type")
+					return
+				}
+				for i := range embedding {
+					embedding[i] = float64((i%100))/100.0 - 0.5
+				}
+
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					logger.Error("Failed to encode embeddings response", "error", err)
+				}
+				return
+			}
+
+			if strings.Contains(r.URL.Path, "chat/completions") {
+				// Mock chat completions response
+				response := map[string]interface{}{
+					"id":      "chatcmpl-mock-" + uuid.New().String(),
+					"object":  "chat.completion",
+					"created": time.Now().Unix(),
+					"model":   "gpt-4o-mini",
+					"choices": []map[string]interface{}{
+						{
+							"index": 0,
+							"message": map[string]interface{}{
+								"role": "assistant",
+								"content": `{
+									"facts": [
+										{
+											"id": "mock-fact-1",
+											"content": "User demonstrates strong technical interests and analytical thinking patterns",
+											"category": "personality",
+											"subject": "user",
+											"importance": 3,
+											"confidence": 0.85
+										},
+										{
+											"id": "mock-fact-2", 
+											"content": "User prefers structured, data-driven approaches to problem solving",
+											"category": "preference",
+											"subject": "user",
+											"importance": 2,
+											"confidence": 0.80
+										}
+									]
+								}`,
+							},
+							"finish_reason": "stop",
+						},
+					},
+					"usage": map[string]interface{}{
+						"prompt_tokens":     50,
+						"completion_tokens": 100,
+						"total_tokens":      150,
+					},
+				}
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					logger.Error("Failed to encode completions response", "error", err)
+				}
+				return
+			}
+
+			// Default response for unknown endpoints
+			w.WriteHeader(http.StatusNotFound)
+			if err := json.NewEncoder(w).Encode(map[string]string{
+				"error": "Mock endpoint not found: " + r.URL.Path,
+			}); err != nil {
+				logger.Error("Failed to encode error response", "error", err)
+			}
+		}))
+
+		logger.Info("Created mock OpenAI API server", "url", mockServer.URL)
+	}
+
+	return ai.NewOpenAIService(logger, "mock-api-key", mockServer.URL)
 }
 
 func SetupSharedInfrastructure() {
@@ -117,6 +219,12 @@ func SetupSharedInfrastructure() {
 
 func TeardownSharedInfrastructure() {
 	teardownOnce.Do(func() {
+		if mockServer != nil {
+			sharedLogger.Info("Closing mock API server...")
+			mockServer.Close()
+			mockServer = nil
+		}
+
 		if sharedWeaviateContainer != nil {
 			sharedLogger.Info("Terminating shared Weaviate container...")
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
