@@ -552,7 +552,7 @@ func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppS
 	// Get the latest QR event to ensure we have the most up-to-date information
 	latestQREvent := whatsapp.GetLatestQREvent()
 
-	isConnected := r.WhatsAppConnected
+	isConnected := r.GetWhatsAppConnected()
 	var qrCodeData *string
 
 	// If we have a latest QR event, use its data
@@ -566,7 +566,7 @@ func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppS
 			qrCodeData = &latestQREvent.Code
 		}
 	} else {
-		qrCodeData = r.WhatsAppQRCode
+		qrCodeData = r.GetWhatsAppQRCode()
 	}
 
 	statusMessage := ""

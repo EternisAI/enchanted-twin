@@ -495,8 +495,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 		TelegramService:        input.telegramService,
 		HolonService:           input.holonService,
-		WhatsAppQRCode:         input.whatsappService.GetCurrentQRCode(),
-		WhatsAppConnected:      input.whatsappService.IsConnected(),
+		WhatsAppService:        input.whatsappService,
 	}
 
 	srv := handler.New(gqlSchema(resolver))
