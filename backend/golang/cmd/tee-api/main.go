@@ -17,13 +17,12 @@ import (
 
 var allowedBaseURLs = map[string]string{
 	"https://openrouter.ai/api/v1":                 os.Getenv("OPENROUTER_API_KEY"),
-	"https://api.openai.com/v1":                       os.Getenv("OPENAI_API_KEY"),
+	"https://api.openai.com/v1":                    os.Getenv("OPENAI_API_KEY"),
 	"https://qwen2-5-72b.model.tinfoil.sh/v1":      os.Getenv("TINFOIL_API_KEY"),
 	"https://nomic-embed-text.model.tinfoil.sh/v1": os.Getenv("TINFOIL_API_KEY"),
 }
 
 func getAPIKey(baseURL string, config *config.Config) string {
-
 	switch baseURL {
 	case "https://openrouter.ai/api/v1":
 		return config.OpenRouterAPIKey
@@ -36,7 +35,6 @@ func getAPIKey(baseURL string, config *config.Config) string {
 	}
 	return ""
 }
-
 
 func main() {
 	config.LoadConfig()
@@ -52,13 +50,21 @@ func main() {
 	logger.Info("Setting Gin mode", "mode", config.AppConfig.GinMode)
 	gin.SetMode(config.AppConfig.GinMode)
 
+	// Initialize database
+	db, err := config.InitDatabase()
+	if err != nil {
+		logger.Fatal("Failed to initialize database", "error", err)
+	}
+
 	// Initialize services
 	oauthService := services.NewOAuthService()
 	composioService := services.NewComposioService()
+	inviteCodeService := services.NewInviteCodeService(db)
 
 	// Initialize handlers
 	oauthHandler := handlers.NewOAuthHandler(oauthService)
 	composioHandler := handlers.NewComposioHandler(composioService)
+	inviteCodeHandler := handlers.NewInviteCodeHandler(inviteCodeService)
 
 	// Initialize Gin router
 	router := gin.Default()
@@ -90,6 +96,18 @@ func main() {
 		compose.POST("/auth", composioHandler.CreateConnectedAccount)
 		compose.GET("/account", composioHandler.GetConnectedAccount)
 		compose.GET("/refresh", composioHandler.RefreshToken)
+	}
+
+	// Invite code API routes
+	api := router.Group("/api/v1")
+	{
+		invites := api.Group("/invites")
+		{
+			invites.GET("/:email/whitelist", inviteCodeHandler.CheckEmailWhitelist)
+			invites.POST("/:code/redeem", inviteCodeHandler.RedeemInviteCode)
+			invites.GET("/reset/:code", inviteCodeHandler.ResetInviteCode)
+			invites.DELETE("/:id", inviteCodeHandler.DeleteInviteCode)
+		}
 	}
 
 	router.Any("/chat/completions", proxyHandler)

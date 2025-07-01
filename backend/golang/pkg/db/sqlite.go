@@ -55,7 +55,6 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-
 	// Create singleton table that only allows one row
 	_, err = db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS singleton (

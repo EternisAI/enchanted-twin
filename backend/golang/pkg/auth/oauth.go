@@ -804,7 +804,7 @@ func Activate(ctx context.Context, logger *log.Logger, store *db.Store, inviteCo
 		return false, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	redeemURL := fmt.Sprintf("%s/api/v1/invites/%s/redeem", conf.InviteServerURL, inviteCode)
+	redeemURL := fmt.Sprintf("%s/api/v1/invites/%s/redeem", conf.ProxyTeeURL, inviteCode)
 	req, err := http.NewRequestWithContext(ctx, "POST", redeemURL, bytes.NewBuffer(requestBody))
 	if err != nil {
 		return false, fmt.Errorf("failed to create redeem request: %w", err)
@@ -847,7 +847,7 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 	if err != nil {
 		return false, fmt.Errorf("failed to load config: %w", err)
 	}
-	inviteServerURL := conf.InviteServerURL
+	inviteServerURL := conf.ProxyTeeURL
 
 	for _, token := range oauthTokens {
 		// Make GET request to check if this email is whitelisted

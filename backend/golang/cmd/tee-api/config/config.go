@@ -11,6 +11,9 @@ type Config struct {
 	Port    string
 	GinMode string
 
+	// Database
+	DatabaseURL string
+
 	// Google OAuth
 	GoogleClientID     string
 	GoogleClientSecret string
@@ -45,6 +48,9 @@ func LoadConfig() {
 		Port:    getEnvOrDefault("PORT", "8080"),
 		GinMode: getEnvOrDefault("GIN_MODE", "debug"),
 
+		// Database
+		DatabaseURL: getEnvOrDefault("DATABASE_URL", "postgres://localhost/tee_api?sslmode=disable"),
+
 		// Google
 		GoogleClientID:     getEnvOrDefault("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnvOrDefault("GOOGLE_CLIENT_SECRET", ""),
@@ -57,7 +63,7 @@ func LoadConfig() {
 		TwitterClientID: getEnvOrDefault("TWITTER_CLIENT_ID", ""),
 
 		// Composio
-		ComposioAPIKey: getEnvOrDefault("COMPOSIO_API_KEY", ""),
+		ComposioAPIKey:        getEnvOrDefault("COMPOSIO_API_KEY", ""),
 		ComposioTwitterConfig: getEnvOrDefault("COMPOSIO_TWITTER_CONFIG", ""),
 
 		// OpenAI

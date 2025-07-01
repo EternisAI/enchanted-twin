@@ -44,7 +44,6 @@ func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Servic
 }
 
 func NewOpenAIServiceTinfoil(logger *log.Logger, baseUrl string, apiKey string) *Service {
-
 	urls := strings.Split(baseUrl, ",")
 
 	client, _ := tinfoil.NewClientWithParams(
