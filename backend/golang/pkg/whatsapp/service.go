@@ -104,8 +104,12 @@ func (s *Service) Stop(ctx context.Context) error {
 
 	s.cancel()
 
-	if s.client != nil && s.client.IsConnected() {
-		s.client.Disconnect()
+	if s.client != nil {
+		if s.client.IsConnected() {
+			s.logger.Debug("Disconnecting WhatsApp client...")
+			s.client.Disconnect()
+		}
+		s.client = nil
 	}
 
 	done := make(chan struct{})
@@ -119,11 +123,31 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.logger.Info("All WhatsApp service goroutines stopped")
 	case <-time.After(5 * time.Second):
 		s.logger.Warn("Timeout waiting for WhatsApp service goroutines to stop")
+	case <-ctx.Done():
+		s.logger.Warn("Context cancelled while waiting for WhatsApp service goroutines to stop")
 	}
 
+	s.drainChannels()
 	s.started = false
 	s.logger.Info("WhatsApp service stopped")
 	return nil
+}
+
+func (s *Service) drainChannels() {
+	s.logger.Debug("Draining service channels...")
+
+	drained := 0
+	for {
+		select {
+		case <-s.clientChan:
+			drained++
+		default:
+			if drained > 0 {
+				s.logger.Debug("Drained buffered clients from channel", "count", drained)
+			}
+			return
+		}
+	}
 }
 
 func (s *Service) safeGoroutine(name string, fn func()) {
