@@ -7,6 +7,8 @@ import {
   signInWithCredential
 } from 'firebase/auth'
 import { auth, firebaseConfig } from '@renderer/lib/firebase'
+import { useMutation } from '@apollo/client'
+import { StoreTokenDocument } from '@renderer/graphql/generated/graphql'
 
 interface AuthContextType {
   user: User | null
@@ -24,6 +26,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [authError, setAuthError] = useState<string | null>(null)
   const [waitingForLogin, setWaitingForLogin] = useState(false)
+
+  const [storeToken] = useMutation(StoreTokenDocument)
+
+  useEffect(() => {
+    if (!user) return
+    const storeTokenPeriodically = async () => {
+      try {
+        const jwt = await user.getIdToken()
+        const refreshToken = await user.refreshToken
+        await storeToken({
+          variables: {
+            input: {
+              token: jwt,
+              refreshToken: refreshToken
+            }
+          }
+        })
+      } catch (error) {
+        console.error('[Auth] Failed to store token:', error)
+      }
+    }
+
+    storeTokenPeriodically()
+
+    const interval = setInterval(storeTokenPeriodically, 5 * 60 * 1000)
+
+    return () => {
+      clearInterval(interval)
+    }
+  }, [user, storeToken])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -48,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         photoURL: string
         accessToken: string
         idToken: string
+        refreshToken?: string
       }
     ) => {
       console.log('[Auth] ✅ Received Firebase auth success from main process:', userData?.email)
@@ -55,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('[Auth] 🎫 Firebase JWT (idToken):', userData?.idToken)
       setAuthError(null)
       setLoading(false)
+      setWaitingForLogin(false)
 
       try {
         const credential = GoogleAuthProvider.credential(userData.idToken, userData.accessToken)
@@ -72,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('[Auth] ❌ Received Firebase auth error from main process:', errorData)
       setAuthError(errorData.error)
       setLoading(false)
+      setWaitingForLogin(false)
       window.electron.ipcRenderer.invoke('cleanup-oauth-server')
     }
 
