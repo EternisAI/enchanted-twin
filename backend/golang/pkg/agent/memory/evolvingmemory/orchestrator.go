@@ -3,11 +3,8 @@ package evolvingmemory
 import (
 	"context"
 	"fmt"
-	"sync"
-	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
@@ -68,27 +65,12 @@ func (j DocumentExtractionJob) Process(ctx context.Context) ([]FactResult, error
 	return results, nil
 }
 
-// FactProcessingJob wraps a fact for memory decision processing.
-type FactProcessingJob struct {
-	FactResult FactResult
-	Engine     *MemoryEngine
-	Logger     *log.Logger
-}
+// FactProcessingJob is no longer used in the simplified flow.
+// Complex fact processing has been replaced with direct storage.
 
-func (j FactProcessingJob) Process(ctx context.Context) (FactResult, error) {
-	result, err := j.Engine.ProcessFact(ctx, j.FactResult.Fact, j.FactResult.Source)
-	if err != nil {
-		return FactResult{}, fmt.Errorf("failed to process fact: %w", err)
-	}
-
-	j.FactResult.Decision = result.Decision
-	j.FactResult.Object = result.Object
-	j.FactResult.Error = result.Error
-
-	return j.FactResult, nil
-}
-
-// ProcessDocuments implements the new parallel processing pipeline with streaming progress.
+// ProcessDocuments implements the simplified processing pipeline with streaming progress.
+// This version removes the computational explosion by storing extracted facts directly
+// without complex decision-making, similarity searches, or per-fact processing.
 func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
 	progressCh := make(chan Progress, 100)
 	errorCh := make(chan error, 100)
@@ -135,163 +117,54 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		extractPool := NewWorkerPool[DocumentExtractionJob](config.Workers, o.logger)
 		extractionResults := extractPool.Process(ctx, extractJobs, config.FactExtractionTimeout)
 
-		// Step 4: Collect facts and create processing jobs
-		var processJobs []FactProcessingJob
+		// Step 4: NEW SIMPLIFIED FLOW - Collect extracted facts and store directly
+		var allFacts []FactResult
 		for result := range extractionResults {
 			if result.Error != nil {
 				o.logger.Errorf("Extraction failed: %v", result.Error)
 				continue
 			}
 
-			for _, factResult := range result.Result {
-				processJobs = append(processJobs, FactProcessingJob{
-					FactResult: factResult,
-					Engine:     o.engine,
-					Logger:     o.logger,
-				})
+			allFacts = append(allFacts, result.Result...)
+		}
+
+		// Step 5: Convert FactResults to MemoryFacts and use modular storage
+		var facts []*memory.MemoryFact
+		for _, factResult := range allFacts {
+			if factResult.Fact != nil {
+				facts = append(facts, factResult.Fact)
 			}
 		}
 
-		// Step 5: Process facts in parallel
-		processPool := NewWorkerPool[FactProcessingJob](config.Workers, o.logger)
-		processingResults := processPool.Process(ctx, processJobs, config.MemoryDecisionTimeout)
+		// Use the new modular StoreFactsDirectly function
+		storageImpl := &StorageImpl{
+			logger:       o.logger,
+			orchestrator: o,
+			storage:      o.storage,
+			engine:       o.engine,
+		}
 
-		// Step 6: Convert ProcessResult channel to FactResult channel
-		factResultCh := make(chan FactResult, 1000)
-		go func() {
-			defer close(factResultCh)
-			for result := range processingResults {
-				if result.Error != nil {
-					o.logger.Errorf("Processing failed: %v", result.Error)
-					continue
-				}
-				select {
-				case factResultCh <- result.Result:
-				case <-ctx.Done():
-					return
-				}
+		if err := storageImpl.StoreFactsDirectly(ctx, facts, func(processed, total int) {
+			progressCh <- Progress{
+				Processed: processed,
+				Total:     total,
+				Stage:     "storage",
 			}
-		}()
+		}); err != nil {
+			select {
+			case errorCh <- fmt.Errorf("modular storage failed: %w", err):
+			case <-ctx.Done():
+			}
+			return
+		}
 
-		// Step 7: Aggregate and store results
-		objectStream := make(chan []*models.Object, 100)
-
-		var aggregateWg sync.WaitGroup
-		aggregateWg.Add(1)
-		go o.aggregateResults(ctx, factResultCh, objectStream, &aggregateWg, config)
-
-		// Step 8: Store batches
-		var storeWg sync.WaitGroup
-		storeWg.Add(1)
-		go o.streamingStore(ctx, objectStream, progressCh, errorCh, &storeWg, config, totalDocuments)
-
-		aggregateWg.Wait()
-		close(objectStream)
-		storeWg.Wait()
+		// Final progress update
+		progressCh <- Progress{
+			Processed: len(allFacts),
+			Total:     totalDocuments,
+			Stage:     "completed",
+		}
 	}()
 
 	return progressCh, errorCh
-}
-
-// aggregateResults collects ADD operations for batch processing.
-func (o *MemoryOrchestrator) aggregateResults(
-	ctx context.Context,
-	results <-chan FactResult,
-	out chan<- []*models.Object,
-	wg *sync.WaitGroup,
-	config Config,
-) {
-	defer wg.Done()
-
-	// Pre-allocate batch with expected capacity
-	batch := make([]*models.Object, 0, config.BatchSize)
-	ticker := time.NewTicker(config.FlushInterval)
-	defer ticker.Stop()
-
-	flushBatch := func() {
-		if len(batch) > 0 {
-			select {
-			case out <- batch:
-				batch = make([]*models.Object, 0, config.BatchSize)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}
-
-	for {
-		select {
-		case result, ok := <-results:
-			if !ok {
-				flushBatch()
-				return
-			}
-
-			if result.Error != nil {
-				o.logger.Errorf("Fact processing failed: %v", result.Error)
-				continue
-			}
-
-			if result.Object != nil {
-				batch = append(batch, result.Object)
-
-				if len(batch) >= config.BatchSize {
-					flushBatch()
-				}
-			}
-
-		case <-ticker.C:
-			flushBatch()
-
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-// streamingStore handles batch storage with progress reporting using the engine.
-func (o *MemoryOrchestrator) streamingStore(
-	ctx context.Context,
-	batches <-chan []*models.Object,
-	progress chan<- Progress,
-	errors chan<- error,
-	wg *sync.WaitGroup,
-	config Config,
-	totalDocuments int,
-) {
-	defer wg.Done()
-
-	totalProcessed := 0
-
-	for batch := range batches {
-		if len(batch) == 0 {
-			continue
-		}
-
-		storeCtx, cancel := context.WithTimeout(ctx, config.StorageTimeout)
-		err := o.storage.StoreBatch(storeCtx, batch)
-		cancel()
-
-		if err != nil {
-			select {
-			case errors <- fmt.Errorf("batch storage failed: %w", err):
-			case <-ctx.Done():
-				return
-			}
-			return
-		}
-
-		totalProcessed += len(batch)
-		select {
-		case progress <- Progress{
-			Processed: totalProcessed,
-			Total:     totalDocuments,
-			Stage:     "storage",
-		}:
-		case <-ctx.Done():
-			return
-		}
-
-		o.logger.Infof("Stored batch of %d objects", len(batch))
-	}
 }

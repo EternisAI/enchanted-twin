@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, Navigate } from '@tanstack/react-router'
 import { Button } from '@renderer/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Monitor, Database, Settings2, Plug, Shield, RefreshCcw } from 'lucide-react'
+import { Monitor, Database, Settings2, Plug, Shield, RefreshCcw, Keyboard } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
@@ -42,6 +42,12 @@ const settingsTabs = [
     label: 'Appearance',
     icon: Monitor,
     path: '/settings/appearance'
+  },
+  {
+    value: 'keyboard',
+    label: 'Keyboard',
+    icon: Keyboard,
+    path: '/settings/keyboard'
   },
   {
     value: 'advanced',
