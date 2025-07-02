@@ -292,7 +292,11 @@ func exportConsolidationReportsJSONL(reports []*evolvingmemory.ConsolidationRepo
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			logger.Error("Failed to close file", "error", closeErr, "filename", filename)
+		}
+	}()
 
 	encoder := json.NewEncoder(file)
 	for _, report := range reports {
@@ -309,7 +313,11 @@ func loadConsolidationReportsJSONL(filename string) ([]*evolvingmemory.Consolida
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			logger.Error("Failed to close file", "error", closeErr, "filename", filename)
+		}
+	}()
 
 	var reports []*evolvingmemory.ConsolidationReport
 	decoder := json.NewDecoder(file)
