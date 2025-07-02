@@ -154,6 +154,15 @@ type OAuthConfig struct {
 
 // TODO: The ClientSecret should not be stored in code.
 var oauthConfig = map[string]OAuthConfig{
+	"firebase": {
+		ClientID:      "1234567890",
+		RedirectURI:   "https://127.0.0.1:8443/callback",
+		ClientSecret:  "1234567890",
+		AuthEndpoint:  "https://accounts.google.com/o/oauth2/v2/auth",
+		TokenEndpoint: "https://oauth2.googleapis.com/token",
+		UserEndpoint:  "https://www.googleapis.com/oauth2/v3/userinfo",
+		DefaultScope:  "openid profile email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly	https://www.googleapis.com/auth/calendar",
+	},
 	"twitter": {
 		ClientID:      "bEFtUmtyNm1wUFNtRUlqQTdmQmE6MTpjaQ",
 		RedirectURI:   "http://127.0.0.1:8080/callback",

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/golang-jwt/jwt/v4"
 
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
@@ -145,18 +146,42 @@ type TokenResponse struct {
 }
 
 func StoreToken(ctx context.Context, logger *log.Logger, store *db.Store, token string, refreshToken string) error {
+	provider := "firebase"
+	username := ""
+
+	parsedToken, _, err := new(jwt.Parser).ParseUnverified(token, &StandardClaims{})
+	if err != nil {
+		return fmt.Errorf("failed to parse token: %w", err)
+	}
+
+	if claims, ok := parsedToken.Claims.(*StandardClaims); ok {
+		if claims.Sub == "" {
+			return fmt.Errorf("no subject (sub) found in token claims")
+		}
+		username = claims.ID
+	}
+
+	existingTokens, err := store.GetOAuthTokensByUsername(ctx, provider, username)
+	isUpdate := err == nil && existingTokens != nil
+
 	oauthTokens := db.OAuthTokens{
-		Provider:     "firebase",
+		Provider:     provider,
 		TokenType:    "Bearer",
 		Scope:        "",
 		AccessToken:  token,
 		ExpiresAt:    time.Now().Add(10 * time.Minute),
 		RefreshToken: refreshToken,
-		Username:     "",
+		Username:     username,
 	}
 
 	if err := store.SetOAuthTokens(ctx, oauthTokens); err != nil {
 		return fmt.Errorf("failed to store tokens: %w", err)
+	}
+
+	if isUpdate {
+		logger.Debug("updated existing firebase tokens", "provider", provider, "expires_at", oauthTokens.ExpiresAt)
+	} else {
+		logger.Debug("stored new firebase tokens", "provider", provider, "expires_at", oauthTokens.ExpiresAt)
 	}
 
 	return nil
@@ -566,12 +591,7 @@ func RefreshOAuthToken(
 func Activate(ctx context.Context, logger *log.Logger, store *db.Store, inviteCode string) (bool, error) {
 	logger.Debug("activating", "inviteCode", inviteCode)
 
-	_, err := RefreshOAuthToken(ctx, logger, store, "google")
-	if err != nil {
-		return false, fmt.Errorf("failed to refresh OAuth tokens: %w", err)
-	}
-
-	oauthTokens, err := store.GetOAuthTokensArray(ctx, "google")
+	oauthTokens, err := store.GetOAuthTokensArray(ctx, "firebase")
 	if err != nil {
 		return false, fmt.Errorf("failed to get OAuth tokens: %w", err)
 	}
@@ -598,14 +618,14 @@ func Activate(ctx context.Context, logger *log.Logger, store *db.Store, inviteCo
 		return false, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	redeemURL := fmt.Sprintf("%s/api/v1/invites/%s/redeem", conf.InviteServerURL, inviteCode)
+	redeemURL := fmt.Sprintf("%s/api/v1/invites/%s/redeem", conf.ProxyTeeURL, inviteCode)
 	req, err := http.NewRequestWithContext(ctx, "POST", redeemURL, bytes.NewBuffer(requestBody))
 	if err != nil {
 		return false, fmt.Errorf("failed to create redeem request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", oauthTokens[0].AccessToken))
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -628,12 +648,13 @@ func Activate(ctx context.Context, logger *log.Logger, store *db.Store, inviteCo
 }
 
 func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bool, error) {
-	oauthTokens, err := store.GetOAuthTokensArray(ctx, "google")
+	oauthTokens, err := store.GetOAuthTokensArray(ctx, "firebase")
 	if err != nil {
 		return false, fmt.Errorf("failed to get OAuth tokens: %w", err)
 	}
 
 	if len(oauthTokens) == 0 {
+		logger.Info("no OAuth tokens found to check whitelist", "provider", "firebase")
 		return false, nil
 	}
 
@@ -641,7 +662,7 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 	if err != nil {
 		return false, fmt.Errorf("failed to load config: %w", err)
 	}
-	inviteServerURL := conf.InviteServerURL
+	inviteServerURL := conf.ProxyTeeURL
 
 	for _, token := range oauthTokens {
 		// Make GET request to check if this email is whitelisted
@@ -651,6 +672,8 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 			logger.Error("failed to create whitelist request", "email", token.Username, "error", err)
 			continue
 		}
+
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", oauthTokens[0].AccessToken))
 
 		client := &http.Client{Timeout: 30 * time.Second}
 		resp, err := client.Do(req)
@@ -745,4 +768,11 @@ func PublishOAuthTokenRefresh(ctx context.Context, logger *log.Logger, store *db
 		"username", token.Username,
 		"expires_at", token.ExpiresAt.Format(time.RFC3339))
 	return nil
+}
+
+// StandardClaims represents the standard claims in a JWT token.
+type StandardClaims struct {
+	// Standard JWT claims
+	Sub string `json:"sub"`
+	jwt.RegisteredClaims
 }

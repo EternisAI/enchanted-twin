@@ -181,6 +181,7 @@ func main() {
 
 	var aiCompletionsService *ai.Service
 	if envs.ProxyTeeURL != "" {
+		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
 		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, store, envs.ProxyTeeURL, envs.CompletionsAPIURL)
 	} else {
 		aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
@@ -188,6 +189,7 @@ func main() {
 
 	var aiEmbeddingsService *ai.Service
 	if envs.ProxyTeeURL != "" {
+		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
 		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, store, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
 	} else {
 		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)

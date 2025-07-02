@@ -53,6 +53,7 @@ func NewOpenAIServiceProxy(logger *log.Logger, store *db.Store, proxyUrl string,
 
 func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
 	opts := s.opts
+	s.logger.Info("ParamsCompletions", "opts", opts)
 	if s.store != nil {
 		firebaseToken, err := s.store.GetOAuthTokens(ctx, "firebase")
 		if err != nil {

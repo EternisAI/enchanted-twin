@@ -455,10 +455,12 @@ func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network
 }
 
 func (r *mutationResolver) StoreToken(ctx context.Context, input model.StoreTokenInput) (bool, error) {
-	r.Logger.Info("StoreToken called",
-		"token", input.Token,
-		"refreshToken", input.RefreshToken,
-	)
+	r.Logger.Info("StoreToken called")
+
+	err := auth.StoreToken(ctx, r.Logger, r.Store, input.Token, input.RefreshToken)
+	if err != nil {
+		return false, err
+	}
 
 	return true, nil
 }
