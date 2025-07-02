@@ -9,6 +9,8 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type Config struct {
@@ -17,9 +19,10 @@ type Config struct {
 }
 
 type Service struct {
-	client      *openai.Client
-	logger      *log.Logger
-	getApiToken func() string
+	client *openai.Client
+	logger *log.Logger
+	store  *db.Store
+	opts   []option.RequestOption
 }
 
 func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Service {
@@ -33,7 +36,7 @@ func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Servic
 	}
 }
 
-func NewOpenAIServiceProxy(logger *log.Logger, proxyUrl string, getApiToken func() string, baseUrl string) *Service {
+func NewOpenAIServiceProxy(logger *log.Logger, store *db.Store, proxyUrl string, baseUrl string) *Service {
 	opts := []option.RequestOption{
 		option.WithBaseURL(proxyUrl),
 		option.WithHeader("X-BASE-URL", baseUrl),
@@ -41,17 +44,23 @@ func NewOpenAIServiceProxy(logger *log.Logger, proxyUrl string, getApiToken func
 
 	client := openai.NewClient(opts...)
 	return &Service{
-		client:      &client,
-		logger:      logger,
-		getApiToken: getApiToken,
+		client: &client,
+		logger: logger,
+		store:  store,
+		opts:   opts,
 	}
 }
 
 func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
-	var opts []option.RequestOption
-	if s.getApiToken != nil {
-		opts = append(opts, option.WithAPIKey(s.getApiToken()))
+	opts := s.opts
+	if s.store != nil {
+		firebaseToken, err := s.store.GetOAuthTokens(ctx, "firebase")
+		if err != nil {
+			return openai.ChatCompletionMessage{}, err
+		}
+		opts = append(opts, option.WithHeader("Authorization", "Bearer "+firebaseToken.AccessToken))
 	}
+
 	completion, err := s.client.Chat.Completions.New(ctx, params, opts...)
 	if err != nil {
 		return openai.ChatCompletionMessage{}, err
@@ -74,10 +83,15 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 }
 
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
-	var opts []option.RequestOption
-	if s.getApiToken != nil {
-		opts = append(opts, option.WithAPIKey(s.getApiToken()))
+	opts := s.opts
+	if s.store != nil {
+		firebaseToken, err := s.store.GetOAuthTokens(ctx, "firebase")
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, option.WithHeader("Authorization", "Bearer "+firebaseToken.AccessToken))
 	}
+
 	embedding, err := s.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
 		Model: model,
 		Input: openai.EmbeddingNewParamsInputUnion{
@@ -95,10 +109,15 @@ func (s *Service) Embeddings(ctx context.Context, inputs []string, model string)
 }
 
 func (s *Service) Embedding(ctx context.Context, input string, model string) ([]float64, error) {
-	var opts []option.RequestOption
-	if s.getApiToken != nil {
-		opts = append(opts, option.WithAPIKey(s.getApiToken()))
+	opts := s.opts
+	if s.store != nil {
+		firebaseToken, err := s.store.GetOAuthTokens(ctx, "firebase")
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, option.WithHeader("Authorization", "Bearer "+firebaseToken.AccessToken))
 	}
+
 	embedding, err := s.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
 		Model: model,
 		Input: openai.EmbeddingNewParamsInputUnion{

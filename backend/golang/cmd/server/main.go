@@ -179,19 +179,16 @@ func main() {
 		panic(errors.Wrap(err, "Error creating database"))
 	}
 
-	tokenFunc := func() string {
-		return "12345"
-	}
 	var aiCompletionsService *ai.Service
 	if envs.ProxyTeeURL != "" {
-		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, envs.ProxyTeeURL, tokenFunc, envs.CompletionsAPIURL)
+		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, store, envs.ProxyTeeURL, envs.CompletionsAPIURL)
 	} else {
 		aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
 	}
 
 	var aiEmbeddingsService *ai.Service
 	if envs.ProxyTeeURL != "" {
-		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, envs.ProxyTeeURL, tokenFunc, envs.EmbeddingsAPIURL)
+		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, store, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
 	} else {
 		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	}

@@ -144,6 +144,24 @@ type TokenResponse struct {
 	Username     string
 }
 
+func StoreToken(ctx context.Context, logger *log.Logger, store *db.Store, token string, refreshToken string) error {
+	oauthTokens := db.OAuthTokens{
+		Provider:     "firebase",
+		TokenType:    "Bearer",
+		Scope:        "",
+		AccessToken:  token,
+		ExpiresAt:    time.Now().Add(10 * time.Minute),
+		RefreshToken: refreshToken,
+		Username:     "",
+	}
+
+	if err := store.SetOAuthTokens(ctx, oauthTokens); err != nil {
+		return fmt.Errorf("failed to store tokens: %w", err)
+	}
+
+	return nil
+}
+
 // ExchangeToken handles the HTTP request to exchange a token (authorization or refresh).
 func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, config db.OAuthConfig, tokenReq TokenRequest) (*TokenResponse, error) {
 	// Prepare request data
