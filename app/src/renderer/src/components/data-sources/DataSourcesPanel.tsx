@@ -111,7 +111,6 @@ export function DataSourcesPanel({
 
     const path = result.filePaths[0]
     const fileSize = result.fileSizes?.[0] || 0
-    console.log('Selected file:', path, 'Size:', fileSize, 'Sizes array:', result.fileSizes)
 
     // Store file size separately
     if (fileSize > 0) {
