@@ -46,7 +46,7 @@ func StoreConsolidationReports(ctx context.Context, reports []*ConsolidationRepo
 	for _, report := range reports {
 		// Add summary as a special fact
 		summaryFact := &memory.MemoryFact{
-			ID:                 deterministicID(fmt.Sprintf("summary-%s-%d", report.Topic, report.GeneratedAt.Unix())),
+			ID:                 uuid.New().String(),
 			Content:            report.Summary,
 			Category:           "summary",
 			Subject:            report.Topic,
@@ -142,9 +142,9 @@ func parseConsolidationResponse(response openai.ChatCompletionMessage, sourceFac
 		summary = args.Summary
 
 		// Convert to ConsolidationFacts with proper field population
-		for i, rawFact := range args.ConsolidatedFacts {
+		for _, rawFact := range args.ConsolidatedFacts {
 			// Generate unique ID for consolidated fact
-			consolidatedID := deterministicID(fmt.Sprintf("consolidated-%d-%d", time.Now().Unix(), i))
+			consolidatedID := uuid.New().String()
 
 			// Create properly populated MemoryFact
 			fact := memory.MemoryFact{
@@ -337,11 +337,4 @@ func buildFactsContent(facts []*memory.MemoryFact) string {
 	}
 
 	return builder.String()
-}
-
-// deterministicID generates a stable UUID5 from originalID for valid Weaviate IDs
-// This matches exactly what storage.go does to avoid UUID validation errors.
-func deterministicID(originalID string) string {
-	namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8") // DNS namespace UUID
-	return uuid.NewSHA1(namespace, []byte(originalID)).String()
 }
