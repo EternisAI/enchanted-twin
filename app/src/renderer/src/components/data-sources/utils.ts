@@ -47,20 +47,16 @@ export const estimateRemainingTime = (
   const elapsedMs = Date.now() - startTime.getTime()
   const elapsedMinutes = elapsedMs / 60000
 
-  if (clampedProgress > 0) {
-    const totalEstimatedMinutes = elapsedMinutes / (clampedProgress / 100)
-    const remainingMinutes = Math.max(0, totalEstimatedMinutes - elapsedMinutes)
+  const totalEstimatedMinutes = elapsedMinutes / (clampedProgress / 100)
+  const remainingMinutes = Math.max(0, totalEstimatedMinutes - elapsedMinutes)
 
-    if (remainingMinutes < 1) {
-      return 'Less than 1 min'
-    } else if (remainingMinutes < 60) {
-      return `~${Math.ceil(remainingMinutes)} min`
-    } else {
-      const hours = Math.floor(remainingMinutes / 60)
-      const mins = Math.round(remainingMinutes % 60)
-      return `~${hours}h ${mins}m`
-    }
+  if (remainingMinutes < 1) {
+    return 'Less than 1 min'
+  } else if (remainingMinutes < 60) {
+    return `~${Math.ceil(remainingMinutes)} min`
+  } else {
+    const hours = Math.floor(remainingMinutes / 60)
+    const mins = Math.round(remainingMinutes % 60)
+    return `~${hours}h ${mins}m`
   }
-
-  return `~${baseMinutes} min`
 }
