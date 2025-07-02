@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,9 +16,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
-	"github.com/joho/godotenv"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	tcweaviate "github.com/testcontainers/testcontainers-go/modules/weaviate"
@@ -40,18 +40,15 @@ var (
 	sharedTempDir           string
 	setupOnce               sync.Once
 	teardownOnce            sync.Once
+	mockServer              *httptest.Server
 )
 
 type testConfig struct {
-	Source            string
-	InputPath         string
-	OutputPath        string
-	CompletionsModel  string
-	CompletionsApiKey string
-	CompletionsApiUrl string
-	EmbeddingsModel   string
-	EmbeddingsApiKey  string
-	EmbeddingsApiUrl  string
+	Source           string
+	InputPath        string
+	OutputPath       string
+	CompletionsModel string
+	EmbeddingsModel  string
 }
 
 type testEnvironment struct {
@@ -66,26 +63,206 @@ type testEnvironment struct {
 	cancel         context.CancelFunc
 }
 
-// deterministicAIService wraps ai.Service to use temperature 0.0 for deterministic testing.
-type deterministicAIService struct {
-	*ai.Service
-}
+// createMockAIService creates an AI service with a mock HTTP server that returns successful responses.
+func createMockAIService(logger *log.Logger) *ai.Service {
+	if mockServer == nil {
+		// Create a mock HTTP server that returns successful OpenAI API responses
+		mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			logger.Debug("Mock API called", "path", r.URL.Path, "method", r.Method)
 
-// Completions overrides the default method to use temperature 0.0 for deterministic results.
-func (d *deterministicAIService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
-	return d.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
-		Messages:    messages,
-		Model:       model,
-		Tools:       tools,
-		Temperature: param.Opt[float64]{Value: 0.0}, // Deterministic temperature
-	})
-}
+			w.Header().Set("Content-Type", "application/json")
 
-// newDeterministicAIService creates a test AI service that uses temperature 0.0.
-func newDeterministicAIService(logger *log.Logger, apiKey, baseURL string) *deterministicAIService {
-	return &deterministicAIService{
-		Service: ai.NewOpenAIService(logger, apiKey, baseURL),
+			if strings.Contains(r.URL.Path, "embeddings") {
+				// Mock embeddings response
+				response := map[string]interface{}{
+					"object": "list",
+					"data": []map[string]interface{}{
+						{
+							"object":    "embedding",
+							"index":     0,
+							"embedding": make([]float64, 1536), // Standard OpenAI embedding size
+						},
+					},
+					"model": "text-embedding-3-small",
+					"usage": map[string]interface{}{
+						"prompt_tokens": 8,
+						"total_tokens":  8,
+					},
+				}
+
+				// Generate deterministic but varied embeddings based on request content hash
+				body, _ := io.ReadAll(r.Body)
+				var requestData map[string]interface{}
+				if err := json.Unmarshal(body, &requestData); err != nil {
+					logger.Error("Failed to parse embeddings request", "error", err)
+				}
+
+				// Create a simple hash from the input text to make embeddings vary with content
+				contentHash := 0
+				if input, ok := requestData["input"].(string); ok {
+					for _, char := range input {
+						contentHash = (contentHash*31 + int(char)) % 10000
+					}
+				}
+
+				embedding, ok := response["data"].([]map[string]interface{})[0]["embedding"].([]float64)
+				if !ok {
+					logger.Error("Failed to assert embedding type")
+					return
+				}
+				for i := range embedding {
+					// Create more varied embeddings based on content and position
+					embedding[i] = float64(((i+contentHash)%200))/200.0 - 0.5
+				}
+
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					logger.Error("Failed to encode embeddings response", "error", err)
+				}
+				return
+			}
+
+			if strings.Contains(r.URL.Path, "chat/completions") {
+				// Read the request body to determine which type of call this is
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					logger.Error("Failed to read request body", "error", err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+
+				// Parse request to determine context
+				var requestData map[string]interface{}
+				if err := json.Unmarshal(body, &requestData); err != nil {
+					logger.Error("Failed to parse request JSON", "error", err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+
+				// Check if this is a memory decision call by looking for memory decision tools
+				isMemoryDecision := false
+				if tools, ok := requestData["tools"].([]interface{}); ok {
+					for _, tool := range tools {
+						if toolMap, ok := tool.(map[string]interface{}); ok {
+							if function, ok := toolMap["function"].(map[string]interface{}); ok {
+								if name, ok := function["name"].(string); ok {
+									if name == "ADD" || name == "UPDATE" || name == "DELETE" || name == "NONE" {
+										isMemoryDecision = true
+										break
+									}
+								}
+							}
+						}
+					}
+				}
+
+				var response map[string]interface{}
+
+				if isMemoryDecision {
+					// Memory decision response - return ADD action
+					response = map[string]interface{}{
+						"id":      "chatcmpl-mock-" + uuid.New().String(),
+						"object":  "chat.completion",
+						"created": time.Now().Unix(),
+						"model":   "gpt-4o-mini",
+						"choices": []map[string]interface{}{
+							{
+								"index": 0,
+								"message": map[string]interface{}{
+									"role":    "assistant",
+									"content": "",
+									"tool_calls": []map[string]interface{}{
+										{
+											"id":   "call_mock_" + uuid.New().String(),
+											"type": "function",
+											"function": map[string]interface{}{
+												"name":      "ADD",
+												"arguments": `{}`,
+											},
+										},
+									},
+								},
+								"finish_reason": "tool_calls",
+							},
+						},
+						"usage": map[string]interface{}{
+							"prompt_tokens":     20,
+							"completion_tokens": 10,
+							"total_tokens":      30,
+						},
+					}
+				} else {
+					// Fact extraction response - return EXTRACT_FACTS
+					response = map[string]interface{}{
+						"id":      "chatcmpl-mock-" + uuid.New().String(),
+						"object":  "chat.completion",
+						"created": time.Now().Unix(),
+						"model":   "gpt-4o-mini",
+						"choices": []map[string]interface{}{
+							{
+								"index": 0,
+								"message": map[string]interface{}{
+									"role":    "assistant",
+									"content": "",
+									"tool_calls": []map[string]interface{}{
+										{
+											"id":   "call_mock_" + uuid.New().String(),
+											"type": "function",
+											"function": map[string]interface{}{
+												"name": "EXTRACT_FACTS",
+												"arguments": `{
+												"facts": [
+													{
+														"category": "activity",
+														"subject": "primaryUser",
+														"attribute": "communication_activity",
+														"value": "actively engages in conversations and communications",
+														"sensitivity": "low",
+														"importance": 2
+													},
+													{
+														"category": "preference",
+														"subject": "primaryUser",
+														"attribute": "interaction_style",
+														"value": "participates in digital communications and online activities",
+														"sensitivity": "low",
+														"importance": 2
+													}
+												]
+											}`,
+											},
+										},
+									},
+								},
+								"finish_reason": "tool_calls",
+							},
+						},
+						"usage": map[string]interface{}{
+							"prompt_tokens":     50,
+							"completion_tokens": 100,
+							"total_tokens":      150,
+						},
+					}
+				}
+
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					logger.Error("Failed to encode completions response", "error", err)
+				}
+				return
+			}
+
+			// Default response for unknown endpoints
+			w.WriteHeader(http.StatusNotFound)
+			if err := json.NewEncoder(w).Encode(map[string]string{
+				"error": "Mock endpoint not found: " + r.URL.Path,
+			}); err != nil {
+				logger.Error("Failed to encode error response", "error", err)
+			}
+		}))
+
+		logger.Info("Created mock OpenAI API server", "url", mockServer.URL)
 	}
+
+	return ai.NewOpenAIService(logger, "mock-api-key", mockServer.URL)
 }
 
 func SetupSharedInfrastructure() {
@@ -125,18 +302,10 @@ func SetupSharedInfrastructure() {
 			panic(fmt.Sprintf("failed to create weaviate client: %v", err))
 		}
 
-		embeddingsApiUrl := os.Getenv("EMBEDDINGS_API_URL")
-		if embeddingsApiUrl == "" {
-			embeddingsApiUrl = "https://api.openai.com/v1"
-		}
-
-		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
-		if embeddingsModel == "" {
-			embeddingsModel = "text-embedding-3-small"
-		}
-
-		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, os.Getenv("EMBEDDINGS_API_KEY"), embeddingsApiUrl)
-		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, embeddingsModel)
+		// Use mock AI service for schema initialization to avoid API calls
+		embeddingsModel := "text-embedding-3-small" // Fixed model for deterministic testing
+		mockEmbeddingsService := createMockAIService(sharedLogger)
+		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, mockEmbeddingsService, embeddingsModel)
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize schema: %v", err))
 		}
@@ -147,6 +316,12 @@ func SetupSharedInfrastructure() {
 
 func TeardownSharedInfrastructure() {
 	teardownOnce.Do(func() {
+		if mockServer != nil {
+			sharedLogger.Info("Closing mock API server...")
+			mockServer.Close()
+			mockServer = nil
+		}
+
 		if sharedWeaviateContainer != nil {
 			sharedLogger.Info("Terminating shared Weaviate container...")
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -247,12 +422,13 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 		completionsModel = "gpt-4o-mini"
 	}
 
-	openAiService := newDeterministicAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
-	aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
+	// Use mock AI service for deterministic testing
+	mockAIService := createMockAIService(sharedLogger)
+	mockEmbeddingsService := createMockAIService(sharedLogger)
 
-	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store, sharedLogger)
+	dataprocessingService := dataprocessing.NewDataProcessingService(mockAIService, completionsModel, store, sharedLogger)
 
-	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, config.EmbeddingsModel)
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(mockEmbeddingsService, config.EmbeddingsModel)
 	if err != nil {
 		t.Fatalf("Failed to create embedding wrapper: %v", err)
 	}
@@ -270,7 +446,7 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 	mem, err = evolvingmemory.New(evolvingmemory.Dependencies{
 		Logger:             sharedLogger,
 		Storage:            storageInterface,
-		CompletionsService: openAiService.Service,
+		CompletionsService: mockAIService,
 		CompletionsModel:   config.CompletionsModel,
 		EmbeddingsWrapper:  embeddingsWrapper,
 	})
@@ -577,12 +753,6 @@ func (env *testEnvironment) StoreDocumentsWithTimeout(t *testing.T, timeout time
 func getTestConfig(t *testing.T) testConfig {
 	t.Helper()
 
-	envPath := filepath.Join("..", "..", "..", ".env")
-	if err := godotenv.Load(envPath); err != nil {
-		t.Logf("Could not load .env file from %s: %v", envPath, err)
-		_ = godotenv.Load()
-	}
-
 	source := getEnvOrDefault("TEST_SOURCE", "misc")
 
 	defaultInputPath := filepath.Join("testdata", "misc")
@@ -599,47 +769,16 @@ func getTestConfig(t *testing.T) testConfig {
 		t.Fatalf("Failed to create output directory %s: %v", outputDir, err)
 	}
 
-	completionsApiKey := os.Getenv("COMPLETIONS_API_KEY")
-
-	if completionsApiKey == "" {
-		t.Fatalf("No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
-	}
-	embeddingsApiKey := os.Getenv("EMBEDDINGS_API_KEY")
-	if embeddingsApiKey == "" {
-		t.Fatalf("No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
-	}
-
-	completionsModel := os.Getenv("COMPLETIONS_MODEL")
-	if completionsModel == "" {
-		completionsModel = "gpt-4o-mini"
-	}
-
-	embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
-	if embeddingsModel == "" {
-		embeddingsModel = "text-embedding-3-small"
-	}
-
-	// Read API URLs from environment variables
-	completionsApiUrl := os.Getenv("COMPLETIONS_API_URL")
-	if completionsApiUrl == "" {
-		completionsApiUrl = "https://openrouter.ai/api/v1" // fallback
-	}
-
-	embeddingsApiUrl := os.Getenv("EMBEDDINGS_API_URL")
-	if embeddingsApiUrl == "" {
-		embeddingsApiUrl = "https://api.openai.com/v1" // fallback
-	}
+	// Use fixed models for deterministic testing with mocks
+	completionsModel := "gpt-4o-mini"
+	embeddingsModel := "text-embedding-3-small"
 
 	return testConfig{
-		Source:            source,
-		InputPath:         inputPath,
-		OutputPath:        outputPath,
-		CompletionsModel:  completionsModel,
-		CompletionsApiKey: completionsApiKey,
-		CompletionsApiUrl: completionsApiUrl,
-		EmbeddingsModel:   embeddingsModel,
-		EmbeddingsApiKey:  embeddingsApiKey,
-		EmbeddingsApiUrl:  embeddingsApiUrl,
+		Source:           source,
+		InputPath:        inputPath,
+		OutputPath:       outputPath,
+		CompletionsModel: completionsModel,
+		EmbeddingsModel:  embeddingsModel,
 	}
 }
 
