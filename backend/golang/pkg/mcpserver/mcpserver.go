@@ -866,7 +866,7 @@ func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error) e
 
 	callbackChan := make(chan map[string]string, 1)
 	server := s.startCallbackServer(callbackChan)
-	defer server.Close()
+	defer server.Close() //nolint:errcheck
 
 	codeVerifier, err := mcpclient.GenerateCodeVerifier()
 	if err != nil {
