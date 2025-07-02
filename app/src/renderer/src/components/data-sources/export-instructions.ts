@@ -58,6 +58,11 @@ export const EXPORT_INSTRUCTIONS: Record<string, ExportInstructions> = {
   },
   Files: {
     timeEstimate: '1-2 minutes',
-    steps: ['Upload your files', 'Select the files you want to import', 'Click "Import"']
+    steps: [
+      'Upload your files',
+      'Select the files you want to import',
+      'Click "Import"',
+      'Wait for the import to complete'
+    ]
   }
 }
