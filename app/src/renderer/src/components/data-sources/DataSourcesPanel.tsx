@@ -288,7 +288,6 @@ export function DataSourcesPanel({
       const backendSourcesChanged =
         backendSourceNames.length !== lastBackendSourcesRef.current.length ||
         backendSourceNames.some((name, idx) => name !== lastBackendSourcesRef.current[idx])
-      
       if (backendSourcesChanged && initiatingDataSources.size > 0) {
         // Only dispatch if there are actually sources to sync
         const sourcesToRemove = Array.from(initiatingDataSources).filter((name) =>
@@ -327,7 +326,6 @@ export function DataSourcesPanel({
     if (initiatingDataSources.size === 0) return
 
     const timeouts = new Map<string, NodeJS.Timeout>()
-    
     // Set individual timeouts for each initiating source
     initiatingDataSources.forEach((sourceName) => {
       const timeout = setTimeout(() => {
