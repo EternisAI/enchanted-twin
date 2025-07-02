@@ -41,6 +41,7 @@ func CreateMemoryObject(fact *memory.MemoryFact, source memory.Document) *models
 		"factValue":       fact.Value,
 		"factSensitivity": fact.Sensitivity,
 		"factImportance":  fact.Importance,
+		"factFilePath":    fact.FilePath,
 	}
 
 	// Store temporal context if present
@@ -248,6 +249,12 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		for factIdx := range args.Facts {
 			memoryFact := &args.Facts[factIdx]
 			memoryFact.Source = sourceDoc.Source()
+
+			// NEW: Preserve FilePath if source document has one
+			if filePath := sourceDoc.FilePath(); filePath != "" {
+				memoryFact.FilePath = filePath
+			}
+
 			logger.Debug("Conversation Fact",
 				"index", factIdx+1,
 				"category", memoryFact.Category,
@@ -339,6 +346,11 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 
 			// FIX: Set the Source field from the source document
 			memoryFact.Source = sourceDoc.Source()
+
+			// NEW: Preserve FilePath if source document has one
+			if filePath := sourceDoc.FilePath(); filePath != "" {
+				memoryFact.FilePath = filePath
+			}
 
 			logger.Debug("Text Document Fact",
 				"index", factIdx+1,

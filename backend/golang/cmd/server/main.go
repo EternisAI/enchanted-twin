@@ -404,10 +404,11 @@ func main() {
 
 	userProfile, err := identitySvc.GetUserProfile(context.Background())
 	if err != nil {
-		logger.Error("Failed to get user profile", "error", err)
-		panic(errors.Wrap(err, "Failed to get user profile"))
+		logger.Warn("Failed to get user profile during startup - continuing without it", "error", err)
+		// Don't panic here - the server can still function without the user profile
+	} else {
+		logger.Info("User profile", "profile", userProfile)
 	}
-	logger.Info("User profile", "profile", userProfile)
 
 	holonConfig := holon.DefaultManagerConfig()
 	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
@@ -483,7 +484,7 @@ func main() {
 	go telegram.SubscribePoller(telegramService, logger)
 	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
-	directoryWatcher, err := directorywatcher.NewDirectoryWatcher(store, logger, temporalClient, envs.WatchDirectoryPath)
+	directoryWatcher, err := directorywatcher.NewDirectoryWatcher(store, mem, logger, temporalClient, envs.WatchDirectoryPath)
 	if err != nil {
 		logger.Error("Failed to create directory watcher", "error", err)
 		panic(errors.Wrap(err, "Failed to create directory watcher"))
