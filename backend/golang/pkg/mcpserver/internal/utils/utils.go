@@ -25,6 +25,8 @@ var jsonSchemaReflector = jsonschema.Reflector{
 }
 
 func ConverToInputSchema(args any) (map[string]any, error) {
+	// TODO: @pottekkat This incorrectly creates a nested `properties` field.
+	// Fix this using the options provided in the jsonschema package.
 	jsonSchema := jsonSchemaReflector.ReflectFromType(reflect.TypeOf(args))
 
 	// Convert *jsonschema.Schema into a generic map[string]any
