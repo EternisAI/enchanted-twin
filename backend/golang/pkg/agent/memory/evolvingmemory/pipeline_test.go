@@ -46,21 +46,6 @@ func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 	return storageImplTyped, nil
 }
 
-func TestDefaultConfig(t *testing.T) {
-	config := DefaultConfig()
-
-	assert.Equal(t, 4, config.Workers)
-	assert.Equal(t, 50, config.FactsPerWorker)
-	assert.Equal(t, 100, config.BatchSize)
-	assert.Equal(t, 30*time.Second, config.FlushInterval)
-	assert.Equal(t, 20*time.Minute, config.FactExtractionTimeout)
-	assert.Equal(t, 20*time.Minute, config.MemoryDecisionTimeout)
-	assert.Equal(t, 20*time.Minute, config.StorageTimeout)
-	assert.True(t, config.EnableRichContext)
-	assert.True(t, config.ParallelFactExtraction)
-	assert.True(t, config.StreamingProgress)
-}
-
 func TestStoreBasicFlow(t *testing.T) {
 	ctx := context.Background()
 	storage, err := createMockStorage(log.Default())

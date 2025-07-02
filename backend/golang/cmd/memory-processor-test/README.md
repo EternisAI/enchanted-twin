@@ -281,7 +281,7 @@ make chatgpt           # Stage 0: ChatGPT JSON → ConversationDocument (X_0)
 make gmail             # Stage 0: Gmail MBOX → ConversationDocument (X_0)
 make chunks            # Stage 1: ConversationDocument (X_0) → chunks (X_1)
 make facts             # Stage 2: Chunks (X_1) → extracted facts (X_2)
-make store-facts       # Stage 3: Facts → Weaviate storage
+make store             # Stage 3: Facts → Weaviate storage
 make consolidate       # Stage 4: Consolidation analysis
 make store-consolidations  # Stage 5: Store consolidations in Weaviate
 
@@ -315,9 +315,9 @@ make query QUERY="category theory"
   3. primaryUser - regularly teaches advanced mathematical concepts like category theory
 
 📋 Supporting Evidence (first 3):
-  1. David Spivak - discussed potential involvement in category theory platform project
-  2. Dmitry Vagner - receives academic advice regarding research focus and teaching
-  3. sub@cs.cmu.edu - discussed renaming 'applied category theory' to 'categorical design'
+  1. ***** - discussed potential involvement in category theory platform project
+  2. ***** - receives academic advice regarding research focus and teaching
+  3. ***** - discussed renaming 'applied category theory' to 'categorical design'
 
 💾 Results saved to: pipeline_output/X_5_query_results_1750867953.json
 ```
