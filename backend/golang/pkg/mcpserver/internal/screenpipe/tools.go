@@ -171,7 +171,7 @@ func processSearchContent(
 	return []mcp_golang.Content{textContent}, nil
 }
 
-func GetInputSchema(args any) map[string]any {
+func GetInputSchema(args any) json.RawMessage {
 	inputSchema, err := utils.ConverToInputSchema(args)
 	if err != nil {
 		return nil
@@ -185,12 +185,9 @@ func GetScreenpipeTools(client *ScreenpipeClient, isMacOS bool) (*mcp_golang.Lis
 
 	tools := []mcp_golang.Tool{
 		{
-			Name:        SearchContentToolName,
-			Description: searchContentDesc,
-			InputSchema: mcp_golang.ToolInputSchema{
-				Type:       "object",
-				Properties: GetInputSchema(SearchContentArguments{}),
-			},
+			Name:           SearchContentToolName,
+			Description:    searchContentDesc,
+			RawInputSchema: GetInputSchema(SearchContentArguments{}),
 		},
 	}
 
@@ -223,8 +220,8 @@ func (c *ScreenpipeClient) makeRequest(
 	method string,
 	endpoint string,
 	queryParams url.Values,
-	requestBody interface{},
-	responseDest interface{},
+	requestBody any,
+	responseDest any,
 ) error {
 	fullURL := c.apiBaseURL + endpoint
 	if len(queryParams) > 0 {

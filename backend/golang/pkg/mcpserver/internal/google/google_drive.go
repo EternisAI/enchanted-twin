@@ -396,12 +396,9 @@ func GenerateGoogleDriveTools() ([]mcp_golang.Tool, error) {
 	}
 	desc := SEARCH_FILES_TOOL_DESCRIPTION
 	tools = append(tools, mcp_golang.Tool{
-		Name:        SEARCH_FILES_TOOL_NAME,
-		Description: desc,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: searchFilesSchema,
-		},
+		Name:           SEARCH_FILES_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: searchFilesSchema,
 	})
 
 	readFileSchema, err := utils.ConverToInputSchema(ReadFileArguments{})
@@ -410,12 +407,9 @@ func GenerateGoogleDriveTools() ([]mcp_golang.Tool, error) {
 	}
 	desc = READ_FILE_TOOL_DESCRIPTION
 	tools = append(tools, mcp_golang.Tool{
-		Name:        READ_FILE_TOOL_NAME,
-		Description: desc,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: readFileSchema,
-		},
+		Name:           READ_FILE_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: readFileSchema,
 	})
 
 	return tools, nil

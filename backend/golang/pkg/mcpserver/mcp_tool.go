@@ -80,25 +80,11 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 	params := make(openai.FunctionParameters)
 
 	if t.Tool.InputSchema.Properties != nil {
-		// Check if Properties contains complete schema or just property definitions
-		if _, hasProperties := t.Tool.InputSchema.Properties["properties"]; hasProperties {
-			// Complete schema in Properties (Gmail tools) - copy from Properties
-			// This is a temporary fix to support incorrect inputSchema created
-			// by internal MCP servers where there's a nested `properties` field.
-			// TODO: @pottekkat Remove this once we have a proper fix.
-			for key, value := range t.Tool.InputSchema.Properties {
-				if key != "$schema" {
-					params[key] = value
-				}
-			}
-		} else {
-			// Just properties (External MCP tools) - build schema from InputSchema struct
-			// See: https://platform.openai.com/docs/guides/function-calling
-			params["type"] = t.Tool.InputSchema.Type
-			params["properties"] = t.Tool.InputSchema.Properties
-			if len(t.Tool.InputSchema.Required) > 0 {
-				params["required"] = t.Tool.InputSchema.Required
-			}
+		// See: https://platform.openai.com/docs/guides/function-calling
+		params["type"] = t.Tool.InputSchema.Type
+		params["properties"] = t.Tool.InputSchema.Properties
+		if len(t.Tool.InputSchema.Required) > 0 {
+			params["required"] = t.Tool.InputSchema.Required
 		}
 	}
 

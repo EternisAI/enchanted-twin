@@ -29,12 +29,9 @@ func (c *TwitterClient) ListTools(
 		return nil, fmt.Errorf("error generating schema for list_feed_tweets: %w", err)
 	}
 	tools = append(tools, mcp_golang.Tool{
-		Name:        LIST_FEED_TOOL_NAME,
-		Description: LIST_FEED_TOOL_DESCRIPTION,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: listFeedSchema,
-		},
+		Name:           LIST_FEED_TOOL_NAME,
+		Description:    LIST_FEED_TOOL_DESCRIPTION,
+		RawInputSchema: listFeedSchema,
 	})
 
 	// Post tweet tool
@@ -43,12 +40,9 @@ func (c *TwitterClient) ListTools(
 		return nil, fmt.Errorf("error generating schema for post_tweet: %w", err)
 	}
 	tools = append(tools, mcp_golang.Tool{
-		Name:        POST_TWEET_TOOL_NAME,
-		Description: POST_TWEET_TOOL_DESCRIPTION,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: postTweetSchema,
-		},
+		Name:           POST_TWEET_TOOL_NAME,
+		Description:    POST_TWEET_TOOL_DESCRIPTION,
+		RawInputSchema: postTweetSchema,
 	})
 
 	// Search tweets tool
@@ -57,12 +51,9 @@ func (c *TwitterClient) ListTools(
 		return nil, fmt.Errorf("error generating schema for search_tweets: %w", err)
 	}
 	tools = append(tools, mcp_golang.Tool{
-		Name:        SEARCH_TWEETS_TOOL_NAME,
-		Description: SEARCH_TWEETS_TOOL_DESCRIPTION,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: searchTweetsSchema,
-		},
+		Name:           SEARCH_TWEETS_TOOL_NAME,
+		Description:    SEARCH_TWEETS_TOOL_DESCRIPTION,
+		RawInputSchema: searchTweetsSchema,
 	})
 
 	// List bookmarks tool
@@ -71,12 +62,9 @@ func (c *TwitterClient) ListTools(
 		return nil, fmt.Errorf("error generating schema for list_bookmarks: %w", err)
 	}
 	tools = append(tools, mcp_golang.Tool{
-		Name:        LIST_BOOKMARKS_TOOL_NAME,
-		Description: LIST_BOOKMARKS_TOOL_DESCRIPTION,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: listBookmarksSchema,
-		},
+		Name:           LIST_BOOKMARKS_TOOL_NAME,
+		Description:    LIST_BOOKMARKS_TOOL_DESCRIPTION,
+		RawInputSchema: listBookmarksSchema,
 	})
 
 	return mcp_golang.NewListToolsResult(tools, ""), nil
