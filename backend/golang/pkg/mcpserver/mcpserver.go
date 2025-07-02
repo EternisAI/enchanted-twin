@@ -918,11 +918,13 @@ func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error) e
 
 // startCallbackServer starts a local HTTP server to handle the OAuth callback
 func (s *service) startCallbackServer(callbackChan chan<- map[string]string) *http.Server {
+	mux := http.NewServeMux()
 	server := &http.Server{
-		Addr: ":8085",
+		Addr:    ":8085",
+		Handler: mux,
 	}
 
-	http.HandleFunc("/oauth/callback", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/oauth/callback", func(w http.ResponseWriter, r *http.Request) {
 		log.Info("Received OAuth callback", "url", r.URL.String())
 
 		params := make(map[string]string)
