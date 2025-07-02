@@ -705,49 +705,51 @@ func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
 // GetTransport creates a transport based on the server configuration.
 // It supports STDIN/STDOUT (stdio) and HTTPS protocols.
 // Assumes model.MCPServerTransportHTTPS and model.MCPServerTransportStdio constants exist in your model package.
-func GetTransportWithHTTP(
-	ctx context.Context,
-	serverURL *string,
-	accessToken *string,
-) (transport.Interface, error) {
-	if serverURL == nil || *serverURL == "" {
-		return nil, fmt.Errorf("URL is required for HTTPS transport")
-	}
+// Unused since #353.
+// func GetTransportWithHTTP(
+// 	ctx context.Context,
+// 	serverURL *string,
+// 	accessToken *string,
+// ) (transport.Interface, error) {
+// 	if serverURL == nil || *serverURL == "" {
+// 		return nil, fmt.Errorf("URL is required for HTTPS transport")
+// 	}
+//
+// 	var options []transport.StreamableHTTPCOption
+// 	if accessToken != nil {
+// 		options = append(options, transport.WithHTTPHeaders(map[string]string{
+// 			"Authorization": "Bearer " + *accessToken,
+// 		}))
+// 	}
+//
+// 	transport, err := transport.NewStreamableHTTP(*serverURL, options...)
+// 	return transport, err
+// }
 
-	var options []transport.StreamableHTTPCOption
-	if accessToken != nil {
-		options = append(options, transport.WithHTTPHeaders(map[string]string{
-			"Authorization": "Bearer " + *accessToken,
-		}))
-	}
-
-	transport, err := transport.NewStreamableHTTP(*serverURL, options...)
-	return transport, err
-}
-
-func GetTransportWithIO(
-	ctx context.Context,
-	command string,
-	args []string,
-	envs []*model.KeyValue,
-) (transport.Interface, error) {
-	effectiveCommand := command
-	if command == "docker" {
-		effectiveCommand = getDockerCommand()
-	}
-
-	if command == "npx" {
-		effectiveCommand = getNpxCommand()
-	}
-
-	// Convert envs to string slice
-	envStrings := make([]string, len(envs))
-	for i, env := range envs {
-		envStrings[i] = fmt.Sprintf("%s=%s", env.Key, env.Value)
-	}
-
-	return transport.NewStdio(effectiveCommand, envStrings, args...), nil
-}
+// Unused since #353.
+// func GetTransportWithIO(
+// 	ctx context.Context,
+// 	command string,
+// 	args []string,
+// 	envs []*model.KeyValue,
+// ) (transport.Interface, error) {
+// 	effectiveCommand := command
+// 	if command == "docker" {
+// 		effectiveCommand = getDockerCommand()
+// 	}
+//
+// 	if command == "npx" {
+// 		effectiveCommand = getNpxCommand()
+// 	}
+//
+// 	// Convert envs to string slice
+// 	envStrings := make([]string, len(envs))
+// 	for i, env := range envs {
+// 		envStrings[i] = fmt.Sprintf("%s=%s", env.Key, env.Value)
+// 	}
+//
+// 	return transport.NewStdio(effectiveCommand, envStrings, args...), nil
+// }
 
 func getDockerCommand() string {
 	var dockerCommand string
@@ -856,7 +858,7 @@ func getTools(ctx context.Context, connectedServer *ConnectedMCPServer) ([]*mode
 	return allTools, nil
 }
 
-// handleOAuthAuthorization handles the OAuth authorization flow
+// handleOAuthAuthorization handles the OAuth authorization flow.
 func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error) error {
 	log.Info("OAuth authorization required. Starting authorization flow...")
 
@@ -916,7 +918,7 @@ func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error) e
 	}
 }
 
-// startCallbackServer starts a local HTTP server to handle the OAuth callback
+// startCallbackServer starts a local HTTP server to handle the OAuth callback.
 func (s *service) startCallbackServer(callbackChan chan<- map[string]string) *http.Server {
 	mux := http.NewServeMux()
 	server := &http.Server{
@@ -980,7 +982,7 @@ func (s *service) startCallbackServer(callbackChan chan<- map[string]string) *ht
 	return server
 }
 
-// openBrowser opens the default browser to the specified URL
+// openBrowser opens the default browser to the specified URL.
 func (s *service) openBrowser(url string) {
 	var err error
 

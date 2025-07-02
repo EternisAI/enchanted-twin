@@ -37,24 +37,25 @@ func ConverToInputSchema(args any) (json.RawMessage, error) {
 	return json.RawMessage(schemaBytes), nil
 }
 
-func ConvertToBytes(args any) ([]byte, error) {
-	// First, convert the incoming arguments (which should be a generic JSON-like
-	// structure) into a map[string]any so that we have an "inputSchema" equivalent.
-	var inputSchema map[string]any
-
-	argsJSON, err := json.Marshal(args)
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(argsJSON, &inputSchema); err != nil {
-		return nil, err
-	}
-
-	// Now convert that map into the strongly-typed ListEmailsArguments struct.
-	argsSchemaBytes, err := json.Marshal(inputSchema)
-	if err != nil {
-		return nil, err
-	}
-
-	return argsSchemaBytes, nil
-}
+// Unused since #353.
+// func ConvertToBytes(args any) ([]byte, error) {
+// 	// First, convert the incoming arguments (which should be a generic JSON-like
+// 	// structure) into a map[string]any so that we have an "inputSchema" equivalent.
+// 	var inputSchema map[string]any
+//
+// 	argsJSON, err := json.Marshal(args)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if err := json.Unmarshal(argsJSON, &inputSchema); err != nil {
+// 		return nil, err
+// 	}
+//
+// 	// Now convert that map into the strongly-typed ListEmailsArguments struct.
+// 	argsSchemaBytes, err := json.Marshal(inputSchema)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	return argsSchemaBytes, nil
+// }
