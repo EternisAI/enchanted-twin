@@ -42,7 +42,9 @@ export const UnifiedDataSourceCard = ({
   // Also check if this source is being processed (handles the delay in subscription updates)
   // But exclude sources with errors as they're not actively processing
   const isBeingProcessed =
-    indexedSources.some((s) => !s.isProcessed && !s.isIndexed && !s.hasError) || isInitiating
+    indexedSources.some(
+      (s) => s.name === source.name && !s.isProcessed && !s.isIndexed && !s.hasError
+    ) || isInitiating
 
   // Get the most recent indexed source
   const latestIndexedSource = indexedSources
