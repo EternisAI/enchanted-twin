@@ -93,7 +93,7 @@ export function ShortcutRecorder({
     if (modifiers.includes('Alt')) orderedModifiers.push('Alt')
     if (modifiers.includes('Shift')) orderedModifiers.push('Shift')
 
-    return [...orderedModifiers, ...regularKeys].join('+')
+    return [...orderedModifiers, ...regularKeys].join(' ')
   }, [])
 
   useEffect(() => {
@@ -155,7 +155,7 @@ export function ShortcutRecorder({
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [isRecording, onChange, onStopRecording, buildShortcut, normalizeKey])
+  }, [isRecording, onChange, onStopRecording, buildShortcut, normalizeKey, onCancel])
 
   const formatShortcut = (keys: string[]): string => {
     const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0
@@ -163,6 +163,7 @@ export function ShortcutRecorder({
       CommandOrControl: isMac ? '⌘' : 'Ctrl',
       Command: '⌘',
       Cmd: '⌘',
+      Meta: isMac ? '⌘' : 'Ctrl',
       Control: 'Ctrl',
       Ctrl: 'Ctrl',
       Alt: isMac ? '⌥' : 'Alt',
@@ -181,11 +182,12 @@ export function ShortcutRecorder({
       Right: '→'
     }
 
-    return keys.map((key) => symbols[key] || key).join(' + ')
+    return keys.map((key) => symbols[key] || key).join(' ')
   }
 
   const formatDisplayValue = (shortcut: string): string => {
-    const parts = shortcut.split('+')
+    // Handle both '+' and space separators for backward compatibility
+    const parts = shortcut.includes('+') ? shortcut.split('+') : shortcut.split(' ')
     return formatShortcut(parts)
   }
 
@@ -206,11 +208,13 @@ export function ShortcutRecorder({
         className={cn('min-w-[120px] font-mono text-xs', isRecording && 'animate-pulse')}
         onClick={handleClick}
       >
-        {isRecording
-          ? displayKeys || 'Press keys...'
-          : value
-            ? formatDisplayValue(value)
-            : 'Not set'}
+        {isRecording ? (
+          displayKeys || 'Press keys...'
+        ) : value ? (
+          <kbd>{formatDisplayValue(value)}</kbd>
+        ) : (
+          'Not set'
+        )}
       </Button>
       {value && !isRecording && (
         <Button

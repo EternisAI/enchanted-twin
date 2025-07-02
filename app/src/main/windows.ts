@@ -89,7 +89,7 @@ class WindowManagerImpl implements WindowManager {
       minWidth: 500,
       maxWidth: 800,
       show: false,
-      // backgroundColor: '#00000000',
+      backgroundColor: '#00000000',
       frame: false,
       transparent: true,
       alwaysOnTop: true,
@@ -100,12 +100,12 @@ class WindowManagerImpl implements WindowManager {
       maximizable: false,
       closable: false,
       focusable: true,
-      hasShadow: true,
+      hasShadow: false,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         nodeIntegration: false,
-        contextIsolation: true
+        contextIsolation: false
       }
     })
 
