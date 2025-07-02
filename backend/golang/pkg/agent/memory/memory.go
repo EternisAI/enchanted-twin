@@ -54,6 +54,7 @@ type Filter struct {
 	FactCategory   *string // Filter by fact category (profile_stable, preference, goal_plan, etc.)
 	FactAttribute  *string // Filter by fact attribute (specific property being described)
 	FactImportance *int    // Filter by importance score (1, 2, 3)
+	FactFilePath   *string // NEW: Filter by file path (indexed for efficiency)
 
 	// Ranges for numeric/date fields
 	FactImportanceMin *int // Minimum importance score (inclusive)
@@ -75,6 +76,7 @@ type Document interface {
 	Tags() []string
 	Metadata() map[string]string
 	Source() string
+	FilePath() string  // NEW: File path for documents that originate from files
 	Chunk() []Document // New method for document chunking
 }
 
@@ -183,6 +185,11 @@ func (cd *ConversationDocument) Metadata() map[string]string {
 
 func (cd *ConversationDocument) Source() string {
 	return cd.FieldSource
+}
+
+// FilePath returns empty string for ConversationDocument as they don't originate from files directly
+func (cd *ConversationDocument) FilePath() string {
+	return "" // ConversationDocuments don't have file paths
 }
 
 // LoadConversationDocumentsFromJSON loads ConversationDocuments from JSON array file.
@@ -420,6 +427,7 @@ type TextDocument struct {
 	FieldSource    string            `json:"source,omitempty"`
 	FieldTags      []string          `json:"tags,omitempty"`
 	FieldMetadata  map[string]string `json:"metadata,omitempty"`
+	FieldFilePath  string            `json:"file_path,omitempty"` // NEW: File path for indexed files
 }
 
 // Document interface implementation for TextDocument.
@@ -448,7 +456,12 @@ func (td *TextDocument) Metadata() map[string]string {
 }
 
 func (td *TextDocument) Source() string {
-	return td.FieldSource // Now returns the top-level field
+	return td.FieldSource
+}
+
+// FilePath returns the file path for indexed files
+func (td *TextDocument) FilePath() string {
+	return td.FieldFilePath
 }
 
 // Chunk implements intelligent text document chunking (replaces truncation).
@@ -654,6 +667,7 @@ func (td *TextDocument) createTextChunk(content string, chunkNum int) *TextDocum
 		FieldSource:    td.FieldSource,
 		FieldTags:      td.FieldTags,
 		FieldMetadata:  metadata,
+		FieldFilePath:  td.FieldFilePath,
 	}
 }
 
@@ -677,6 +691,7 @@ type MemoryFact struct {
 	Source             string   `json:"source"`              // Source of the memory document
 	DocumentReferences []string `json:"document_references"` // IDs of source documents
 	Tags               []string `json:"tags,omitempty"`      // Tags for categorization
+	FilePath           string   `json:"file_path"`           // NEW: Indexed file path for efficient querying
 
 	// Legacy support
 	Metadata map[string]string `json:"metadata,omitempty"` // Additional metadata (being phased out)
