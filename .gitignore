@@ -18,3 +18,7 @@ texfrag
 
 *.p8
 *.db
+*.local.json
+test
+test-shm
+test-wal
