@@ -43,6 +43,11 @@ type service struct {
 	registry         tools.ToolRegistry
 }
 
+// NewServiceForFx creates a new MCPService for fx dependency injection
+func NewServiceForFx(logger *log.Logger, store *db.Store, toolRegistry *tools.ToolMapRegistry) MCPService {
+	return NewService(context.Background(), logger, store, toolRegistry)
+}
+
 // NewService creates a new MCPServerService.
 func NewService(ctx context.Context, logger *log.Logger, store *db.Store, registry tools.ToolRegistry) MCPService {
 	repo := repository.NewRepository(logger, store.DB())

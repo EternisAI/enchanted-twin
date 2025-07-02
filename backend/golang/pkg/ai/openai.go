@@ -11,7 +11,17 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 )
+
+type Completions interface {
+	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error)
+}
+
+type Embeddings interface {
+	Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error)
+}
 
 type Config struct {
 	APIKey  string
@@ -116,4 +126,39 @@ func (s *Service) Embedding(ctx context.Context, input string, model string) ([]
 		return nil, err
 	}
 	return embedding.Data[0].Embedding, nil
+}
+
+// Services holds AI services for different purposes
+type Services struct {
+	Completions *Service
+	Embeddings  *Service
+}
+
+// NewServicesFromConfig creates AI services from configuration
+func NewServicesFromConfig(cfg *config.Config, logger *log.Logger) Services {
+	tokenFunc := func() string { return "12345" }
+
+	var aiCompletionsService *Service
+	if cfg.ProxyTeeURL != "" {
+		aiCompletionsService = NewOpenAIServiceProxy(logger, cfg.ProxyTeeURL, tokenFunc, cfg.CompletionsAPIURL)
+	} else {
+		aiCompletionsService = NewOpenAIService(logger, cfg.CompletionsAPIKey, cfg.CompletionsAPIURL)
+	}
+
+	var aiEmbeddingsService *Service
+	if cfg.ProxyTeeURL != "" {
+		aiEmbeddingsService = NewOpenAIServiceProxy(logger, cfg.ProxyTeeURL, tokenFunc, cfg.EmbeddingsAPIURL)
+	} else {
+		aiEmbeddingsService = NewOpenAIService(logger, cfg.EmbeddingsAPIKey, cfg.EmbeddingsAPIURL)
+	}
+
+	return Services{
+		Completions: aiCompletionsService,
+		Embeddings:  aiEmbeddingsService,
+	}
+}
+
+// NewCompletionsService extracts the completions service
+func NewCompletionsService(services Services) *Service {
+	return services.Completions
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 )
 
 func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
@@ -199,4 +201,28 @@ func InitSchema(client *weaviate.Client, logger *log.Logger, embeddingsService *
 
 	logger.Debug("Schema initialization completed", "elapsed", time.Since(start))
 	return nil
+}
+
+// NewWeaviateClientFromConfig creates a Weaviate client for fx
+func NewWeaviateClientFromConfig(cfg *config.Config, aiServices ai.Services, logger *log.Logger) (*weaviate.Client, error) {
+	weaviatePath := filepath.Join(cfg.AppDataPath, "db", "weaviate")
+	logger.Info("Starting Weaviate bootstrap process", "path", weaviatePath, "port", cfg.WeaviatePort)
+
+	if _, err := BootstrapWeaviateServer(context.Background(), logger, cfg.WeaviatePort, weaviatePath); err != nil {
+		return nil, errors.Wrap(err, "Failed to bootstrap Weaviate server")
+	}
+
+	weaviateClient, err := weaviate.NewClient(weaviate.Config{
+		Host:   fmt.Sprintf("localhost:%s", cfg.WeaviatePort),
+		Scheme: "http",
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to create Weaviate client")
+	}
+
+	if err := InitSchema(weaviateClient, logger, aiServices.Embeddings, cfg.EmbeddingsModel); err != nil {
+		return nil, errors.Wrap(err, "Failed to initialize Weaviate schema")
+	}
+
+	return weaviateClient, nil
 }

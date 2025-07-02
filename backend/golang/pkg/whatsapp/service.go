@@ -50,6 +50,26 @@ type ServiceConfig struct {
 	ToolRegistry  *tools.ToolMapRegistry
 }
 
+func NewServiceForFx(
+	logger *log.Logger,
+	nc *nats.Conn,
+	database *db.DB,
+	mem memory.Storage,
+	cfg *config.Config,
+	aiServices ai.Services,
+	toolRegistry *tools.ToolMapRegistry,
+) *Service {
+	return NewService(ServiceConfig{
+		Logger:        logger,
+		NatsClient:    nc,
+		Database:      database,
+		MemoryStorage: mem,
+		Config:        cfg,
+		AIService:     aiServices.Completions,
+		ToolRegistry:  toolRegistry,
+	})
+}
+
 func NewService(cfg ServiceConfig) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
 

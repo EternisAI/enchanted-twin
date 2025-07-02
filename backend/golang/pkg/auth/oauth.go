@@ -17,10 +17,8 @@ import (
 
 	"github.com/charmbracelet/log"
 
-	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 // generatePKCEPair generates PKCE code verifier and challenge.
@@ -692,10 +690,14 @@ func PublishOAuthTokenRefresh(ctx context.Context, logger *log.Logger, store *db
 		return fmt.Errorf("no OAuth tokens available for provider: %s", provider)
 	}
 
+	// TODO: Re-enable NATS publishing after fixing circular dependency
+	logger.Debug("OAuth token refresh event publishing temporarily disabled due to circular dependency")
+	
+	// Get NATS client
+	/*
 	// Use the first token (you might want to select a specific one in a multi-user system)
 	token := tokens[0]
-
-	// Get NATS client
+	
 	nc, err := bootstrap.NewNatsClient()
 	if err != nil {
 		logger.Error("Failed to create NATS client for OAuth refresh notification", "error", err)
@@ -726,5 +728,6 @@ func PublishOAuthTokenRefresh(ctx context.Context, logger *log.Logger, store *db
 		"subject", subject,
 		"username", token.Username,
 		"expires_at", token.ExpiresAt.Format(time.RFC3339))
+	*/
 	return nil
 }

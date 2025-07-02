@@ -15,7 +15,6 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
-	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
@@ -91,8 +90,9 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 		fetcherService = NewFetcherService(store, fetcherConfig, logger)
 	}
 
-	// Initialize NATS client
+	// TODO: Re-enable NATS client after fixing circular dependency
 	var natsClient *nats.Conn
+	/*
 	nc, err := bootstrap.NewNatsClient()
 	if err != nil {
 		logger.Error("Failed to create NATS client for holon manager", "error", err)
@@ -100,6 +100,7 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 		natsClient = nc
 		logger.Debug("NATS client initialized for holon manager")
 	}
+	*/
 
 	manager := &Manager{
 		service:         service,

@@ -30,6 +30,8 @@ import (
 	"go.temporal.io/server/temporal"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	appconfig "github.com/EternisAI/enchanted-twin/pkg/config"
 )
 
 const (
@@ -301,4 +303,19 @@ func checkPortsAvailable(ip string, ports []int) error {
 		}
 	}
 	return nil
+}
+
+// NewTemporalClientFromConfig creates a Temporal client for fx
+func NewTemporalClientFromConfig(logger *log.Logger, cfg *appconfig.Config) (client.Client, error) {
+	ready := make(chan struct{})
+	go CreateTemporalServer(logger, ready, cfg.DBPath)
+	<-ready
+	logger.Info("Temporal server started")
+
+	temporalClient, err := NewTemporalClient(logger)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("Temporal client created")
+	return temporalClient, nil
 }

@@ -49,6 +49,7 @@ func NewRegistry() *ToolMapRegistry {
 	}
 }
 
+
 // Register adds tools to the registry.
 func (r *ToolMapRegistry) Register(tools ...Tool) error {
 	r.mu.Lock()

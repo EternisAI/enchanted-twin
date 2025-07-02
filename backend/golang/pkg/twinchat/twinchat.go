@@ -20,6 +20,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
@@ -37,6 +38,27 @@ type Storage interface {
 	ReplaceMessagesByChatId(ctx context.Context, chatID string, messages []repository.Message) error
 }
 
+
+// Original: 1. I'm August and I'm going to Paris.
+// Anonymised: 1. I'm John and I'm going to Paris.
+// map: {"August": "John"}
+
+// Original: 1. I'm August and I'm meeting Jack.
+// Anonymised: 1. I'm Max and I'm meeting Srikar.
+// map: {"August": "Max", "Jack": "Srikar"}
+
+// Original: 2. I'm August and I'm going to Paris.
+// Anonymised: 2. I'm John and I'm going to Paris.
+// Global_map: {"August": "John", "Paris": "London"}
+
+
+// 0. Global_map
+// 1. User -> Send a `meessage`
+// 2. `anon_message, map = anonymise(message)`
+// Global_map = merged(global_map, map)
+// 3. `anon_message` -> LLM -> `anon_respponse`
+// 4. anon_response + reverse_map -> `response`
+// 5. `response` -> Send to user, stored a db
 type Service struct {
 	aiService        *ai.Service
 	storage          Storage
@@ -48,6 +70,32 @@ type Service struct {
 	toolRegistry     *tools.ToolMapRegistry
 	userStorage      *db.Store
 	identityService  *identity.IdentityService
+}
+
+// NewServiceForFx creates a new TwinChat Service for fx dependency injection
+func NewServiceForFx(
+	logger *log.Logger,
+	aiServices ai.Services,
+	chatStorage *repository.Repository,
+	nc *nats.Conn,
+	mem memory.Storage,
+	toolRegistry *tools.ToolMapRegistry,
+	store *db.Store,
+	cfg *config.Config,
+	identitySvc *identity.IdentityService,
+) *Service {
+	return NewService(
+		logger,
+		aiServices.Completions,
+		chatStorage,
+		nc,
+		mem,
+		toolRegistry,
+		store,
+		cfg.CompletionsModel,
+		cfg.ReasoningModel,
+		identitySvc,
+	)
 }
 
 func NewService(

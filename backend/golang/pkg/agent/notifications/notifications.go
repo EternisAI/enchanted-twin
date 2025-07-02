@@ -15,6 +15,11 @@ type Service struct {
 
 const AppNotificationsSubject = "notifications.app"
 
+// NewServiceForFx creates a new notifications Service for fx dependency injection
+func NewServiceForFx(nc *nats.Conn) *Service {
+	return NewService(nc)
+}
+
 func NewService(nc *nats.Conn) *Service {
 	return &Service{
 		nc: nc,

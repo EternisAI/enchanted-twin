@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -8,7 +9,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"go.uber.org/zap"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
+	configdb "github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/holons"
 	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/whatsapp"
 )
@@ -16,7 +18,7 @@ import (
 // DB wraps the database connection and provides additional functionality.
 type DB struct {
 	*sql.DB
-	ConfigQueries   *config.Queries
+	ConfigQueries   *configdb.Queries
 	HolonsQueries   *holons.Queries
 	WhatsappQueries *whatsapp.Queries
 	logger          *log.Logger
@@ -40,7 +42,7 @@ func New(sqlDB *sql.DB, logger *log.Logger) (*DB, error) {
 	logger.Info("Database migrations completed successfully")
 
 	// Create queries instances
-	configQueries := config.New(sqlDB)
+	configQueries := configdb.New(sqlDB)
 	holonsQueries := holons.New(sqlDB)
 	whatsappQueries := whatsapp.New(sqlDB)
 
@@ -51,4 +53,14 @@ func New(sqlDB *sql.DB, logger *log.Logger) (*DB, error) {
 		WhatsappQueries: whatsappQueries,
 		logger:          logger,
 	}, nil
+}
+
+// NewStoreFromConfig creates a new Store using configuration.
+func NewStoreFromConfig(cfg *config.Config, logger *log.Logger) (*Store, error) {
+	return NewStore(context.Background(), cfg.DBPath)
+}
+
+// NewDatabaseFromStore creates a new DB from a Store.
+func NewDatabaseFromStore(store *Store, logger *log.Logger) (*DB, error) {
+	return New(store.DB().DB, logger)
 }

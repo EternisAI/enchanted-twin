@@ -6,11 +6,14 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/pkg/errors"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 )
 
 const (
@@ -151,6 +154,36 @@ type StorageImpl struct {
 	orchestrator *MemoryOrchestrator
 	storage      storage.Interface
 	engine       *MemoryEngine
+}
+
+// NewEvolvingMemory creates a new MemoryStorage instance for fx dependency injection
+func NewEvolvingMemory(weaviateClient *weaviate.Client, aiServices ai.Services, cfg *config.Config, logger *log.Logger) (memory.Storage, error) {
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiServices.Embeddings, cfg.EmbeddingsModel)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to create embedding wrapper")
+	}
+
+	storageInterface, err := storage.New(storage.NewStorageInput{
+		Client:            weaviateClient,
+		Logger:            logger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to create storage interface")
+	}
+
+	mem, err := New(Dependencies{
+		Logger:             logger,
+		Storage:            storageInterface,
+		CompletionsService: aiServices.Completions,
+		CompletionsModel:   cfg.CompletionsModel,
+		EmbeddingsWrapper:  embeddingsWrapper,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to create evolving memory")
+	}
+
+	return mem, nil
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.

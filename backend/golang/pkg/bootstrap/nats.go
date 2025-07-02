@@ -76,3 +76,19 @@ func NewNatsClient() (*nats.Conn, error) {
 	}
 	return nats.Connect(NatsServerURL, opts...)
 }
+
+// NewNATSConnection creates a NATS connection with embedded server for fx
+func NewNATSConnection(logger *log.Logger) (*nats.Conn, error) {
+	_, err := StartEmbeddedNATSServer(logger)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("NATS server started")
+
+	nc, err := NewNatsClient()
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("NATS client started")
+	return nc, nil
+}

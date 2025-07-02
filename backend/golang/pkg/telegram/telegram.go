@@ -25,6 +25,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
+	"go.uber.org/fx"
 
 	agent "github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -117,6 +118,41 @@ type TelegramServiceInput struct {
 	NatsClient       *nats.Conn
 	ChatServerUrl    string
 	ToolsRegistry    *tools.ToolMapRegistry
+}
+
+// NewServiceForFx creates a new TelegramService for fx dependency injection
+func NewServiceForFx(
+	logger *log.Logger,
+	aiServices ai.Services,
+	store *db.Store,
+	nc *nats.Conn,
+	mem memory.Storage,
+	toolRegistry *tools.ToolMapRegistry,
+	cfg *config.Config,
+) *TelegramService {
+	return NewTelegramService(TelegramServiceInput{
+		Logger:           logger,
+		Token:            cfg.TelegramToken,
+		Store:            store,
+		AiService:        aiServices.Completions,
+		CompletionsModel: cfg.CompletionsModel,
+		Memory:           mem,
+		AuthStorage:      store,
+		NatsClient:       nc,
+		ChatServerUrl:    cfg.TelegramChatServer,
+		ToolsRegistry:    toolRegistry,
+	})
+}
+
+// StartProcesses registers the telegram processes lifecycle with fx
+func StartProcesses(lc fx.Lifecycle, telegramService *TelegramService, logger *log.Logger, cfg *config.Config, toolRegistry *tools.ToolMapRegistry, database *db.DB) {
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			go SubscribePoller(telegramService, logger)
+			go MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, database.ConfigQueries, cfg)
+			return nil
+		},
+	})
 }
 
 func NewTelegramService(input TelegramServiceInput) *TelegramService {

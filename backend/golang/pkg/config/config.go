@@ -73,3 +73,8 @@ func LoadConfig(printEnv bool) (*Config, error) {
 	}
 	return conf, nil
 }
+
+// LoadConfigForFx loads configuration for fx dependency injection
+func LoadConfigForFx() (*Config, error) {
+	return LoadConfig(false)
+}

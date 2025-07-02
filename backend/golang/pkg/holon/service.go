@@ -8,10 +8,16 @@ import (
 
 	clog "github.com/charmbracelet/log"
 	"github.com/google/uuid"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
+	"go.uber.org/fx"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -38,6 +44,68 @@ type Service struct {
 }
 
 // NewServiceWithLogger creates a new holon service with a logger.
+// NewServiceForFx creates a new holon Service for fx dependency injection
+func NewServiceForFx(store *db.Store, logger *clog.Logger, aiServices ai.Services, cfg *config.Config, mem memory.Storage, toolRegistry *tools.ToolMapRegistry) *Service {
+	holonConfig := DefaultManagerConfig()
+	holonService := NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
+
+	processingInterval := 30 * time.Second
+	holonService.InitializeBackgroundProcessor(processingInterval)
+
+	threadPreviewTool := NewThreadPreviewTool(holonService)
+	if err := toolRegistry.Register(threadPreviewTool); err != nil {
+		logger.Error("Failed to register thread preview tool", "error", err)
+	}
+
+	sendToHolonTool := NewSendToHolonTool(holonService)
+	if err := toolRegistry.Register(sendToHolonTool); err != nil {
+		logger.Error("Failed to register send to holon tool", "error", err)
+	}
+
+	sendMessageToHolonTool := NewAddMessageToThreadTool(holonService)
+	if err := toolRegistry.Register(sendMessageToHolonTool); err != nil {
+		logger.Error("Failed to register send message to holon tool", "error", err)
+	}
+
+	return holonService
+}
+
+// StartProcesses registers the holon processes lifecycle with fx
+func StartProcesses(lc fx.Lifecycle, holonService *Service, store *db.Store, logger *clog.Logger, temporalClient client.Client, temporalWorker worker.Worker) {
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			backgroundCtx, cancelBackgroundProcessing := context.WithCancel(ctx)
+
+			if err := holonService.StartBackgroundProcessing(backgroundCtx); err != nil {
+				logger.Error("Failed to start background thread processing", "error", err)
+				cancelBackgroundProcessing()
+				return err
+			}
+
+			lc.Append(fx.Hook{
+				OnStop: func(ctx context.Context) error {
+					cancelBackgroundProcessing()
+					return nil
+				},
+			})
+
+			holonConfig := DefaultManagerConfig()
+			holonManager := NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
+			if err := holonManager.Start(); err != nil {
+				logger.Error("Failed to start HolonZero fetcher service", "error", err)
+			} else {
+				logger.Info("HolonZero API fetcher service started successfully")
+			}
+
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			holonService.StopBackgroundProcessing()
+			return nil
+		},
+	})
+}
+
 func NewServiceWithLogger(store *db.Store, logger *clog.Logger) *Service {
 	return NewServiceWithConfig(store, logger, "")
 }

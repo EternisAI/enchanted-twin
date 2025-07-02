@@ -1,75 +1,56 @@
 package main
 
 import (
-	"context"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
-
 	"go.uber.org/fx"
-)
 
-var AppModule = fx.Module("server",
-	fx.Provide(
-		NewLogger,
-		LoadConfig,
-		NewContext,
-		NewNATSServer,
-		NewNATSClient,
-		NewStore,
-		NewDatabase,
-		NewAIServices,
-		NewCompletionsAIService,
-		NewChatStorage,
-		NewWeaviateClient,
-		NewEvolvingMemory,
-		NewTemporalClient,
-		NewTemporalWorker,
-		NewTTSService,
-		NewToolRegistry,
-		NewIdentityService,
-		NewTwinChatService,
-		NewMCPService,
-		NewTelegramService,
-		NewHolonService,
-		NewNotificationsService,
-		NewGraphQLRouter,
-	),
-
-	fx.Provide(NewWhatsAppService),
-	fx.Invoke(RegisterWhatsAppServiceLifecycle),
-
-	fx.Invoke(
-		RegisterPeriodicWorkflows,
-		StartGraphQLServer,
-		StartTelegramProcesses,
-		StartHolonProcesses,
-	),
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/holon"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
+	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
+	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
+	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
 func main() {
-	app := fx.New(
-		AppModule,
-		fx.StartTimeout(30*time.Second),
-		fx.StopTimeout(15*time.Second),
-	)
-
-	startCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := app.Start(startCtx); err != nil {
-		panic(err)
-	}
-
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-	<-signalChan
-
-	stopCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	if err := app.Stop(stopCtx); err != nil {
-		panic(err)
-	}
+	fx.New(
+		fx.Provide(
+			bootstrap.NewLogger,
+			config.LoadConfigForFx,
+			bootstrap.NewNATSConnection,
+			db.NewStoreFromConfig,
+			db.NewDatabaseFromStore,
+			ai.NewServicesFromConfig,
+			ai.NewCompletionsService,
+			bootstrap.NewTemporalClientFromConfig,
+			bootstrap.NewWeaviateClientFromConfig,
+			chatrepository.NewRepository,
+			evolvingmemory.NewEvolvingMemory,
+			bootstrap.CreateTemporalWorker,
+			bootstrap.NewTTSService,
+			bootstrap.NewToolRegistry,
+			bootstrap.NewIdentityService,
+			twinchat.NewServiceForFx,
+			mcpserver.NewServiceForFx,
+			telegram.NewServiceForFx,
+			holon.NewServiceForFx,
+			notifications.NewServiceForFx,
+			whatsapp.NewServiceForFx,
+			bootstrap.NewGraphQLRouter,
+		),
+		fx.Invoke(
+			bootstrap.RegisterIdentityWorkflows,
+			bootstrap.RegisterHolonWorkflows,
+			bootstrap.StartWorker,
+			bootstrap.StartGraphQLServer,
+			telegram.StartProcesses,
+			holon.StartProcesses,
+			bootstrap.RegisterWhatsAppServiceLifecycle,
+		),
+	).Run()
 }
