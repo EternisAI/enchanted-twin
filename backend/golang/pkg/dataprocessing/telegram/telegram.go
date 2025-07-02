@@ -160,10 +160,6 @@ func (s *TelegramProcessor) ProcessDirectory(ctx context.Context, filepath strin
 	return nil, fmt.Errorf("process directory not supported for Telegram")
 }
 
-func (s *TelegramProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
-	return nil, false, fmt.Errorf("sync operation not supported for Telegram")
-}
-
 func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([]memory.ConversationDocument, error) {
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {

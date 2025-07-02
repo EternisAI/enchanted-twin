@@ -475,7 +475,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 	var err error
 
 	if isNewFormat {
-		// New format: JSON array of ConversationDocument - read entire file and batch in memory
+		// New format: JSONL of ConversationDocument - read entire file and batch in memory
 		documents, err = w.readNewFormatBatch(input.ProcessedPath, input.BatchIndex, input.BatchSize)
 	} else {
 		// Old format: JSONL of types.Record - read batch from file

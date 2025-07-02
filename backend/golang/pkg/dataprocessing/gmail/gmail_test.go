@@ -16,7 +16,7 @@ func TestGmailProcessor_ProcessFile(t *testing.T) {
 	defer func() { _ = os.Remove(tmpFile) }()
 
 	logger := log.New(os.Stdout)
-	store, err := db.NewStore(context.Background(), "test")
+	store, err := db.NewStore(context.Background(), ":memory:")
 	assert.NoError(t, err)
 
 	processor, err := NewGmailProcessor(store, logger)

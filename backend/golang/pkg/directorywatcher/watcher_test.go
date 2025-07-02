@@ -149,7 +149,11 @@ func TestDirectoryWatcher_detectJSONContentType(t *testing.T) {
 	// Create a temporary test file with X/Twitter data
 	tempFile, err := os.CreateTemp("", "test_x_data_*.json")
 	require.NoError(t, err)
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		if err := os.Remove(tempFile.Name()); err != nil {
+			t.Errorf("Failed to remove temporary file: %v", err)
+		}
+	}()
 
 	// Write X/Twitter JSON content
 	xContent := `[
@@ -174,7 +178,9 @@ func TestDirectoryWatcher_detectJSONContentType(t *testing.T) {
 
 	_, err = tempFile.WriteString(xContent)
 	require.NoError(t, err)
-	tempFile.Close()
+	if err := tempFile.Close(); err != nil {
+		t.Errorf("Failed to close temporary file: %v", err)
+	}
 
 	// Test content detection
 	result := watcher.detectJSONContentType(tempFile.Name())
@@ -183,7 +189,11 @@ func TestDirectoryWatcher_detectJSONContentType(t *testing.T) {
 	// Test with Telegram-like data
 	telegramFile, err := os.CreateTemp("", "test_telegram_*.json")
 	require.NoError(t, err)
-	defer os.Remove(telegramFile.Name())
+	defer func() {
+		if err := os.Remove(telegramFile.Name()); err != nil {
+			t.Errorf("Failed to remove temporary telegram file: %v", err)
+		}
+	}()
 
 	telegramContent := `{
   "personal_information": {
@@ -198,7 +208,9 @@ func TestDirectoryWatcher_detectJSONContentType(t *testing.T) {
 
 	_, err = telegramFile.WriteString(telegramContent)
 	require.NoError(t, err)
-	telegramFile.Close()
+	if err := telegramFile.Close(); err != nil {
+		t.Errorf("Failed to close temporary telegram file: %v", err)
+	}
 
 	result = watcher.detectJSONContentType(telegramFile.Name())
 	assert.Equal(t, "Telegram", result, "Telegram data should be detected correctly")
