@@ -138,34 +138,6 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 	})
 }
 
-// TestDecisionParsing tests the decision parsing logic.
-func TestDecisionParsing(t *testing.T) {
-	t.Run("ParseDecision_UPDATE", func(t *testing.T) {
-		// Test parsing UPDATE decision arguments
-		args := UpdateToolArguments{
-			MemoryID:      "mem123",
-			UpdatedMemory: "updated content",
-			Reason:        "More accurate",
-		}
-
-		// Verify the structure matches what's expected
-		assert.Equal(t, "mem123", args.MemoryID)
-		assert.Equal(t, "updated content", args.UpdatedMemory)
-		assert.Equal(t, "More accurate", args.Reason)
-	})
-
-	t.Run("ParseDecision_DELETE", func(t *testing.T) {
-		// Test parsing DELETE decision arguments
-		args := DeleteToolArguments{
-			MemoryID: "mem456",
-			Reason:   "Outdated information",
-		}
-
-		assert.Equal(t, "mem456", args.MemoryID)
-		assert.Equal(t, "Outdated information", args.Reason)
-	})
-}
-
 // TestStorageImplCreation tests storage implementation creation.
 func TestStorageImplCreation(t *testing.T) {
 	logger := log.New(os.Stdout)
