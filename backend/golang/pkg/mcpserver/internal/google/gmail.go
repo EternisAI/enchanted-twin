@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/jaytaylor/html2text"
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
@@ -47,9 +47,9 @@ type EmailQuery struct {
 
 type SearchEmailsArguments struct {
 	EmailAccount string     `json:"email_account" jsonschema:"required,description=The email account to list emails from"`
-	Query        EmailQuery `json:"query"      jsonschema:"description=The query to list emails, default is 'in:inbox'"`
-	PageToken    string     `json:"page_token" jsonschema:"description=The page token to list, default is empty"`
-	Limit        int        `json:"limit"      jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
+	Query        EmailQuery `json:"query"         jsonschema:"description=The query to list emails, default is 'in:inbox'"`
+	PageToken    string     `json:"page_token"    jsonschema:"description=The page token to list, default is empty"`
+	Limit        int        `json:"limit"         jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
 }
 
 type SendEmailArguments struct {
@@ -116,7 +116,7 @@ func processSearchEmails(
 	ctx context.Context,
 	store *db.Store,
 	arguments SearchEmailsArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -164,7 +164,7 @@ func processSearchEmails(
 		return nil, err
 	}
 
-	contents := make([]*mcp_golang.Content, 0)
+	contents := make([]mcp_golang.Content, 0)
 
 	for _, message := range response.Messages {
 		// Get the message details
@@ -189,12 +189,8 @@ func processSearchEmails(
 		formattedText := fmt.Sprintf("From: %s\nSubject: %s\nDate: %s\nID: %s",
 			from, subject, date, msg.Id)
 
-		contents = append(contents, &mcp_golang.Content{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: formattedText,
-			},
-		})
+		textContent := mcp_golang.NewTextContent(formattedText)
+		contents = append(contents, textContent)
 	}
 
 	return contents, nil
@@ -204,7 +200,7 @@ func processSendEmail(
 	ctx context.Context,
 	store *db.Store,
 	arguments SendEmailArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -237,21 +233,15 @@ func processSendEmail(
 		return nil, err
 	}
 
-	return []*mcp_golang.Content{
-		{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: "Successfully sent email",
-			},
-		},
-	}, nil
+	textContent := mcp_golang.NewTextContent("Successfully sent email")
+	return []mcp_golang.Content{textContent}, nil
 }
 
 func processEmailById(
 	ctx context.Context,
 	store *db.Store,
 	arguments EmailByIdArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -301,21 +291,15 @@ func processEmailById(
 	formattedText := fmt.Sprintf("From: %s\nSubject: %s\nDate: %s\nID: %s\nBody: %s",
 		from, subject, date, msg.Id, body)
 
-	return []*mcp_golang.Content{
-		{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: formattedText,
-			},
-		},
-	}, nil
+	textContent := mcp_golang.NewTextContent(formattedText)
+	return []mcp_golang.Content{textContent}, nil
 }
 
 func processReplyEmail(
 	ctx context.Context,
 	store *db.Store,
 	arguments ReplyEmailArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -411,20 +395,14 @@ func processReplyEmail(
 		return nil, err
 	}
 
-	return []*mcp_golang.Content{
-		{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: "Successfully sent reply email",
-			},
-		},
-	}, nil
+	textContent := mcp_golang.NewTextContent("Successfully sent reply email")
+	return []mcp_golang.Content{textContent}, nil
 }
 
 func processListEmailAccounts(
 	ctx context.Context,
 	store *db.Store,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	oauthTokens, err := store.GetOAuthTokensArray(ctx, "google")
 	if err != nil {
 		return nil, err
@@ -435,14 +413,8 @@ func processListEmailAccounts(
 		emailAccounts = append(emailAccounts, oauthToken.Username)
 	}
 
-	return []*mcp_golang.Content{
-		{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: "Email accounts: " + strings.Join(emailAccounts, ", "),
-			},
-		},
-	}, nil
+	textContent := mcp_golang.NewTextContent("Email accounts: " + strings.Join(emailAccounts, ", "))
+	return []mcp_golang.Content{textContent}, nil
 }
 
 func createMessage(from, to, subject, bodyContent string) *gmail.Message {
@@ -532,18 +504,18 @@ func getBody(p *gmail.MessagePart) (string, error) {
 	return "", errors.New("no body found")
 }
 
-func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
-	var tools []mcp_golang.ToolRetType
+func GenerateGmailTools() ([]mcp_golang.Tool, error) {
+	var tools []mcp_golang.Tool
 
 	searchEmailsSchema, err := utils.ConverToInputSchema(SearchEmailsArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for search_emails: %w", err)
 	}
 	desc := SEARCH_EMAILS_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        SEARCH_EMAILS_TOOL_NAME,
-		Description: &desc,
-		InputSchema: searchEmailsSchema,
+	tools = append(tools, mcp_golang.Tool{
+		Name:           SEARCH_EMAILS_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: searchEmailsSchema,
 	})
 
 	sendEmailSchema, err := utils.ConverToInputSchema(SendEmailArguments{})
@@ -551,40 +523,47 @@ func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
 		return nil, fmt.Errorf("error generating schema for send_email: %w", err)
 	}
 	desc = SEND_EMAIL_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        SEND_EMAIL_TOOL_NAME,
-		Description: &desc,
-		InputSchema: sendEmailSchema,
-	})
+	sendEmailTool := mcp_golang.Tool{
+		Name:           SEND_EMAIL_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: sendEmailSchema,
+	}
+	tools = append(tools, sendEmailTool)
 
 	emailByIdSchema, err := utils.ConverToInputSchema(EmailByIdArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for email_by_id: %w", err)
 	}
 	desc = EMAIL_BY_ID_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        EMAIL_BY_ID_TOOL_NAME,
-		Description: &desc,
-		InputSchema: emailByIdSchema,
-	})
+	emailByIdTool := mcp_golang.Tool{
+		Name:           EMAIL_BY_ID_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: emailByIdSchema,
+	}
+	tools = append(tools, emailByIdTool)
 
 	desc = LIST_EMAIL_ACCOUNTS_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
+	listEmailAccountsTool := mcp_golang.Tool{
 		Name:        LIST_EMAIL_ACCOUNTS_TOOL_NAME,
-		Description: &desc,
-		InputSchema: "{}",
-	})
+		Description: desc,
+		InputSchema: mcp_golang.ToolInputSchema{
+			Type:       "object",
+			Properties: map[string]interface{}{},
+		},
+	}
+	tools = append(tools, listEmailAccountsTool)
 
 	replyEmailSchema, err := utils.ConverToInputSchema(ReplyEmailArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for reply_email: %w", err)
 	}
 	desc = REPLY_EMAIL_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        REPLY_EMAIL_TOOL_NAME,
-		Description: &desc,
-		InputSchema: replyEmailSchema,
-	})
+	replyEmailTool := mcp_golang.Tool{
+		Name:           REPLY_EMAIL_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: replyEmailSchema,
+	}
+	tools = append(tools, replyEmailTool)
 
 	return tools, nil
 }
