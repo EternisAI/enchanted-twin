@@ -6,6 +6,7 @@ import XformerlyTwitterIcon from '@renderer/assets/icons/x'
 import OpenAI from '@renderer/assets/icons/openai'
 import WhatsAppSync from './custom-view/WhatAppSync'
 import { DataSource } from './types'
+import { FilesIcon } from 'lucide-react'
 
 export const SUPPORTED_DATA_SOURCES: DataSource[] = [
   {
@@ -65,5 +66,16 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     fileRequirement: 'Select Google Takeout ZIP file',
     icon: <GmailIcon className="h-6 w-6" />,
     fileFilters: [{ name: 'Google Takeout', extensions: ['zip'] }]
+  },
+  {
+    name: 'misc',
+    label: 'Files',
+    description: 'Import your files',
+    selectType: 'files',
+    fileRequirement: 'Select files in .txt, .pdf, .doc, .docx, .xls, .xlsx, .csv format',
+    icon: <FilesIcon className="h-5 w-5" />,
+    fileFilters: [
+      { name: 'Files', extensions: ['txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv'] }
+    ]
   }
 ]
