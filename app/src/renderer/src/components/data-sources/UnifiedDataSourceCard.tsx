@@ -1,4 +1,4 @@
-import { CheckCircle2, Loader2, Plus, Play, RefreshCw, Clock, AlertCircle } from 'lucide-react'
+import { CheckCircle2, Loader2, Play, RefreshCw, Clock, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { Button } from '../ui/button'
 import { Card } from '../ui/card'
@@ -197,10 +197,7 @@ export const UnifiedDataSourceCard = ({
             Import Again
           </>
         ) : (
-          <>
-            <Plus className="mr-2 h-4 w-4" />
-            Select File
-          </>
+          <>Import</>
         )}
       </Button>
     </Card>
