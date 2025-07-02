@@ -5,23 +5,86 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
-	"github.com/EternisAI/enchanted-twin/pkg/auth"
-	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 )
 
 type GmailSyncWorkflowInput struct {
-	Username string `json:"username"`
+	Username  string     `json:"username"`
+	StartDate *time.Time `json:"startDate,omitempty"` // Optional date range
+	EndDate   *time.Time `json:"endDate,omitempty"`   // Optional date range
 }
 
 type GmailSyncWorkflowResponse struct {
 	EndTime             time.Time `json:"endTime"`
 	Success             bool      `json:"success"`
+	ProcessedDocuments  int       `json:"processedDocuments"`
 	LastRecordTimestamp time.Time `json:"lastRecordTimestamp"`
+}
+
+// New unified sync activity that works with DocumentProcessor interface.
+type GmailSyncActivityInput struct {
+	Source    string     `json:"source"`
+	Username  string     `json:"username"`
+	StartDate *time.Time `json:"startDate,omitempty"`
+	EndDate   *time.Time `json:"endDate,omitempty"`
+}
+
+type GmailSyncActivityResponse struct {
+	Documents []memory.ConversationDocument `json:"documents"`
+}
+
+func (w *DataProcessingWorkflows) GmailSyncActivity(
+	ctx context.Context,
+	input GmailSyncActivityInput,
+) (GmailSyncActivityResponse, error) {
+	// Get OAuth tokens
+	tokens, err := w.Store.GetOAuthTokensByUsername(ctx, "google", input.Username)
+	if err != nil {
+		return GmailSyncActivityResponse{}, fmt.Errorf("failed to get OAuth tokens: %w", err)
+	}
+	if tokens == nil {
+		return GmailSyncActivityResponse{}, fmt.Errorf("no OAuth tokens found for Google")
+	}
+
+	// Create the appropriate processor
+	var processor dataprocessing.DocumentProcessor
+	switch input.Source {
+	case "gmail":
+		processor, err = gmail.NewGmailProcessor(w.Store, w.Logger)
+		if err != nil {
+			return GmailSyncActivityResponse{}, fmt.Errorf("failed to create Gmail processor: %w", err)
+		}
+	default:
+		return GmailSyncActivityResponse{}, fmt.Errorf("unsupported source: %s", input.Source)
+	}
+
+	var documents []memory.ConversationDocument
+
+	// Check if processor supports live sync at all
+	liveSyncProcessor, supportsSync := processor.(dataprocessing.LiveSync)
+	if !supportsSync {
+		return GmailSyncActivityResponse{}, fmt.Errorf("processor %s does not support live sync", input.Source)
+	}
+
+	// Check if processor supports date range sync and dates are provided
+	if dateRangeProcessor, ok := processor.(dataprocessing.DateRangeSync); ok && input.StartDate != nil && input.EndDate != nil {
+		w.Logger.Info("Using date range sync", "source", input.Source, "startDate", input.StartDate, "endDate", input.EndDate)
+		documents, err = dateRangeProcessor.SyncWithDateRange(ctx, tokens.AccessToken, *input.StartDate, *input.EndDate)
+	} else {
+		w.Logger.Info("Using regular sync", "source", input.Source)
+		documents, err = liveSyncProcessor.Sync(ctx, tokens.AccessToken)
+	}
+
+	if err != nil {
+		return GmailSyncActivityResponse{}, fmt.Errorf("failed to sync %s: %w", input.Source, err)
+	}
+
+	return GmailSyncActivityResponse{Documents: documents}, nil
 }
 
 func (w *DataProcessingWorkflows) GmailSyncWorkflow(
@@ -29,7 +92,7 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(
 	input GmailSyncWorkflowInput,
 ) (GmailSyncWorkflowResponse, error) {
 	if w.Store == nil {
-		return GmailSyncWorkflowResponse{}, errors.New("store is nil")
+		return GmailSyncWorkflowResponse{}, fmt.Errorf("store is nil")
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
@@ -37,123 +100,62 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second * 2,
 			MaximumInterval:    time.Minute * 10,
-			BackoffCoefficient: 4,
-			MaximumAttempts:    1,
+			BackoffCoefficient: 2,
+			MaximumAttempts:    3,
 		},
 	})
 
-	var previousResult GmailSyncWorkflowResponse
-
-	if workflow.HasLastCompletionResult(ctx) {
-		err := workflow.GetLastCompletionResult(ctx, &previousResult)
-		if err != nil {
-			return GmailSyncWorkflowResponse{}, err
-		}
-		workflow.GetLogger(ctx).Info("Recovered last result", "value", previousResult)
-	}
-
-	_, err := auth.RefreshExpiredTokens(context.Background(), w.Logger, w.Store)
-	if err != nil {
-		return GmailSyncWorkflowResponse{}, fmt.Errorf("failed to refresh expired tokens: %w", err)
-	}
-
-	workflowResponse := GmailSyncWorkflowResponse{
-		LastRecordTimestamp: previousResult.LastRecordTimestamp,
-	}
-
-	var response GmailFetchActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.GmailFetchActivity, GmailFetchActivityInput(input)).
-		Get(ctx, &response)
-	if err != nil {
-		return workflowResponse, err
-	}
-
-	filteredRecords := []types.Record{}
-	for _, record := range response.Records {
-		if previousResult.LastRecordTimestamp.IsZero() {
-			filteredRecords = append(filteredRecords, record)
-			continue
-		}
-
-		if record.Timestamp.After(previousResult.LastRecordTimestamp) {
-			filteredRecords = append(filteredRecords, record)
-		}
-	}
-
-	if len(filteredRecords) == 0 {
-		workflowResponse.EndTime = time.Now()
-		return GmailSyncWorkflowResponse{
-			EndTime:             time.Now(),
-			Success:             true,
-			LastRecordTimestamp: previousResult.LastRecordTimestamp,
-		}, nil
-	}
-
-	w.Logger.Info("filteredRecords", "length", len(filteredRecords))
-	err = workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: filteredRecords}).Get(ctx, nil)
+	// Execute the new unified sync activity
+	var syncResponse GmailSyncActivityResponse
+	err := workflow.ExecuteActivity(ctx, w.GmailSyncActivity, GmailSyncActivityInput{
+		Source:    "gmail",
+		Username:  input.Username,
+		StartDate: input.StartDate,
+		EndDate:   input.EndDate,
+	}).Get(ctx, &syncResponse)
 	if err != nil {
 		return GmailSyncWorkflowResponse{}, err
 	}
 
-	lastRecord := response.Records[0]
+	// Store documents directly in memory
+	if len(syncResponse.Documents) > 0 {
+		var memoryDocs []memory.Document
+		for _, doc := range syncResponse.Documents {
+			memoryDocs = append(memoryDocs, &doc)
+		}
 
-	w.Logger.Debug("lastRecord", "value", lastRecord)
+		err = workflow.ExecuteActivity(ctx, w.GmailStoreActivity, GmailStoreActivityInput{
+			Documents: memoryDocs,
+		}).Get(ctx, nil)
+		if err != nil {
+			return GmailSyncWorkflowResponse{}, err
+		}
+	}
 
-	workflowResponse.LastRecordTimestamp = lastRecord.Timestamp
-	workflowResponse.Success = true
-	workflowResponse.EndTime = time.Now()
+	// Find the latest timestamp
+	var lastTimestamp time.Time
+	for _, doc := range syncResponse.Documents {
+		if docTime := doc.Timestamp(); docTime != nil && docTime.After(lastTimestamp) {
+			lastTimestamp = *docTime
+		}
+	}
 
-	return workflowResponse, nil
+	return GmailSyncWorkflowResponse{
+		EndTime:             time.Now(),
+		Success:             true,
+		ProcessedDocuments:  len(syncResponse.Documents),
+		LastRecordTimestamp: lastTimestamp,
+	}, nil
 }
 
-type GmailFetchActivityInput struct {
-	Username string `json:"username"`
+// Activity to store documents in memory storage.
+type GmailStoreActivityInput struct {
+	Documents []memory.Document `json:"documents"`
 }
 
-type GmailFetchActivityResponse struct {
-	Records []types.Record `json:"records"`
-}
-
-func (w *DataProcessingWorkflows) GmailFetchActivity(
+func (w *DataProcessingWorkflows) GmailStoreActivity(
 	ctx context.Context,
-	input GmailFetchActivityInput,
-) (GmailFetchActivityResponse, error) {
-	tokens, err := w.Store.GetOAuthTokensByUsername(ctx, "google", input.Username)
-	if err != nil {
-		return GmailFetchActivityResponse{}, fmt.Errorf("failed to get OAuth tokens: %w", err)
-	}
-	if tokens == nil {
-		return GmailFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for Google")
-	}
-
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
-	records, err := dataprocessingService.Sync(ctx, "gmail", tokens.AccessToken)
-	if err != nil {
-		return GmailFetchActivityResponse{}, err
-	}
-	return GmailFetchActivityResponse{Records: records}, nil
-}
-
-type GmailIndexActivityInput struct {
-	Records []types.Record `json:"records"`
-}
-
-type GmailIndexActivityResponse struct{}
-
-func (w *DataProcessingWorkflows) GmailIndexActivity(
-	ctx context.Context,
-	input GmailIndexActivityInput,
-) (GmailIndexActivityResponse, error) {
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
-	documents, err := dataprocessingService.ToDocuments(ctx, "gmail", input.Records)
-	if err != nil {
-		return GmailIndexActivityResponse{}, err
-	}
-
-	err = w.Memory.Store(ctx, documents, nil)
-	if err != nil {
-		return GmailIndexActivityResponse{}, err
-	}
-
-	return GmailIndexActivityResponse{}, nil
+	input GmailStoreActivityInput,
+) error {
+	return w.Memory.Store(ctx, input.Documents, nil)
 }

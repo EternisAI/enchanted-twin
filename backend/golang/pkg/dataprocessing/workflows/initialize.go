@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -475,7 +474,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 	var err error
 
 	if isNewFormat {
-		// New format: JSON array of ConversationDocument - read entire file and batch in memory
+		// New format: JSONL of ConversationDocument - read entire file and batch in memory
 		documents, err = w.readNewFormatBatch(input.ProcessedPath, input.BatchIndex, input.BatchSize)
 	} else {
 		// Old format: JSONL of types.Record - read batch from file
@@ -548,17 +547,12 @@ func (w *DataProcessingWorkflows) isNewFormatProcessor(dataSourceName string) bo
 	}
 }
 
-// readNewFormatBatch reads a batch from JSON array format (ConversationDocument[]).
+// readNewFormatBatch reads a batch from JSONL format (ConversationDocument JSONL).
 func (w *DataProcessingWorkflows) readNewFormatBatch(filePath string, batchIndex, batchSize int) ([]memory.Document, error) {
-	// Read the entire JSON file (it's a ConversationDocument array)
-	data, err := os.ReadFile(filePath)
+	// Read ConversationDocuments from JSONL format using helper
+	conversationDocs, err := memory.LoadConversationDocumentsFromJSON(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	var conversationDocs []memory.ConversationDocument
-	if err := json.Unmarshal(data, &conversationDocs); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal ConversationDocument array: %w", err)
+		return nil, fmt.Errorf("failed to load ConversationDocuments from JSONL: %w", err)
 	}
 
 	// Calculate batch boundaries
@@ -584,16 +578,11 @@ func (w *DataProcessingWorkflows) readNewFormatBatch(filePath string, batchIndex
 	return documents, nil
 }
 
-// countNewFormatItems counts items in JSON array format.
+// countNewFormatItems counts items in JSONL format.
 func (w *DataProcessingWorkflows) countNewFormatItems(filePath string) (int, error) {
-	data, err := os.ReadFile(filePath)
+	conversationDocs, err := memory.LoadConversationDocumentsFromJSON(filePath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	var conversationDocs []memory.ConversationDocument
-	if err := json.Unmarshal(data, &conversationDocs); err != nil {
-		return 0, fmt.Errorf("failed to unmarshal ConversationDocument array: %w", err)
+		return 0, fmt.Errorf("failed to load ConversationDocuments from JSONL: %w", err)
 	}
 
 	return len(conversationDocs), nil

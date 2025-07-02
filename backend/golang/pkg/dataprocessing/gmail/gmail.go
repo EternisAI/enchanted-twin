@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -24,6 +25,9 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/mnako/letters"
 	loghtml "golang.org/x/net/html"
+	"golang.org/x/oauth2"
+	"google.golang.org/api/gmail/v1"
+	"google.golang.org/api/option"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -32,6 +36,13 @@ import (
 type GmailProcessor struct {
 	store  *db.Store
 	logger *log.Logger
+}
+
+// PaginatedSyncResult represents the result of a paginated sync operation.
+type PaginatedSyncResult struct {
+	Documents     []memory.ConversationDocument
+	NextPageToken string
+	HasMore       bool
 }
 
 type emailWithMeta struct {
@@ -85,6 +96,275 @@ func (g *GmailProcessor) Name() string { return "gmail" }
 // Simple interface - unchanged API.
 func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]memory.ConversationDocument, error) {
 	return g.processFileInternal(ctx, path, "pipeline_output", false)
+}
+
+// Sync fetches latest emails from Gmail API and converts them to ConversationDocuments.
+func (g *GmailProcessor) Sync(ctx context.Context, accessToken string) ([]memory.ConversationDocument, error) {
+	return g.syncWithQuery(ctx, accessToken, "in:inbox", 100)
+}
+
+// SyncWithDateRange fetches emails from Gmail API within a date range and converts them to ConversationDocuments.
+func (g *GmailProcessor) SyncWithDateRange(ctx context.Context, accessToken string, startDate, endDate time.Time) ([]memory.ConversationDocument, error) {
+	startUnix := startDate.Unix()
+	endUnix := endDate.Unix()
+	query := fmt.Sprintf("in:inbox after:%d before:%d", startUnix, endUnix)
+	return g.syncWithQuery(ctx, accessToken, query, 1000)
+}
+
+// syncWithQuery is the common implementation for fetching emails from Gmail API.
+func (g *GmailProcessor) syncWithQuery(ctx context.Context, accessToken, query string, maxResults int64) ([]memory.ConversationDocument, error) {
+	result, err := g.syncWithQueryPaginated(ctx, accessToken, query, maxResults, "")
+	if err != nil {
+		return nil, err
+	}
+	return result.Documents, nil
+}
+
+// syncWithQueryPaginated is the paginated version that returns pagination info.
+func (g *GmailProcessor) syncWithQueryPaginated(ctx context.Context, accessToken, query string, maxResults int64, pageToken string) (*PaginatedSyncResult, error) {
+	// Configure OAuth2 token
+	token := &oauth2.Token{
+		AccessToken: accessToken,
+	}
+
+	// Create an HTTP client with the access token
+	config := oauth2.Config{}
+	client := config.Client(ctx, token)
+
+	// Initialize Gmail service
+	gmailService, err := gmail.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, fmt.Errorf("error initializing Gmail service: %w", err)
+	}
+
+	// List messages with pagination support
+	request := gmailService.Users.Messages.List("me").Q(query).MaxResults(maxResults)
+	if pageToken != "" {
+		request = request.PageToken(pageToken)
+	}
+
+	response, err := request.Do()
+	if err != nil {
+		return nil, fmt.Errorf("error listing emails: %w", err)
+	}
+
+	// Get user email for conversation documents
+	profile, err := gmailService.Users.GetProfile("me").Do()
+	if err != nil {
+		return nil, fmt.Errorf("error getting user profile: %w", err)
+	}
+	userEmail := normalizeGmailAddress(profile.EmailAddress)
+
+	// Fetch full message details and group by thread
+	threads := make(map[string][]*emailWithMeta)
+
+	for _, message := range response.Messages {
+		msg, err := gmailService.Users.Messages.Get("me", message.Id).Do()
+		if err != nil {
+			g.logger.Warn("Failed to get message details", "messageId", message.Id, "error", err)
+			continue
+		}
+
+		// Convert Gmail message to emailWithMeta
+		email, err := g.convertGmailMessageToEmail(msg)
+		if err != nil {
+			g.logger.Warn("Failed to convert Gmail message", "messageId", message.Id, "error", err)
+			continue
+		}
+
+		// Skip emails that should be filtered out
+		if skipReason := g.shouldSkipEmail(email.email); skipReason != "" {
+			continue
+		}
+
+		threadID := email.threadID
+		threads[threadID] = append(threads[threadID], email)
+	}
+
+	// Sort messages within each thread by timestamp
+	for threadID := range threads {
+		sort.Slice(threads[threadID], func(i, j int) bool {
+			return threads[threadID][i].timestamp.Before(threads[threadID][j].timestamp)
+		})
+	}
+
+	// Convert threads to conversation documents
+	documents := g.toConversationDocuments(threads, userEmail)
+
+	// Build pagination result
+	result := &PaginatedSyncResult{
+		Documents:     documents,
+		NextPageToken: response.NextPageToken,
+		HasMore:       response.NextPageToken != "",
+	}
+
+	g.logger.Info("Gmail sync completed", "threads", len(threads), "documents", len(documents), "hasMore", result.HasMore)
+	return result, nil
+}
+
+// SyncWithDateRangePaginated implements the PaginatedDateRangeSync interface.
+func (g *GmailProcessor) SyncWithDateRangePaginated(ctx context.Context, accessToken string, startDate, endDate time.Time, pageToken string) (*PaginatedSyncResult, error) {
+	startUnix := startDate.Unix()
+	endUnix := endDate.Unix()
+	query := fmt.Sprintf("in:inbox after:%d before:%d", startUnix, endUnix)
+	return g.syncWithQueryPaginated(ctx, accessToken, query, 1000, pageToken)
+}
+
+// convertGmailMessageToEmail converts a Gmail API message to our internal emailWithMeta format.
+func (g *GmailProcessor) convertGmailMessageToEmail(msg *gmail.Message) (*emailWithMeta, error) {
+	// Extract headers
+	headers := make(map[string]string)
+	for _, header := range msg.Payload.Headers {
+		headers[header.Name] = header.Value
+	}
+
+	// Parse date
+	dateStr, ok := headers["Date"]
+	if !ok {
+		return nil, fmt.Errorf("no date header found")
+	}
+
+	timestamp, err := parseEmailDate(dateStr)
+	if err != nil {
+		g.logger.Warn("Failed to parse date", "date", dateStr, "error", err)
+		timestamp = time.Now()
+	}
+
+	// Extract body
+	body, err := g.extractBodyFromGmailMessage(msg.Payload)
+	if err != nil {
+		g.logger.Warn("Failed to extract body", "messageId", msg.Id, "error", err)
+		body = ""
+	}
+
+	// Convert Gmail message to mbox format and then parse with letters
+	mboxContent := g.convertGmailToMboxFormat(msg, headers, body)
+
+	// Parse with letters parser
+	parser := letters.NewEmailParser(letters.WithFileFilter(letters.NoFiles))
+	email, err := parser.Parse(strings.NewReader(mboxContent))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse email with letters parser: %w", err)
+	}
+
+	// Extract thread ID
+	threadID := g.extractThreadID(&email)
+
+	return &emailWithMeta{
+		email:     &email,
+		threadID:  threadID,
+		timestamp: timestamp,
+	}, nil
+}
+
+// convertGmailToMboxFormat converts Gmail API message to mbox format for letters parser.
+func (g *GmailProcessor) convertGmailToMboxFormat(msg *gmail.Message, headers map[string]string, body string) string {
+	var mbox strings.Builder
+
+	// Add essential headers
+	if date := headers["Date"]; date != "" {
+		mbox.WriteString(fmt.Sprintf("Date: %s\n", date))
+	}
+	if from := headers["From"]; from != "" {
+		mbox.WriteString(fmt.Sprintf("From: %s\n", from))
+	}
+	if to := headers["To"]; to != "" {
+		mbox.WriteString(fmt.Sprintf("To: %s\n", to))
+	}
+	if cc := headers["Cc"]; cc != "" {
+		mbox.WriteString(fmt.Sprintf("Cc: %s\n", cc))
+	}
+	if subject := headers["Subject"]; subject != "" {
+		mbox.WriteString(fmt.Sprintf("Subject: %s\n", subject))
+	}
+	if messageID := headers["Message-ID"]; messageID != "" {
+		mbox.WriteString(fmt.Sprintf("Message-ID: %s\n", messageID))
+	}
+	if references := headers["References"]; references != "" {
+		mbox.WriteString(fmt.Sprintf("References: %s\n", references))
+	}
+	if inReplyTo := headers["In-Reply-To"]; inReplyTo != "" {
+		mbox.WriteString(fmt.Sprintf("In-Reply-To: %s\n", inReplyTo))
+	}
+
+	// Add content type
+	mbox.WriteString("Content-Type: text/plain; charset=utf-8\n")
+	mbox.WriteString("\n") // Empty line between headers and body
+
+	// Add body
+	mbox.WriteString(body)
+
+	return mbox.String()
+}
+
+// extractBodyFromGmailMessage extracts text content from Gmail message payload.
+func (g *GmailProcessor) extractBodyFromGmailMessage(payload *gmail.MessagePart) (string, error) {
+	if payload.Body != nil && payload.Body.Data != "" {
+		decoded, err := base64DecodeURLSafe(payload.Body.Data)
+		if err != nil {
+			return "", err
+		}
+
+		// If it's HTML, convert to text
+		if payload.MimeType == "text/html" {
+			return g.htmlToText(string(decoded)), nil
+		}
+		return string(decoded), nil
+	}
+
+	// Check parts for text content
+	for _, part := range payload.Parts {
+		if part.MimeType == "text/plain" && part.Body != nil && part.Body.Data != "" {
+			decoded, err := base64DecodeURLSafe(part.Body.Data)
+			if err != nil {
+				continue
+			}
+			return string(decoded), nil
+		}
+		if part.MimeType == "text/html" && part.Body != nil && part.Body.Data != "" {
+			decoded, err := base64DecodeURLSafe(part.Body.Data)
+			if err != nil {
+				continue
+			}
+			return g.htmlToText(string(decoded)), nil
+		}
+
+		// Recursively check nested parts
+		if len(part.Parts) > 0 {
+			body, err := g.extractBodyFromGmailMessage(part)
+			if err == nil && body != "" {
+				return body, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no text body found")
+}
+
+// Helper functions.
+func base64DecodeURLSafe(data string) ([]byte, error) {
+	// Gmail uses URL-safe base64 encoding
+	return base64.URLEncoding.DecodeString(data)
+}
+
+func parseEmailDate(dateStr string) (time.Time, error) {
+	// Common email date formats
+	formats := []string{
+		time.RFC1123Z,
+		time.RFC1123,
+		"Mon, 2 Jan 2006 15:04:05 -0700",
+		"2 Jan 2006 15:04:05 -0700",
+		"Mon, 2 Jan 2006 15:04:05 MST",
+		"2006-01-02T15:04:05Z",
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, dateStr); err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("unparseable date: %s", dateStr)
 }
 
 // New method for sender analysis only.
