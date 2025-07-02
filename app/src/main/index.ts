@@ -13,7 +13,7 @@ import {
 } from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
 import { windowManager } from './windows'
-import { registerIpcHandlers } from './ipcHandlers'
+import { registerIpcHandlers, registerShortcut } from './ipcHandlers'
 import { setupMenu } from './menuSetup'
 import { setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
@@ -46,65 +46,22 @@ for (const [key, val] of Object.entries(typeof __APP_ENV__ === 'object' ? __APP_
 // Function to register global shortcuts from store
 function registerStoredShortcuts() {
   try {
-    // Ensure the store is initialized with defaults
-    let shortcuts = keyboardShortcutsStore.get('shortcuts')
-    log.info('Loading keyboard shortcuts from store:', shortcuts)
+    // First, unregister all existing shortcuts
+    globalShortcut.unregisterAll()
+    log.info('Unregistered all existing global shortcuts')
+    
+    // Get shortcuts from store (electron-store handles defaults automatically)
+    const shortcuts = keyboardShortcutsStore.get('shortcuts')
+    log.info('Loading keyboard shortcuts from store:', JSON.stringify(shortcuts, null, 2))
 
-    // If shortcuts is undefined or empty, initialize with defaults
-    if (!shortcuts || Object.keys(shortcuts).length === 0) {
-      const defaultShortcuts = {
-        toggleOmnibar: {
-          keys: 'CommandOrControl+Alt+O',
-          default: 'CommandOrControl+Alt+O'
-        }
-      }
-      keyboardShortcutsStore.set('shortcuts', defaultShortcuts)
-      shortcuts = defaultShortcuts
-      log.info('Initialized keyboard shortcuts with defaults')
-    }
-
-    // Clean up any corrupted shortcuts
-    let needsUpdate = false
+    // Register each shortcut
     Object.entries(shortcuts).forEach(([action, shortcut]) => {
-      if (
-        shortcut.keys.includes('Dead') ||
-        shortcut.keys.includes('Process') ||
-        shortcut.keys.includes('Unidentified')
-      ) {
-        log.warn(`Found corrupted shortcut for ${action}: ${shortcut.keys}, resetting to default`)
-        shortcuts[action].keys = shortcut.default
-        needsUpdate = true
-      }
-    })
-
-    if (needsUpdate) {
-      keyboardShortcutsStore.set('shortcuts', shortcuts)
-    }
-
-    // Register all shortcuts
-    const currentShortcuts = keyboardShortcutsStore.get('shortcuts')
-    Object.entries(currentShortcuts).forEach(([action, shortcut]) => {
-      try {
-        if (action === 'toggleOmnibar') {
-          globalShortcut.register(shortcut.keys, () => {
-            log.info('Global shortcut triggered: Toggle Omnibar Overlay')
-            windowManager.toggleOmnibarWindow()
-          })
-          log.info(`Registered shortcut for ${action}: ${shortcut.keys}`)
-        }
-        // Add more actions here as needed
-      } catch (error) {
-        log.error(`Failed to register shortcut for ${action}:`, error)
+      if (shortcut && shortcut.keys) {
+        registerShortcut(action, shortcut.keys, shortcut.global || false)
       }
     })
   } catch (error) {
     log.error('Failed to register stored shortcuts:', error)
-
-    // Fallback to default shortcut if store fails
-    globalShortcut.register('CommandOrControl+Alt+O', () => {
-      log.info('Global shortcut triggered: Toggle Omnibar Overlay')
-      windowManager.toggleOmnibarWindow()
-    })
   }
 }
 

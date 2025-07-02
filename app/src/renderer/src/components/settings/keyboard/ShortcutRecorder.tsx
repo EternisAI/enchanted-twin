@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
+import { XCircle } from 'lucide-react'
 
 interface ShortcutRecorderProps {
   value: string
@@ -106,6 +107,13 @@ export function ShortcutRecorder({
       e.preventDefault()
       e.stopPropagation()
 
+      // Handle Escape key to cancel recording
+      if (e.key === 'Escape') {
+        onCancel?.()
+        onStopRecording()
+        return
+      }
+
       const key = normalizeKey(e)
       if (key) {
         setPressedKeys((prev) => {
@@ -122,6 +130,11 @@ export function ShortcutRecorder({
     const handleKeyUp = (e: KeyboardEvent) => {
       e.preventDefault()
       e.stopPropagation()
+
+      // Don't process key up for Escape
+      if (e.key === 'Escape') {
+        return
+      }
 
       // Use callback to access current state value
       setPressedKeys((currentPressedKeys) => {
@@ -186,13 +199,30 @@ export function ShortcutRecorder({
   }
 
   return (
-    <Button
-      variant={isRecording ? 'default' : 'outline'}
-      size="sm"
-      className={cn('min-w-[120px] font-mono text-xs', isRecording && 'animate-pulse')}
-      onClick={handleClick}
-    >
-      {isRecording ? displayKeys || 'Press keys...' : value ? formatDisplayValue(value) : 'Not set'}
-    </Button>
+    <div className="flex items-center gap-1">
+      <Button
+        variant={isRecording ? 'default' : 'outline'}
+        size="sm"
+        className={cn('min-w-[120px] font-mono text-xs', isRecording && 'animate-pulse')}
+        onClick={handleClick}
+      >
+        {isRecording
+          ? displayKeys || 'Press keys...'
+          : value
+            ? formatDisplayValue(value)
+            : 'Not set'}
+      </Button>
+      {value && !isRecording && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 hover:bg-destructive/10"
+          onClick={() => onChange('')}
+          title="Remove shortcut"
+        >
+          <XCircle className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+        </Button>
+      )}
+    </div>
   )
 }

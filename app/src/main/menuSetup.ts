@@ -1,8 +1,23 @@
 import { Menu, app } from 'electron'
 import { windowManager } from './windows'
+import { keyboardShortcutsStore } from './stores'
+
+export function updateMenu() {
+  setupMenu()
+}
 
 export function setupMenu() {
   const isMac = process.platform === 'darwin'
+  
+  // Get current keyboard shortcuts from store
+  const shortcuts = keyboardShortcutsStore.get('shortcuts')
+  
+  // Format shortcuts for menu accelerators
+  const formatAccelerator = (keys: string): string => {
+    if (!keys) return ''
+    // Convert CommandOrControl to platform-specific key
+    return keys.replace('CommandOrControl', isMac ? 'Command' : 'Ctrl')
+  }
 
   const template: Electron.MenuItemConstructorOptions[] = [
     // On macOS, create the Application menu
@@ -15,7 +30,7 @@ export function setupMenu() {
               { type: 'separator' as const },
               {
                 label: 'Preferences...',
-                accelerator: 'Command+,',
+                accelerator: formatAccelerator(shortcuts.openSettings?.keys || 'CommandOrControl+,'),
                 click: () => {
                   if (!windowManager.mainWindow || windowManager.mainWindow.isDestroyed()) {
                     windowManager.createMainWindow()
@@ -45,7 +60,7 @@ export function setupMenu() {
       submenu: [
         {
           label: 'New Chat',
-          accelerator: isMac ? 'Command+N' : 'Ctrl+N',
+          accelerator: formatAccelerator(shortcuts.newChat?.keys || 'CommandOrControl+N'),
           click: () => {
             // Ensure main window exists and is visible
             if (!windowManager.mainWindow || windowManager.mainWindow.isDestroyed()) {
@@ -66,7 +81,7 @@ export function setupMenu() {
           ? [
               {
                 label: 'Settings',
-                accelerator: 'Ctrl+,',
+                accelerator: formatAccelerator(shortcuts.openSettings?.keys || 'CommandOrControl+,'),
                 click: () => {
                   if (!windowManager.mainWindow || windowManager.mainWindow.isDestroyed()) {
                     windowManager.createMainWindow()
@@ -102,6 +117,16 @@ export function setupMenu() {
     {
       label: 'View',
       submenu: [
+        {
+          label: 'Toggle Sidebar',
+          accelerator: formatAccelerator(shortcuts.toggleSidebar?.keys || 'CommandOrControl+S'),
+          click: () => {
+            if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+              windowManager.mainWindow.webContents.send('toggle-sidebar')
+            }
+          }
+        },
+        { type: 'separator' },
         { role: 'reload' },
         { role: 'forceReload' },
         { role: 'toggleDevTools' },

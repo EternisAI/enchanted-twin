@@ -10,7 +10,6 @@ function KeyboardSettings() {
     <div className="p-8 max-w-3xl mx-auto">
       <div className="flex flex-col gap-4 w-full">
         <h3 className="text-xl font-semibold">Keyboard Shortcuts</h3>
-        <p className="text-sm text-muted-foreground">Customize keyboard shortcuts to your preference.</p>
         <ShortcutList />
       </div>
     </div>

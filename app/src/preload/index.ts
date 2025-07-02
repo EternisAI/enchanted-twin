@@ -58,6 +58,16 @@ const api = {
     ipcRenderer.on('open-settings', listener)
     return () => ipcRenderer.removeListener('open-settings', listener)
   },
+  onNewChat: (callback: () => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('new-chat', listener)
+    return () => ipcRenderer.removeListener('new-chat', listener)
+  },
+  onToggleSidebar: (callback: () => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('toggle-sidebar', listener)
+    return () => ipcRenderer.removeListener('toggle-sidebar', listener)
+  },
   screenpipe: {
     getStatus: () => ipcRenderer.invoke('screenpipe:get-status'),
     install: () => ipcRenderer.invoke('screenpipe:install'),

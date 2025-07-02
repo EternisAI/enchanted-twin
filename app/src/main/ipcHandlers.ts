@@ -6,6 +6,7 @@ import { windowManager } from './windows'
 import { openOAuthWindow } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
 import { keyboardShortcutsStore } from './stores'
+import { updateMenu } from './menuSetup'
 // import { getKokoroState } from './kokoroManager'
 import {
   setupLiveKitAgent,
@@ -384,7 +385,23 @@ export function registerIpcHandlers() {
       return {
         toggleOmnibar: {
           keys: 'CommandOrControl+Alt+O',
-          default: 'CommandOrControl+Alt+O'
+          default: 'CommandOrControl+Alt+O',
+          global: true
+        },
+        newChat: {
+          keys: 'CommandOrControl+N',
+          default: 'CommandOrControl+N',
+          global: false
+        },
+        toggleSidebar: {
+          keys: 'CommandOrControl+S',
+          default: 'CommandOrControl+S',
+          global: false
+        },
+        openSettings: {
+          keys: 'CommandOrControl+,',
+          default: 'CommandOrControl+,',
+          global: false
         }
       }
     }
@@ -392,34 +409,81 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('keyboard-shortcuts:set', (_, action: string, keys: string) => {
     try {
+      // Handle empty string (removing shortcut)
+      if (!keys) {
+        const shortcuts = keyboardShortcutsStore.get('shortcuts')
+        
+        // Unregister the old shortcut
+        if (shortcuts[action] && shortcuts[action].keys) {
+          try {
+            globalShortcut.unregister(shortcuts[action].keys)
+          } catch (err) {
+            log.warn(`Failed to unregister shortcut: ${shortcuts[action].keys}`)
+          }
+        }
+
+        // Clear the shortcut
+        if (!shortcuts[action]) {
+          shortcuts[action] = { keys: '', default: '' }
+        }
+        shortcuts[action] = {
+          ...shortcuts[action],
+          keys: ''
+        }
+        keyboardShortcutsStore.set('shortcuts', shortcuts)
+        
+        log.info(`Removed shortcut for ${action}`)
+        
+        // Update the menu to reflect the removed shortcut
+        updateMenu()
+        
+        return { success: true }
+      }
+
       // Validate the shortcut keys
-      if (!keys || keys.includes('Dead') || keys.includes('Process') || keys.includes('Unidentified')) {
+      if (keys.includes('Dead') || keys.includes('Process') || keys.includes('Unidentified')) {
         return { success: false, error: 'Invalid key combination' }
       }
 
       const shortcuts = keyboardShortcutsStore.get('shortcuts')
       
-      // Unregister the old shortcut
-      if (shortcuts[action]) {
-        globalShortcut.unregister(shortcuts[action].keys)
+      // Unregister the old shortcut (only for global shortcuts)
+      if (shortcuts[action] && shortcuts[action].keys && shortcuts[action].global) {
+        try {
+          globalShortcut.unregister(shortcuts[action].keys)
+        } catch (err) {
+          log.warn(`Failed to unregister old shortcut: ${shortcuts[action].keys}`)
+        }
       }
 
-      // Test if the new shortcut can be registered
-      const testRegister = globalShortcut.register(keys, () => {})
-      if (!testRegister) {
-        return { success: false, error: 'This key combination cannot be registered or is already in use' }
+      // Test if the new shortcut can be registered (only for global shortcuts)
+      if (shortcuts[action] && shortcuts[action].global) {
+        const testRegister = globalShortcut.register(keys, () => {})
+        if (!testRegister) {
+          return { success: false, error: 'This key combination cannot be registered or is already in use' }
+        }
+        globalShortcut.unregister(keys)
       }
-      globalShortcut.unregister(keys)
 
       // Update the stored shortcut
+      if (!shortcuts[action]) {
+        shortcuts[action] = { keys: '', default: '' }
+      }
       shortcuts[action] = {
         ...shortcuts[action],
         keys
       }
       keyboardShortcutsStore.set('shortcuts', shortcuts)
+      
+      // Log the updated shortcuts
+      log.info(`Updated shortcut for ${action} to ${keys}`)
+      log.info('Current shortcuts:', keyboardShortcutsStore.get('shortcuts'))
 
       // Register the new shortcut
-      registerShortcut(action, keys)
+      registerShortcut(action, keys, shortcuts[action]?.global || false)
+      
+      // Update the menu to reflect the new shortcut
+      updateMenu()
 
       return { success: true }
     } catch (error) {
@@ -436,11 +500,13 @@ export function registerIpcHandlers() {
         return { success: false, error: 'Unknown shortcut action' }
       }
 
-      // Unregister current shortcut (ignore errors if it's invalid)
-      try {
-        globalShortcut.unregister(shortcuts[action].keys)
-      } catch (err) {
-        log.warn(`Failed to unregister invalid shortcut: ${shortcuts[action].keys}`)
+      // Unregister current shortcut (only for global shortcuts)
+      if (shortcuts[action] && shortcuts[action].global) {
+        try {
+          globalShortcut.unregister(shortcuts[action].keys)
+        } catch (err) {
+          log.warn(`Failed to unregister invalid shortcut: ${shortcuts[action].keys}`)
+        }
       }
 
       // Reset to default
@@ -448,7 +514,10 @@ export function registerIpcHandlers() {
       keyboardShortcutsStore.set('shortcuts', shortcuts)
 
       // Register the default shortcut
-      registerShortcut(action, shortcuts[action].default)
+      registerShortcut(action, shortcuts[action].default, shortcuts[action].global || false)
+      
+      // Update the menu to reflect the reset shortcut
+      updateMenu()
 
       return { success: true }
     } catch (error) {
@@ -461,12 +530,14 @@ export function registerIpcHandlers() {
     try {
       const shortcuts = keyboardShortcutsStore.get('shortcuts')
       
-      // Unregister all current shortcuts (ignore errors for invalid shortcuts)
+      // Unregister all current shortcuts (only global shortcuts)
       Object.keys(shortcuts).forEach(action => {
-        try {
-          globalShortcut.unregister(shortcuts[action].keys)
-        } catch (err) {
-          log.warn(`Failed to unregister invalid shortcut for ${action}: ${shortcuts[action].keys}`)
+        if (shortcuts[action] && shortcuts[action].global) {
+          try {
+            globalShortcut.unregister(shortcuts[action].keys)
+          } catch (err) {
+            log.warn(`Failed to unregister invalid shortcut for ${action}: ${shortcuts[action].keys}`)
+          }
         }
       })
 
@@ -478,8 +549,11 @@ export function registerIpcHandlers() {
 
       // Re-register all shortcuts
       Object.keys(shortcuts).forEach(action => {
-        registerShortcut(action, shortcuts[action].keys)
+        registerShortcut(action, shortcuts[action].keys, shortcuts[action].global || false)
       })
+      
+      // Update the menu to reflect all reset shortcuts
+      updateMenu()
 
       return { success: true }
     } catch (error) {
@@ -490,15 +564,68 @@ export function registerIpcHandlers() {
 }
 
 // Helper function to register shortcuts
-export function registerShortcut(action: string, keys: string) {
+export function registerShortcut(action: string, keys: string, isGlobal: boolean = false) {
   try {
-    if (action === 'toggleOmnibar') {
-      globalShortcut.register(keys, () => {
-        log.info('Global shortcut triggered: Toggle Omnibar Overlay')
-        windowManager.toggleOmnibarWindow()
-      })
+    // Don't register empty shortcuts
+    if (!keys) {
+      log.info(`Skipping registration for ${action}: no keys set`)
+      return
     }
-    // Add more shortcut actions here as needed
+    
+    // Only register global shortcuts in the main process
+    if (isGlobal) {
+      let handler: () => void
+      
+      switch (action) {
+        case 'toggleOmnibar':
+          handler = () => {
+            log.info('Global shortcut triggered: Toggle Omnibar Overlay')
+            windowManager.toggleOmnibarWindow()
+          }
+          break
+          
+        case 'newChat':
+          handler = () => {
+            log.info('Global shortcut triggered: New Chat')
+            if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+              windowManager.mainWindow.webContents.send('new-chat')
+            }
+          }
+          break
+          
+        case 'toggleSidebar':
+          handler = () => {
+            log.info('Global shortcut triggered: Toggle Sidebar')
+            if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+              windowManager.mainWindow.webContents.send('toggle-sidebar')
+            }
+          }
+          break
+          
+        case 'openSettings':
+          handler = () => {
+            log.info('Global shortcut triggered: Open Settings')
+            if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+              windowManager.mainWindow.webContents.send('open-settings')
+            }
+          }
+          break
+          
+        default:
+          log.warn(`Unknown shortcut action: ${action}`)
+          return
+      }
+      
+      const registered = globalShortcut.register(keys, handler)
+      
+      if (registered) {
+        log.info(`Successfully registered global shortcut for ${action}: ${keys}`)
+      } else {
+        log.error(`Failed to register global shortcut for ${action}: ${keys} (may be in use by system)`)
+      }
+    } else {
+      log.info(`Skipping global registration for ${action} (handled locally in renderer)`)
+    }
   } catch (error) {
     log.error(`Failed to register shortcut for ${action}:`, error)
   }

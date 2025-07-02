@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 interface Shortcut {
   keys: string
   default: string
+  global?: boolean
 }
 
 interface ShortcutItem {
@@ -20,6 +21,21 @@ const SHORTCUT_ITEMS: ShortcutItem[] = [
     action: 'toggleOmnibar',
     label: 'Global Omnibar',
     description: 'Show or hide the global omnibar overlay'
+  },
+  {
+    action: 'newChat',
+    label: 'New Chat',
+    description: 'Create a new chat'
+  },
+  {
+    action: 'toggleSidebar',
+    label: 'Toggle Sidebar',
+    description: 'Show or hide the sidebar'
+  },
+  {
+    action: 'openSettings',
+    label: 'Open Settings',
+    description: 'Open the settings window'
   }
 ]
 
@@ -39,13 +55,7 @@ export function ShortcutList() {
         setShortcuts(data)
       } else {
         console.error('Invalid shortcuts data received:', data)
-        // Set default shortcuts if data is invalid
-        setShortcuts({
-          toggleOmnibar: {
-            keys: 'CommandOrControl+Alt+O',
-            default: 'CommandOrControl+Alt+O'
-          }
-        })
+        setShortcuts({})
       }
     } catch (error) {
       console.error('Failed to load shortcuts:', error)
@@ -104,12 +114,16 @@ export function ShortcutList() {
           const isModified = shortcut && shortcut.keys !== shortcut.default
 
           return (
-            <div
-              key={item.action}
-              className="flex items-center justify-between py-3 px-4 rounded-lg border bg-card"
-            >
+            <div key={item.action} className="flex items-center justify-between py-3 rounded-lg">
               <div className="flex-1">
-                <div className="font-medium text-sm">{item.label}</div>
+                <div className="flex items-center gap-2">
+                  <div className="font-medium text-sm">{item.label}</div>
+                  {shortcut?.global && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                      Global
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-muted-foreground">{item.description}</div>
               </div>
               <div className="flex items-center gap-2">
@@ -136,7 +150,7 @@ export function ShortcutList() {
         })}
       </div>
 
-      <div className="pt-4 border-t">
+      <div className="pt-4">
         <Button variant="outline" size="sm" onClick={handleResetAll} className="w-full">
           <RotateCcw className="h-3.5 w-3.5 mr-2" />
           Reset All to Defaults

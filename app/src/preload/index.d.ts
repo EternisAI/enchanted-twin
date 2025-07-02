@@ -33,6 +33,8 @@ interface IApi {
   onUpdateProgress: (callback: (progress: unknown) => void) => () => void
   getAppVersion: () => Promise<string>
   onOpenSettings: (callback: () => void) => () => void
+  onNewChat: (callback: () => void) => () => void
+  onToggleSidebar: (callback: () => void) => () => void
   screenpipe: {
     getStatus: () => Promise<any>
     install: () => Promise<any>
@@ -91,7 +93,7 @@ interface IApi {
   hideOmnibarWindow: () => Promise<{ success: boolean; error?: string }>
   rendererReady: () => void
   keyboardShortcuts: {
-    get: () => Promise<Record<string, { keys: string; default: string }>>
+    get: () => Promise<Record<string, { keys: string; default: string; global?: boolean }>>
     set: (action: string, keys: string) => Promise<{ success: boolean; error?: string }>
     reset: (action: string) => Promise<{ success: boolean; error?: string }>
     resetAll: () => Promise<{ success: boolean; error?: string }>

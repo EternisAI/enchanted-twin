@@ -52,6 +52,8 @@ interface IApi {
   getAppVersion: () => Promise<string>
   restartApp: () => Promise<void>
   onOpenSettings: (callback: () => void) => () => void
+  onNewChat: (callback: () => void) => () => void
+  onToggleSidebar: (callback: () => void) => () => void
   screenpipe: {
     getStatus: () => Promise<ScreenpipeStatus>
     install: () => Promise<ScreenpipeResult>
@@ -124,7 +126,7 @@ interface IApi {
   hideOmnibarWindow: () => Promise<{ success: boolean; error?: string }>
   rendererReady: () => void
   keyboardShortcuts: {
-    get: () => Promise<Record<string, { keys: string; default: string }>>
+    get: () => Promise<Record<string, { keys: string; default: string; global?: boolean }>>
     set: (action: string, keys: string) => Promise<{ success: boolean; error?: string }>
     reset: (action: string) => Promise<{ success: boolean; error?: string }>
     resetAll: () => Promise<{ success: boolean; error?: string }>
