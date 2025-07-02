@@ -317,12 +317,9 @@ func GenerateSlackTools() ([]mcp_golang.Tool, error) {
 		return nil, fmt.Errorf("error generating schema for list_channels: %w", err)
 	}
 	tools = append(tools, mcp_golang.Tool{
-		Name:        LIST_CHANNELS_TOOL_NAME,
-		Description: LIST_CHANNELS_TOOL_DESCRIPTION,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: listChannelsSchema,
-		},
+		Name:           LIST_CHANNELS_TOOL_NAME,
+		Description:    LIST_CHANNELS_TOOL_DESCRIPTION,
+		RawInputSchema: listChannelsSchema,
 	})
 
 	// List direct message conversations tool
@@ -331,12 +328,9 @@ func GenerateSlackTools() ([]mcp_golang.Tool, error) {
 		return nil, fmt.Errorf("error generating schema for list_direct_message_conversations: %w", err)
 	}
 	tools = append(tools, mcp_golang.Tool{
-		Name:        LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_NAME,
-		Description: LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_DESCRIPTION,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: listDMConversationsSchema,
-		},
+		Name:           LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_NAME,
+		Description:    LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_DESCRIPTION,
+		RawInputSchema: listDMConversationsSchema,
 	})
 
 	// Post message tool
@@ -345,12 +339,9 @@ func GenerateSlackTools() ([]mcp_golang.Tool, error) {
 		return nil, fmt.Errorf("error generating schema for post_message: %w", err)
 	}
 	tools = append(tools, mcp_golang.Tool{
-		Name:        POST_MESSAGE_TOOL_NAME,
-		Description: POST_MESSAGE_TOOL_DESCRIPTION,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: postMessageSchema,
-		},
+		Name:           POST_MESSAGE_TOOL_NAME,
+		Description:    POST_MESSAGE_TOOL_DESCRIPTION,
+		RawInputSchema: postMessageSchema,
 	})
 
 	// Search messages tool
@@ -359,12 +350,9 @@ func GenerateSlackTools() ([]mcp_golang.Tool, error) {
 		return nil, fmt.Errorf("error generating schema for search_messages: %w", err)
 	}
 	tools = append(tools, mcp_golang.Tool{
-		Name:        SEARCH_MESSAGES_TOOL_NAME,
-		Description: SEARCH_MESSAGES_TOOL_DESCRIPTION,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: searchMessagesSchema,
-		},
+		Name:           SEARCH_MESSAGES_TOOL_NAME,
+		Description:    SEARCH_MESSAGES_TOOL_DESCRIPTION,
+		RawInputSchema: searchMessagesSchema,
 	})
 
 	return tools, nil

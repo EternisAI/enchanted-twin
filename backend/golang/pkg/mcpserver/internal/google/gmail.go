@@ -513,12 +513,9 @@ func GenerateGmailTools() ([]mcp_golang.Tool, error) {
 	}
 	desc := SEARCH_EMAILS_TOOL_DESCRIPTION
 	tools = append(tools, mcp_golang.Tool{
-		Name:        SEARCH_EMAILS_TOOL_NAME,
-		Description: desc,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: searchEmailsSchema,
-		},
+		Name:           SEARCH_EMAILS_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: searchEmailsSchema,
 	})
 
 	sendEmailSchema, err := utils.ConverToInputSchema(SendEmailArguments{})
@@ -527,12 +524,9 @@ func GenerateGmailTools() ([]mcp_golang.Tool, error) {
 	}
 	desc = SEND_EMAIL_TOOL_DESCRIPTION
 	sendEmailTool := mcp_golang.Tool{
-		Name:        SEND_EMAIL_TOOL_NAME,
-		Description: desc,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: sendEmailSchema,
-		},
+		Name:           SEND_EMAIL_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: sendEmailSchema,
 	}
 	tools = append(tools, sendEmailTool)
 
@@ -542,12 +536,9 @@ func GenerateGmailTools() ([]mcp_golang.Tool, error) {
 	}
 	desc = EMAIL_BY_ID_TOOL_DESCRIPTION
 	emailByIdTool := mcp_golang.Tool{
-		Name:        EMAIL_BY_ID_TOOL_NAME,
-		Description: desc,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: emailByIdSchema,
-		},
+		Name:           EMAIL_BY_ID_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: emailByIdSchema,
 	}
 	tools = append(tools, emailByIdTool)
 
@@ -568,12 +559,9 @@ func GenerateGmailTools() ([]mcp_golang.Tool, error) {
 	}
 	desc = REPLY_EMAIL_TOOL_DESCRIPTION
 	replyEmailTool := mcp_golang.Tool{
-		Name:        REPLY_EMAIL_TOOL_NAME,
-		Description: desc,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: replyEmailSchema,
-		},
+		Name:           REPLY_EMAIL_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: replyEmailSchema,
 	}
 	tools = append(tools, replyEmailTool)
 

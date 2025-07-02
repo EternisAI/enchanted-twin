@@ -24,22 +24,17 @@ var jsonSchemaReflector = jsonschema.Reflector{
 	CommentMap:                nil,
 }
 
-func ConverToInputSchema(args any) (map[string]any, error) {
-	// TODO: @pottekkat This incorrectly creates a nested `properties` field.
-	// Fix this using the options provided in the jsonschema package.
+func ConverToInputSchema(args any) (json.RawMessage, error) {
 	jsonSchema := jsonSchemaReflector.ReflectFromType(reflect.TypeOf(args))
+	jsonSchema.Version = "" // Remove $schema field
 
 	// Convert *jsonschema.Schema into a generic map[string]any
 	schemaBytes, err := json.Marshal(jsonSchema)
 	if err != nil {
 		return nil, err
 	}
-	var inputSchema map[string]any
-	if err := json.Unmarshal(schemaBytes, &inputSchema); err != nil {
-		return nil, err
-	}
 
-	return inputSchema, nil
+	return json.RawMessage(schemaBytes), nil
 }
 
 func ConvertToBytes(args any) ([]byte, error) {

@@ -216,12 +216,9 @@ func GenerateGoogleCalendarTools() ([]mcp_golang.Tool, error) {
 	}
 	desc := LIST_CALENDAR_EVENTS_TOOL_DESCRIPTION
 	tools = append(tools, mcp_golang.Tool{
-		Name:        LIST_CALENDAR_EVENTS_TOOL_NAME,
-		Description: desc,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: listEventsSchema,
-		},
+		Name:           LIST_CALENDAR_EVENTS_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: listEventsSchema,
 	})
 
 	createEventSchema, err := utils.ConverToInputSchema(CreateEventArgs{})
@@ -230,12 +227,9 @@ func GenerateGoogleCalendarTools() ([]mcp_golang.Tool, error) {
 	}
 	desc = CREATE_CALENDAR_EVENT_TOOL_DESCRIPTION
 	tools = append(tools, mcp_golang.Tool{
-		Name:        CREATE_CALENDAR_EVENT_TOOL_NAME,
-		Description: desc,
-		InputSchema: mcp_golang.ToolInputSchema{
-			Type:       "object",
-			Properties: createEventSchema,
-		},
+		Name:           CREATE_CALENDAR_EVENT_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: createEventSchema,
 	})
 
 	return tools, nil
