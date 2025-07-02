@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -78,6 +79,15 @@ type EmptyParams struct{}
 
 func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 	params := make(openai.FunctionParameters)
+
+	// Some tools use raw input schema
+	// We unmarshal it into the InputSchema field
+	if t.Tool.RawInputSchema != nil {
+		var rawSchema mcp.ToolInputSchema
+		if err := json.Unmarshal(t.Tool.RawInputSchema, &rawSchema); err == nil {
+			t.Tool.InputSchema = rawSchema
+		}
+	}
 
 	if t.Tool.InputSchema.Properties != nil {
 		// See: https://platform.openai.com/docs/guides/function-calling
