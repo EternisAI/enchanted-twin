@@ -356,6 +356,8 @@ func parseEmailDate(dateStr string) (time.Time, error) {
 		"2 Jan 2006 15:04:05 -0700",
 		"Mon, 2 Jan 2006 15:04:05 MST",
 		"2006-01-02T15:04:05Z",
+		// Gmail format with (UTC) suffix
+		"Mon, 02 Jan 2006 15:04:05 -0700 (MST)",
 	}
 
 	for _, format := range formats {
