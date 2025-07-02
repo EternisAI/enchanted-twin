@@ -410,13 +410,6 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 	return records, nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
@@ -472,7 +465,24 @@ func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types
 			}
 		}
 
+		// Generate unique document ID including chunk index for uniqueness
+		chunkIndex := 0
+		if chunkVal, ok := record.Data["chunk"]; ok && chunkVal != nil {
+			if chunkInt, ok := chunkVal.(int); ok {
+				chunkIndex = chunkInt
+			}
+		}
+
+		docID := fmt.Sprintf("misc-%s-%d-chunk%d", record.Source, record.Timestamp.Unix(), chunkIndex)
+		if pathVal, ok := record.Data["path"]; ok && pathVal != nil {
+			if pathStr, ok := pathVal.(string); ok {
+				filename := filepath.Base(pathStr)
+				docID = fmt.Sprintf("misc-%s-%s-%d-chunk%d", record.Source, filename, record.Timestamp.Unix(), chunkIndex)
+			}
+		}
+
 		doc := memory.TextDocument{
+			FieldID:        docID,
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,
 			FieldSource:    record.Source,

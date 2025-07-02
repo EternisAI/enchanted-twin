@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -11,6 +12,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -415,12 +417,24 @@ func (w *DataProcessingWorkflows) GetBatchesActivity(
 		return GetBatchesActivityResponse{}, errors.New("processed path cannot be empty")
 	}
 
-	lineCount, err := helpers.CountJSONLLines(input.ProcessedPath)
+	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
+
+	var itemCount int
+	var err error
+
+	if isNewFormat {
+		// New format: JSON array - count array items
+		itemCount, err = w.countNewFormatItems(input.ProcessedPath)
+	} else {
+		// Old format: JSONL - count lines
+		itemCount, err = helpers.CountJSONLLines(input.ProcessedPath)
+	}
+
 	if err != nil {
 		return GetBatchesActivityResponse{}, err
 	}
 
-	totalBatches := (lineCount + input.BatchSize - 1) / input.BatchSize
+	totalBatches := (itemCount + input.BatchSize - 1) / input.BatchSize
 	return GetBatchesActivityResponse{TotalBatches: totalBatches}, nil
 }
 
@@ -453,32 +467,53 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 		return IndexBatchActivityResponse{}, errors.New("processed path cannot be empty")
 	}
 
-	startIdx := input.BatchIndex * input.BatchSize
+	// Check if this is a new format processor (JSON array) or old format (JSONL)
+	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
 
-	records, err := helpers.ReadJSONLBatch(input.ProcessedPath, startIdx, input.BatchSize)
+	var documents []memory.Document
+	var err error
+
+	if isNewFormat {
+		// New format: JSONL of ConversationDocument - read entire file and batch in memory
+		documents, err = w.readNewFormatBatch(input.ProcessedPath, input.BatchIndex, input.BatchSize)
+	} else {
+		// Old format: JSONL of types.Record - read batch from file
+		startIdx := input.BatchIndex * input.BatchSize
+		records, err := helpers.ReadJSONLBatch(input.ProcessedPath, startIdx, input.BatchSize)
+		if err != nil {
+			return IndexBatchActivityResponse{}, err
+		}
+
+		if len(records) == 0 {
+			return IndexBatchActivityResponse{
+				BatchIndex:      input.BatchIndex,
+				DocumentsStored: 0,
+				Success:         true,
+			}, nil
+		}
+
+		dataprocessingService := dataprocessing.NewDataProcessingService(
+			w.OpenAIService,
+			w.Config.CompletionsModel,
+			w.Store,
+			w.Logger,
+		)
+
+		documents, _ = dataprocessingService.ToDocuments(ctx, input.DataSourceName, records)
+	}
+
 	if err != nil {
 		return IndexBatchActivityResponse{}, err
 	}
-	w.Logger.Info("Read records", "records", len(records))
 
-	if len(records) == 0 {
+	w.Logger.Info("Read documents", "documents", len(documents))
+
+	if len(documents) == 0 {
 		return IndexBatchActivityResponse{
 			BatchIndex:      input.BatchIndex,
 			DocumentsStored: 0,
 			Success:         true,
 		}, nil
-	}
-
-	dataprocessingService := dataprocessing.NewDataProcessingService(
-		w.OpenAIService,
-		w.Config.CompletionsModel,
-		w.Store,
-		w.Logger,
-	)
-
-	documents, err := dataprocessingService.ToDocuments(ctx, input.DataSourceName, records)
-	if err != nil {
-		return IndexBatchActivityResponse{}, err
 	}
 
 	progressCallback := func(processed, total int) {
@@ -500,6 +535,57 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 		DocumentsStored: len(documents),
 		Success:         true,
 	}, nil
+}
+
+// isNewFormatProcessor checks if the data source uses the new ConversationDocument format.
+func (w *DataProcessingWorkflows) isNewFormatProcessor(dataSourceName string) bool {
+	switch strings.ToLower(dataSourceName) {
+	case "telegram", "whatsapp", "gmail", "chatgpt":
+		return true
+	default:
+		return false
+	}
+}
+
+// readNewFormatBatch reads a batch from JSONL format (ConversationDocument JSONL).
+func (w *DataProcessingWorkflows) readNewFormatBatch(filePath string, batchIndex, batchSize int) ([]memory.Document, error) {
+	// Read ConversationDocuments from JSONL format using helper
+	conversationDocs, err := memory.LoadConversationDocumentsFromJSON(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load ConversationDocuments from JSONL: %w", err)
+	}
+
+	// Calculate batch boundaries
+	startIdx := batchIndex * batchSize
+	endIdx := startIdx + batchSize
+
+	if startIdx >= len(conversationDocs) {
+		return []memory.Document{}, nil
+	}
+
+	if endIdx > len(conversationDocs) {
+		endIdx = len(conversationDocs)
+	}
+
+	// Convert to Document interface
+	documents := make([]memory.Document, endIdx-startIdx)
+	for i := startIdx; i < endIdx; i++ {
+		// Create a copy to avoid pointer issues
+		doc := conversationDocs[i]
+		documents[i-startIdx] = &doc
+	}
+
+	return documents, nil
+}
+
+// countNewFormatItems counts items in JSONL format.
+func (w *DataProcessingWorkflows) countNewFormatItems(filePath string) (int, error) {
+	conversationDocs, err := memory.LoadConversationDocumentsFromJSON(filePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load ConversationDocuments from JSONL: %w", err)
+	}
+
+	return len(conversationDocs), nil
 }
 
 type PublishIndexingStatusInput struct {

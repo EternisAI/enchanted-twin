@@ -4,9 +4,9 @@ import { AgentState, DependencyProgress, LiveKitAgentBootstrap } from './pythonM
 let livekitAgent: LiveKitAgentBootstrap | null = null
 let sessionReady = false
 
-export function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
+export async function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
   const agentProgress = (data: DependencyProgress) => {
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       log.info(`[LiveKit] Emitting launch-progress: ${data.progress}, Status: ${data.status}`)
       mainWindow.webContents.send('launch-progress', data)
     }
@@ -14,14 +14,14 @@ export function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
 
   const agentSessionReady = (ready: boolean) => {
     sessionReady = ready
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       log.info(`[LiveKit] Session ready state changed: ${ready}`)
       mainWindow.webContents.send('livekit-session-state', { sessionReady: ready })
     }
   }
 
   const agentStateChange = (state: AgentState) => {
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       log.info(`[LiveKit] Agent state changed: ${state}`)
       mainWindow.webContents.send('livekit-agent-state', { state })
     }
@@ -34,8 +34,8 @@ export function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
   })
 
   try {
-    livekitAgent.setup()
-    startLiveKitAgent("FAKE_CHAT_ID", false, true)
+    await livekitAgent.setup()
+    await startLiveKitAgent('FAKE_CHAT_ID', false, true)
   } catch (error) {
     log.error('Failed to setup LiveKit agent environment:', error)
   }
@@ -62,7 +62,13 @@ export async function setupLiveKitAgent(): Promise<void> {
   }
 }
 
-export async function startLiveKitAgent(chatId: string, isOnboarding = false, isInitialising = false): Promise<void> {
+export async function startLiveKitAgent(
+  chatId: string,
+  isOnboarding = false,
+  isInitialising = false
+): Promise<void> {
+  log.info('Starting LiveKit agent. Is initialising: ' + isInitialising)
+
   if (!livekitAgent) {
     throw new Error('LiveKit agent not initialized')
   }

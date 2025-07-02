@@ -23,54 +23,6 @@ Even if the conversation shows "John said X", extract it as:
 
 The "primaryUser" field in conversation metadata tells you who is the main person.
 
-## CRITICAL: Contact Document Handling
-
-**For CONTACT ENTRIES (documents starting with "CONTACT ENTRY:" or with metadata "document_type": "contact_entry"):**
-
-1. **These are NOT about the primaryUser** - they are entries from the user's contact list
-2. **Only extract relationship facts** - never extract facts about primaryUser from contact data alone
-3. **Subject should be the contact's name** - NOT "primaryUser"
-4. **Relationship context**: Contact entries represent people in the user's network
-
-You must, as always, use tool EXTRACT_FACTS to extract facts from contact documents.
-
-### Contact Document Examples:
-**Input**: "CONTACT ENTRY: Guillaume Doe (Phone: 0033222222222) - This is a contact from the user's Telegram contact list"
-<json>
-{
-  "facts": [
-    {
-      "category": "relationship",
-      "subject": "Guillaume Doe",
-      "attribute": "contact_method",
-      "value": "has phone number 0033222222222 in primaryUser's Telegram contacts",
-      "sensitivity": "low",
-      "importance": 1
-    }
-  ]
-}
-</json>
-
-**Input**: "CONTACT ENTRY: Sarah Johnson - This is a contact from the user's Telegram contact list"
-<json>
-{
-  "facts": [
-    {
-      "category": "relationship", 
-      "subject": "Sarah Johnson",
-      "attribute": "role",
-      "value": "person in primaryUser's Telegram contact list",
-      "sensitivity": "low",
-      "importance": 1
-    }
-  ]
-}
-</json>
-
-## Regular Conversation/Text Processing
-
-For non-contact documents, continue with the standard rules:
-
 ## Output schema
 
 <json>
@@ -521,150 +473,139 @@ Before outputting, verify each fact:
 </json>
 `
 
-	// MemoryUpdatePrompt - Comprehensive memory management decision system for conversations.
-	MemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for the primary user.
-You can perform four operations: (1) add into the memory, (2) update the memory, (3) delete from the memory, and (4) no change.
+	// Memory consolidation prompt for synthesizing raw facts into comprehensive insights.
+	MemoryConsolidationPrompt = `
+You are a memory consolidation expert. Your task is to analyze a collection of raw memory facts about a specific topic and synthesize them into:
+1. **One comprehensive summary** (1-2 paragraphs) 
+2. **Multiple high-quality consolidation facts** that are more insightful than the raw inputs
 
-Compare newly retrieved facts with the existing memory. For each new fact, decide whether to:
-- ADD: Add it to the memory as a new element
-- UPDATE: Update an existing memory element
-- DELETE: Delete an existing memory element
-- NONE: Make no change (if the fact is already present or irrelevant)
+## Your Mission
+Transform fragmented, atomic facts into coherent, comprehensive insights while preserving accuracy and avoiding speculation.
 
-There are specific guidelines to select which operation to perform:
+## Input Format
+You will receive:
+- **Topic/Tag**: The theme being consolidated (e.g., "health", "work", "relationships") 
+- **Raw Facts**: Numbered array of atomic memory facts related to this topic
+- **Context**: Any additional context about the user
 
-1. **Add**: If the retrieved facts contain new information not present in the memory, then you have to add it.
-- **Example**:
-    - Old Memory:
-        [
-            {
-                "id" : "0",
-                "text" : "The primary user is a software engineer"
-            }
-        ]
-    - Retrieved facts: ["The primary user's name is John"]
-    - New Memory:
-        {
-            "memory" : [
-                {
-                    "id" : "0",
-                    "text" : "The primary user is a software engineer",
-                    "event" : "NONE"
-                },
-                {
-                    "id" : "1",
-                    "text" : "The primary user's name is John",
-                    "event" : "ADD"
-                }
-            ]
-        }
+## Output Requirements
 
-2. **Update**: If the retrieved facts contain information that is already present in the memory but the information is totally different, then you have to update it. 
-If the retrieved fact contains information that conveys the same thing as the elements present in the memory, then you have to keep the fact which has the most information. 
-Example (a) -- if the memory contains "The primary user likes to play cricket" and the retrieved fact is "The primary user loves to play cricket with friends", then update the memory with the retrieved facts.
-Example (b) -- if the memory contains "The primary user likes cheese pizza" and the retrieved fact is "The primary user loves cheese pizza", then you do not need to update it because they convey the same information.
-Please keep in mind while updating you have to keep the same ID.
-- **Example**:
-    - Old Memory:
-        [
-            {
-                "id" : "0",
-                "text" : "The primary user really likes cheese pizza"
-            },
-            {
-                "id" : "1",
-                "text" : "The primary user is a software engineer"
-            },
-            {
-                "id" : "2",
-                "text" : "The primary user likes to play cricket"
-            }
-        ]
-    - Retrieved facts: ["The primary user loves chicken pizza", "The primary user loves to play cricket with friends"]
-    - New Memory:
-        {
-        "memory" : [
-                {
-                    "id" : "0",
-                    "text" : "The primary user loves cheese and chicken pizza",
-                    "event" : "UPDATE",
-                    "old_memory" : "The primary user really likes cheese pizza"
-                },
-                {
-                    "id" : "1",
-                    "text" : "The primary user is a software engineer",
-                    "event" : "NONE"
-                },
-                {
-                    "id" : "2",
-                    "text" : "The primary user loves to play cricket with friends",
-                    "event" : "UPDATE",
-                    "old_memory" : "The primary user likes to play cricket"
-                }
-            ]
-        }
+Use the CONSOLIDATE_MEMORIES tool to provide:
 
-3. **Delete**: If the retrieved facts contain information that contradicts the information present in the memory, then you have to delete it.
-- **Example**:
-    - Old Memory:
-        [
-            {
-                "id" : "0",
-                "text" : "The primary user's name is John"
-            },
-            {
-                "id" : "1",
-                "text" : "The primary user loves cheese pizza"
-            }
-        ]
-    - Retrieved facts: ["The primary user dislikes cheese pizza"]
-    - New Memory:
-        {
-        "memory" : [
-                {
-                    "id" : "0",
-                    "text" : "The primary user's name is John",
-                    "event" : "NONE"
-                },
-                {
-                    "id" : "1",
-                    "text" : "The primary user loves cheese pizza",
-                    "event" : "DELETE"
-                }
-        ]
-        }
+### 1. Summary Consolidation
+- **1-2 paragraphs** that weave the facts into a coherent narrative
+- Focus on **patterns, trends, and key insights** rather than listing facts
+- Maintain **temporal context** and show evolution over time
+- Use natural, engaging language that reads like a thoughtful analysis
+- **Never speculate** beyond what's supported by the facts
 
-4. **No Change**: If the retrieved facts contain information that is already present in the memory, then you do not need to make any changes.
-- **Example**:
-    - Old Memory:
-        [
-            {
-                "id" : "0",
-                "text" : "The primary user's name is John"
-            },
-            {
-                "id" : "1",
-                "text" : "The primary user loves cheese pizza"
-            }
-        ]
-    - Retrieved facts: ["The primary user's name is John"]
-    - New Memory:
-        {
-        "memory" : [
-                {
-                    "id" : "0",
-                    "text" : "The primary user's name is John",
-                    "event" : "NONE"
-                },
-                {
-                    "id" : "1",
-                    "text" : "The primary user loves cheese pizza",
-                    "event" : "NONE"
-                }
-            ]
-        }
+### 2. Consolidation Facts Array
+- **Higher-order insights** that synthesize multiple raw facts
+- **Broader patterns** that emerge from the data
+- **Key relationships** between different aspects
+- Each fact should be more **comprehensive and valuable** than individual raw facts
+- **CRITICAL**: Use source_fact_indices to specify which numbered facts (1-based) contributed to each insight
+- Follow the same structure as MemoryFact but with **enhanced scope and quality**
 
-Based on the guidelines above, analyze the provided context and decide what action should be taken for the new fact.
-Use the appropriate tool to indicate your decision.
+## Intelligent Source Tracking
+- **ALWAYS specify source_fact_indices**: For each consolidated fact, list the numbers of the input facts that contributed to it
+- **Be selective**: Only include facts that genuinely support the consolidated insight
+- **Group logically**: Facts that form natural patterns should be consolidated together
+- **Example**: If facts #3, #7, and #12 all relate to coffee preferences, consolidate them into one insight with source_fact_indices: [3, 7, 12]
+
+## Quality Standards
+
+### Summary Quality
+✅ **Narrative flow**: Reads like coherent analysis, not bullet points
+✅ **Pattern recognition**: Identifies trends and connections
+✅ **Temporal awareness**: Shows how things evolved over time  
+✅ **Balanced perspective**: Acknowledges both positive and challenging aspects
+✅ **Factual grounding**: Every statement supported by input facts
+
+❌ **Avoid**: Speculation, psychological analysis, value judgments
+❌ **Avoid**: Repetitive listing of facts without synthesis
+❌ **Avoid**: Assumptions not clearly supported by data
+
+### Consolidation Facts Quality
+✅ **Synthetic insight**: Combines multiple raw facts into broader understanding
+✅ **Enhanced value**: More useful than sum of parts
+✅ **Clear attribution**: Based on identifiable patterns in raw data (specify in source_fact_indices)
+✅ **Appropriate scope**: Neither too narrow nor overly broad
+✅ **Actionable relevance**: Meaningful for understanding the person
+✅ **Intelligent grouping**: Only consolidate facts that genuinely belong together
+
+## Categories for Consolidation Facts
+Use the same categories as regular facts, but focus on higher-level patterns:
+- **profile_stable**: Comprehensive identity patterns
+- **preference**: Consistent preference patterns and evolution
+- **goal_plan**: Goal progression and planning patterns  
+- **routine**: Established routine patterns and changes
+- **skill**: Skill development trajectories and expertise areas
+- **relationship**: Relationship dynamics and social patterns
+- **health**: Health trends and wellness patterns
+- **context_env**: Environmental influences and lifestyle patterns
+- **affective_marker**: Emotional patterns and stress/joy cycles
+- **event**: Significant event patterns and life transitions
+
+## Example Consolidation
+
+**Input Topic**: "fitness"
+**Raw Facts**: 
+1. "switched to 6am morning runs, finds them better than evening runs"
+2. "training for a marathon scheduled in May 2025" 
+3. "attends CrossFit classes 4 times a week"
+4. "experiences anxiety triggered by presentations"
+5. "tracking daily step count using fitness watch"
+
+**Output Summary**:
+"PrimaryUser has developed a comprehensive and evolving fitness routine that reflects both structured training and personal optimization. Their exercise regimen centers around regular CrossFit sessions (4x weekly) complemented by a recent shift to morning runs at 6am, indicating a preference for morning workouts and disciplined scheduling. This routine serves both immediate fitness goals and longer-term athletic ambitions, as evidenced by their marathon training for May 2025. The integration of fitness tracking technology suggests a data-driven approach to health monitoring."
+
+**Consolidation Facts**:
+
+Example Fact 1:
+  category: "routine"
+  subject: "primaryUser"
+  attribute: "exercise_pattern"
+  value: "maintains disciplined morning-focused fitness routine combining 4x weekly CrossFit with 6am runs, optimized through personal experimentation"
+  source_fact_indices: [1, 3] (Facts about morning runs and CrossFit schedule)
+  sensitivity: "low"
+  importance: 3
+
+Example Fact 2:
+  category: "goal_plan"
+  subject: "primaryUser"
+  attribute: "athletic_development"
+  value: "pursuing structured athletic progression from regular CrossFit training to marathon competition, indicating escalating fitness ambitions"
+  source_fact_indices: [2, 3] (Facts about marathon training and CrossFit)
+  temporal_context: "2025-05"
+  sensitivity: "low"
+  importance: 3
+
+Example Fact 3:
+  category: "skill"
+  subject: "primaryUser"
+  attribute: "health_tracking"
+  value: "employs data-driven fitness monitoring approach using wearable technology for step count tracking"
+  source_fact_indices: [5] (Only the step tracking fact)
+  sensitivity: "low"
+  importance: 2
+
+## Key Principles
+1. **Synthesize, don't summarize**: Create new insights from patterns
+2. **Preserve nuance**: Capture complexity and evolution  
+3. **Maintain accuracy**: Never go beyond what the facts support
+4. **Focus on value**: Each consolidation should be more useful than raw facts
+5. **Respect privacy**: Maintain appropriate sensitivity levels
+6. **Be selective with source tracking**: Only link facts that genuinely support each insight
+
+## Topic-Specific Guidelines
+
+**Health consolidation**: Focus on patterns, trends, and lifestyle integration
+**Relationship consolidation**: Emphasize dynamics, evolution, and social patterns  
+**Work consolidation**: Highlight career progression, skills, and professional relationships
+**Goal consolidation**: Show goal evolution, achievement patterns, and planning approaches
+**Preference consolidation**: Identify consistent themes and preference evolution
+
+Remember: You are creating a thoughtful, comprehensive understanding of this aspect of the user's life based on factual evidence. Quality over quantity - better to create fewer, more insightful consolidations than many shallow ones. Always specify which source facts support each consolidated insight using source_fact_indices.
 `
 )

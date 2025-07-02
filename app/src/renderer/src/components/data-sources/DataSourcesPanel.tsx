@@ -144,6 +144,44 @@ export function DataSourcesPanel({
     setSelectedSource(null)
   }, [selectedSource])
 
+  const handleFileDrop = useCallback(async (files: File[], sourceName: string) => {
+    const source = SUPPORTED_DATA_SOURCES.find((s) => s.name === sourceName)
+    if (!source) return
+
+    if (source.fileFilters && source.fileFilters.length > 0) {
+      const allowedExtensions = source.fileFilters.flatMap((filter) =>
+        filter.extensions.map((ext) => ext.toLowerCase())
+      )
+
+      const invalidFiles = files.filter((file) => {
+        const extension = file.name.split('.').pop()?.toLowerCase()
+        return !extension || !allowedExtensions.includes(extension)
+      })
+
+      if (invalidFiles.length > 0) {
+        throw new Error(
+          `Invalid file type. Please select ${source.fileFilters.map((f) => f.extensions.join(', ')).join(' or ')} files.`
+        )
+      }
+    }
+
+    const firstFile = files[0]
+
+    const filePath = (window.api.getPathForFile as unknown as (file: File) => string)(firstFile)
+
+    const savedPaths = await window.api.copyDroppedFiles([filePath])
+
+    if (savedPaths.length > 0) {
+      setPendingDataSources((prev) => ({
+        ...prev,
+        [sourceName]: {
+          name: sourceName,
+          path: savedPaths[0]
+        }
+      }))
+    }
+  }, [])
+
   const handleStartImport = useCallback(
     async (sourceName: string) => {
       const pendingSource = pendingDataSources[sourceName]
@@ -295,6 +333,7 @@ export function DataSourcesPanel({
             pendingDataSources={pendingDataSources}
             onFileSelect={handleFileSelect}
             onAddSource={handleAddSource}
+            onFileDrop={handleFileDrop}
             customComponent={selectedSource?.customView ? selectedSource.customView : undefined}
           />
         </DialogContent>

@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/g8rswimmer/go-twitter/v2"
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 )
 
 const (
@@ -109,7 +109,7 @@ func processListFeedTweets(
 	ctx context.Context,
 	accessToken string,
 	arguments ListFeedTweetsArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	client := &twitter.Client{
 		Authorizer: authorize{
 			Token: accessToken,
@@ -148,7 +148,7 @@ func processListFeedTweets(
 		return nil, err
 	}
 
-	contents := []*mcp_golang.Content{}
+	contents := []mcp_golang.Content{}
 	users := feed.Raw.Includes.UsersByID()
 	for _, tweet := range feed.Raw.Tweets {
 		author, ok := users[tweet.AuthorID]
@@ -157,26 +157,17 @@ func processListFeedTweets(
 			authorName = author.UserName
 		}
 		tweetURL := fmt.Sprintf("https://x.com/%s/status/%s", authorName, tweet.ID)
-		contents = append(contents, &mcp_golang.Content{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf(
-					"Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
-					tweet.Text,
-					tweet.CreatedAt,
-					tweet.AuthorID,
-					tweetURL,
-				),
-			},
-		})
+		tweetText := fmt.Sprintf(
+			"Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
+			tweet.Text,
+			tweet.CreatedAt,
+			tweet.AuthorID,
+			tweetURL,
+		)
+		contents = append(contents, mcp_golang.NewTextContent(tweetText))
 	}
 
-	contents = append(contents, &mcp_golang.Content{
-		Type: "text",
-		TextContent: &mcp_golang.TextContent{
-			Text: fmt.Sprintf("Next pagination token: %s", feed.Meta.NextToken),
-		},
-	})
+	contents = append(contents, mcp_golang.NewTextContent(fmt.Sprintf("Next pagination token: %s", feed.Meta.NextToken)))
 
 	return contents, nil
 }
@@ -185,7 +176,7 @@ func processPostTweet(
 	ctx context.Context,
 	accessToken string,
 	_arguments PostTweetArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	client := &twitter.Client{
 		Authorizer: authorize{
 			Token: accessToken,
@@ -201,13 +192,8 @@ func processPostTweet(
 		return nil, err
 	}
 
-	return []*mcp_golang.Content{
-		{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: "Posted tweet successfully",
-			},
-		},
+	return []mcp_golang.Content{
+		mcp_golang.NewTextContent("Posted tweet successfully"),
 	}, nil
 }
 
@@ -215,7 +201,7 @@ func processSearchTweets(
 	ctx context.Context,
 	accessToken string,
 	arguments SearchTweetsArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	client := &twitter.Client{
 		Authorizer: authorize{
 			Token: accessToken,
@@ -245,7 +231,7 @@ func processSearchTweets(
 
 	users := search.Raw.Includes.UsersByID()
 
-	contents := []*mcp_golang.Content{}
+	contents := []mcp_golang.Content{}
 	for _, tweet := range search.Raw.Tweets {
 		author, ok := users[tweet.AuthorID]
 		authorName := tweet.AuthorID
@@ -253,26 +239,17 @@ func processSearchTweets(
 			authorName = author.UserName
 		}
 		tweetURL := fmt.Sprintf("https://x.com/%s/status/%s", authorName, tweet.ID)
-		contents = append(contents, &mcp_golang.Content{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf(
-					"Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
-					tweet.Text,
-					tweet.CreatedAt,
-					authorName,
-					tweetURL,
-				),
-			},
-		})
+		tweetText := fmt.Sprintf(
+			"Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
+			tweet.Text,
+			tweet.CreatedAt,
+			authorName,
+			tweetURL,
+		)
+		contents = append(contents, mcp_golang.NewTextContent(tweetText))
 	}
 
-	contents = append(contents, &mcp_golang.Content{
-		Type: "text",
-		TextContent: &mcp_golang.TextContent{
-			Text: fmt.Sprintf("Next pagination token: %s", search.Meta.NextToken),
-		},
-	})
+	contents = append(contents, mcp_golang.NewTextContent(fmt.Sprintf("Next pagination token: %s", search.Meta.NextToken)))
 
 	return contents, nil
 }
@@ -281,7 +258,7 @@ func processListBookmarks(
 	ctx context.Context,
 	accessToken string,
 	arguments ListBookmarksArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	client := &twitter.Client{
 		Authorizer: authorize{
 			Token: accessToken,
@@ -326,7 +303,7 @@ func processListBookmarks(
 
 	users := bookmarks.Raw.Includes.UsersByID()
 
-	contents := []*mcp_golang.Content{}
+	contents := []mcp_golang.Content{}
 	for _, bookmark := range bookmarks.Raw.Tweets {
 		author, ok := users[bookmark.AuthorID]
 		authorName := bookmark.AuthorID
@@ -334,26 +311,17 @@ func processListBookmarks(
 			authorName = author.UserName
 		}
 		bookmarkURL := fmt.Sprintf("https://x.com/%s/status/%s", authorName, bookmark.ID)
-		contents = append(contents, &mcp_golang.Content{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf(
-					"Bookmark: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
-					bookmark.Text,
-					bookmark.CreatedAt,
-					bookmark.AuthorID,
-					bookmarkURL,
-				),
-			},
-		})
+		bookmarkText := fmt.Sprintf(
+			"Bookmark: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
+			bookmark.Text,
+			bookmark.CreatedAt,
+			bookmark.AuthorID,
+			bookmarkURL,
+		)
+		contents = append(contents, mcp_golang.NewTextContent(bookmarkText))
 	}
 
-	contents = append(contents, &mcp_golang.Content{
-		Type: "text",
-		TextContent: &mcp_golang.TextContent{
-			Text: fmt.Sprintf("Next pagination token: %s", bookmarks.Meta.NextToken),
-		},
-	})
+	contents = append(contents, mcp_golang.NewTextContent(fmt.Sprintf("Next pagination token: %s", bookmarks.Meta.NextToken)))
 
 	return contents, nil
 }

@@ -2,18 +2,15 @@ package workflows
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/pkg/errors"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
-	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 const MaxTemporalInputSizeBytes = 1900 * 1024
@@ -46,7 +43,7 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 	windowSizeDays := 7
 	limit := 10000
 
-	var allRecords []types.Record
+	var allDocuments []memory.ConversationDocument
 	processedMessageIds := make(map[string]bool)
 
 	totalWindows := (daysBefore + windowSizeDays - 1) / windowSizeDays
@@ -71,7 +68,7 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 		nextPageToken := ""
 		hasMore := true
 
-		for hasMore && len(allRecords) < limit {
+		for hasMore && len(allDocuments) < limit {
 			var response GmailHistoryFetchActivityResponse
 			err := workflow.ExecuteActivity(ctx, w.GmailFetchHistoryActivity, GmailHistoryFetchActivityInput{
 				Username:      input.Username,
@@ -84,33 +81,35 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 				return GmailHistoryWorkflowResponse{}, err
 			}
 
-			var uniqueRecords []types.Record
-			for _, record := range response.Records {
-				if messageId, ok := record.Data["messageId"].(string); ok && messageId != "" {
-					if !processedMessageIds[messageId] {
-						processedMessageIds[messageId] = true
-						uniqueRecords = append(uniqueRecords, record)
+			var uniqueDocuments []memory.ConversationDocument
+			for _, document := range response.Documents {
+				// Use the document ID for deduplication instead of messageId
+				docID := document.ID()
+				if docID != "" {
+					if !processedMessageIds[docID] {
+						processedMessageIds[docID] = true
+						uniqueDocuments = append(uniqueDocuments, document)
 					}
 				} else {
-					uniqueRecords = append(uniqueRecords, record)
+					uniqueDocuments = append(uniqueDocuments, document)
 				}
 			}
 
-			allRecords = append(allRecords, uniqueRecords...)
+			allDocuments = append(allDocuments, uniqueDocuments...)
 			hasMore = response.More
 			nextPageToken = response.NextPageToken
 
-			if len(allRecords) >= limit {
+			if len(allDocuments) >= limit {
 				break
 			}
 
-			err = workflow.ExecuteActivity(ctx, w.GmailHistoryIndexActivity, GmailHistoryIndexActivityInput{Records: uniqueRecords}).Get(ctx, nil)
+			err = workflow.ExecuteActivity(ctx, w.GmailHistoryIndexActivity, GmailHistoryIndexActivityInput{Documents: uniqueDocuments}).Get(ctx, nil)
 			if err != nil {
 				return GmailHistoryWorkflowResponse{}, err
 			}
 		}
 
-		if len(allRecords) >= limit {
+		if len(allDocuments) >= limit {
 			break
 		}
 	}
@@ -126,9 +125,9 @@ type GmailHistoryFetchActivityInput struct {
 }
 
 type GmailHistoryFetchActivityResponse struct {
-	Records       []types.Record `json:"records"`
-	NextPageToken string         `json:"nextPageToken"`
-	More          bool           `json:"more"`
+	Documents     []memory.ConversationDocument `json:"documents"`
+	NextPageToken string                        `json:"nextPageToken"`
+	More          bool                          `json:"more"`
 }
 
 func (w *DataProcessingWorkflows) GmailFetchHistoryActivity(
@@ -143,99 +142,38 @@ func (w *DataProcessingWorkflows) GmailFetchHistoryActivity(
 		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for Google")
 	}
 
-	records, more, token, err := gmail.SyncWithDateRange(ctx, tokens.AccessToken, input.StartDate, input.EndDate, 50, input.NextPageToken)
+	// Create Gmail processor
+	processor, err := gmail.NewGmailProcessor(w.Store, w.Logger)
 	if err != nil {
-		return GmailHistoryFetchActivityResponse{}, err
+		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("failed to create Gmail processor: %w", err)
 	}
 
-	trimmedRecords, err := ensureRecordsUnderSizeLimit(records)
+	// Parse date strings to time.Time
+	startDate, err := time.Parse("2006-01-02", input.StartDate)
 	if err != nil {
-		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("failed to process records size: %w", err)
+		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("failed to parse start date: %w", err)
 	}
 
-	if len(trimmedRecords) < len(records) {
-		w.Logger.Info("Trimmed oversized records payload",
-			"original_count", len(records),
-			"trimmed_count", len(trimmedRecords))
-	}
-
-	return GmailHistoryFetchActivityResponse{Records: trimmedRecords, NextPageToken: token, More: more}, nil
-}
-
-// Ensures that the records payload is under the Temporal size limit.
-func ensureRecordsUnderSizeLimit(records []types.Record) ([]types.Record, error) {
-	if len(records) == 0 {
-		return records, nil
-	}
-
-	totalSize, recordSizes, err := calculateRecordsSize(records)
+	endDate, err := time.Parse("2006-01-02", input.EndDate)
 	if err != nil {
-		return nil, err
+		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("failed to parse end date: %w", err)
 	}
 
-	if totalSize <= MaxTemporalInputSizeBytes {
-		return records, nil
+	// Use new paginated method with date range
+	result, err := processor.SyncWithDateRangePaginated(ctx, tokens.AccessToken, startDate, endDate, input.NextPageToken)
+	if err != nil {
+		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("failed to sync Gmail with date range: %w", err)
 	}
 
-	type recordWithSize struct {
-		record types.Record
-		size   int
-		index  int
-	}
-
-	recordsWithSize := make([]recordWithSize, len(records))
-	for i, size := range recordSizes {
-		recordsWithSize[i] = recordWithSize{
-			record: records[i],
-			size:   size,
-			index:  i,
-		}
-	}
-
-	sort.Slice(recordsWithSize, func(i, j int) bool {
-		return recordsWithSize[i].size > recordsWithSize[j].size
-	})
-
-	resultRecords := make([]types.Record, len(records))
-	copy(resultRecords, records)
-
-	for i := 0; totalSize > MaxTemporalInputSizeBytes && i < len(recordsWithSize); i++ {
-		idx := recordsWithSize[i].index
-		totalSize -= recordsWithSize[i].size
-
-		resultRecords[idx] = types.Record{}
-	}
-
-	filteredRecords := make([]types.Record, 0, len(resultRecords))
-	for _, r := range resultRecords {
-		if r.Source != "" || r.Timestamp != (time.Time{}) || len(r.Data) > 0 {
-			filteredRecords = append(filteredRecords, r)
-		}
-	}
-
-	return filteredRecords, nil
-}
-
-func calculateRecordsSize(records []types.Record) (int, []int, error) {
-	totalSize := 0
-	recordSizes := make([]int, len(records))
-
-	for i, record := range records {
-		data, err := json.Marshal(record)
-		if err != nil {
-			return 0, nil, fmt.Errorf("failed to marshal record for size calculation: %w", err)
-		}
-
-		size := len(data)
-		recordSizes[i] = size
-		totalSize += size
-	}
-
-	return totalSize, recordSizes, nil
+	return GmailHistoryFetchActivityResponse{
+		Documents:     result.Documents,
+		NextPageToken: result.NextPageToken,
+		More:          result.HasMore,
+	}, nil
 }
 
 type GmailHistoryIndexActivityInput struct {
-	Records []types.Record `json:"records"`
+	Documents []memory.ConversationDocument `json:"documents"`
 }
 
 type GmailHistoryIndexActivityResponse struct{}
@@ -244,15 +182,17 @@ func (w *DataProcessingWorkflows) GmailHistoryIndexActivity(
 	ctx context.Context,
 	input GmailHistoryIndexActivityInput,
 ) (GmailHistoryIndexActivityResponse, error) {
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
-	documents, err := dataprocessingService.ToDocuments(ctx, "gmail", input.Records)
-	if err != nil {
-		return GmailHistoryIndexActivityResponse{}, err
+	// Skip DataProcessingService entirely and store documents directly in memory
+	var memoryDocs []memory.Document
+	for _, doc := range input.Documents {
+		// Create a copy to avoid pointer issues
+		docCopy := doc
+		memoryDocs = append(memoryDocs, &docCopy)
 	}
 
-	err = w.Memory.Store(ctx, documents, nil)
+	err := w.Memory.Store(ctx, memoryDocs, nil)
 	if err != nil {
-		return GmailHistoryIndexActivityResponse{}, err
+		return GmailHistoryIndexActivityResponse{}, fmt.Errorf("failed to store documents in memory: %w", err)
 	}
 
 	return GmailHistoryIndexActivityResponse{}, nil

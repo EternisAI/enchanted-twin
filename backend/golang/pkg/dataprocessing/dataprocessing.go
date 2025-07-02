@@ -30,6 +30,25 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
+// DocumentProcessor represents the new clean interface - each source implements this
+// to convert raw input directly to ConversationDocument, eliminating the lossy types.Record step.
+type DocumentProcessor interface {
+	// File processing (required for all processors)
+	ProcessFile(ctx context.Context, filepath string) ([]memory.ConversationDocument, error)
+}
+
+// LiveSync is an optional interface that processors can implement
+// if they support syncing from live APIs.
+type LiveSync interface {
+	Sync(ctx context.Context, accessToken string) ([]memory.ConversationDocument, error)
+}
+
+// DateRangeSync is an optional interface that processors can implement
+// if they support syncing within specific date ranges.
+type DateRangeSync interface {
+	SyncWithDateRange(ctx context.Context, accessToken string, startDate, endDate time.Time) ([]memory.ConversationDocument, error)
+}
+
 func validateInputPath(inputPath string) error {
 	cleanPath := filepath.Clean(inputPath)
 
@@ -309,10 +328,16 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		records, err = processor.ProcessFile(ctx, inputPath)
+		// Telegram uses the new direct approach - skip the records step
+		documents, err := processor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
+		// Save using memory package helper (JSONL format)
+		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+			return false, err
+		}
+		return true, nil
 	case "slack":
 		source, err := slack.NewSlackProcessor(s.store, s.logger)
 		if err != nil {
@@ -323,14 +348,18 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return false, err
 		}
 	case "gmail":
-		source, err := gmail.NewGmailProcessor(s.store, s.logger)
+		processor, err := gmail.NewGmailProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessDirectory(ctx, inputPath)
+		documents, err := processor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
+		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+			return false, err
+		}
+		return true, nil
 	case "x":
 		source, err := x.NewXProcessor(s.store, s.logger)
 		if err != nil {
@@ -341,23 +370,35 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return false, err
 		}
 	case "whatsapp":
-		source, err := whatsapp.NewWhatsappProcessor(s.store, s.logger)
+		processor, err := whatsapp.NewWhatsappProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessFile(ctx, inputPath)
+		// WhatsApp uses the new direct approach - skip the records step
+		documents, err := processor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
+		// For now, save as JSON instead of records
+		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+			return false, err
+		}
+		return true, nil
 	case "chatgpt":
-		chatgptProcessor, err := chatgpt.NewChatGPTProcessor(s.store, s.logger)
+		processor, err := chatgpt.NewChatGPTProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = chatgptProcessor.ProcessDirectory(ctx, inputPath)
+		// ChatGPT uses the new direct approach - skip the records step
+		documents, err := processor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
+		// For now, save as JSON instead of records
+		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+			return false, err
+		}
+		return true, nil
 	case "misc":
 		source, err := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store, s.logger)
 		if err != nil {
@@ -385,14 +426,8 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 	sourceType = strings.ToLower(sourceType)
 	switch sourceType {
 	case "chatgpt":
-		chatgptProcessor, err := chatgpt.NewChatGPTProcessor(s.store, s.logger)
-		if err != nil {
-			return nil, err
-		}
-		documents, err = chatgptProcessor.ToDocuments(ctx, records)
-		if err != nil {
-			return nil, err
-		}
+		// ChatGPT no longer supports ToDocuments - use direct ProcessFile interface instead
+		return nil, fmt.Errorf("ChatGPT processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
 	case "telegram":
 		telegramProcessor, err := telegram.NewTelegramProcessor(s.store, s.logger)
 		if err != nil {
@@ -412,14 +447,8 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 			return nil, err
 		}
 	case "gmail":
-		gmailProcessor, err := gmail.NewGmailProcessor(s.store, s.logger)
-		if err != nil {
-			return nil, err
-		}
-		documents, err = gmailProcessor.ToDocuments(ctx, records)
-		if err != nil {
-			return nil, err
-		}
+		// Gmail no longer supports ToDocuments - use direct ProcessFile interface instead
+		return nil, fmt.Errorf("gmail processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
 	case "whatsapp":
 		whatsappProcessor, err := whatsapp.NewWhatsappProcessor(s.store, s.logger)
 		if err != nil {
@@ -562,14 +591,8 @@ func (d *DataProcessingService) Sync(ctx context.Context, sourceName string, acc
 	var authorized bool
 	switch sourceName {
 	case "gmail":
-		gmailProcessor, err := gmail.NewGmailProcessor(d.store, d.logger)
-		if err != nil {
-			return nil, err
-		}
-		records, authorized, err = gmailProcessor.Sync(ctx, accessToken)
-		if err != nil {
-			return nil, err
-		}
+		// Gmail no longer supports Sync - use direct ProcessFile interface instead
+		return nil, fmt.Errorf("gmail processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
 	case "x":
 		xProcessor, err := x.NewXProcessor(d.store, d.logger)
 		if err != nil {
