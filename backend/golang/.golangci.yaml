@@ -87,8 +87,6 @@ linters:
       - text: 'shadow: declaration of "err" shadows declaration'
         linters:
           - govet
-    presets:
-      - std-error-handling
 
 # Formatter configuration (used by `golangci-lint fmt`)
 formatters:
