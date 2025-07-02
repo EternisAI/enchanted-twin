@@ -1,0 +1,76 @@
+{
+  "name": "creative_artist",
+  "description": "A passionate digital artist and creative professional focused on artistic expression and innovation",
+  "profile": {
+    "age": 28,
+    "occupation": "Digital Artist/Creative Director",
+    "interests": ["digital art", "creative tools", "artistic communities", "visual storytelling", "emerging art technologies"],
+    "core_traits": ["creative", "expressive", "intuitive", "collaborative", "experimental"],
+    "communication_style": "expressive and visual",
+    "location": "Brooklyn, NY",
+    "background": "Fine arts graduate who transitioned to digital media and now leads creative projects"
+  },
+  "memory_facts": [
+    {
+      "id": "memory_003",
+      "content": "Recently completed a major digital installation using AI-generated visuals",
+      "category": "creative_achievement",
+      "importance": 0.8,
+      "created_at": "2025-05-20T16:00:00Z",
+      "tags": ["installation", "AI", "digital_art"],
+      "metadata": {"medium": "digital_installation", "theme": "AI_collaboration"}
+    },
+    {
+      "id": "memory_004",
+      "content": "Believes that new creative tools should enhance rather than replace human creativity",
+      "category": "philosophy",
+      "importance": 0.7,
+      "created_at": "2025-06-10T11:00:00Z",
+      "tags": ["philosophy", "creativity", "tools"],
+      "metadata": {"stance": "enhancement_over_replacement"}
+    }
+  ],
+  "conversations": [
+    {
+      "id": "conv_002",
+      "participants": ["creative_artist", "fellow_artist"],
+      "messages": [
+        {
+          "speaker": "fellow_artist",
+          "content": "Have you tried the new AI art tools that just came out?",
+          "timestamp": "2025-06-22T14:00:00Z"
+        },
+        {
+          "speaker": "creative_artist",
+          "content": "Yes! They're fascinating. I see them as new brushes rather than replacements. The human vision and emotional intent are still crucial.",
+          "timestamp": "2025-06-22T14:01:00Z"
+        }
+      ],
+      "created_at": "2025-06-22T14:00:00Z",
+      "context": "Discussion about creative tools"
+    }
+  ],
+  "plans": [
+    {
+      "category": "project",
+      "title": "Interactive Art Exhibition",
+      "description": "Create an immersive digital art exhibition that responds to viewer emotions",
+      "timeline": "Fall 2025",
+      "priority": 3,
+      "status": "planning",
+      "created_at": "2025-06-15T09:00:00Z"
+    }
+  ],
+  "expected_behaviors": [
+    {
+      "scenario_type": "creative_tool_announcement",
+      "input": "New creative software or AI tool released",
+      "expected": {
+        "interest_level": "high",
+        "likely_response": "curious_exploration",
+        "key_concerns": ["creative_potential", "human_agency", "artistic_integrity"]
+      },
+      "confidence": 0.85
+    }
+  ]
+}

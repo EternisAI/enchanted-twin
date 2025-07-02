@@ -3,11 +3,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Eye, Maximize2 } from 'lucide-react'
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
-import {
-  ChatCategory,
-  CreateChatDocument,
-  Thread
-} from '@renderer/graphql/generated/graphql'
+import { ChatCategory, CreateChatDocument, Thread } from '@renderer/graphql/generated/graphql'
 import { useMutation } from '@apollo/client'
 import { useCallback } from 'react'
 import { client } from '@renderer/graphql/lib'
@@ -30,7 +26,12 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
 
       try {
         const { data: createData } = await createChat({
-          variables: { name: chatId, category: ChatCategory.Holon, holonThreadId: thread.id, initialMessage: text }
+          variables: {
+            name: chatId,
+            category: ChatCategory.Holon,
+            holonThreadId: thread.id,
+            initialMessage: text
+          }
         })
         const newChatId = createData?.createChat?.id
 
@@ -45,7 +46,6 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
           await router.invalidate({
             filter: (match) => match.routeId === '/chat/$chatId'
           })
-
         }
       } catch (error) {
         console.error('Failed to create chat:', error)
