@@ -67,15 +67,6 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	server := rest.NewServer(api)
 	logger.Debug("Weaviate API and server created", "elapsed", time.Since(startTime))
 
-	logger.Debug("Configuring Weaviate server", "port", port)
-	server.EnabledListeners = []string{"http"}
-	p, err := strconv.Atoi(port)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to convert port to int")
-	}
-	server.Port = p
-	logger.Debug("Server port configured", "port", p, "elapsed", time.Since(startTime))
-
 	logger.Debug("Setting up command line parser")
 	parser := flags.NewParser(server, flags.Default)
 	parser.ShortDescription = "Weaviate"
@@ -100,6 +91,15 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 		return nil, err
 	}
 	logger.Debug("Command line arguments parsed", "elapsed", time.Since(startTime))
+
+	logger.Debug("Configuring Weaviate server", "port", port)
+	server.EnabledListeners = []string{"http"}
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to convert port to int")
+	}
+	server.Port = p
+	logger.Debug("Server port configured", "port", p, "elapsed", time.Since(startTime))
 
 	logger.Debug("Configuring Weaviate API")
 	server.ConfigureAPI()
