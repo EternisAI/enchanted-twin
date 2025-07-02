@@ -3,7 +3,7 @@ import { GetDataSourcesDocument, IndexingState } from '@renderer/graphql/generat
 import { useIndexingStatus } from '@renderer/hooks/useIndexingStatus'
 import { useIndexingStore } from '@renderer/stores/indexingStore'
 import { History } from 'lucide-react'
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { DataSource, DataSourcesPanelProps, PendingDataSource, IndexedDataSource } from './types'
 import { toast } from 'sonner'
 import { gql } from '@apollo/client'
@@ -25,6 +25,54 @@ const START_INDEXING = gql`
   }
 `
 
+// Reducer for managing initiating data sources
+type InitiatingAction =
+  | { type: 'ADD'; name: string }
+  | { type: 'REMOVE'; name: string }
+  | { type: 'REMOVE_MULTIPLE'; names: string[] }
+  | { type: 'CLEAR' }
+  | { type: 'SYNC_WITH_BACKEND'; backendSources: string[] }
+
+function initiatingReducer(state: Set<string>, action: InitiatingAction): Set<string> {
+  switch (action.type) {
+    case 'ADD': {
+      // Don't modify state if the item already exists
+      if (state.has(action.name)) return state
+      const newState = new Set(state)
+      newState.add(action.name)
+      return newState
+    }
+    case 'REMOVE': {
+      // Don't modify state if the item doesn't exist
+      if (!state.has(action.name)) return state
+      const newState = new Set(state)
+      newState.delete(action.name)
+      return newState
+    }
+    case 'REMOVE_MULTIPLE': {
+      // Only create new state if there's something to remove
+      const itemsToRemove = action.names.filter((name) => state.has(name))
+      if (itemsToRemove.length === 0) return state
+      const newState = new Set(state)
+      itemsToRemove.forEach((name) => newState.delete(name))
+      return newState
+    }
+    case 'CLEAR':
+      // Don't create new state if already empty
+      return state.size === 0 ? state : new Set()
+    case 'SYNC_WITH_BACKEND': {
+      // Only create new state if there's something to remove
+      const itemsToRemove = action.backendSources.filter((name) => state.has(name))
+      if (itemsToRemove.length === 0) return state
+      const newState = new Set(state)
+      itemsToRemove.forEach((name) => newState.delete(name))
+      return newState
+    }
+    default:
+      return state
+  }
+}
+
 export function DataSourcesPanel({
   onDataSourceSelected,
   onDataSourceRemoved,
@@ -43,7 +91,10 @@ export function DataSourcesPanel({
     {}
   )
   // Track which data sources are being initiated (waiting for backend confirmation)
-  const [initiatingDataSources, setInitiatingDataSources] = useState<Set<string>>(new Set())
+  const [initiatingDataSources, dispatchInitiating] = useReducer(
+    initiatingReducer,
+    new Set<string>()
+  )
   // Store file sizes separately so they persist after clearing pending sources
   const [dataSourceFileSizes, setDataSourceFileSizes] = useState<Record<string, number>>({})
 
@@ -188,7 +239,7 @@ export function DataSourcesPanel({
 
       try {
         // Mark this data source as initiating
-        setInitiatingDataSources((prev) => new Set(prev).add(sourceName))
+        dispatchInitiating({ type: 'ADD', name: sourceName })
 
         // Add the data source
         await addDataSource({
@@ -220,49 +271,49 @@ export function DataSourcesPanel({
         console.error('Error starting import:', error)
         toast.error('Failed to start import. Please try again.')
         // Remove from initiating set on error
-        setInitiatingDataSources((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(sourceName)
-          return newSet
-        })
+        dispatchInitiating({ type: 'REMOVE', name: sourceName })
       }
     },
     [addDataSource, pendingDataSources, refetch, startIndexing]
   )
 
-  // Clear initiating data sources when they appear in the actual data sources list
-  useEffect(() => {
-    if (initiatingDataSources.size > 0 && data?.getDataSources) {
-      setInitiatingDataSources((prev) => {
-        const newSet = new Set(prev)
-        // Remove data sources that now exist in the backend (regardless of their state)
-        data.getDataSources.forEach((source) => {
-          if (newSet.has(source.name)) {
-            newSet.delete(source.name)
-          }
-        })
-        return newSet
-      })
-    }
-  }, [data?.getDataSources, initiatingDataSources.size])
+  // Use a ref to track the last known backend sources to avoid unnecessary dispatches
+  const lastBackendSourcesRef = useRef<string[]>([])
 
-  // Clear initiating data sources when workflow ends or fails
+  // Consolidated effect for managing initiating data sources
   useEffect(() => {
+    // Check if any initiating sources now exist in the backend
+    if (data?.getDataSources) {
+      const backendSourceNames = data.getDataSources.map((s) => s.name)
+      const backendSourcesChanged =
+        backendSourceNames.length !== lastBackendSourcesRef.current.length ||
+        backendSourceNames.some((name, idx) => name !== lastBackendSourcesRef.current[idx])
+      
+      if (backendSourcesChanged && initiatingDataSources.size > 0) {
+        // Only dispatch if there are actually sources to sync
+        const sourcesToRemove = Array.from(initiatingDataSources).filter((name) =>
+          backendSourceNames.includes(name)
+        )
+        if (sourcesToRemove.length > 0) {
+          dispatchInitiating({ type: 'REMOVE_MULTIPLE', names: sourcesToRemove })
+        }
+        lastBackendSourcesRef.current = backendSourceNames
+      }
+    }
+
+    // Check if workflow is complete
     const status = indexingData?.indexingStatus?.status
     const isWorkflowComplete =
       status === IndexingState.Completed ||
       status === IndexingState.Failed ||
       (!isIndexing && !isProcessing && !isNotStarted)
 
-    if (isWorkflowComplete) {
-      // Clear all initiating data sources when workflow ends
-      if (initiatingDataSources.size > 0) {
-        setInitiatingDataSources(new Set())
-      }
-      // Clear all start times from the store
+    if (isWorkflowComplete && initiatingDataSources.size > 0) {
+      dispatchInitiating({ type: 'CLEAR' })
       clearStartTimes()
     }
   }, [
+    data?.getDataSources,
     indexingData?.indexingStatus?.status,
     isIndexing,
     isProcessing,
@@ -271,16 +322,26 @@ export function DataSourcesPanel({
     clearStartTimes
   ])
 
-  // Timeout mechanism to clear stuck initiating data sources
+  // Separate timeout mechanism with cleanup
   useEffect(() => {
-    if (initiatingDataSources.size > 0) {
-      const timeout = setTimeout(() => {
-        setInitiatingDataSources(new Set())
-      }, 30000) // Clear after 30 seconds
+    if (initiatingDataSources.size === 0) return
 
-      return () => clearTimeout(timeout)
+    const timeouts = new Map<string, NodeJS.Timeout>()
+    
+    // Set individual timeouts for each initiating source
+    initiatingDataSources.forEach((sourceName) => {
+      const timeout = setTimeout(() => {
+        dispatchInitiating({ type: 'REMOVE', name: sourceName })
+        console.warn(`Removing stuck initiating data source: ${sourceName}`)
+      }, 30000) // 30 seconds timeout
+      timeouts.set(sourceName, timeout)
+    })
+
+    return () => {
+      // Clear all timeouts on cleanup
+      timeouts.forEach((timeout) => clearTimeout(timeout))
     }
-  }, [initiatingDataSources.size])
+  }, [initiatingDataSources])
 
   // Handle indexing completion
   useEffect(() => {
