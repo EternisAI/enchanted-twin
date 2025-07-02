@@ -113,7 +113,10 @@ export const DataSourceDialog = ({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={onAddSource} disabled={!pendingDataSources[selectedSource.name]}>
+          <Button 
+            onClick={onAddSource} 
+            disabled={!pendingDataSources[selectedSource.name] || !pendingDataSources[selectedSource.name]?.path}
+          >
             Add Data Source
           </Button>
         </DialogFooter>
