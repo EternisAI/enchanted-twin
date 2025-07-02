@@ -541,7 +541,7 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 	for i, tool := range tools {
 		toolsDefinitions[i] = &model.Tool{
 			Name:        tool.Name,
-			Description: *tool.Description,
+			Description: tool.Description,
 		}
 	}
 	return toolsDefinitions, nil
