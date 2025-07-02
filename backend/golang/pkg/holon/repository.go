@@ -23,17 +23,21 @@ func NewRepository(db *sqlx.DB) *Repository {
 }
 
 type dbThread struct {
-	ID             string  `db:"id"`
-	Title          string  `db:"title"`
-	Content        string  `db:"content"`
-	AuthorIdentity string  `db:"author_identity"`
-	CreatedAt      string  `db:"created_at"`
-	ExpiresAt      *string `db:"expires_at"`
-	ImageURLs      string  `db:"image_urls"`
-	Actions        string  `db:"actions"`
-	Views          int32   `db:"views"`
-	State          string  `db:"state"`
-	RemoteThreadID *int32  `db:"remote_thread_id"`
+	ID                   string   `db:"id"`
+	Title                string   `db:"title"`
+	Content              string   `db:"content"`
+	AuthorIdentity       string   `db:"author_identity"`
+	CreatedAt            string   `db:"created_at"`
+	ExpiresAt            *string  `db:"expires_at"`
+	ImageURLs            string   `db:"image_urls"`
+	Actions              string   `db:"actions"`
+	Views                int32    `db:"views"`
+	State                string   `db:"state"`
+	RemoteThreadID       *int32   `db:"remote_thread_id"`
+	EvaluationReason     *string  `db:"evaluation_reason"`
+	EvaluationConfidence *float64 `db:"evaluation_confidence"`
+	EvaluatedAt          *string  `db:"evaluated_at"`
+	EvaluatedBy          *string  `db:"evaluated_by"`
 }
 
 type dbThreadMessage struct {
@@ -97,6 +101,58 @@ func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) 
 
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating threads: %w", err)
+	}
+
+	return threads, nil
+}
+
+// GetDisplayThreads returns threads filtered by state for UI display (visible, pending, broadcasted).
+func (r *Repository) GetDisplayThreads(ctx context.Context, first int32, offset int32) ([]*model.Thread, error) {
+	query := `
+		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
+		       t.image_urls, t.actions, t.views, t.state, t.remote_thread_id,
+		       a.identity, a.alias
+		FROM threads t
+		JOIN authors a ON t.author_identity = a.identity
+		WHERE t.state IN ('visible', 'pending', 'broadcasted')
+		ORDER BY t.created_at DESC
+		LIMIT ? OFFSET ?
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, first, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query display threads: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
+
+	var threads []*model.Thread
+	for rows.Next() {
+		var thread dbThread
+		var threadAuthor dbAuthor
+
+		err := rows.Scan(
+			&thread.ID, &thread.Title, &thread.Content, &thread.AuthorIdentity,
+			&thread.CreatedAt, &thread.ExpiresAt, &thread.ImageURLs, &thread.Actions,
+			&thread.Views, &thread.State, &thread.RemoteThreadID, &threadAuthor.Identity, &threadAuthor.Alias,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan display thread row: %w", err)
+		}
+
+		threadModel, err := r.dbThreadToModel(ctx, &thread, &threadAuthor)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert display thread to model: %w", err)
+		}
+
+		threads = append(threads, threadModel)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating display threads: %w", err)
 	}
 
 	return threads, nil
@@ -675,6 +731,193 @@ func (r *Repository) GetThreadMessage(ctx context.Context, messageID string) (*m
 	}
 
 	return r.dbThreadMessageToModel(&dbMessage, &author)
+}
+
+// GetThreadsByState returns threads filtered by state.
+func (r *Repository) GetThreadsByState(ctx context.Context, state string) ([]*model.Thread, error) {
+	query := `
+		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
+		       t.image_urls, t.actions, t.views, t.state, t.remote_thread_id,
+		       a.identity, a.alias
+		FROM threads t
+		JOIN authors a ON t.author_identity = a.identity
+		WHERE t.state = ?
+		ORDER BY t.created_at ASC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, state)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query threads by state: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	var threads []*model.Thread
+	for rows.Next() {
+		var dbThreadRecord dbThread
+		var author dbAuthor
+
+		err := rows.Scan(
+			&dbThreadRecord.ID, &dbThreadRecord.Title, &dbThreadRecord.Content, &dbThreadRecord.AuthorIdentity,
+			&dbThreadRecord.CreatedAt, &dbThreadRecord.ExpiresAt, &dbThreadRecord.ImageURLs, &dbThreadRecord.Actions,
+			&dbThreadRecord.Views, &dbThreadRecord.State, &dbThreadRecord.RemoteThreadID, &author.Identity, &author.Alias,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan thread row: %w", err)
+		}
+
+		thread, err := r.dbThreadToModel(ctx, &dbThreadRecord, &author)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert thread to model: %w", err)
+		}
+
+		threads = append(threads, thread)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating threads by state: %w", err)
+	}
+
+	return threads, nil
+}
+
+// UpdateThreadWithEvaluation updates a thread's state along with evaluation data
+// Use pointers for nullable fields to allow clearing them by passing nil.
+func (r *Repository) UpdateThreadWithEvaluation(ctx context.Context, threadID, state string, reason *string, confidence *float64, evaluatedBy *string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE threads 
+		SET state = ?, evaluation_reason = ?, evaluation_confidence = ?, evaluated_at = ?, evaluated_by = ?
+		WHERE id = ?
+	`, state, reason, confidence, now, evaluatedBy, threadID)
+	if err != nil {
+		return fmt.Errorf("failed to update thread with evaluation: %w", err)
+	}
+	return nil
+}
+
+// ClearThreadEvaluation clears all evaluation fields for a thread.
+func (r *Repository) ClearThreadEvaluation(ctx context.Context, threadID string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE threads 
+		SET evaluation_reason = NULL, evaluation_confidence = NULL, evaluated_at = NULL, evaluated_by = NULL
+		WHERE id = ?
+	`, threadID)
+	if err != nil {
+		return fmt.Errorf("failed to clear thread evaluation: %w", err)
+	}
+	return nil
+}
+
+// UpdateThreadEvaluationOnly updates only the evaluation fields without changing state.
+func (r *Repository) UpdateThreadEvaluationOnly(ctx context.Context, threadID string, reason *string, confidence *float64, evaluatedBy *string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE threads 
+		SET evaluation_reason = ?, evaluation_confidence = ?, evaluated_at = ?, evaluated_by = ?
+		WHERE id = ?
+	`, reason, confidence, now, evaluatedBy, threadID)
+	if err != nil {
+		return fmt.Errorf("failed to update thread evaluation: %w", err)
+	}
+	return nil
+}
+
+// GetThreadEvaluationData returns the evaluation data for a thread.
+func (r *Repository) GetThreadEvaluationData(ctx context.Context, threadID string) (*ThreadEvaluationData, error) {
+	query := `
+		SELECT evaluation_reason, evaluation_confidence, evaluated_at, evaluated_by
+		FROM threads 
+		WHERE id = ?
+	`
+
+	var eval ThreadEvaluationData
+	err := r.db.QueryRowContext(ctx, query, threadID).Scan(
+		&eval.Reason, &eval.Confidence, &eval.EvaluatedAt, &eval.EvaluatedBy,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("thread not found")
+		}
+		return nil, fmt.Errorf("failed to get thread evaluation data: %w", err)
+	}
+
+	return &eval, nil
+}
+
+// GetThreadsWithEvaluationStats returns threads with evaluation statistics.
+func (r *Repository) GetThreadsWithEvaluationStats(ctx context.Context, limit int) ([]*ThreadWithEvaluation, error) {
+	query := `
+		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.state,
+		       t.evaluation_reason, t.evaluation_confidence, t.evaluated_at, t.evaluated_by,
+		       a.identity, a.alias
+		FROM threads t
+		JOIN authors a ON t.author_identity = a.identity
+		WHERE t.evaluation_reason IS NOT NULL
+		ORDER BY t.evaluated_at DESC
+		LIMIT ?
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query threads with evaluation stats: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			// Handle error in defer but don't override the main return error
+			_ = cerr
+		}
+	}()
+
+	var results []*ThreadWithEvaluation
+	for rows.Next() {
+		var t ThreadWithEvaluation
+		var author dbAuthor
+
+		err := rows.Scan(
+			&t.ID, &t.Title, &t.Content, &t.AuthorIdentity, &t.CreatedAt, &t.State,
+			&t.EvaluationReason, &t.EvaluationConfidence, &t.EvaluatedAt, &t.EvaluatedBy,
+			&author.Identity, &author.Alias,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan thread evaluation row: %w", err)
+		}
+
+		t.Author = &model.Author{
+			Identity: author.Identity,
+			Alias:    author.Alias,
+		}
+
+		results = append(results, &t)
+	}
+
+	return results, nil
+}
+
+// ThreadEvaluationData holds evaluation metadata for a thread.
+type ThreadEvaluationData struct {
+	Reason      *string  `db:"evaluation_reason"`
+	Confidence  *float64 `db:"evaluation_confidence"`
+	EvaluatedAt *string  `db:"evaluated_at"`
+	EvaluatedBy *string  `db:"evaluated_by"`
+}
+
+// ThreadWithEvaluation represents a thread with its evaluation data.
+type ThreadWithEvaluation struct {
+	ID                   string        `db:"id"`
+	Title                string        `db:"title"`
+	Content              string        `db:"content"`
+	AuthorIdentity       string        `db:"author_identity"`
+	CreatedAt            string        `db:"created_at"`
+	State                string        `db:"state"`
+	EvaluationReason     *string       `db:"evaluation_reason"`
+	EvaluationConfidence *float64      `db:"evaluation_confidence"`
+	EvaluatedAt          *string       `db:"evaluated_at"`
+	EvaluatedBy          *string       `db:"evaluated_by"`
+	Author               *model.Author `json:"author"`
 }
 
 func (r *Repository) dbThreadToModel(ctx context.Context, dbThread *dbThread, author *dbAuthor) (*model.Thread, error) {

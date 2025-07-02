@@ -1,0 +1,58 @@
+{
+  "test_name": "startup_ecosystem_focused",
+  "description": "Extension focused on startup ecosystem, funding, and market dynamics",
+  "additional_facts": [
+    {
+      "id": "memory_007",
+      "content": "Active angel investor in 5 AI startups, focusing on early-stage B2B solutions",
+      "category": "investment_activity",
+      "importance": 0.88,
+      "created_at": "2025-06-15T14:00:00Z",
+      "tags": ["angel_investor", "AI_startups", "B2B"],
+      "metadata": {"portfolio_size": "5", "focus": "early_stage"}
+    },
+    {
+      "id": "memory_008",
+      "content": "Regular attendee at Y Combinator demo days and TechCrunch events",
+      "category": "networking",
+      "importance": 0.75,
+      "created_at": "2025-06-10T12:00:00Z",
+      "tags": ["YC", "TechCrunch", "demo_days"],
+      "metadata": {"frequency": "regular", "type": "startup_events"}
+    }
+  ],
+  "additional_plans": [
+    {
+      "category": "short_term",
+      "title": "Q3 Startup Investment Review",
+      "description": "Review pipeline of 12 potential startup investments for Q3 funding decisions",
+      "timeline": "Next month",
+      "priority": 3,
+      "status": "planning",
+      "created_at": "2025-06-20T15:00:00Z"
+    }
+  ],
+  "expected_behaviors": [
+    {
+      "scenario_type": "startup_funding_news",
+      "input": "Major startup funding round announced",
+      "expected": {
+        "interest_level": "very_high",
+        "likely_response": "market_analysis",
+        "key_concerns": ["valuation_trends", "market_validation", "competitive_landscape"]
+      },
+      "confidence": 0.93
+    },
+    {
+      "scenario_type": "startup_launch_announcement",
+      "input": "New startup product launch",
+      "expected": {
+        "interest_level": "high",
+        "likely_response": "opportunity_assessment",
+        "key_concerns": ["market_fit", "scalability", "investment_potential"]
+      },
+      "confidence": 0.85
+    }
+  ],
+  "tags": ["startup_ecosystem", "investment", "market_analysis"]
+}
