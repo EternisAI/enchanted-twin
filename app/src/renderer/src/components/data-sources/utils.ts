@@ -37,15 +37,18 @@ export const estimateRemainingTime = (
     baseMinutes = baseEstimates[sourceName] || 5
   }
 
-  if (!startTime || progress === 0) {
+  if (!startTime || progress <= 0) {
     return `~${baseMinutes} min`
   }
+
+  // Clamp progress to a valid range to prevent division issues
+  const clampedProgress = Math.max(0.01, Math.min(99.99, progress))
 
   const elapsedMs = Date.now() - startTime.getTime()
   const elapsedMinutes = elapsedMs / 60000
 
-  if (progress > 0) {
-    const totalEstimatedMinutes = elapsedMinutes / (progress / 100)
+  if (clampedProgress > 0) {
+    const totalEstimatedMinutes = elapsedMinutes / (clampedProgress / 100)
     const remainingMinutes = Math.max(0, totalEstimatedMinutes - elapsedMinutes)
 
     if (remainingMinutes < 1) {
