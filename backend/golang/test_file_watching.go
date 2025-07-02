@@ -26,7 +26,11 @@ func main() {
 		fmt.Printf("Failed to create watcher: %v\n", err)
 		return
 	}
-	defer watcher.Close()
+	defer func() {
+		if err := watcher.Close(); err != nil {
+			fmt.Printf("Failed to close watcher: %v\n", err)
+		}
+	}()
 
 	// Add directory to watcher
 	err = watcher.Add(watchDir)

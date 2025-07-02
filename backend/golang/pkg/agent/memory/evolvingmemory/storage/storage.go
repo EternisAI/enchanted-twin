@@ -102,6 +102,9 @@ type Interface interface {
 	UpsertDocument(ctx context.Context, doc memory.Document) (string, error)
 	GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error)
 	GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*StoredDocument, error)
+
+	// Batch fact retrieval for intelligent querying
+	GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error)
 }
 
 // WeaviateStorage implements the storage interface using Weaviate.
@@ -1633,4 +1636,73 @@ func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Documen
 	}
 
 	return id, nil
+}
+
+// GetFactsByIDs retrieves multiple memory facts by their IDs.
+func (s *WeaviateStorage) GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error) {
+	if len(factIDs) == 0 {
+		return nil, nil
+	}
+
+	// Query Weaviate directly to get multiple facts
+	fields := []weaviateGraphql.Field{
+		{Name: contentProperty},
+		{Name: timestampProperty},
+		{Name: metadataProperty},
+		{Name: sourceProperty},
+		{Name: tagsProperty},
+		{Name: documentReferencesProperty},
+		// Structured fact fields
+		{Name: factCategoryProperty},
+		{Name: factSubjectProperty},
+		{Name: factAttributeProperty},
+		{Name: factValueProperty},
+		{Name: factTemporalContextProperty},
+		{Name: factSensitivityProperty},
+		{Name: factImportanceProperty},
+		{
+			Name: "_additional",
+			Fields: []weaviateGraphql.Field{
+				{Name: "id"},
+				{Name: "distance"},
+			},
+		},
+	}
+
+	whereFilter := filters.Where().
+		WithPath([]string{"id"}).
+		WithOperator(filters.ContainsAny).
+		WithValueText(factIDs...)
+
+	result, err := s.client.GraphQL().Get().
+		WithClassName(ClassName).
+		WithFields(fields...).
+		WithWhere(whereFilter).
+		Do(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("batch query for facts: %w", err)
+	}
+
+	if len(result.Errors) > 0 {
+		var errorMsgs []string
+		for _, err := range result.Errors {
+			errorMsgs = append(errorMsgs, err.Message)
+		}
+		return nil, fmt.Errorf("GraphQL query errors: %s", strings.Join(errorMsgs, "; "))
+	}
+
+	// Parse and transform results to MemoryFacts
+	facts, err := s.parseQueryResponseToFacts(result)
+	if err != nil {
+		return nil, fmt.Errorf("parsing query response: %w", err)
+	}
+
+	// Convert to pointers
+	var factsPointers []*memory.MemoryFact
+	for i := range facts {
+		factsPointers = append(factsPointers, &facts[i])
+	}
+
+	s.logger.Info("Retrieved facts successfully", "count", len(factsPointers))
+	return factsPointers, nil
 }

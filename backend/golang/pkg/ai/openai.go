@@ -4,8 +4,6 @@ package ai
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
@@ -19,21 +17,15 @@ type Config struct {
 }
 
 type Service struct {
-	client *openai.Client
-	logger *log.Logger
+	client      *openai.Client
+	logger      *log.Logger
+	getApiToken func() string
 }
 
 func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Service {
-	httpTimeout := 20 * time.Minute
-
-	httpClient := &http.Client{
-		Timeout: httpTimeout,
-	}
-
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
 		option.WithBaseURL(baseUrl),
-		option.WithHTTPClient(httpClient),
 	)
 	return &Service{
 		client: &client,
@@ -41,16 +33,26 @@ func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Servic
 	}
 }
 
-func NewOpenAIServiceProxy(logger *log.Logger, proxyUrl string, getToken func() string, baseUrl string) *Service {
-	client := openai.NewClient(option.WithAPIKey(getToken()), option.WithBaseURL(proxyUrl), option.WithHeader("X-BASE-URL", baseUrl))
+func NewOpenAIServiceProxy(logger *log.Logger, proxyUrl string, getApiToken func() string, baseUrl string) *Service {
+	opts := []option.RequestOption{
+		option.WithBaseURL(proxyUrl),
+		option.WithHeader("X-BASE-URL", baseUrl),
+	}
+
+	client := openai.NewClient(opts...)
 	return &Service{
-		client: &client,
-		logger: logger,
+		client:      &client,
+		logger:      logger,
+		getApiToken: getApiToken,
 	}
 }
 
 func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
-	completion, err := s.client.Chat.Completions.New(ctx, params)
+	var opts []option.RequestOption
+	if s.getApiToken != nil {
+		opts = append(opts, option.WithAPIKey(s.getApiToken()))
+	}
+	completion, err := s.client.Chat.Completions.New(ctx, params, opts...)
 	if err != nil {
 		return openai.ChatCompletionMessage{}, err
 	}
@@ -71,28 +73,17 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 	})
 }
 
-// CompletionsWithMessages executes a completion using our internal message format.
-func (s *Service) CompletionsWithMessages(ctx context.Context, messages []Message, tools []openai.ChatCompletionToolParam, model string) (Message, error) {
-	// Convert our messages to OpenAI format
-	openaiMessages := ToOpenAIMessages(messages)
-
-	// Execute the completion
-	completion, err := s.Completions(ctx, openaiMessages, tools, model)
-	if err != nil {
-		return Message{}, err
-	}
-
-	// Convert result back to our format
-	return FromOpenAIMessage(completion), nil
-}
-
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
+	var opts []option.RequestOption
+	if s.getApiToken != nil {
+		opts = append(opts, option.WithAPIKey(s.getApiToken()))
+	}
 	embedding, err := s.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
 		Model: model,
 		Input: openai.EmbeddingNewParamsInputUnion{
 			OfArrayOfStrings: inputs,
 		},
-	})
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -104,6 +95,10 @@ func (s *Service) Embeddings(ctx context.Context, inputs []string, model string)
 }
 
 func (s *Service) Embedding(ctx context.Context, input string, model string) ([]float64, error) {
+	var opts []option.RequestOption
+	if s.getApiToken != nil {
+		opts = append(opts, option.WithAPIKey(s.getApiToken()))
+	}
 	embedding, err := s.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
 		Model: model,
 		Input: openai.EmbeddingNewParamsInputUnion{
@@ -111,7 +106,7 @@ func (s *Service) Embedding(ctx context.Context, input string, model string) ([]
 				Value: input,
 			},
 		},
-	})
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}

@@ -33,7 +33,20 @@ import (
 // DocumentProcessor represents the new clean interface - each source implements this
 // to convert raw input directly to ConversationDocument, eliminating the lossy types.Record step.
 type DocumentProcessor interface {
+	// File processing (required for all processors)
 	ProcessFile(ctx context.Context, filepath string) ([]memory.ConversationDocument, error)
+}
+
+// LiveSync is an optional interface that processors can implement
+// if they support syncing from live APIs.
+type LiveSync interface {
+	Sync(ctx context.Context, accessToken string) ([]memory.ConversationDocument, error)
+}
+
+// DateRangeSync is an optional interface that processors can implement
+// if they support syncing within specific date ranges.
+type DateRangeSync interface {
+	SyncWithDateRange(ctx context.Context, accessToken string, startDate, endDate time.Time) ([]memory.ConversationDocument, error)
 }
 
 func validateInputPath(inputPath string) error {
@@ -320,8 +333,8 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		// Write as JSONL (one JSON object per line) instead of JSON array
-		if err := s.exportConversationDocumentsJSONL(documents, outputPath); err != nil {
+		// Save using memory package helper (JSONL format)
+		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -600,36 +613,4 @@ func (d *DataProcessingService) Sync(ctx context.Context, sourceName string, acc
 	}
 
 	return records, nil
-}
-
-func (s *DataProcessingService) exportConversationDocumentsJSONL(documents []memory.ConversationDocument, outputPath string) error {
-	file, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("error creating output file: %v", err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
-		}
-	}()
-
-	for _, document := range documents {
-		jsonData, err := json.Marshal(document)
-		if err != nil {
-			log.Printf("Error marshaling document to JSON: %v", err)
-			continue
-		}
-
-		if _, err := file.Write(jsonData); err != nil {
-			log.Printf("Error writing JSONL record: %v", err)
-			continue
-		}
-		if _, err := file.Write([]byte("\n")); err != nil {
-			log.Printf("Error writing newline: %v", err)
-			continue
-		}
-	}
-
-	fmt.Printf("Successfully processed %d documents and wrote to %s\n", len(documents), outputPath)
-	return nil
 }

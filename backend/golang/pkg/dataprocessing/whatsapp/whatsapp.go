@@ -1019,10 +1019,6 @@ func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string) ([
 	return conversationDocs, nil
 }
 
-func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
-	return nil, false, fmt.Errorf("sync operation not supported for WhatsApp")
-}
-
 func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	if len(records) == 0 {
 		return []memory.Document{}, nil

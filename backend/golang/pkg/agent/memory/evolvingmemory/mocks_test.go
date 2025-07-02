@@ -9,7 +9,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // MockStorage mocks the storage interface to avoid Weaviate client issues.
@@ -88,8 +87,17 @@ func (m *MockStorage) GetStoredDocumentsBatch(ctx context.Context, documentIDs [
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	storedDocs, _ := args.Get(0).([]*storage.StoredDocument)
-	return storedDocs, args.Error(1)
+	docs, _ := args.Get(0).([]*storage.StoredDocument)
+	return docs, args.Error(1)
+}
+
+func (m *MockStorage) GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error) {
+	args := m.Called(ctx, factIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	facts, _ := args.Get(0).([]*memory.MemoryFact)
+	return facts, args.Error(1)
 }
 
 // Ensure MockStorage implements the storage interface.
@@ -100,30 +108,12 @@ type MockCompletionsService struct {
 	mock.Mock
 }
 
-func (m *MockCompletionsService) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
-	args := m.Called(ctx, params)
-	if args.Get(0) == nil {
-		return openai.ChatCompletionMessage{}, args.Error(1)
-	}
-	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
-}
-
 func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
 	args := m.Called(ctx, messages, tools, model)
 	if args.Get(0) == nil {
 		return openai.ChatCompletionMessage{}, args.Error(1)
 	}
 	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
-}
-
-func (m *MockCompletionsService) CompletionsWithMessages(ctx context.Context, messages []ai.Message, tools []openai.ChatCompletionToolParam, model string) (ai.Message, error) {
-	args := m.Called(ctx, messages, tools, model)
-	if args.Get(0) == nil {
-		return ai.Message{}, args.Error(1)
-	}
-	msg, _ := args.Get(0).(ai.Message)
 	return msg, args.Error(1)
 }
 
@@ -150,30 +140,12 @@ type MockEmbeddingsService struct {
 	mock.Mock
 }
 
-func (m *MockEmbeddingsService) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
-	args := m.Called(ctx, params)
-	if args.Get(0) == nil {
-		return openai.ChatCompletionMessage{}, args.Error(1)
-	}
-	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
-}
-
 func (m *MockEmbeddingsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
 	args := m.Called(ctx, messages, tools, model)
 	if args.Get(0) == nil {
 		return openai.ChatCompletionMessage{}, args.Error(1)
 	}
 	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
-}
-
-func (m *MockEmbeddingsService) CompletionsWithMessages(ctx context.Context, messages []ai.Message, tools []openai.ChatCompletionToolParam, model string) (ai.Message, error) {
-	args := m.Called(ctx, messages, tools, model)
-	if args.Get(0) == nil {
-		return ai.Message{}, args.Error(1)
-	}
-	msg, _ := args.Get(0).(ai.Message)
 	return msg, args.Error(1)
 }
 

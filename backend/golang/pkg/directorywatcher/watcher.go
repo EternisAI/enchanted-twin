@@ -418,7 +418,7 @@ func (dw *DirectoryWatcher) determineDataSourceType(filePath string) string {
 	}
 }
 
-// detectJSONContentType attempts to determine the data source type by examining JSON content structure
+// detectJSONContentType attempts to determine the data source type by examining JSON content structure.
 func (dw *DirectoryWatcher) detectJSONContentType(filePath string) string {
 	// Read a small portion of the file to examine structure
 	file, err := os.Open(filePath)
@@ -426,7 +426,11 @@ func (dw *DirectoryWatcher) detectJSONContentType(filePath string) string {
 		dw.logger.Warn("Failed to open file for content detection", "path", filePath, "error", err)
 		return "" // Unknown type if we can't read it
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			dw.logger.Warn("Failed to close file during content detection", "path", filePath, "error", closeErr)
+		}
+	}()
 
 	// Read first 1KB to examine structure
 	buffer := make([]byte, 1024)
@@ -477,7 +481,7 @@ func (dw *DirectoryWatcher) detectJSONContentType(filePath string) string {
 	return ""
 }
 
-// storeFileInMemory creates a memory fact for the indexed file using structured fields
+// storeFileInMemory creates a memory fact for the indexed file using structured fields.
 func (dw *DirectoryWatcher) storeFileInMemory(ctx context.Context, filePath, dataSourceType string, dataSourceID string) error {
 	if dw.memoryStorage == nil {
 		dw.logger.Debug("Memory storage not available, skipping file memory storage")
@@ -491,11 +495,7 @@ func (dw *DirectoryWatcher) storeFileInMemory(ctx context.Context, filePath, dat
 		Timestamp: time.Now(),
 
 		// Use indexed structured fields for efficient querying
-		Category:   "file-indexed", // Indexed: allows filtering by file indexing events
-		Subject:    dataSourceType, // Indexed: filter by data source type
-		Attribute:  "file_path",    // Indexed: identifies this as a file path fact
-		Value:      fmt.Sprintf("File %s indexed for processing", filepath.Base(filePath)),
-		Importance: 1, // Low importance for metadata
+		Category: "file-indexed", // Indexed: allows filtering by file indexing events
 
 		Source:   "file-indexing", // Indexed: filter by file indexing source
 		FilePath: filePath,        // NEW: Indexed file path field for super-fast queries!
@@ -532,7 +532,7 @@ func (dw *DirectoryWatcher) storeFileInMemory(ctx context.Context, filePath, dat
 	return nil
 }
 
-// removeFileFromMemory efficiently removes memories by file path using the new indexed field
+// removeFileFromMemory efficiently removes memories by file path using the new indexed field.
 func (dw *DirectoryWatcher) removeFileFromMemory(ctx context.Context, filePath string) error {
 	if dw.memoryStorage == nil {
 		dw.logger.Debug("Memory storage not available, skipping memory cleanup")
