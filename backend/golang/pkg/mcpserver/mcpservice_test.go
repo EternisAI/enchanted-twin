@@ -1,5 +1,18 @@
 package mcpserver
 
+// import (
+// 	"context"
+// 	"fmt"
+// 	"testing"
+// 	"time"
+
+// 	"github.com/charmbracelet/log"
+
+// 	"github.com/EternisAI/enchanted-twin/graph/model"
+// 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+// 	"github.com/EternisAI/enchanted-twin/pkg/db"
+// )
+
 // func TestMCPService_GetTools(t *testing.T) {
 // 	t.Setenv("COMPLETIONS_MODEL", "gpt-4o-mini")
 // 	t.Setenv("EMBEDDINGS_MODEL", "text-embedding-3-small")
@@ -55,8 +68,8 @@ package mcpserver
 // 	}
 
 // 	for _, tool := range tools {
-// 		fmt.Println(tool.Name)
-// 		fmt.Println(*tool.Description)
+// 		fmt.Println(tool.GetName())
+// 		fmt.Println(tool.Description)
 // 	}
 // }
 
