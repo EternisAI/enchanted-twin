@@ -25,7 +25,7 @@ export const omnibarStore = new Store({
 export interface KeyboardShortcut {
   keys: string
   default: string
-  global?: boolean  // Whether this shortcut should work system-wide
+  global?: boolean // Whether this shortcut should work system-wide
 }
 
 export interface KeyboardShortcutsStoreData {
@@ -38,22 +38,22 @@ const defaultShortcuts = {
   toggleOmnibar: {
     keys: 'CommandOrControl+Alt+O',
     default: 'CommandOrControl+Alt+O',
-    global: true  // This works system-wide
+    global: true // This works system-wide
   },
   newChat: {
     keys: 'CommandOrControl+N',
     default: 'CommandOrControl+N',
-    global: false  // App must be focused
+    global: false // App must be focused
   },
   toggleSidebar: {
     keys: 'CommandOrControl+S',
     default: 'CommandOrControl+S',
-    global: false  // App must be focused
+    global: false // App must be focused
   },
   openSettings: {
     keys: 'CommandOrControl+,',
     default: 'CommandOrControl+,',
-    global: false  // App must be focused
+    global: false // App must be focused
   }
 }
 
@@ -69,7 +69,7 @@ export const keyboardShortcutsStore = new Store<KeyboardShortcutsStoreData>({
       // Ensure all shortcuts have proper structure
       const shortcuts = store.get('shortcuts', {})
       const fixed: any = {}
-      
+
       // For each default shortcut, ensure it exists with proper structure
       Object.entries(defaultShortcuts).forEach(([action, defaultShortcut]) => {
         const existing = shortcuts[action]
@@ -88,7 +88,7 @@ export const keyboardShortcutsStore = new Store<KeyboardShortcutsStoreData>({
           }
         }
       })
-      
+
       store.set('shortcuts', fixed)
     }
   }

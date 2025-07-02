@@ -412,7 +412,7 @@ export function registerIpcHandlers() {
       // Handle empty string (removing shortcut)
       if (!keys) {
         const shortcuts = keyboardShortcutsStore.get('shortcuts')
-        
+
         // Unregister the old shortcut
         if (shortcuts[action] && shortcuts[action].keys) {
           try {
@@ -431,12 +431,12 @@ export function registerIpcHandlers() {
           keys: ''
         }
         keyboardShortcutsStore.set('shortcuts', shortcuts)
-        
+
         log.info(`Removed shortcut for ${action}`)
-        
+
         // Update the menu to reflect the removed shortcut
         updateMenu()
-        
+
         return { success: true }
       }
 
@@ -446,7 +446,7 @@ export function registerIpcHandlers() {
       }
 
       const shortcuts = keyboardShortcutsStore.get('shortcuts')
-      
+
       // Unregister the old shortcut (only for global shortcuts)
       if (shortcuts[action] && shortcuts[action].keys && shortcuts[action].global) {
         try {
@@ -460,7 +460,10 @@ export function registerIpcHandlers() {
       if (shortcuts[action] && shortcuts[action].global) {
         const testRegister = globalShortcut.register(keys, () => {})
         if (!testRegister) {
-          return { success: false, error: 'This key combination cannot be registered or is already in use' }
+          return {
+            success: false,
+            error: 'This key combination cannot be registered or is already in use'
+          }
         }
         globalShortcut.unregister(keys)
       }
@@ -474,14 +477,14 @@ export function registerIpcHandlers() {
         keys
       }
       keyboardShortcutsStore.set('shortcuts', shortcuts)
-      
+
       // Log the updated shortcuts
       log.info(`Updated shortcut for ${action} to ${keys}`)
       log.info('Current shortcuts:', keyboardShortcutsStore.get('shortcuts'))
 
       // Register the new shortcut
       registerShortcut(action, keys, shortcuts[action]?.global || false)
-      
+
       // Update the menu to reflect the new shortcut
       updateMenu()
 
@@ -495,7 +498,7 @@ export function registerIpcHandlers() {
   ipcMain.handle('keyboard-shortcuts:reset', (_, action: string) => {
     try {
       const shortcuts = keyboardShortcutsStore.get('shortcuts')
-      
+
       if (!shortcuts[action]) {
         return { success: false, error: 'Unknown shortcut action' }
       }
@@ -515,7 +518,7 @@ export function registerIpcHandlers() {
 
       // Register the default shortcut
       registerShortcut(action, shortcuts[action].default, shortcuts[action].global || false)
-      
+
       // Update the menu to reflect the reset shortcut
       updateMenu()
 
@@ -529,29 +532,31 @@ export function registerIpcHandlers() {
   ipcMain.handle('keyboard-shortcuts:reset-all', () => {
     try {
       const shortcuts = keyboardShortcutsStore.get('shortcuts')
-      
+
       // Unregister all current shortcuts (only global shortcuts)
-      Object.keys(shortcuts).forEach(action => {
+      Object.keys(shortcuts).forEach((action) => {
         if (shortcuts[action] && shortcuts[action].global) {
           try {
             globalShortcut.unregister(shortcuts[action].keys)
           } catch (err) {
-            log.warn(`Failed to unregister invalid shortcut for ${action}: ${shortcuts[action].keys}`)
+            log.warn(
+              `Failed to unregister invalid shortcut for ${action}: ${shortcuts[action].keys}`
+            )
           }
         }
       })
 
       // Reset all to defaults
-      Object.keys(shortcuts).forEach(action => {
+      Object.keys(shortcuts).forEach((action) => {
         shortcuts[action].keys = shortcuts[action].default
       })
       keyboardShortcutsStore.set('shortcuts', shortcuts)
 
       // Re-register all shortcuts
-      Object.keys(shortcuts).forEach(action => {
+      Object.keys(shortcuts).forEach((action) => {
         registerShortcut(action, shortcuts[action].keys, shortcuts[action].global || false)
       })
-      
+
       // Update the menu to reflect all reset shortcuts
       updateMenu()
 
@@ -571,11 +576,11 @@ export function registerShortcut(action: string, keys: string, isGlobal: boolean
       log.info(`Skipping registration for ${action}: no keys set`)
       return
     }
-    
+
     // Only register global shortcuts in the main process
     if (isGlobal) {
       let handler: () => void
-      
+
       switch (action) {
         case 'toggleOmnibar':
           handler = () => {
@@ -583,7 +588,7 @@ export function registerShortcut(action: string, keys: string, isGlobal: boolean
             windowManager.toggleOmnibarWindow()
           }
           break
-          
+
         case 'newChat':
           handler = () => {
             log.info('Global shortcut triggered: New Chat')
@@ -592,7 +597,7 @@ export function registerShortcut(action: string, keys: string, isGlobal: boolean
             }
           }
           break
-          
+
         case 'toggleSidebar':
           handler = () => {
             log.info('Global shortcut triggered: Toggle Sidebar')
@@ -601,7 +606,7 @@ export function registerShortcut(action: string, keys: string, isGlobal: boolean
             }
           }
           break
-          
+
         case 'openSettings':
           handler = () => {
             log.info('Global shortcut triggered: Open Settings')
@@ -610,18 +615,20 @@ export function registerShortcut(action: string, keys: string, isGlobal: boolean
             }
           }
           break
-          
+
         default:
           log.warn(`Unknown shortcut action: ${action}`)
           return
       }
-      
+
       const registered = globalShortcut.register(keys, handler)
-      
+
       if (registered) {
         log.info(`Successfully registered global shortcut for ${action}: ${keys}`)
       } else {
-        log.error(`Failed to register global shortcut for ${action}: ${keys} (may be in use by system)`)
+        log.error(
+          `Failed to register global shortcut for ${action}: ${keys} (may be in use by system)`
+        )
       }
     } else {
       log.info(`Skipping global registration for ${action} (handled locally in renderer)`)

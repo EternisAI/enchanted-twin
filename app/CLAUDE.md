@@ -24,7 +24,7 @@ pnpm codegen               # Generate GraphQL types from operations.gql
 
 ```bash
 pnpm build:mac             # Build and publish macOS app
-pnpm build-local:mac       # Build macOS app locally (no publish)  
+pnpm build-local:mac       # Build macOS app locally (no publish)
 pnpm build:win             # Build Windows app
 pnpm build:linux           # Build Linux app
 ```
@@ -101,7 +101,7 @@ All IPC communication follows typed interfaces:
 
 ```typescript
 // Service control patterns
-'service:action' | 'service:get-state' | 'service:get-status'
+;'service:action' | 'service:get-state' | 'service:get-status'
 
 // Real-time event streaming
 window.api.onServiceEvent((data) => handleUpdate(data))
