@@ -149,7 +149,13 @@ const api = {
   resizeOmnibarWindow: (width: number, height: number) =>
     ipcRenderer.invoke('resize-omnibar-window', width, height),
   hideOmnibarWindow: () => ipcRenderer.invoke('hide-omnibar-window'),
-  rendererReady: () => ipcRenderer.send('renderer-ready')
+  rendererReady: () => ipcRenderer.send('renderer-ready'),
+  keyboardShortcuts: {
+    get: () => ipcRenderer.invoke('keyboard-shortcuts:get'),
+    set: (action: string, keys: string) => ipcRenderer.invoke('keyboard-shortcuts:set', action, keys),
+    reset: (action: string) => ipcRenderer.invoke('keyboard-shortcuts:reset', action),
+    resetAll: () => ipcRenderer.invoke('keyboard-shortcuts:reset-all')
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

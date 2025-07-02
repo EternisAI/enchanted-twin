@@ -1,7 +1,7 @@
 // Load environment variables from .env file
 import 'dotenv/config'
 
-import { app, BrowserWindow, session, globalShortcut } from 'electron'
+import { app, session, globalShortcut } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import log from 'electron-log/main'
 import { registerNotificationIpc } from './notifications'
@@ -21,6 +21,7 @@ import { cleanupGoServer, initializeGoServer } from './goServer'
 // import { startKokoro, cleanupKokoro } from './kokoroManager'
 import { startLiveKitSetup, cleanupLiveKitAgent } from './livekitManager'
 import { initializeAnalytics } from './analytics'
+import { keyboardShortcutsStore } from './stores'
 
 const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
 
@@ -34,12 +35,76 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 // Inject build-time environment variables into runtime process.env
 // __APP_ENV__ is replaced with a JSON object by electron-vite at build time
-// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
 declare const __APP_ENV__: Record<string, string>
 
 for (const [key, val] of Object.entries(typeof __APP_ENV__ === 'object' ? __APP_ENV__ : {})) {
   if (!(key in process.env)) {
     process.env[key] = val
+  }
+}
+
+// Function to register global shortcuts from store
+function registerStoredShortcuts() {
+  try {
+    // Ensure the store is initialized with defaults
+    let shortcuts = keyboardShortcutsStore.get('shortcuts')
+    log.info('Loading keyboard shortcuts from store:', shortcuts)
+
+    // If shortcuts is undefined or empty, initialize with defaults
+    if (!shortcuts || Object.keys(shortcuts).length === 0) {
+      const defaultShortcuts = {
+        toggleOmnibar: {
+          keys: 'CommandOrControl+Alt+O',
+          default: 'CommandOrControl+Alt+O'
+        }
+      }
+      keyboardShortcutsStore.set('shortcuts', defaultShortcuts)
+      shortcuts = defaultShortcuts
+      log.info('Initialized keyboard shortcuts with defaults')
+    }
+
+    // Clean up any corrupted shortcuts
+    let needsUpdate = false
+    Object.entries(shortcuts).forEach(([action, shortcut]) => {
+      if (
+        shortcut.keys.includes('Dead') ||
+        shortcut.keys.includes('Process') ||
+        shortcut.keys.includes('Unidentified')
+      ) {
+        log.warn(`Found corrupted shortcut for ${action}: ${shortcut.keys}, resetting to default`)
+        shortcuts[action].keys = shortcut.default
+        needsUpdate = true
+      }
+    })
+
+    if (needsUpdate) {
+      keyboardShortcutsStore.set('shortcuts', shortcuts)
+    }
+
+    // Register all shortcuts
+    const currentShortcuts = keyboardShortcutsStore.get('shortcuts')
+    Object.entries(currentShortcuts).forEach(([action, shortcut]) => {
+      try {
+        if (action === 'toggleOmnibar') {
+          globalShortcut.register(shortcut.keys, () => {
+            log.info('Global shortcut triggered: Toggle Omnibar Overlay')
+            windowManager.toggleOmnibarWindow()
+          })
+          log.info(`Registered shortcut for ${action}: ${shortcut.keys}`)
+        }
+        // Add more actions here as needed
+      } catch (error) {
+        log.error(`Failed to register shortcut for ${action}:`, error)
+      }
+    })
+  } catch (error) {
+    log.error('Failed to register stored shortcuts:', error)
+
+    // Fallback to default shortcut if store fails
+    globalShortcut.register('CommandOrControl+Alt+O', () => {
+      log.info('Global shortcut triggered: Toggle Omnibar Overlay')
+      windowManager.toggleOmnibarWindow()
+    })
   }
 }
 
@@ -60,11 +125,8 @@ app.whenReady().then(async () => {
   setupAutoUpdater()
   setupMenu()
 
-  // Register global shortcuts
-  globalShortcut.register('CommandOrControl+Shift+Space', () => {
-    log.info('Global shortcut triggered: Toggle Omnibar Overlay')
-    windowManager.toggleOmnibarWindow()
-  })
+  // Register global shortcuts from store
+  registerStoredShortcuts()
 
   // startKokoro(mainWindow)
   startLiveKitSetup(mainWindow)
@@ -82,7 +144,7 @@ app.on('window-all-closed', () => {
   if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
     windowManager.omnibarWindow.destroy()
   }
-  
+
   if (process.platform !== 'darwin') {
     app.quit()
   }
@@ -98,12 +160,12 @@ app.on('activate', function () {
   }
 })
 
-app.on('before-quit', (event) => {
+app.on('before-quit', () => {
   log.info('App before-quit event triggered')
-  
+
   // Set the quitting flag so omnibar window can close properly
   windowManager.setAppQuitting(true)
-  
+
   // Destroy omnibar window before quitting to prevent it from blocking the quit process
   if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
     log.info('Destroying omnibar window before quit')
@@ -113,7 +175,7 @@ app.on('before-quit', (event) => {
 
 app.on('will-quit', async () => {
   log.info('App will-quit event triggered')
-  
+
   // Unregister all global shortcuts
   globalShortcut.unregisterAll()
 

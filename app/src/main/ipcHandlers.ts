@@ -1,10 +1,11 @@
-import { app, dialog, ipcMain, nativeTheme, shell } from 'electron'
+import { app, dialog, ipcMain, nativeTheme, shell, globalShortcut } from 'electron'
 import log from 'electron-log/main'
 import path from 'path'
 import fs from 'fs'
 import { windowManager } from './windows'
 import { openOAuthWindow } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
+import { keyboardShortcutsStore } from './stores'
 // import { getKokoroState } from './kokoroManager'
 import {
   setupLiveKitAgent,
@@ -370,4 +371,135 @@ export function registerIpcHandlers() {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
+
+  // Keyboard shortcuts IPC handlers
+  ipcMain.handle('keyboard-shortcuts:get', () => {
+    try {
+      const shortcuts = keyboardShortcutsStore.get('shortcuts')
+      log.info('Getting keyboard shortcuts:', shortcuts)
+      return shortcuts
+    } catch (error) {
+      log.error('Failed to get keyboard shortcuts:', error)
+      // Return default shortcuts if store fails
+      return {
+        toggleOmnibar: {
+          keys: 'CommandOrControl+Alt+O',
+          default: 'CommandOrControl+Alt+O'
+        }
+      }
+    }
+  })
+
+  ipcMain.handle('keyboard-shortcuts:set', (_, action: string, keys: string) => {
+    try {
+      // Validate the shortcut keys
+      if (!keys || keys.includes('Dead') || keys.includes('Process') || keys.includes('Unidentified')) {
+        return { success: false, error: 'Invalid key combination' }
+      }
+
+      const shortcuts = keyboardShortcutsStore.get('shortcuts')
+      
+      // Unregister the old shortcut
+      if (shortcuts[action]) {
+        globalShortcut.unregister(shortcuts[action].keys)
+      }
+
+      // Test if the new shortcut can be registered
+      const testRegister = globalShortcut.register(keys, () => {})
+      if (!testRegister) {
+        return { success: false, error: 'This key combination cannot be registered or is already in use' }
+      }
+      globalShortcut.unregister(keys)
+
+      // Update the stored shortcut
+      shortcuts[action] = {
+        ...shortcuts[action],
+        keys
+      }
+      keyboardShortcutsStore.set('shortcuts', shortcuts)
+
+      // Register the new shortcut
+      registerShortcut(action, keys)
+
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to set keyboard shortcut:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('keyboard-shortcuts:reset', (_, action: string) => {
+    try {
+      const shortcuts = keyboardShortcutsStore.get('shortcuts')
+      
+      if (!shortcuts[action]) {
+        return { success: false, error: 'Unknown shortcut action' }
+      }
+
+      // Unregister current shortcut (ignore errors if it's invalid)
+      try {
+        globalShortcut.unregister(shortcuts[action].keys)
+      } catch (err) {
+        log.warn(`Failed to unregister invalid shortcut: ${shortcuts[action].keys}`)
+      }
+
+      // Reset to default
+      shortcuts[action].keys = shortcuts[action].default
+      keyboardShortcutsStore.set('shortcuts', shortcuts)
+
+      // Register the default shortcut
+      registerShortcut(action, shortcuts[action].default)
+
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to reset keyboard shortcut:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('keyboard-shortcuts:reset-all', () => {
+    try {
+      const shortcuts = keyboardShortcutsStore.get('shortcuts')
+      
+      // Unregister all current shortcuts (ignore errors for invalid shortcuts)
+      Object.keys(shortcuts).forEach(action => {
+        try {
+          globalShortcut.unregister(shortcuts[action].keys)
+        } catch (err) {
+          log.warn(`Failed to unregister invalid shortcut for ${action}: ${shortcuts[action].keys}`)
+        }
+      })
+
+      // Reset all to defaults
+      Object.keys(shortcuts).forEach(action => {
+        shortcuts[action].keys = shortcuts[action].default
+      })
+      keyboardShortcutsStore.set('shortcuts', shortcuts)
+
+      // Re-register all shortcuts
+      Object.keys(shortcuts).forEach(action => {
+        registerShortcut(action, shortcuts[action].keys)
+      })
+
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to reset all keyboard shortcuts:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+}
+
+// Helper function to register shortcuts
+export function registerShortcut(action: string, keys: string) {
+  try {
+    if (action === 'toggleOmnibar') {
+      globalShortcut.register(keys, () => {
+        log.info('Global shortcut triggered: Toggle Omnibar Overlay')
+        windowManager.toggleOmnibarWindow()
+      })
+    }
+    // Add more shortcut actions here as needed
+  } catch (error) {
+    log.error(`Failed to register shortcut for ${action}:`, error)
+  }
 }

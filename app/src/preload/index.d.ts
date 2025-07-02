@@ -90,6 +90,12 @@ interface IApi {
   resizeOmnibarWindow: (width: number, height: number) => Promise<{ success: boolean; error?: string }>
   hideOmnibarWindow: () => Promise<{ success: boolean; error?: string }>
   rendererReady: () => void
+  keyboardShortcuts: {
+    get: () => Promise<Record<string, { keys: string; default: string }>>
+    set: (action: string, keys: string) => Promise<{ success: boolean; error?: string }>
+    reset: (action: string) => Promise<{ success: boolean; error?: string }>
+    resetAll: () => Promise<{ success: boolean; error?: string }>
+  }
 }
 
 declare global {

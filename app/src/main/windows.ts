@@ -20,6 +20,7 @@ export interface WindowManager {
 class WindowManagerImpl implements WindowManager {
   mainWindow: BrowserWindow | null = null
   omnibarWindow: BrowserWindow | null = null
+  // @ts-expect-error - this is used in the main process
   private isAppQuitting = false
   private pendingNavigation: string | null = null
 

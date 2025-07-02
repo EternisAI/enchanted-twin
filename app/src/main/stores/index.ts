@@ -22,4 +22,29 @@ export const omnibarStore = new Store({
   }
 })
 
+export interface KeyboardShortcut {
+  keys: string
+  default: string
+}
+
+export interface KeyboardShortcutsStoreData {
+  shortcuts: {
+    [action: string]: KeyboardShortcut
+  }
+}
+
+export const keyboardShortcutsStore = new Store<KeyboardShortcutsStoreData>({
+  name: 'keyboard-shortcuts',
+  defaults: {
+    shortcuts: {
+      toggleOmnibar: {
+        keys: 'CommandOrControl+Alt+O',
+        default: 'CommandOrControl+Alt+O'
+      }
+    }
+  },
+  // Ensure the store is properly initialized
+  clearInvalidConfig: true
+})
+
 // Add more stores here as needed
