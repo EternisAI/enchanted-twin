@@ -60,15 +60,17 @@ function RootComponent() {
       navigate({ to: DEFAULT_SETTINGS_ROUTE })
     )
     const removeNavigateToListener = window.api.onNavigateTo?.((url: string) => {
-      navigate({ to: url as any })
+      navigate({ to: url })
     })
 
     // Signal to main process that renderer is ready for navigation (after listener is set up)
     window.api?.rendererReady?.()
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      removeOpenSettingsListener()
       removeNavigateToListener?.()
+      if (removeOpenSettingsListener) {
+        removeOpenSettingsListener()
+      }
     }
   }, [
     sidebarOpen,
