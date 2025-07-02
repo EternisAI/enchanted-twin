@@ -119,14 +119,7 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(
 
 	// Store documents directly in memory
 	if len(syncResponse.Documents) > 0 {
-		var memoryDocs []memory.Document
-		for _, doc := range syncResponse.Documents {
-			memoryDocs = append(memoryDocs, &doc)
-		}
-
-		err = workflow.ExecuteActivity(ctx, w.GmailStoreActivity, GmailStoreActivityInput{
-			Documents: memoryDocs,
-		}).Get(ctx, nil)
+		err = workflow.ExecuteActivity(ctx, w.GmailStoreActivity, GmailStoreActivityInput(syncResponse)).Get(ctx, nil)
 		if err != nil {
 			return GmailSyncWorkflowResponse{}, err
 		}
@@ -150,12 +143,18 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(
 
 // Activity to store documents in memory storage.
 type GmailStoreActivityInput struct {
-	Documents []memory.Document `json:"documents"`
+	Documents []memory.ConversationDocument `json:"documents"`
 }
 
 func (w *DataProcessingWorkflows) GmailStoreActivity(
 	ctx context.Context,
 	input GmailStoreActivityInput,
 ) error {
-	return w.Memory.Store(ctx, input.Documents, nil)
+	// Convert concrete type back to interface for memory storage
+	var memoryDocs []memory.Document
+	for _, doc := range input.Documents {
+		docCopy := doc
+		memoryDocs = append(memoryDocs, &docCopy)
+	}
+	return w.Memory.Store(ctx, memoryDocs, nil)
 }
