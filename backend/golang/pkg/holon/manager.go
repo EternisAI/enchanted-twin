@@ -67,7 +67,7 @@ func DefaultManagerConfig() ManagerConfig {
 		BatchSize:     50,
 		MaxRetries:    3,
 		RetryDelay:    30 * time.Second,
-		EnableLogging: true,
+		EnableLogging: false, // Default to quiet mode to reduce noise
 		ScheduleID:    "holon-sync-schedule",
 	}
 }

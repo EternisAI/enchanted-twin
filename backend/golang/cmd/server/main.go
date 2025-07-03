@@ -409,8 +409,6 @@ func main() {
 	logger.Info("User profile", "profile", userProfile)
 
 	holonConfig := holon.DefaultManagerConfig()
-	holonConfig.EnableLogging = false // Disable holon logging to reduce noise
-
 	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
 
 	// Initialize thread processor with AI and memory services for LLM-based filtering
@@ -438,7 +436,7 @@ func main() {
 		holonService.StopBackgroundProcessing() // Stop the service and wait for cleanup
 	}()
 
-	// Initialize HolonZero API fetcher service with the filtered holon logger
+	// Initialize HolonZero API fetcher service
 	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
 	if err := holonManager.Start(); err != nil {
 		logger.Error("Failed to start HolonZero fetcher service", "error", err)
@@ -599,11 +597,8 @@ func bootstrapTemporalWorker(
 	})
 	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
 
-	// Register holon sync activities with simplified config
-	holonManagerConfig := holon.DefaultManagerConfig()
-	holonManagerConfig.EnableLogging = false // Disable holon logging to reduce noise
-
-	holonManager := holon.NewManager(input.store, holonManagerConfig, input.logger, input.temporalClient, w)
+	// Register holon sync activities
+	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
 	holonSyncActivities := holon.NewHolonSyncActivities(input.logger, holonManager)
 	holonSyncActivities.RegisterWorkflowsAndActivities(w)
 
