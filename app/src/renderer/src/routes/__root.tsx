@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createRootRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { PanelLeftOpen } from 'lucide-react'
 import { useQuery } from '@apollo/client'
@@ -21,6 +21,7 @@ import {
 } from '@renderer/components/ui/tooltip'
 import { useSidebarStore } from '@renderer/lib/stores/sidebar'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
+import { formatShortcutForDisplay } from '@renderer/lib/utils/shortcuts'
 
 function RootComponent() {
   const omnibar = useOmnibarStore()
@@ -34,35 +35,125 @@ function RootComponent() {
   })
   const chats: Chat[] = chatsData?.getChats || []
 
+  // Get keyboard shortcuts from store
+  const [shortcuts, setShortcuts] = useState<
+    Record<string, { keys: string; default: string; global?: boolean }>
+  >({})
+
   useEffect(() => {
+    // Load shortcuts on mount
+    window.api.keyboardShortcuts.get().then(setShortcuts)
+  }, [])
+
+  useEffect(() => {
+    // Parse shortcut keys to check for matches
+    const parseShortcut = (keys: string) => {
+      if (!keys) return null
+      const parts = keys.split('+')
+      const hasCmd = parts.includes('CommandOrControl')
+      const hasAlt = parts.includes('Alt')
+      const hasShift = parts.includes('Shift')
+      const key = parts[parts.length - 1].toLowerCase()
+      return { hasCmd, hasAlt, hasShift, key }
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
-        e.preventDefault()
-        navigate({ to: DEFAULT_SETTINGS_ROUTE })
+      // Don't process if shortcuts haven't loaded yet
+      if (Object.keys(shortcuts).length === 0) return
+
+      // Don't process if user is typing in an input/textarea
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-        e.preventDefault()
-        navigate({ to: '/', search: { focusInput: 'true' } })
-      }
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        e.key === 's' &&
-        isCompleted &&
-        !omnibar.isOpen &&
-        !location.pathname.startsWith('/settings')
-      ) {
-        e.preventDefault()
+
+      const isCmd = e.metaKey || e.ctrlKey
+      const isAlt = e.altKey
+      const isShift = e.shiftKey
+      const key = e.key.toLowerCase()
+
+      // Check each shortcut
+      Object.entries(shortcuts).forEach(([action, shortcut]) => {
+        // Skip global shortcuts - they're handled in the main process
+        if (shortcut.global) return
+
+        const parsed = parseShortcut(shortcut.keys)
+        if (!parsed) return
+
+        if (
+          parsed.hasCmd === isCmd &&
+          parsed.hasAlt === isAlt &&
+          parsed.hasShift === isShift &&
+          parsed.key === key
+        ) {
+          e.preventDefault()
+          e.stopPropagation()
+
+          console.log(`Shortcut triggered: ${action}`)
+
+          switch (action) {
+            case 'openSettings':
+              navigate({ to: DEFAULT_SETTINGS_ROUTE })
+              break
+            case 'newChat':
+              navigate({ to: '/', search: { focusInput: 'true' } })
+              break
+            case 'toggleSidebar':
+              // Only prevent toggling on settings pages where sidebar doesn't exist
+              if (!location.pathname.startsWith('/settings')) {
+                console.log('Toggling sidebar from keyboard shortcut')
+                setSidebarOpen(!sidebarOpen)
+              }
+              break
+          }
+        }
+      })
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    // IPC event listeners for menu items and global shortcuts
+    const removeOpenSettingsListener = window.api.onOpenSettings(() =>
+      navigate({ to: DEFAULT_SETTINGS_ROUTE })
+    )
+    const removeNewChatListener = window.api.onNewChat(() =>
+      navigate({ to: '/', search: { focusInput: 'true' } })
+    )
+    const removeToggleSidebarListener = window.api.onToggleSidebar(() => {
+      if (isCompleted && !omnibar.isOpen && !location.pathname.startsWith('/settings')) {
         setSidebarOpen(!sidebarOpen)
       }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    window.api.onOpenSettings(() => navigate({ to: DEFAULT_SETTINGS_ROUTE }))
+    })
+    const removeNavigateToListener = window.api.onNavigateTo?.((url: string) => {
+      navigate({ to: url })
+    })
+
+    // Signal to main process that renderer is ready for navigation (after listener is set up)
+    window.api?.rendererReady?.()
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
+      removeNavigateToListener?.()
+      if (removeOpenSettingsListener) {
+        removeOpenSettingsListener()
+      }
+      if (removeNewChatListener) {
+        removeNewChatListener()
+      }
+      if (removeToggleSidebarListener) {
+        removeToggleSidebarListener()
+      }
     }
-  }, [sidebarOpen, navigate, isCompleted, omnibar.isOpen, location.pathname, setSidebarOpen])
+  }, [
+    shortcuts,
+    navigate,
+    isCompleted,
+    omnibar.isOpen,
+    location.pathname,
+    setSidebarOpen,
+    sidebarOpen
+  ])
 
-  if (location.pathname.startsWith('/settings')) {
+  if (location.pathname.startsWith('/settings') || location.pathname === '/omnibar-overlay') {
     return <Outlet />
   }
 
@@ -105,9 +196,11 @@ function RootComponent() {
                       <TooltipContent side="bottom" align="center">
                         <div className="flex items-center gap-2">
                           <span>Open sidebar</span>
-                          <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
-                            ⌘ S
-                          </kbd>
+                          {shortcuts.toggleSidebar?.keys && (
+                            <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
+                              {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
+                            </kbd>
+                          )}
                         </div>
                       </TooltipContent>
                     </Tooltip>
@@ -123,7 +216,7 @@ function RootComponent() {
                   transition={{ type: 'spring', stiffness: 300, damping: 30, duration: 0.2 }}
                   className="h-full overflow-y-auto"
                 >
-                  <Sidebar chats={chats} setSidebarOpen={setSidebarOpen} />
+                  <Sidebar chats={chats} setSidebarOpen={setSidebarOpen} shortcuts={shortcuts} />
                 </motion.div>
               )}
             </AnimatePresence>

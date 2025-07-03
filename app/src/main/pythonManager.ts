@@ -249,24 +249,12 @@ export class LiveKitAgentBootstrap {
   }
 
   private async ensureVenv() {
-    const cfg = path.join(this.VENV_DIR, 'pyvenv.cfg')
-
-    let venvIs312 = false
-    if (await this.exists(cfg)) {
-      const txt = await fs.promises.readFile(cfg, 'utf8')
-      venvIs312 = new RegExp(`^version = ${PYTHON_VERSION}\\.`).test(txt)
-    }
-
-    if (venvIs312) {
-      log.info('[LiveKit] Virtual environment already exists with Python 3.12')
+    if (await this.exists(this.VENV_DIR)) {
+      log.info('[LiveKit] Virtual environment already exists')
       return
     }
 
-    log.info(`[LiveKit] Creating Python ${PYTHON_VERSION} virtual environment`)
-    if (await this.exists(this.VENV_DIR)) {
-      log.info('[LiveKit] Removing existing virtual environment')
-      await fs.promises.rm(this.VENV_DIR, { recursive: true, force: true }).catch(() => {})
-    }
+    log.info(`[LiveKit] Creating virtual environment with Python ${PYTHON_VERSION}`)
 
     await this.run(this.UV_PATH, ['venv', '--python', PYTHON_VERSION, this.VENV_DIR], {
       label: 'uv-venv'
@@ -324,7 +312,7 @@ export class LiveKitAgentBootstrap {
     }
   }
 
-  async startAgent(chatId: string, isOnboarding: boolean = false) {
+  async startAgent(chatId: string, isOnboarding: boolean = false, isInitialising: boolean = false) {
     if (this.agentProc) {
       log.warn('[LiveKit] Agent is already running')
       return
@@ -350,17 +338,21 @@ export class LiveKitAgentBootstrap {
 
     isOnboarding && console.log('isOnboarding starting', isOnboarding)
 
+    const initialising = isInitialising ? 'true' : 'false'
+
     // Start the agent using the virtual environment Python
     this.agentProc = spawn(this.pythonBin(), ['agent.py', 'console'], {
       cwd: this.LIVEKIT_DIR,
       env: {
         ...process.env,
         CHAT_ID: chatId,
-
-        TINFOIL_API_KEY: process.env.TINFOIL_API_KEY,
-        TINFOIL_AUDIO_URL: process.env.TINFOIL_AUDIO_URL,
-        TINFOIL_STT_MODEL: process.env.TINFOIL_STT_MODEL,
-        TINFOIL_TTS_MODEL: process.env.TINFOIL_TTS_MODEL,
+        FAKE_INIT: initialising,
+        TTS_API_KEY: process.env.TTS_API_KEY,
+        TTS_URL: process.env.TTS_URL,
+        TTS_MODEL: process.env.TTS_MODEL,
+        STT_API_KEY: process.env.STT_API_KEY,
+        STT_URL: process.env.STT_URL,
+        STT_MODEL: process.env.STT_MODEL,
         SEND_MESSAGE_URL: `http://localhost:44999/query`,
         TERM: 'dumb', // Use dumb terminal to avoid TTY features
         PYTHONUNBUFFERED: '1', // Ensure immediate output

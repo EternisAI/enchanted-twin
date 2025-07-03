@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import QRCode from 'react-qr-code'
-import { Loader2, PhoneOff, Smartphone } from 'lucide-react'
+import { CheckCircle, Loader2, PhoneOff } from 'lucide-react'
 import { useMutation, useQuery, useSubscription } from '@apollo/client'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card'
@@ -100,7 +100,12 @@ export default function WhatsAppSync() {
       return (
         <div className="mt-4 flex flex-col gap-2">
           <div className="flex flex-col mb-2">
-            <span className="text-sm">Syncing messages...</span>
+            <span className="text-sm text-center text-muted-foreground">
+              Syncing messages in background.
+              <br />
+              You can close this window.
+            </span>
+
             <span className="text-sm text-muted-foreground">{syncStatusMessage}</span>
           </div>
           <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -131,9 +136,9 @@ export default function WhatsAppSync() {
       </CardHeader>
       <CardContent>
         {isConnected ? (
-          <div className="flex flex-col items-center justify-center py-6">
+          <div className="flex flex-col items-center justify-center py-6 gap-3">
             <div className="flex items-center gap-2 text-green-500 mb-4">
-              <Smartphone className="h-8 w-8" />
+              <CheckCircle className="h-7 w-7" />
               <span className="text-lg font-medium">Connected</span>
             </div>
             <p className="text-muted-foreground text-center">{statusMessage}</p>
@@ -151,7 +156,7 @@ export default function WhatsAppSync() {
                 </p>
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center py-6">
+              <div className="flex flex-col gap-3 items-center justify-center py-6">
                 <PhoneOff className="h-8 w-8 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground text-center mb-4">{statusMessage}</p>
                 <Button onClick={handleConnect} disabled={startingConnection}>

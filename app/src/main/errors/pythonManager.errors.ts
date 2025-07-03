@@ -1,5 +1,8 @@
 export class PythonManagerError extends Error {
-  constructor(message: string, public readonly code?: string) {
+  constructor(
+    message: string,
+    public readonly code?: string
+  ) {
     super(message)
     this.name = 'PythonManagerError'
   }
@@ -13,7 +16,10 @@ export class EnvironmentError extends PythonManagerError {
 }
 
 export class InstallationError extends PythonManagerError {
-  constructor(message: string, public readonly step?: string) {
+  constructor(
+    message: string,
+    public readonly step?: string
+  ) {
     super(message, 'INSTALLATION_FAILED')
     this.name = 'InstallationError'
   }
@@ -27,7 +33,10 @@ export class AgentError extends PythonManagerError {
 }
 
 export class ProcessError extends PythonManagerError {
-  constructor(message: string, public readonly exitCode?: number) {
+  constructor(
+    message: string,
+    public readonly exitCode?: number
+  ) {
     super(message, 'PROCESS_ERROR')
     this.name = 'ProcessError'
   }

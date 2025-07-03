@@ -2,14 +2,11 @@ package screenpipe
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
-	mcp_golang "github.com/metoro-io/mcp-golang"
-
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
+	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 )
 
 const (
@@ -32,39 +29,35 @@ func NewClient() *ScreenpipeClient {
 
 func (c *ScreenpipeClient) ListTools(
 	ctx context.Context,
-	cursor *string,
-) (*mcp_golang.ToolsResponse, error) {
+	request mcp_golang.ListToolsRequest,
+) (*mcp_golang.ListToolsResult, error) {
 	return GetScreenpipeTools(c, false)
 }
 
 func (c *ScreenpipeClient) CallTool(
 	ctx context.Context,
-	name string,
-	arguments any,
-) (*mcp_golang.ToolResponse, error) {
-	fmt.Println("Call tool SCREENPIPE", name, arguments)
+	request mcp_golang.CallToolRequest,
+) (*mcp_golang.CallToolResult, error) {
+	fmt.Println("Call tool SCREENPIPE", request.Params.Name, request.Params.Arguments)
 
-	bytes, err := utils.ConvertToBytes(arguments)
-	if err != nil {
-		return nil, err
-	}
-	var content []*mcp_golang.Content
-	switch name {
+	var content []mcp_golang.Content
+	switch request.Params.Name {
 	case SearchContentToolName:
-		arguments := &SearchContentArguments{}
-		err = json.Unmarshal(bytes, arguments)
+		var argumentsTyped SearchContentArguments
+		err := request.BindArguments(&argumentsTyped)
 		if err != nil {
 			return nil, err
 		}
-		content, err = processSearchContent(ctx, c, *arguments)
+		contentResp, err := processSearchContent(ctx, c, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}
+		content = contentResp
 	default:
-		return nil, fmt.Errorf("unknown tool: %s", name)
+		return nil, fmt.Errorf("unknown tool: %s", request.Params.Name)
 	}
 
-	return &mcp_golang.ToolResponse{
+	return &mcp_golang.CallToolResult{
 		Content: content,
 	}, nil
 }

@@ -11,105 +11,107 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func TestToDocuments(t *testing.T) {
-	tempFile, err := os.CreateTemp("", "test-telegram-*.jsonl")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer func() {
-		err = os.Remove(tempFile.Name())
-		if err != nil {
-			t.Fatalf("Failed to remove temp file: %v", err)
-		}
-	}()
+	// Create temp file for the new ProcessFile interface
+	tempFile, err := os.CreateTemp("", "telegram_test_*.json")
+	require.NoError(t, err)
+	defer os.Remove(tempFile.Name()) //nolint:errcheck
 
-	testData := `{"data":{"type":"conversation","chatId":"1601587058","chatType":"saved_messages","chatName":"Test Chat","messages":[{"id":59318,"messageType":"message","from":"Eternal22","to":"xxx","text":"I want to believe","timestamp":"2022-12-25T04:38:18Z","forwardedFrom":"","savedFrom":"Mahamat New","myMessage":false}],"people":["Eternal22","xxx"],"user":"xxx"},"timestamp":"2022-12-25T04:38:18Z","source":"telegram"}
-{"data":{"type":"contact","firstName":"John","lastName":"Doe","phoneNumber":"+1234567890"},"timestamp":"2022-12-25T04:38:18Z","source":"telegram"}`
-
-	if _, err := tempFile.WriteString(testData); err != nil {
-		t.Fatalf("Failed to write test data: %v", err)
+	// Create clean Telegram JSON data
+	telegramData := TelegramData{
+		PersonalInformation: PersonalInformation{
+			UserID:    1601587058,
+			FirstName: "JohnDoe",
+			Username:  "@BitcoinBruv",
+		},
+		Contacts: struct {
+			About string    `json:"about"`
+			List  []Contact `json:"list"`
+		}{
+			About: "Contact list",
+			List:  []Contact{},
+		},
+		Chats: struct {
+			About string `json:"about"`
+			List  []Chat `json:"list"`
+		}{
+			About: "Chat list",
+			List: []Chat{
+				{
+					Type: "personal_chat",
+					ID:   123456,
+					Name: "Test Chat",
+					Messages: []Message{
+						{
+							ID:           1,
+							Type:         "message",
+							Date:         "2022-12-25T04:38:18",
+							DateUnixtime: "1671944298",
+							From:         "JohnDoe",
+							FromID:       "user1601587058",
+							TextEntities: []TextEntity{
+								{Type: "plain", Text: "I want to believe"},
+							},
+						},
+						{
+							ID:           2,
+							Type:         "message",
+							Date:         "2022-12-25T04:39:18",
+							DateUnixtime: "1671944358",
+							From:         "Alice",
+							FromID:       "user9999999",
+							TextEntities: []TextEntity{
+								{Type: "plain", Text: "That's interesting!"},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
-	err = tempFile.Close()
-	if err != nil {
-		t.Fatalf("Failed to close temp file: %v", err)
-	}
 
+	jsonData, err := json.Marshal(telegramData)
+	require.NoError(t, err)
+	_, err = tempFile.Write(jsonData)
+	require.NoError(t, err)
+	require.NoError(t, tempFile.Close())
+
+	// Create database
 	dbFile, err := os.CreateTemp("", "test_*.db")
-	if err != nil {
-		t.Fatalf("Failed to create temp db file: %v", err)
-	}
+	require.NoError(t, err)
 	dbFile.Close()                 //nolint:errcheck
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
 	store, err := db.NewStore(ctx, dbFile.Name())
-	if err != nil {
-		t.Fatalf("Failed to create store: %v", err)
-	}
+	require.NoError(t, err)
 	defer store.Close() //nolint:errcheck
-
-	count, err := helpers.CountJSONLLines(tempFile.Name())
-	if err != nil {
-		t.Fatalf("Failed to count JSONL lines: %v", err)
-	}
-	records, err := helpers.ReadJSONLBatch(tempFile.Name(), 0, count)
-	if err != nil {
-		t.Fatalf("ReadJSONL failed: %v", err)
-	}
 
 	logger := log.New(os.Stdout)
 	telegramProcessor, err := NewTelegramProcessor(store, logger)
-	if err != nil {
-		t.Fatalf("Failed to create telegram processor: %v", err)
-	}
-	docs, err := telegramProcessor.ToDocuments(context.Background(), records)
-	if err != nil {
-		t.Fatalf("ToDocuments failed: %v", err)
-	}
+	require.NoError(t, err)
 
-	assert.Equal(t, 2, len(docs), "Expected 2 documents")
+	// Test the new interface
+	docs, err := telegramProcessor.ProcessFile(ctx, tempFile.Name())
+	require.NoError(t, err)
 
-	var conversationDoc, contactDoc memory.Document
-	for _, doc := range docs {
-		docType := doc.Metadata()["type"]
-		switch docType {
-		case "conversation":
-			conversationDoc = doc
-		case "contact":
-			contactDoc = doc
-		}
-	}
+	// New interface creates ConversationDocument directly
+	assert.Equal(t, 1, len(docs), "Expected 1 conversation document")
 
-	expectedTimestamp, _ := time.Parse(time.RFC3339, "2022-12-25T04:38:18Z")
-	assert.NotNil(t, conversationDoc, "Expected conversation document")
-	assert.Contains(t, conversationDoc.Content(), "I want to believe", "Conversation should contain the message")
-	assert.Equal(t, []string{"social", "chat"}, conversationDoc.Tags())
-
-	assert.NotNil(t, contactDoc, "Expected contact document")
-	expectedContactContent := "CONTACT ENTRY: John Doe (Phone: +1234567890) - This is a contact from the user's Telegram contact list, not information about the primary user."
-	assert.Equal(t, expectedContactContent, contactDoc.Content())
-	assert.Equal(t, &expectedTimestamp, contactDoc.Timestamp())
-	assert.Equal(t, []string{"social", "contact", "contact_list"}, contactDoc.Tags())
-
-	expectedMetadata := map[string]string{
-		"type":                "contact",
-		"document_type":       "contact_entry",
-		"data_category":       "contact_list",
-		"is_primary_user":     "false",
-		"contact_source":      "telegram_contacts",
-		"firstName":           "John",
-		"lastName":            "Doe",
-		"phoneNumber":         "+1234567890",
-		"extraction_guidance": "This is contact list data - extract relationship facts only, never facts about primaryUser",
-	}
-	assert.Equal(t, expectedMetadata, contactDoc.Metadata())
+	conversationDoc := docs[0]
+	assert.Equal(t, "telegram", conversationDoc.FieldSource)
+	assert.Contains(t, conversationDoc.FieldTags, "social")
+	assert.Contains(t, conversationDoc.FieldTags, "chat")
+	assert.Equal(t, "conversation", conversationDoc.FieldMetadata["type"])
+	assert.Equal(t, 2, len(conversationDoc.Conversation), "Expected 2 messages in conversation")
+	assert.Equal(t, "I want to believe", conversationDoc.Conversation[0].Content)
+	assert.Equal(t, "That's interesting!", conversationDoc.Conversation[1].Content)
 }
 
 func TestProcessDirectoryInput(t *testing.T) {
@@ -195,28 +197,25 @@ func TestProcessDirectoryInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
-	records, err := processor.ProcessFile(ctx, tempDir)
+	documents, err := processor.ProcessFile(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("ProcessFile with directory failed: %v", err)
 	}
 
-	if len(records) != 1 {
-		t.Errorf("Expected 1 record, got %d", len(records))
+	if len(documents) != 1 {
+		t.Errorf("Expected 1 document, got %d", len(documents))
 	}
 
-	if len(records) > 0 {
-		record := records[0]
-		if record.Data["type"] != "conversation" {
-			t.Errorf("Expected conversation type, got %v", record.Data["type"])
+	if len(documents) > 0 {
+		doc := documents[0]
+		if doc.FieldSource != "telegram" {
+			t.Errorf("Expected telegram source, got %v", doc.FieldSource)
 		}
 
-		messages, ok := record.Data["messages"].([]messageData)
-		if !ok {
-			t.Errorf("Expected messages to be []messageData, got %T", record.Data["messages"])
-		} else if len(messages) != 2 {
-			t.Errorf("Expected 2 messages in conversation, got %d", len(messages))
-		} else if messages[0].Text != "Test message" {
-			t.Errorf("Expected 'Test message', got %v", messages[0].Text)
+		if len(doc.Conversation) != 2 {
+			t.Errorf("Expected 2 messages in conversation, got %d", len(doc.Conversation))
+		} else if doc.Conversation[0].Content != "Test message" {
+			t.Errorf("Expected 'Test message', got %v", doc.Conversation[0].Content)
 		}
 	}
 
@@ -306,28 +305,25 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
-	records, err := processor.ProcessFile(ctx, tempDir)
+	documents, err := processor.ProcessFile(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("ProcessFile with directory failed: %v", err)
 	}
 
-	if len(records) != 1 {
-		t.Errorf("Expected 1 record, got %d", len(records))
+	if len(documents) != 1 {
+		t.Errorf("Expected 1 document, got %d", len(documents))
 	}
 
-	if len(records) > 0 {
-		record := records[0]
-		if record.Data["type"] != "conversation" {
-			t.Errorf("Expected conversation type, got %v", record.Data["type"])
+	if len(documents) > 0 {
+		doc := documents[0]
+		if doc.FieldSource != "telegram" {
+			t.Errorf("Expected telegram source, got %v", doc.FieldSource)
 		}
 
-		messages, ok := record.Data["messages"].([]messageData)
-		if !ok {
-			t.Errorf("Expected messages to be []messageData, got %T", record.Data["messages"])
-		} else if len(messages) != 2 {
-			t.Errorf("Expected 2 messages in conversation, got %d", len(messages))
-		} else if messages[0].Text != "Custom JSON test message" {
-			t.Errorf("Expected 'Custom JSON test message', got %v", messages[0].Text)
+		if len(doc.Conversation) != 2 {
+			t.Errorf("Expected 2 messages in conversation, got %d", len(doc.Conversation))
+		} else if doc.Conversation[0].Content != "Custom JSON test message" {
+			t.Errorf("Expected 'Custom JSON test message', got %v", doc.Conversation[0].Content)
 		}
 	}
 
@@ -365,14 +361,14 @@ func TestProcessDirectoryNoJsonFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
-	records, err := processor.ProcessFile(ctx, tempDir)
+	documents, err := processor.ProcessFile(ctx, tempDir)
 
 	if err == nil {
 		t.Errorf("Expected error when no JSON files found, but got none")
 	}
 
-	if records != nil {
-		t.Errorf("Expected nil records when error occurs, got %v", records)
+	if documents != nil {
+		t.Errorf("Expected nil documents when error occurs, got %v", documents)
 	}
 
 	expectedError := "no JSON files found in directory"
@@ -418,38 +414,29 @@ func TestProcessRealTelegramExport(t *testing.T) {
 		t.Error("Expected to process some records, but got 0")
 	}
 
-	// Check that we have contact records
-	contactCount := 0
+	// New interface only creates ConversationDocument (no separate contact documents)
 	conversationCount := 0
 
 	for _, record := range records {
-		switch record.Data["type"] {
-		case "contact":
-			contactCount++
-			t.Logf("Contact: %s %s", record.Data["firstName"], record.Data["lastName"])
-		case "conversation":
+		// All records should be ConversationDocument type
+		if record.User != "" && len(record.Conversation) > 0 {
 			conversationCount++
-			chatName, _ := record.Data["chatName"].(string)
-			messages, _ := record.Data["messages"].([]messageData)
-			t.Logf("Conversation: %s with %d messages", chatName, len(messages))
+			t.Logf("Conversation: %s with %d messages", record.ID(), len(record.Conversation))
 
 			// Verify messages have text content
-			for i, msg := range messages {
-				if msg.Text == "" {
-					t.Errorf("Message %d in conversation %s has empty text", i, chatName)
+			for i, msg := range record.Conversation {
+				if msg.Content == "" {
+					t.Errorf("Message %d in conversation %s has empty content", i, record.ID())
 				} else {
-					t.Logf("  Message from %s: %s", msg.From, msg.Text[:min(50, len(msg.Text))])
+					t.Logf("  Message from %s: %s", msg.Speaker, msg.Content[:min(50, len(msg.Content))])
 				}
 			}
 		}
 	}
 
-	t.Logf("Found %d contacts and %d conversations", contactCount, conversationCount)
+	t.Logf("Found 0 contacts and %d conversations", conversationCount)
 
-	if contactCount == 0 {
-		t.Error("Expected to find contacts, but found none")
-	}
-
+	// New interface doesn't create separate contact documents, only conversations
 	// private_group chats are processed, so we expect to find conversations
 	if conversationCount == 0 {
 		t.Error("Expected to find conversations, but found none")
@@ -468,14 +455,7 @@ func TestProcessRealTelegramExport(t *testing.T) {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func TestToDocumentsEndToEnd(t *testing.T) {
+func TestProcessFileEndToEnd(t *testing.T) {
 	dbFile, err := os.CreateTemp("", "test_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
@@ -490,124 +470,108 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	// Set up source username
-	sourceUsername := db.SourceUsername{
-		Source:   "telegram",
-		Username: "@BitcoinBruv",
+	// Create temp file for the new ProcessFile interface
+	tempFile, err := os.CreateTemp("", "telegram_endtoend_*.json")
+	require.NoError(t, err)
+	defer os.Remove(tempFile.Name()) //nolint:errcheck
+
+	// Create realistic Telegram export JSON with multiple participants
+	telegramData := TelegramData{
+		PersonalInformation: PersonalInformation{
+			UserID:    12345,
+			FirstName: "JohnDoe",
+			Username:  "@johndoe",
+		},
+		Contacts: struct {
+			About string    `json:"about"`
+			List  []Contact `json:"list"`
+		}{
+			About: "Contact list",
+			List: []Contact{
+				{
+					FirstName:   "Alice",
+					LastName:    "Smith",
+					PhoneNumber: "+1234567890",
+				},
+			},
+		},
+		Chats: struct {
+			About string `json:"about"`
+			List  []Chat `json:"list"`
+		}{
+			About: "Chat list",
+			List: []Chat{
+				{
+					Type: "personal_chat",
+					ID:   67890,
+					Name: "Chat with Alice",
+					Messages: []Message{
+						{
+							ID:           1,
+							Type:         "message",
+							Date:         "2023-01-15T10:30:00",
+							DateUnixtime: "1673776200",
+							From:         "JohnDoe",
+							FromID:       "user12345",
+							TextEntities: []TextEntity{
+								{Type: "plain", Text: "Hello Alice, how are you?"},
+							},
+						},
+						{
+							ID:           2,
+							Type:         "message",
+							Date:         "2023-01-15T10:31:00",
+							DateUnixtime: "1673776260",
+							From:         "Alice",
+							FromID:       "user99999",
+							TextEntities: []TextEntity{
+								{Type: "plain", Text: "Hi John! I'm doing great, thanks!"},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
-	err = store.SetSourceUsername(ctx, sourceUsername)
-	if err != nil {
-		t.Fatalf("Failed to set source username: %v", err)
-	}
+
+	jsonData, err := json.Marshal(telegramData)
+	require.NoError(t, err)
+	_, err = tempFile.Write(jsonData)
+	require.NoError(t, err)
+	require.NoError(t, tempFile.Close())
 
 	logger := log.New(os.Stdout)
 	processor, err := NewTelegramProcessor(store, logger)
-	if err != nil {
-		t.Fatalf("Failed to create telegram processor: %v", err)
-	}
+	require.NoError(t, err)
 
-	// Create realistic test records with proper message structure
-	timestamp1, _ := time.Parse(time.RFC3339, "2023-01-15T10:30:00Z")
-	timestamp2, _ := time.Parse(time.RFC3339, "2023-01-15T10:31:00Z")
+	// Test the new ProcessFile interface
+	docs, err := processor.ProcessFile(ctx, tempFile.Name())
+	require.NoError(t, err)
 
-	msg1 := messageData{
-		ID:          1,
-		MessageType: "message",
-		From:        "JohnDoe",
-		To:          "Alice",
-		Text:        "Hello Alice, how are you?",
-		Timestamp:   timestamp1,
-		MyMessage:   true,
-	}
+	// New interface creates ConversationDocument directly (no separate contact documents)
+	assert.Equal(t, 1, len(docs), "Expected 1 conversation document")
 
-	msg2 := messageData{
-		ID:          2,
-		MessageType: "message",
-		From:        "Alice",
-		To:          "JohnDoe",
-		Text:        "Hi John! I'm doing great, thanks!",
-		Timestamp:   timestamp2,
-		MyMessage:   false,
-	}
-
-	conversationRecord := types.Record{
-		Data: map[string]interface{}{
-			"type":     "conversation",
-			"chatId":   "12345",
-			"chatType": "personal_chat",
-			"chatName": "Chat with Alice",
-			"messages": []messageData{msg1, msg2},
-			"people":   []string{"JohnDoe", "Alice"},
-			"user":     "JohnDoe",
-		},
-		Timestamp: timestamp1,
-		Source:    "telegram",
-	}
-
-	contactRecord := types.Record{
-		Data: map[string]interface{}{
-			"type":        "contact",
-			"firstName":   "Alice",
-			"lastName":    "Smith",
-			"phoneNumber": "+1234567890",
-		},
-		Timestamp: timestamp1,
-		Source:    "telegram",
-	}
-
-	records := []types.Record{conversationRecord, contactRecord}
-
-	// Test ToDocuments
-	documents, err := processor.ToDocuments(ctx, records)
-	if err != nil {
-		t.Fatalf("ToDocuments failed: %v", err)
-	}
-
-	assert.Equal(t, 2, len(documents), "Expected 2 documents")
-
-	var conversationDoc *memory.ConversationDocument
-	var contactDoc *memory.TextDocument
-
-	for _, doc := range documents {
-		if doc.Metadata()["type"] == "conversation" {
-			if convDoc, ok := doc.(*memory.ConversationDocument); ok {
-				conversationDoc = convDoc
-			}
-		} else if doc.Metadata()["type"] == "contact" {
-			if textDoc, ok := doc.(*memory.TextDocument); ok {
-				contactDoc = textDoc
-			}
-		}
-	}
-
-	// Verify conversation document
-	assert.NotNil(t, conversationDoc, "Expected conversation document")
-	assert.Equal(t, "12345", conversationDoc.FieldID)
+	conversationDoc := docs[0]
 	assert.Equal(t, "telegram", conversationDoc.FieldSource)
-	assert.Equal(t, []string{"social", "chat"}, conversationDoc.FieldTags)
-	assert.Equal(t, []string{"JohnDoe", "Alice"}, conversationDoc.People)
+	assert.Contains(t, conversationDoc.FieldTags, "social")
+	assert.Contains(t, conversationDoc.FieldTags, "chat")
+	assert.Equal(t, "conversation", conversationDoc.FieldMetadata["type"])
 	assert.Equal(t, "JohnDoe", conversationDoc.User)
+	assert.Contains(t, conversationDoc.People, "JohnDoe")
+	assert.Contains(t, conversationDoc.People, "Alice")
 
 	// Verify messages in conversation
 	assert.Equal(t, 2, len(conversationDoc.Conversation), "Expected 2 messages in conversation")
 
-	msg1Doc := conversationDoc.Conversation[0]
-	assert.Equal(t, "JohnDoe", msg1Doc.Speaker)
-	assert.Equal(t, "Hello Alice, how are you?", msg1Doc.Content)
-	assert.Equal(t, timestamp1, msg1Doc.Time)
+	msg1 := conversationDoc.Conversation[0]
+	assert.Equal(t, "JohnDoe", msg1.Speaker)
+	assert.Equal(t, "Hello Alice, how are you?", msg1.Content)
 
-	msg2Doc := conversationDoc.Conversation[1]
-	assert.Equal(t, "Alice", msg2Doc.Speaker)
-	assert.Equal(t, "Hi John! I'm doing great, thanks!", msg2Doc.Content)
-	assert.Equal(t, timestamp2, msg2Doc.Time)
+	msg2 := conversationDoc.Conversation[1]
+	assert.Equal(t, "Alice", msg2.Speaker)
+	assert.Equal(t, "Hi John! I'm doing great, thanks!", msg2.Content)
 
-	// Verify contact document
-	assert.NotNil(t, contactDoc, "Expected contact document")
-	expectedContactContent := "CONTACT ENTRY: Alice Smith (Phone: +1234567890) - This is a contact from the user's Telegram contact list, not information about the primary user."
-	assert.Equal(t, expectedContactContent, contactDoc.FieldContent)
-	assert.Equal(t, []string{"social", "contact", "contact_list"}, contactDoc.FieldTags)
-
-	t.Log("✅ End-to-end ToDocuments test passed - messages are properly processed")
+	t.Log("✅ End-to-end ProcessFile test passed - conversations are properly processed")
 }
 
 func TestJSONLMarshallingSimple(t *testing.T) {

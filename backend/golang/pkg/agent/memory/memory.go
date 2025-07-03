@@ -3,7 +3,9 @@ package memory
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -181,6 +183,106 @@ func (cd *ConversationDocument) Metadata() map[string]string {
 
 func (cd *ConversationDocument) Source() string {
 	return cd.FieldSource
+}
+
+// LoadConversationDocumentsFromJSON loads ConversationDocuments from JSONL file.
+func LoadConversationDocumentsFromJSON(filepath string) ([]ConversationDocument, error) {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open JSONL file: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log the close error but don't override the main error
+			fmt.Printf("Error closing file: %v\n", closeErr)
+		}
+	}()
+
+	var documents []ConversationDocument
+	decoder := json.NewDecoder(file)
+
+	for decoder.More() {
+		var doc ConversationDocument
+		if err := decoder.Decode(&doc); err != nil {
+			return nil, fmt.Errorf("failed to decode ConversationDocument from JSONL: %w", err)
+		}
+		documents = append(documents, doc)
+	}
+
+	return documents, nil
+}
+
+// ExportConversationDocumentsJSON saves a slice of ConversationDocuments as JSONL format.
+func ExportConversationDocumentsJSON(documents []ConversationDocument, filepath string) error {
+	file, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to create JSONL file: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log the close error but don't override the main error
+			fmt.Printf("Error closing file: %v\n", closeErr)
+		}
+	}()
+
+	encoder := json.NewEncoder(file)
+	for _, doc := range documents {
+		if err := encoder.Encode(doc); err != nil {
+			return fmt.Errorf("failed to encode ConversationDocument to JSONL: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// ExportMemoryFactsJSON saves a slice of MemoryFacts as JSONL format.
+func ExportMemoryFactsJSON(facts []MemoryFact, filepath string) error {
+	file, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to create JSONL file: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log the close error but don't override the main error
+			fmt.Printf("Error closing file: %v\n", closeErr)
+		}
+	}()
+
+	encoder := json.NewEncoder(file)
+	for _, fact := range facts {
+		if err := encoder.Encode(fact); err != nil {
+			return fmt.Errorf("failed to encode MemoryFact to JSONL: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// LoadMemoryFactsFromJSON loads MemoryFacts from JSONL file.
+func LoadMemoryFactsFromJSON(filepath string) ([]MemoryFact, error) {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open JSONL file: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log the close error but don't override the main error
+			fmt.Printf("Error closing file: %v\n", closeErr)
+		}
+	}()
+
+	var facts []MemoryFact
+	decoder := json.NewDecoder(file)
+
+	for decoder.More() {
+		var fact MemoryFact
+		if err := decoder.Decode(&fact); err != nil {
+			return nil, fmt.Errorf("failed to decode MemoryFact from JSONL: %w", err)
+		}
+		facts = append(facts, fact)
+	}
+
+	return facts, nil
 }
 
 // Chunk implements intelligent conversation chunking.
@@ -626,6 +728,87 @@ func (td *TextDocument) createTextChunk(content string, chunkNum int) *TextDocum
 	}
 }
 
+// FileDocument represents a document from file uploads (PDFs, text files, etc.)
+// that should bypass fact extraction and go directly to document storage.
+type FileDocument struct {
+	FieldID        string            `json:"id"`
+	FieldContent   string            `json:"content"`
+	FieldTimestamp *time.Time        `json:"timestamp"`
+	FieldSource    string            `json:"source,omitempty"`
+	FieldTags      []string          `json:"tags,omitempty"`
+	FieldMetadata  map[string]string `json:"metadata,omitempty"`
+}
+
+// Document interface implementation for FileDocument.
+func (fd *FileDocument) ID() string {
+	return fd.FieldID
+}
+
+func (fd *FileDocument) Content() string {
+	return fd.FieldContent
+}
+
+func (fd *FileDocument) Timestamp() *time.Time {
+	return fd.FieldTimestamp
+}
+
+func (fd *FileDocument) Tags() []string {
+	return fd.FieldTags
+}
+
+func (fd *FileDocument) Metadata() map[string]string {
+	// Ensure metadata is not nil
+	if fd.FieldMetadata == nil {
+		return make(map[string]string)
+	}
+	return fd.FieldMetadata
+}
+
+func (fd *FileDocument) Source() string {
+	return fd.FieldSource
+}
+
+// Chunk implements intelligent document chunking by reusing TextDocument's proven logic.
+func (fd *FileDocument) Chunk() []Document {
+	if fd == nil || fd.Content() == "" {
+		return []Document{fd}
+	}
+
+	if len(fd.Content()) <= MaxProcessableContentChars {
+		return []Document{fd}
+	}
+
+	// Convert to TextDocument temporarily for chunking
+	td := &TextDocument{
+		FieldID:        fd.FieldID,
+		FieldContent:   fd.FieldContent,
+		FieldTimestamp: fd.FieldTimestamp,
+		FieldSource:    fd.FieldSource,
+		FieldTags:      fd.FieldTags,
+		FieldMetadata:  fd.FieldMetadata,
+	}
+
+	chunks := td.Chunk()
+
+	// Convert chunks back to FileDocument
+	var fileChunks []Document
+	for _, chunk := range chunks {
+		if textChunk, ok := chunk.(*TextDocument); ok {
+			fileChunk := &FileDocument{
+				FieldID:        textChunk.FieldID,
+				FieldContent:   textChunk.FieldContent,
+				FieldTimestamp: textChunk.FieldTimestamp,
+				FieldSource:    textChunk.FieldSource,
+				FieldTags:      textChunk.FieldTags,
+				FieldMetadata:  textChunk.FieldMetadata,
+			}
+			fileChunks = append(fileChunks, fileChunk)
+		}
+	}
+
+	return fileChunks
+}
+
 // MemoryFact represents an extracted fact about a person with structured fields.
 type MemoryFact struct {
 	// Identity and display
@@ -683,6 +866,15 @@ func (tf *TagsFilter) IsEmpty() bool {
 func (mf *MemoryFact) GenerateContent() string {
 	// Simple combination for embeddings and search
 	return fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
+}
+
+// GenerateContentForLLM creates rich content with timestamp for LLM consumption.
+func (mf *MemoryFact) GenerateContentForLLM() string {
+	content := fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
+	if !mf.Timestamp.IsZero() {
+		content += fmt.Sprintf(" [%s]", mf.Timestamp.Format("Jan 2006"))
+	}
+	return content
 }
 
 // IsLeaf returns true if this is a leaf node (has tags).

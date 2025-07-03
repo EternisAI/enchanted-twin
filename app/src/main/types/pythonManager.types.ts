@@ -29,10 +29,12 @@ export interface LiveKitAgentCallbacks {
 
 export interface EnvironmentVariables {
   CHAT_ID: string
-  TINFOIL_API_KEY: string
-  TINFOIL_AUDIO_URL: string
-  TINFOIL_STT_MODEL: string
-  TINFOIL_TTS_MODEL: string
+  TTS_API_KEY: string
+  TTS_URL: string
+  TTS_MODEL: string
+  STT_API_KEY: string
+  STT_URL: string
+  STT_MODEL: string
   SEND_MESSAGE_URL: string
   TERM: string
   PYTHONUNBUFFERED: string
