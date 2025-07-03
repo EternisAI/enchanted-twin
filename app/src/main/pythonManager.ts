@@ -312,7 +312,12 @@ export class LiveKitAgentBootstrap {
     }
   }
 
-  async startAgent(chatId: string, isOnboarding: boolean = false, isInitialising: boolean = false) {
+  async startAgent(
+    chatId: string,
+    isOnboarding: boolean = false,
+    isInitialising: boolean = false,
+    jwtToken?: string
+  ) {
     if (this.agentProc) {
       log.warn('[LiveKit] Agent is already running')
       return
@@ -347,6 +352,7 @@ export class LiveKitAgentBootstrap {
         ...process.env,
         CHAT_ID: chatId,
         FAKE_INIT: initialising,
+        FIREBASE_JWT_TOKEN: jwtToken || '', // Pass JWT token as environment variable
         TTS_API_KEY: process.env.TTS_API_KEY,
         TTS_URL: process.env.TTS_URL,
         TTS_MODEL: process.env.TTS_MODEL,
