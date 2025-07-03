@@ -28,7 +28,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
       onSuccess()
     },
     onError: (error: Error) => {
-      console.error(error)
+      console.error('[MCPConnectionForm] Failed to connect to MCP server', error)
       toast.error('Failed to connect to MCP server', {
         description: error.message
       })
@@ -44,12 +44,17 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
 
   const handleConnect = () => {
     console.log(connection)
+    // Right now backend does not support url props so we use the workaround of command url and args the actual url
     if (connection === MCPConnection.STREAMBLE_HTTP) {
+      const mcpName = new URL(command).hostname.replace('www.', '').split('.')[0]
+      console.log('mcpName', mcpName)
+
       connectMcpServer({
         variables: {
           input: {
-            name: 'Streamble HTTP',
-            command,
+            name: mcpName || 'Streamble HTTP',
+            command: 'url',
+            args: [command],
             type: McpServerType.Other
           }
         }
