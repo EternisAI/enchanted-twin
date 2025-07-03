@@ -143,6 +143,19 @@ func (s *service) ConnectMCPServer(
 			if err != nil {
 				return nil, fmt.Errorf("failed to start MCP client: %w", err)
 			}
+
+			initRequest := mcp.InitializeRequest{}
+			initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+			initRequest.Params.ClientInfo = mcp.Implementation{
+				Name:    "enchanted-twin-mcp-client",
+				Version: "1.0.0",
+			}
+
+			_, err = mcpClient.Initialize(ctx, initRequest)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
+			}
+
 			client = mcpClient
 		default:
 			return nil, fmt.Errorf("unsupported server type")
