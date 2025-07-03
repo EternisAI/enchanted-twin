@@ -4,6 +4,7 @@ import MCPPanel from '@renderer/components/oauth/MCPPanel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
 import ConnectMCPServerButton from '@renderer/components/oauth/MCPConnectServerButton'
 import LocalFilesTab from '@renderer/components/data-sources/LocalFilesTab'
+import { FolderIcon, NetworkIcon, PlugIcon } from 'lucide-react'
 
 export const Route = createFileRoute('/settings/data-sources')({
   component: ImportDataSettings
@@ -28,9 +29,15 @@ function Header() {
       <Tabs defaultValue="available">
         <div className="flex flex-row gap-2 w-full justify-between">
           <TabsList>
-            <TabsTrigger value="available">Available</TabsTrigger>
-            <TabsTrigger value="local-files">Local Files</TabsTrigger>
-            <TabsTrigger value="connected">Connected</TabsTrigger>
+            <TabsTrigger value="available">
+              <NetworkIcon className="w-4 h-4" /> Available
+            </TabsTrigger>
+            <TabsTrigger value="local-files">
+              <FolderIcon className="w-4 h-4" /> Local Files
+            </TabsTrigger>
+            <TabsTrigger value="connected">
+              <PlugIcon className="w-4 h-4" /> Connected
+            </TabsTrigger>
           </TabsList>
           <ConnectMCPServerButton onSuccess={() => {}} />
         </div>

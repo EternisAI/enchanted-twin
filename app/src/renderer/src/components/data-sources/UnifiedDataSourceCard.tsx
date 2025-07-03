@@ -1,7 +1,6 @@
 import { CheckCircle2, Loader2, Play, RefreshCw, Clock, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { Button } from '../ui/button'
-import { Card } from '../ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { Progress } from '../ui/progress'
 import { Badge } from '../ui/badge'
@@ -72,7 +71,7 @@ export const UnifiedDataSourceCard = ({
   const canImport = !isImporting && !isGlobalProcessing && !importingSource && !isBeingProcessed
 
   return (
-    <Card className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="hover:bg-muted rounded-md p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex-1 flex flex-col gap-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -201,6 +200,6 @@ export const UnifiedDataSourceCard = ({
           <>Import</>
         )}
       </Button>
-    </Card>
+    </div>
   )
 }

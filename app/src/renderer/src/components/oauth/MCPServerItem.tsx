@@ -183,10 +183,10 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
 
   return (
     <div className="p-4 w-full">
-      <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-4">
-        <div className="flex items-center gap-2">
+      <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-5">
+        <div className="flex items-center gap-5">
           {PROVIDER_ICON_MAP[server.type]}
-          <span className="font-semibold text-lg">{server.name}</span>
+          <span className="font-semibold text-lg leading-none">{server.name}</span>
         </div>
         <div className="flex items-center gap-2">
           {server.connected ? (
@@ -208,6 +208,8 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
               size="sm"
               onClick={() => handleEnableToolsToggle(!showEnvInputs)}
             >
+              {/* TODO: replace with Phosphor PlugChargingIcon */}
+              <PlugIcon className="w-4 h-4" />
               Connect
             </Button>
           )}

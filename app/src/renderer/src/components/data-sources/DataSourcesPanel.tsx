@@ -2,12 +2,10 @@ import { useQuery, useMutation } from '@apollo/client'
 import { GetDataSourcesDocument, IndexingState } from '@renderer/graphql/generated/graphql'
 import { useIndexingStatus } from '@renderer/hooks/useIndexingStatus'
 import { useIndexingStore } from '@renderer/stores/indexingStore'
-import { History } from 'lucide-react'
 import { useState, useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { DataSource, DataSourcesPanelProps, PendingDataSource, IndexedDataSource } from './types'
 import { toast } from 'sonner'
 import { gql } from '@apollo/client'
-import { Card } from '../ui/card'
 import { DataSourceDialog } from './DataSourceDialog'
 import { Dialog, DialogContent } from '../ui/dialog'
 import { UnifiedDataSourceCard } from './UnifiedDataSourceCard'
@@ -76,9 +74,8 @@ function initiatingReducer(state: Set<string>, action: InitiatingAction): Set<st
 export function DataSourcesPanel({
   onDataSourceSelected,
   onDataSourceRemoved,
-  onIndexingComplete,
-  header = true
-}: Omit<DataSourcesPanelProps, 'indexingStatus' | 'showStatus'> & {
+  onIndexingComplete
+}: Omit<DataSourcesPanelProps, 'indexingStatus'> & {
   onIndexingComplete?: () => void
 }) {
   const { data, refetch } = useQuery(GetDataSourcesDocument)
@@ -318,7 +315,8 @@ export function DataSourcesPanel({
     isProcessing,
     isNotStarted,
     initiatingDataSources.size,
-    clearStartTimes
+    clearStartTimes,
+    initiatingDataSources
   ])
 
   // Separate timeout mechanism with cleanup
@@ -353,19 +351,11 @@ export function DataSourcesPanel({
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl">
-      {header && (
-        <Card className="p-6">
-          <div className="flex flex-col gap-2 items-center">
-            <History className="w-6 h-6 text-primary" />
-            <h2 className="text-2xl font-semibold">Imports & Takeouts</h2>
-            <p className="text-muted-foreground text-balance max-w-md text-center">
-              It’s easy, but takes multiple steps to connect & get data from external sources.
-            </p>
-          </div>
-        </Card>
-      )}
+      <header className="flex flex-col gap-2 border-b pb-3">
+        <h2 className="text-2xl font-bold leading-none">Imports & Takeouts</h2>
+      </header>
 
-      <div className="grid grid-cols-1 gap-4">
+      <div className="flex flex-col gap-4">
         {SUPPORTED_DATA_SOURCES.map((source) => (
           <UnifiedDataSourceCard
             key={source.name}
