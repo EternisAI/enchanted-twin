@@ -36,6 +36,11 @@ input UpdateProfileInput {
   bio: String
 }
 
+input StoreTokenInput {
+  token: String!
+  refreshToken: String!
+}
+
 type ToolCall {
   id: String!
   name: String!
@@ -56,7 +61,7 @@ type Chat {
   createdAt: DateTime!
   category: ChatCategory!
   holonThreadId: String #include this in the system prompt so user does not have to excit. on twinchat.go
-    initialMessage: String
+  initialMessage: String
 }
 
 type Message {
@@ -159,6 +164,7 @@ type Mutation {
   startWhatsAppConnection: Boolean!
   activate(inviteCode: String!): Boolean!
   joinHolon(userId: String!, network: String): Boolean!
+  storeToken(input: StoreTokenInput!): Boolean!
 }
 
 type Subscription {
