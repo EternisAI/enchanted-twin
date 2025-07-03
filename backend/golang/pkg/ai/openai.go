@@ -17,10 +17,10 @@ type Config struct {
 }
 
 type Service struct {
-	client           *openai.Client
-	logger           *log.Logger
-	getFirebaseToken func() (string, error)
-	opts             []option.RequestOption
+	client         *openai.Client
+	logger         *log.Logger
+	getAccessToken func() (string, error)
+	opts           []option.RequestOption
 }
 
 func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Service {
@@ -42,18 +42,18 @@ func NewOpenAIServiceProxy(logger *log.Logger, getFirebaseToken func() (string, 
 
 	client := openai.NewClient(opts...)
 	return &Service{
-		client:           &client,
-		logger:           logger,
-		getFirebaseToken: getFirebaseToken,
-		opts:             opts,
+		client:         &client,
+		logger:         logger,
+		getAccessToken: getFirebaseToken,
+		opts:           opts,
 	}
 }
 
 func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
 	opts := s.opts
 	s.logger.Info("ParamsCompletions", "opts", opts)
-	if s.getFirebaseToken != nil {
-		firebaseToken, err := s.getFirebaseToken()
+	if s.getAccessToken != nil {
+		firebaseToken, err := s.getAccessToken()
 		if err != nil {
 			return openai.ChatCompletionMessage{}, err
 		}
@@ -83,8 +83,8 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
 	opts := s.opts
-	if s.getFirebaseToken != nil {
-		firebaseToken, err := s.getFirebaseToken()
+	if s.getAccessToken != nil {
+		firebaseToken, err := s.getAccessToken()
 		if err != nil {
 			return nil, err
 		}
@@ -109,8 +109,8 @@ func (s *Service) Embeddings(ctx context.Context, inputs []string, model string)
 
 func (s *Service) Embedding(ctx context.Context, input string, model string) ([]float64, error) {
 	opts := s.opts
-	if s.getFirebaseToken != nil {
-		firebaseToken, err := s.getFirebaseToken()
+	if s.getAccessToken != nil {
+		firebaseToken, err := s.getAccessToken()
 		if err != nil {
 			return nil, err
 		}

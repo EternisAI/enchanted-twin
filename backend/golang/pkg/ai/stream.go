@@ -48,8 +48,8 @@ func (s *Service) CompletionsStream(
 		defer cancel()
 		opts := s.opts
 
-		if s.getFirebaseToken != nil {
-			firebaseToken, err := s.getFirebaseToken()
+		if s.getAccessToken != nil {
+			firebaseToken, err := s.getAccessToken()
 			if err != nil {
 				return
 			}
