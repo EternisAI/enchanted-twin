@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesPanel'
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
-import { Button } from '@renderer/components/ui/button'
+import ConnectMCPServerButton from '@renderer/components/oauth/MCPConnectServerButton'
 
 export const Route = createFileRoute('/settings/data-sources')({
   component: ImportDataSettings
@@ -24,16 +24,14 @@ function Header() {
   return (
     <div className="flex flex-col gap-2">
       <h2 className="text-2xl font-semibold">Data Sources</h2>
-      <Tabs>
+      <Tabs defaultValue="available">
         <div className="flex flex-row gap-2 w-full justify-between">
           <TabsList>
             <TabsTrigger value="available">Available</TabsTrigger>
             <TabsTrigger value="local-files">Local Files</TabsTrigger>
             <TabsTrigger value="connected">Connected</TabsTrigger>
           </TabsList>
-          <Button variant="outline" size="sm">
-            Connect MCP
-          </Button>
+          <ConnectMCPServerButton onSuccess={() => {}} />
         </div>
         <TabsContent value="available">
           <MCPPanel header={false} />

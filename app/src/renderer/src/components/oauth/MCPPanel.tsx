@@ -9,7 +9,6 @@ import MCPServerItem from './MCPServerItem'
 import { Card } from '../ui/card'
 import { Plug } from 'lucide-react'
 import { toast } from 'sonner'
-import ConnectMCPServerButton from './MCPConnectServerButton'
 import { useEffect, useMemo } from 'react'
 
 export default function MCPPanel({ header = true }: { header?: boolean }) {
@@ -79,7 +78,7 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
           </p>
         </div>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div className="flex flex-col gap-4 w-full">
         {mcpServers.map((server) => (
           <MCPServerItem
             key={server.id}
@@ -91,7 +90,6 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
             }}
           />
         ))}
-        <ConnectMCPServerButton onSuccess={refetch} />
         {mcpServers.length === 0 && (
           <div className="text-center text-muted-foreground py-8 border rounded-lg">
             No MCP servers configured

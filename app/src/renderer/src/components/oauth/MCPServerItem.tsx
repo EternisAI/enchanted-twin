@@ -183,7 +183,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }, [completeOAuthFlow, server.name, server.type, onConnect, authStateId])
 
   return (
-    <Card className="p-4 w-[350px] max-w-full">
+    <Card className="p-4 w-full">
       <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-4">
         <div className="flex items-center gap-2">
           {PROVIDER_ICON_MAP[server.type]}
