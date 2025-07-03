@@ -76,7 +76,19 @@ func DefaultManagerConfig() ManagerConfig {
 func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temporalClient client.Client, worker worker.Worker) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	service := NewServiceWithLogger(store, logger)
+	// Create filtered logger if logging is disabled
+	effectiveLogger := logger
+	if !config.EnableLogging {
+		// Create a filtered logger that only shows errors
+		effectiveLogger = clog.NewWithOptions(os.Stdout, clog.Options{
+			ReportCaller:    false,
+			ReportTimestamp: true,
+			Level:           clog.ErrorLevel, // Only show errors, no info/debug
+			TimeFormat:      "15:04:05",
+		})
+	}
+
+	service := NewServiceWithLogger(store, effectiveLogger)
 
 	var fetcherService *FetcherService
 	if config.HolonAPIURL != "" {
@@ -88,17 +100,17 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 			RetryDelay:    config.RetryDelay,
 			EnableLogging: config.EnableLogging,
 		}
-		fetcherService = NewFetcherService(store, fetcherConfig, logger)
+		fetcherService = NewFetcherService(store, fetcherConfig, effectiveLogger)
 	}
 
 	// Initialize NATS client
 	var natsClient *nats.Conn
 	nc, err := bootstrap.NewNatsClient()
 	if err != nil {
-		logger.Error("Failed to create NATS client for holon manager", "error", err)
+		effectiveLogger.Error("Failed to create NATS client for holon manager", "error", err)
 	} else {
 		natsClient = nc
-		logger.Debug("NATS client initialized for holon manager")
+		effectiveLogger.Debug("NATS client initialized for holon manager")
 	}
 
 	manager := &Manager{
@@ -108,7 +120,7 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 		config:          config,
 		ctx:             ctx,
 		cancel:          cancel,
-		logger:          logger,
+		logger:          effectiveLogger, // Use the effective logger (filtered if needed)
 		temporalClient:  temporalClient,
 		scheduleEnabled: temporalClient != nil,
 		natsClient:      natsClient,
@@ -116,7 +128,7 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 
 	// Create sync activities if Temporal is enabled
 	if manager.scheduleEnabled {
-		manager.syncActivities = NewHolonSyncActivities(logger, manager)
+		manager.syncActivities = NewHolonSyncActivities(effectiveLogger, manager)
 	}
 
 	return manager
