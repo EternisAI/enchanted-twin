@@ -56,8 +56,8 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     const handleError = async () => {
       if (errorFetching) {
         console.error('Whitelist query failed:', errorFetching)
-        await new Promise((resolve) => setTimeout(resolve, 3000))
-        router.navigate({ to: '/settings/advanced' })
+        // await new Promise((resolve) => setTimeout(resolve, 3000))
+        // router.navigate({ to: '/settings/advanced' })
       }
     }
     handleError()
