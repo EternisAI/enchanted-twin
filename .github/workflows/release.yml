@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version number (e.g. v1.2.3)"
+        description: 'Version number (e.g. v1.2.3)'
         required: true
-        default: "v0.0.0"
+        default: 'v0.0.0'
   release:
     types: [published]
 
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -38,7 +38,17 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.24.2"
+          go-version: '1.24.2'
+
+      - name: Check secrets are injected
+        env:
+          COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
+          EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        run: |
+          echo "COMPLETIONS_API_KEY length: ${#COMPLETIONS_API_KEY}"
+          echo "EMBEDDINGS_API_KEY length: ${#EMBEDDINGS_API_KEY}"
+          echo "TELEGRAM_TOKEN length: ${#TELEGRAM_TOKEN}"
 
       - name: Install dependencies
         working-directory: app
@@ -69,18 +79,18 @@ jobs:
 
       - name: Build & notarize macOS app
         env:
-          COMPLETIONS_API_URL: "https://qwen2-5-72b.model.tinfoil.sh/v1"
-          COMPLETIONS_MODEL: "qwen2-5-72b"
-          REASONING_MODEL: "qwen2-5-72b"
-          EMBEDDINGS_API_URL: "https://nomic-embed-text.model.tinfoil.sh/v1"
-          EMBEDDINGS_MODEL: "nomic-embed-text"
-          IS_PROD_BUILD: "true"
+          COMPLETIONS_API_URL: 'https://qwen2-5-72b.model.tinfoil.sh/v1'
+          COMPLETIONS_MODEL: 'qwen2-5-72b'
+          REASONING_MODEL: 'qwen2-5-72b'
+          EMBEDDINGS_API_URL: 'https://nomic-embed-text.model.tinfoil.sh/v1'
+          EMBEDDINGS_MODEL: 'nomic-embed-text'
+          IS_PROD_BUILD: 'true'
           NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
           NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
-          OLLAMA_BASE_URL: "https://enchanted.ngrok.pro"
+          OLLAMA_BASE_URL: 'https://enchanted.ngrok.pro'
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_SERVER: "http://54.82.31.213:8080/query"
+          TELEGRAM_CHAT_SERVER: 'http://54.82.31.213:8080/query'
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ENCHANTED_MCP_URL: https://afb4264d05208988909faf4b50978b747a1eb019-8080.dstack-prod7.phala.network/mcp
@@ -92,6 +102,9 @@ jobs:
           STT_MODEL: whisper-large-v3-turbo
           STT_URL: https://audio-processing.model.tinfoil.sh/v1/
           PROXY_TEE_URL: https://enchanted-proxy-dev.up.railway.app
+          VITE_FIREBASE_API_KEY: AIzaSyDhO35DrFA8jCnrqhUSM0B6NpDbrUWXNq4
+          VITE_FIREBASE_AUTH_DOMAIN: enchanted-login-8fdb9.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: enchanted-login-8fdb9
 
         run: make build-mac-silicon
 
