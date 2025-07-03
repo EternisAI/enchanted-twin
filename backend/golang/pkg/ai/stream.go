@@ -48,12 +48,12 @@ func (s *Service) CompletionsStream(
 		defer cancel()
 		opts := s.opts
 
-		if s.store != nil {
-			firebaseToken, err := s.store.GetOAuthTokens(ctx, "firebase")
+		if s.getFirebaseToken != nil {
+			firebaseToken, err := s.getFirebaseToken()
 			if err != nil {
 				return
 			}
-			opts = append(opts, option.WithHeader("Authorization", "Bearer "+firebaseToken.AccessToken))
+			opts = append(opts, option.WithHeader("Authorization", "Bearer "+firebaseToken))
 		}
 
 		stream := s.client.Chat.Completions.NewStreaming(timeoutCtx, params, opts...)

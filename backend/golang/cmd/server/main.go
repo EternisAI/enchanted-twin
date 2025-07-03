@@ -179,10 +179,18 @@ func main() {
 		panic(errors.Wrap(err, "Error creating database"))
 	}
 
+	getFirebaseToken := func() (string, error) {
+		firebaseToken, err := store.GetOAuthTokens(context.Background(), "firebase")
+		if err != nil {
+			return "", err
+		}
+		return firebaseToken.AccessToken, nil
+	}
+
 	var aiCompletionsService *ai.Service
 	if envs.ProxyTeeURL != "" {
 		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
-		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, store, envs.ProxyTeeURL, envs.CompletionsAPIURL)
+		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.CompletionsAPIURL)
 	} else {
 		aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
 	}
@@ -190,7 +198,7 @@ func main() {
 	var aiEmbeddingsService *ai.Service
 	if envs.ProxyTeeURL != "" {
 		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
-		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, store, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
+		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
 	} else {
 		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	}
