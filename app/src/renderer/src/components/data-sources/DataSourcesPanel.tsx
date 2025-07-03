@@ -13,7 +13,8 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
-  History
+  History,
+  FilesIcon
 } from 'lucide-react'
 import { useState, useCallback, useEffect, ReactNode } from 'react'
 import WhatsAppIcon from '@renderer/assets/icons/whatsapp'
@@ -60,9 +61,9 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     label: 'ChatGPT',
     description: 'Import your ChatGPT history',
     selectType: 'files',
-    fileRequirement: 'Select ChatGPT export file',
+    fileRequirement: 'Select ChatGPT JSON or ZIP export file',
     icon: <OpenAI className="h-4 w-4" />,
-    fileFilters: [{ name: 'ChatGPT', extensions: ['zip'] }]
+    fileFilters: [{ name: 'ChatGPT Files', extensions: ['json', 'zip'] }]
   },
   {
     name: 'WhatsApp',
@@ -100,9 +101,20 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     label: 'Gmail',
     description: 'Import your Gmail emails and attachments',
     selectType: 'files',
-    fileRequirement: 'Select Google Takeout ZIP file',
+    fileRequirement: 'Select Gmail MBOX or Google Takeout ZIP file',
     icon: <GmailIcon className="h-5 w-5" />,
-    fileFilters: [{ name: 'Google Takeout', extensions: ['zip'] }]
+    fileFilters: [{ name: 'Gmail Files', extensions: ['mbox', 'zip'] }]
+  },
+  {
+    name: 'misc',
+    label: 'Files',
+    description: 'Import your files',
+    selectType: 'files',
+    fileRequirement: 'Select custom files in .txt and .pdf format',
+    icon: <FilesIcon className="h-5 w-5" />,
+    fileFilters: [
+      { name: 'Files', extensions: ['txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv'] }
+    ]
   }
 ]
 
@@ -184,56 +196,56 @@ const IndexedDataSourceCard = ({
   const totalProgress = processingProgress + indexingProgress
 
   const showProgressBar =
-    !source.isIndexed && (source.isProcessed ? (source.indexProgress ?? 0) > 0 : true)
+    !source.isIndexed && (source.isProcessed ? (source.indexProgress ?? 0) >= 0 : true)
+
+  // Format status text with percentage
+  const getStatusText = () => {
+    if (source.isIndexed) return ''
+    if (!source.isProcessed) return 'Processing'
+    if (source.indexProgress !== undefined && source.indexProgress >= 0) {
+      return `Indexing ${Math.round(source.indexProgress)}%`
+    }
+    return 'Pending'
+  }
 
   return (
-    <div className="p-4 rounded-lg bg-transparent h-full flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3 w-full">
-        <div className="flex shrink-0 items-center gap-2">{sourceDetails.icon}</div>
-        <div className="flex flex-col gap-0 justify-start w-full">
-          <h3 className="font-medium">{source.name}</h3>
-          {source.hasError && <p className="text-xs text-red-500">Error</p>}
-          {showProgressBar ? (
-            <div className="w-full bg-secondary rounded-full h-1 mt-2">
-              <div
-                className="bg-primary h-1 rounded-full transition-all duration-300"
-                style={{
-                  width: `${totalProgress}%`
-                }}
-              />
-            </div>
-          ) : (
-            <TooltipProvider>
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger>
-                  <p className="text-xs text-start text-muted-foreground">
-                    {format(source.updatedAt, 'MMM d, yyyy')}
-                  </p>
-                  <TooltipContent>
-                    <p>{format(source.updatedAt, 'h:mm a')}</p>
-                  </TooltipContent>
-                </TooltipTrigger>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+    <div className="p-4 rounded-lg bg-transparent h-full flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">{sourceDetails.icon}</div>
+          <div className="flex flex-col gap-0 justify-start">
+            <h3 className="font-medium">{source.name}</h3>
+            {source.hasError && <p className="text-xs text-red-500">Error</p>}
+            {!showProgressBar && (
+              <TooltipProvider>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger>
+                    <p className="text-xs text-start text-muted-foreground">
+                      {format(source.updatedAt, 'MMM d, yyyy')}
+                    </p>
+                    <TooltipContent>
+                      <p>{format(source.updatedAt, 'h:mm a')}</p>
+                    </TooltipContent>
+                  </TooltipTrigger>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span>{getStatusText()}</span>
         </div>
       </div>
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <span>
-          {source.isIndexed
-            ? ''
-            : source.isProcessed
-              ? (source.indexProgress ?? 0) > 0
-                ? 'Indexing'
-                : 'Pending'
-              : 'Processing'}
-        </span>
-      </div>
-      {/* {!source.isProcessed && !source.isIndexed && (
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRemove}>
-          <X className="h-4 w-4 text-muted-foreground" />
-        </Button>
-      )} */}
+      {showProgressBar && (
+        <div className="w-full bg-secondary rounded-full h-1.5">
+          <div
+            className="bg-primary h-1.5 rounded-full transition-all duration-300"
+            style={{
+              width: `${totalProgress}%`
+            }}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -284,7 +296,7 @@ export function DataSourcesPanel({
   onIndexingComplete,
   header = true
 }: Omit<DataSourcesPanelProps, 'indexingStatus'> & { onIndexingComplete?: () => void }) {
-  const { data } = useQuery(GetDataSourcesDocument)
+  const { data, refetch } = useQuery(GetDataSourcesDocument)
   const { data: indexingData } = useSubscription(IndexingStatusDocument)
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
   const [startIndexing] = useMutation(START_INDEXING)
@@ -293,15 +305,33 @@ export function DataSourcesPanel({
     {}
   )
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+  const [isIndexingInitiated, setIsIndexingInitiated] = useState(false)
 
   // Workflow states
   const isIndexing = indexingData?.indexingStatus?.status === IndexingState.IndexingData
   const isProcessing = indexingData?.indexingStatus?.status === IndexingState.ProcessingData
   const isNotStarted = indexingData?.indexingStatus?.status === IndexingState.NotStarted
-  const hasError = indexingData?.indexingStatus?.error ?? false
+  const hasGlobalError = indexingData?.indexingStatus?.error ?? false
   const hasPendingDataSources = Object.keys(pendingDataSources).length > 0
-  const hasUnprocessedSources =
-    data?.getDataSources?.some((source) => !source.isIndexed || source.hasError) ?? false
+
+  // Check if there are sources with errors
+  const hasSourcesWithErrors = data?.getDataSources?.some((source) => source.hasError) ?? false
+
+  // Check if any source is currently being processed or indexed
+  const hasActiveIndexing =
+    indexingData?.indexingStatus?.dataSources?.some(
+      (source) => source.isProcessed && !source.isIndexed
+    ) ?? false
+
+  // Show loading state if indexing was initiated but we haven't received status yet
+  const showLoadingState = isIndexingInitiated && !isIndexing && !isProcessing && !isNotStarted
+
+  // Reset local state when we receive actual indexing status
+  useEffect(() => {
+    if (isIndexing || isProcessing || isNotStarted) {
+      setIsIndexingInitiated(false)
+    }
+  }, [isIndexing, isProcessing, isNotStarted])
 
   const handleRemoveDataSource = useCallback(
     async (name: string) => {
@@ -356,6 +386,44 @@ export function DataSourcesPanel({
     setSelectedSource(null)
   }, [selectedSource])
 
+  const handleFileDrop = useCallback(async (files: File[], sourceName: string) => {
+    const source = SUPPORTED_DATA_SOURCES.find((s) => s.name === sourceName)
+    if (!source) return
+
+    if (source.fileFilters && source.fileFilters.length > 0) {
+      const allowedExtensions = source.fileFilters.flatMap((filter) =>
+        filter.extensions.map((ext) => ext.toLowerCase())
+      )
+
+      const invalidFiles = files.filter((file) => {
+        const extension = file.name.split('.').pop()?.toLowerCase()
+        return !extension || !allowedExtensions.includes(extension)
+      })
+
+      if (invalidFiles.length > 0) {
+        throw new Error(
+          `Invalid file type. Please select ${source.fileFilters.map((f) => f.extensions.join(', ')).join(' or ')} files.`
+        )
+      }
+    }
+
+    const firstFile = files[0]
+
+    const filePath = (window.api.getPathForFile as unknown as (file: File) => string)(firstFile)
+
+    const savedPaths = await window.api.copyDroppedFiles([filePath])
+
+    if (savedPaths.length > 0) {
+      setPendingDataSources((prev) => ({
+        ...prev,
+        [sourceName]: {
+          name: sourceName,
+          path: savedPaths[0]
+        }
+      }))
+    }
+  }, [])
+
   const addDataSources = useCallback(async () => {
     try {
       for (const source of Object.values(pendingDataSources)) {
@@ -369,13 +437,17 @@ export function DataSourcesPanel({
           source: source.name
         })
       }
+      // Clear pending data sources after successful addition
+      setPendingDataSources({})
+      // Refetch data sources to get the latest state
+      await refetch()
       return true
     } catch (error) {
       console.error('Error adding data sources:', error)
       toast.error('Failed to add data sources. Please try again.')
       return false
     }
-  }, [addDataSource, pendingDataSources])
+  }, [addDataSource, pendingDataSources, refetch])
 
   const startIndexingProcess = useCallback(async () => {
     try {
@@ -395,16 +467,24 @@ export function DataSourcesPanel({
     }
 
     try {
+      setIsIndexingInitiated(true)
       const sourcesAdded = await addDataSources()
-      if (!sourcesAdded) return
+      if (!sourcesAdded) {
+        setIsIndexingInitiated(false)
+        return
+      }
 
       toast.success('Data sources added successfully')
 
       const indexingStarted = await startIndexingProcess()
-      if (!indexingStarted) return
+      if (!indexingStarted) {
+        setIsIndexingInitiated(false)
+        return
+      }
     } catch (error) {
       console.error('Error in indexing process:', error)
       toast.error('An error occurred during the indexing process')
+      setIsIndexingInitiated(false)
     }
   }, [addDataSources, hasPendingDataSources, startIndexingProcess])
 
@@ -477,13 +557,15 @@ export function DataSourcesPanel({
           </p>
         </div>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-6">
         {SUPPORTED_DATA_SOURCES.map((source) => (
           <DataSourceCard
             key={source.name}
             icon={source.icon}
             label={source.label}
-            disabled={isIndexing}
+            disabled={
+              isIndexing || isProcessing || isNotStarted || hasActiveIndexing || showLoadingState
+            }
             onClick={() => handleSourceSelected(source)}
           />
         ))}
@@ -511,36 +593,72 @@ export function DataSourcesPanel({
 
           {showStatus && data?.getDataSources && (
             <div className="flex flex-col gap-4">
-              {Object.entries(groupedDataSources()).map(([groupName, group]) => (
-                <CollapsibleDataSourceGroup
-                  key={groupName}
-                  title={group.title}
-                  icon={group.icon}
-                  sources={group.sources}
-                  isExpanded={expandedGroups[groupName] ?? true}
-                  onToggle={() => toggleGroup(groupName)}
-                />
-              ))}
+              {Object.entries(groupedDataSources()).map(([groupName, group]) => {
+                // Only show collapsible group if there's more than one source
+                if (group.sources.length > 1) {
+                  return (
+                    <CollapsibleDataSourceGroup
+                      key={groupName}
+                      title={group.title}
+                      icon={group.icon}
+                      sources={group.sources}
+                      isExpanded={expandedGroups[groupName] ?? true}
+                      onToggle={() => toggleGroup(groupName)}
+                    />
+                  )
+                } else if (group.sources.length === 1) {
+                  // Show single source directly without collapsible wrapper
+                  return (
+                    <div
+                      key={groupName}
+                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                    >
+                      <IndexedDataSourceCard source={group.sources[0]} />
+                    </div>
+                  )
+                }
+                return null
+              })}
+              {/* Show loading state for recently added sources if indexing was just initiated */}
+              {showLoadingState &&
+                Object.values(pendingDataSources).length === 0 &&
+                data?.getDataSources?.length === 0 && (
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground py-4">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Initializing indexing process...</span>
+                  </div>
+                )}
             </div>
           )}
         </div>
       )}
 
-      {hasUnprocessedSources && !isIndexing && !isProcessing && !isNotStarted && (
-        <Button size="lg" onClick={handleRetryIndexing} className="w-full">
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Retry Import
-        </Button>
-      )}
+      {hasSourcesWithErrors &&
+        !isIndexing &&
+        !isProcessing &&
+        !isNotStarted &&
+        !hasActiveIndexing && (
+          <Button size="lg" onClick={handleRetryIndexing} className="w-full">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Retry Import
+          </Button>
+        )}
 
-      {!hasUnprocessedSources && (
+      {!hasSourcesWithErrors && (
         <Button
           size="lg"
           onClick={handleStartIndexing}
-          disabled={isIndexing || isProcessing || isNotStarted || !hasPendingDataSources}
+          disabled={
+            isIndexing ||
+            isProcessing ||
+            isNotStarted ||
+            !hasPendingDataSources ||
+            hasActiveIndexing ||
+            showLoadingState
+          }
           className="w-fit"
         >
-          {isIndexing ? (
+          {isIndexing || showLoadingState ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Indexing...
@@ -563,12 +681,9 @@ export function DataSourcesPanel({
         </Button>
       )}
 
-      {hasError && (
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleRetryIndexing} className="flex-1">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Retry Indexing
-          </Button>
+      {hasGlobalError && (
+        <div className="text-center text-sm text-red-500">
+          {indexingData?.indexingStatus?.error}
         </div>
       )}
 
@@ -580,6 +695,7 @@ export function DataSourcesPanel({
             pendingDataSources={pendingDataSources}
             onFileSelect={handleFileSelect}
             onAddSource={handleAddSource}
+            onFileDrop={handleFileDrop}
             customComponent={selectedSource?.customView ? selectedSource.customView : undefined}
           />
         </DialogContent>

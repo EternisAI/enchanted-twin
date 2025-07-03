@@ -16,10 +16,23 @@ import (
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
+	_ = os.Setenv("CLUSTER_HOSTNAME", "node1")
+	_ = os.Setenv("CLUSTER_GOSSIP_BIND_PORT", "7946")
+	_ = os.Setenv("CLUSTER_DATA_BIND_PORT", "7947")
+
+	_ = os.Unsetenv("CLUSTER_JOIN")
+
+	_ = os.Setenv("DISABLE_TELEMETRY", "true")
+	_ = os.Setenv("AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED", "true")
+	_ = os.Setenv("AUTHORIZATION_ADMIN_LIST_ENABLED", "false")
+
+	_ = os.Setenv("LOG_LEVEL", "info")
+
 	startTime := time.Now()
 	logger.Info("Starting Weaviate server bootstrap", "port", port, "dataPath", dataPath)
 
@@ -54,15 +67,6 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	server := rest.NewServer(api)
 	logger.Debug("Weaviate API and server created", "elapsed", time.Since(startTime))
 
-	logger.Debug("Configuring Weaviate server", "port", port)
-	server.EnabledListeners = []string{"http"}
-	p, err := strconv.Atoi(port)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to convert port to int")
-	}
-	server.Port = p
-	logger.Debug("Server port configured", "port", p, "elapsed", time.Since(startTime))
-
 	logger.Debug("Setting up command line parser")
 	parser := flags.NewParser(server, flags.Default)
 	parser.ShortDescription = "Weaviate"
@@ -87,6 +91,15 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 		return nil, err
 	}
 	logger.Debug("Command line arguments parsed", "elapsed", time.Since(startTime))
+
+	logger.Debug("Configuring Weaviate server", "port", port)
+	server.EnabledListeners = []string{"http"}
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to convert port to int")
+	}
+	server.Port = p
+	logger.Debug("Server port configured", "port", p, "elapsed", time.Since(startTime))
 
 	logger.Debug("Configuring Weaviate API")
 	server.ConfigureAPI()
@@ -163,11 +176,24 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	}
 }
 
-func InitSchema(client *weaviate.Client, logger *log.Logger) error {
+func InitSchema(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service, embeddingsModel string) error {
 	logger.Debug("Starting schema initialization")
 	start := time.Now()
 
-	if err := evolvingmemory.EnsureSchemaExistsInternal(client, logger); err != nil {
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(embeddingsService, embeddingsModel)
+	if err != nil {
+		return fmt.Errorf("creating embedding wrapper: %w", err)
+	}
+
+	storageInstance, err := storage.New(storage.NewStorageInput{
+		Client:            client,
+		Logger:            logger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
+	if err != nil {
+		return fmt.Errorf("creating storage instance: %w", err)
+	}
+	if err := storageInstance.EnsureSchemaExists(context.Background()); err != nil {
 		return err
 	}
 

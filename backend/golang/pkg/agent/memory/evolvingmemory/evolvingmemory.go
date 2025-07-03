@@ -4,331 +4,757 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+	"github.com/go-openapi/strfmt"
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 const (
-	ClassName         = "TextDocument"
+	ClassName         = "MemoryFact"
 	contentProperty   = "content"
 	timestampProperty = "timestamp"
 	tagsProperty      = "tags"
 	metadataProperty  = "metadataJson"
-	openAIEmbedModel  = "text-embedding-3-small"
-	openAIChatModel   = "gpt-4o-mini"
 
-	// Tool Names (matching function names in tools.go).
-	AddMemoryToolName    = "ADD"
-	UpdateMemoryToolName = "UPDATE"
-	DeleteMemoryToolName = "DELETE"
-	NoneMemoryToolName   = "NONE"
 	ExtractFactsToolName = "EXTRACT_FACTS"
 )
 
-// --- Structs for Tool Call Arguments ---
+// Document types.
+type DocumentType string
 
-// AddToolArguments is currently empty as per tools.go definition
-// type AddToolArguments struct {}
+const (
+	DocumentTypeConversation DocumentType = "conversation"
+	DocumentTypeText         DocumentType = "text"
+)
 
-// UpdateToolArguments matches the parameters defined in updateMemoryTool in tools.go.
-type UpdateToolArguments struct {
-	MemoryID      string `json:"id"`
-	UpdatedMemory string `json:"updated_content"`
-	Reason        string `json:"reason,omitempty"`
+// Configuration for the storage system.
+type Config struct {
+	// Parallelism
+	Workers        int
+	FactsPerWorker int
+
+	// Batching
+	BatchSize     int
+	FlushInterval time.Duration
+
+	// Timeouts
+	FactExtractionTimeout time.Duration
+	StorageTimeout        time.Duration
+
+	// Features
+	EnableRichContext      bool
+	ParallelFactExtraction bool
+	StreamingProgress      bool
 }
 
-// DeleteToolArguments matches the parameters defined in deleteMemoryTool in tools.go.
-type DeleteToolArguments struct {
-	MemoryID string `json:"id"`
-	Reason   string `json:"reason,omitempty"`
+// ExtractMemoryFactsToolArguments is used for the LLM fact extraction tool.
+type ExtractMemoryFactsToolArguments struct {
+	Facts []memory.MemoryFact `json:"facts"`
 }
 
-// NoneToolArguments matches the parameters defined in noneMemoryTool in tools.go.
-type NoneToolArguments struct {
-	Reason string `json:"reason"`
+// Simplified processing result - only contains what we actually use.
+type FactResult struct {
+	Fact   *memory.MemoryFact
+	Source memory.Document // Source document for the fact
 }
 
-// ExtractFactsToolArguments matches the parameters defined in extractFactsTool in tools.go.
-type ExtractFactsToolArguments struct {
-	Facts []string `json:"facts"`
+// Progress reporting.
+type Progress struct {
+	Processed int
+	Total     int
+	Stage     string
+	Error     error
 }
 
-// WeaviateStorage implements the memory.Storage interface using Weaviate.
-type WeaviateStorage struct {
-	client             *weaviate.Client
-	logger             *log.Logger
-	completionsService *ai.Service
-	embeddingsService  *ai.Service
+// Memory search results.
+type ExistingMemory struct {
+	ID        string
+	Content   string
+	Timestamp time.Time
+	Score     float64
+	Metadata  map[string]string
 }
 
-// New creates a new WeaviateStorage instance.
-// weaviateHost should be like "localhost:8081".
-// weaviateScheme is "http" or "https".
-// The logger is used for logging messages.
-// The aiService is used for generating embeddings.
-func New(logger *log.Logger, client *weaviate.Client, completionsService *ai.Service, embeddingsService *ai.Service) (*WeaviateStorage, error) {
-	storage := &WeaviateStorage{
-		client:             client,
-		logger:             logger,
-		completionsService: completionsService,
-		embeddingsService:  embeddingsService,
+type MemoryStorage interface {
+	memory.Storage // Inherit the base storage interface
+
+	// Document reference operations - now supports multiple references per memory
+	GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error)
+
+	// Direct fact storage - bypasses extraction for testing and consolidation
+	StoreFactsDirectly(ctx context.Context, facts []*memory.MemoryFact, progressCallback memory.ProgressCallback) error
+
+	// Batch fact retrieval for intelligent querying
+	GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error)
+
+	// Intelligent 3-stage query system
+	IntelligentQuery(ctx context.Context, queryText string, filter *memory.Filter) (*memory.IntelligentQueryResult, error)
+
+	// Manual consolidation - should be called periodically rather than after every storage operation
+	RunConsolidation(ctx context.Context) error
+}
+
+// Dependencies holds all the required dependencies for creating a MemoryStorage instance.
+type Dependencies struct {
+	Logger             *log.Logger
+	Storage            storage.Interface
+	CompletionsService *ai.Service
+	CompletionsModel   string
+	EmbeddingsWrapper  *storage.EmbeddingWrapper
+}
+
+// MemoryEngine implements pure business logic for memory operations.
+// This contains no orchestration concerns (channels, workers, progress reporting).
+type MemoryEngine struct {
+	CompletionsService *ai.Service
+	EmbeddingsWrapper  *storage.EmbeddingWrapper
+	storage            storage.Interface
+	CompletionsModel   string
+}
+
+// NewMemoryEngine creates a new MemoryEngine instance.
+func NewMemoryEngine(completionsService *ai.Service, embeddingsWrapper *storage.EmbeddingWrapper, storage storage.Interface, completionsModel string) (*MemoryEngine, error) {
+	if completionsService == nil {
+		return nil, fmt.Errorf("completions service cannot be nil")
+	}
+	if embeddingsWrapper == nil {
+		return nil, fmt.Errorf("embeddings wrapper cannot be nil")
+	}
+	if storage == nil {
+		return nil, fmt.Errorf("storage cannot be nil")
+	}
+	if completionsModel == "" {
+		return nil, fmt.Errorf("completions model cannot be empty")
 	}
 
-	return storage, nil
+	return &MemoryEngine{
+		CompletionsService: completionsService,
+		EmbeddingsWrapper:  embeddingsWrapper,
+		storage:            storage,
+		CompletionsModel:   completionsModel,
+	}, nil
 }
 
-func EnsureSchemaExistsInternal(client *weaviate.Client, logger *log.Logger) error {
-	ctx := context.Background()
-	exists, err := client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
+// StorageImpl is the main implementation of the MemoryStorage interface.
+// It orchestrates memory operations using a clean 3-layer architecture:
+// StorageImpl (public API) -> MemoryOrchestrator (coordination) -> MemoryEngine (business logic).
+type StorageImpl struct {
+	logger       *log.Logger
+	orchestrator *MemoryOrchestrator
+	storage      storage.Interface
+	engine       *MemoryEngine
+}
+
+// New creates a new StorageImpl instance that can work with any storage backend.
+func New(deps Dependencies) (MemoryStorage, error) {
+	if deps.Storage == nil {
+		return nil, fmt.Errorf("storage interface cannot be nil")
+	}
+	if deps.Logger == nil {
+		return nil, fmt.Errorf("logger cannot be nil")
+	}
+	if deps.CompletionsService == nil {
+		return nil, fmt.Errorf("completions service cannot be nil")
+	}
+	if deps.EmbeddingsWrapper == nil {
+		return nil, fmt.Errorf("embeddings wrapper cannot be nil")
+	}
+
+	// Create the memory engine with business logic
+	engine, err := NewMemoryEngine(deps.CompletionsService, deps.EmbeddingsWrapper, deps.Storage, deps.CompletionsModel)
 	if err != nil {
-		return fmt.Errorf("checking class existence for '%s': %w", ClassName, err)
-	}
-	if exists {
-		logger.Debugf("Class '%s' already exists.", ClassName)
-		return nil
+		return nil, fmt.Errorf("creating memory engine: %w", err)
 	}
 
-	logger.Infof("Class '%s' does not exist, creating it now.", ClassName)
-	properties := []*models.Property{
-		{
-			Name:     contentProperty,
-			DataType: []string{"text"},
-		},
-		{
-			Name:     timestampProperty, // Added for storing the event timestamp of the memory
-			DataType: []string{"date"},
-		},
-		{
-			Name:     tagsProperty,       // For categorization or keyword tagging
-			DataType: []string{"text[]"}, // Array of strings
-		},
-		{
-			Name:     metadataProperty, // For any other structured metadata
-			DataType: []string{"text"}, // Storing as JSON string
-		},
-	}
-
-	classObj := &models.Class{
-		Class:      ClassName,
-		Properties: properties,
-		Vectorizer: "none",
-		VectorIndexConfig: map[string]interface{}{
-			"distance": "cosine",
-		},
-	}
-
-	err = client.Schema().ClassCreator().WithClass(classObj).Do(ctx)
+	// Create the orchestrator with coordination logic
+	orchestrator, err := NewMemoryOrchestrator(engine, deps.Storage, deps.Logger)
 	if err != nil {
-		existsAfterAttempt, checkErr := client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
-		if checkErr == nil && existsAfterAttempt {
-			logger.Info("Class was created concurrently. Proceeding.", "class", ClassName)
-			return nil
+		return nil, fmt.Errorf("creating memory orchestrator: %w", err)
+	}
+
+	return &StorageImpl{
+		logger:       deps.Logger,
+		orchestrator: orchestrator,
+		storage:      deps.Storage,
+		engine:       engine,
+	}, nil
+}
+
+// Store implements the memory.Storage interface.
+func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
+	// Separate documents by processing strategy
+	var factExtractionDocs []memory.Document
+	var fileDocs []memory.Document
+
+	for _, doc := range documents {
+		switch doc.(type) {
+		case *memory.FileDocument:
+			fileDocs = append(fileDocs, doc)
+		default:
+			factExtractionDocs = append(factExtractionDocs, doc)
 		}
-		return fmt.Errorf("creating class '%s': %w. Original error: %v", ClassName, err, err)
 	}
-	logger.Infof("Successfully created class '%s'", ClassName)
+
+	s.logger.Info("Type-based document routing",
+		"total", len(documents),
+		"fact_extraction", len(factExtractionDocs),
+		"file_direct", len(fileDocs))
+
+	// Process fact extraction documents (existing pipeline)
+	if len(factExtractionDocs) > 0 {
+		if err := s.storeFactExtractionDocuments(ctx, factExtractionDocs, callback); err != nil {
+			return fmt.Errorf("storing fact extraction documents: %w", err)
+		}
+	}
+
+	// Process file documents directly (new simple pipeline)
+	if len(fileDocs) > 0 {
+		if err := s.storeFileDocumentsDirectly(ctx, fileDocs, callback); err != nil {
+			return fmt.Errorf("storing file documents: %w", err)
+		}
+	}
+
 	return nil
 }
 
-// firstNChars is a helper to get the first N characters of a string for logging.
-func firstNChars(s string, n int) string {
-	if len(s) <= n {
-		return s
+// storeFactExtractionDocuments handles the existing fact extraction pipeline.
+func (s *StorageImpl) storeFactExtractionDocuments(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
+	// Use default configuration
+	config := DefaultConfig()
+
+	// Get the channels directly from orchestrator
+	progressCh, errorCh := s.orchestrator.ProcessDocuments(ctx, documents, config)
+
+	// Convert internal Progress to external ProgressUpdate and handle callback
+	total := len(documents)
+	processed := 0
+
+	// Collect all errors
+	var errors []error
+
+	// Process results from both channels
+	for progressCh != nil || errorCh != nil {
+		select {
+		case progress, ok := <-progressCh:
+			if !ok {
+				progressCh = nil
+				continue
+			}
+			processed = progress.Processed
+			if callback != nil {
+				callback(processed, total)
+			}
+
+		case err, ok := <-errorCh:
+			if !ok {
+				errorCh = nil
+				continue
+			}
+			errors = append(errors, err)
+
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
-	return s[:n] + "..."
+
+	// If any errors occurred, return meaningful error information
+	if len(errors) > 0 {
+		if len(errors) == 1 {
+			s.logger.Errorf("Store encountered error: %v", errors[0])
+			return errors[0]
+		}
+		// Multiple errors - provide comprehensive information
+		s.logger.Errorf("Store encountered %d errors, returning first with details of others: %v", len(errors), errors[0])
+		return fmt.Errorf("multiple errors occurred (%d total): %w, and %d more",
+			len(errors), errors[0], len(errors)-1)
+	}
+
+	s.logger.Info("Facts stored successfully")
+
+	return nil
 }
 
-// GetByID retrieves a document by its Weaviate ID.
-// speakerID (if present) will be within the Metadata map after unmarshalling metadataJson.
-func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
-	s.logger.Debugf("Attempting to get document by ID: %s", id)
+// storeFileDocumentsDirectly implements the new direct file storage pipeline.
+func (s *StorageImpl) storeFileDocumentsDirectly(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
+	s.logger.Info("Processing file documents directly", "count", len(documents))
 
-	result, err := s.client.Data().ObjectsGetter().
-		WithClassName(ClassName).
-		WithID(id).
-		// No WithAdditionalParameters needed for ObjectsGetter for standard properties
-		Do(ctx)
+	// Step 1: Chunk documents (reuse existing logic)
+	var chunks []memory.Document
+	for _, doc := range documents {
+		docChunks := doc.Chunk()
+		chunks = append(chunks, docChunks...)
+	}
+
+	s.logger.Info("Chunked file documents", "original_count", len(documents), "chunk_count", len(chunks))
+
+	// Step 2: Convert chunks to MemoryFact objects (no LLM extraction)
+	var facts []*memory.MemoryFact
+	for _, chunk := range chunks {
+		// Extract filename from metadata for natural subject
+		subject := "document"
+		if filename, exists := chunk.Metadata()["path"]; exists {
+			// Use just the filename, not the full path
+			if lastSlash := strings.LastIndex(filename, "/"); lastSlash != -1 {
+				subject = filename[lastSlash+1:]
+			} else {
+				subject = filename
+			}
+		}
+
+		fact := &memory.MemoryFact{
+			ID:      "",              // Let Weaviate auto-generate UUID for file chunks
+			Content: chunk.Content(), // Direct content as searchable text
+			Timestamp: func() time.Time {
+				if chunk.Timestamp() != nil {
+					return *chunk.Timestamp()
+				}
+				return time.Now()
+			}(),
+			// Structured fields for file documents
+			Category:           "document",      // Mark as document type
+			Subject:            subject,         // Use filename as subject
+			Attribute:          "file_chunk",    // Attribute is file_chunk
+			Value:              chunk.Content(), // Value is the actual content
+			TemporalContext:    nil,             // No temporal context for files
+			Sensitivity:        "low",           // Files are typically low sensitivity
+			Importance:         1,               // Default importance
+			Source:             chunk.Source(),
+			DocumentReferences: []string{}, // No document references for direct storage
+			Tags:               chunk.Tags(),
+			Metadata:           chunk.Metadata(),
+		}
+		facts = append(facts, fact)
+	}
+
+	s.logger.Info("Converted file chunks to memory facts", "fact_count", len(facts))
+
+	// Step 3: Store using existing fact storage pipeline (includes embeddings)
+	err := s.StoreFactsDirectly(ctx, facts, callback)
 	if err != nil {
-		// Weaviate client might return a specific error for not found (e.g., status code 404 in the error details)
-		// For now, returning the generic error. Could inspect err for specific handling of "not found".
-		return nil, fmt.Errorf("getting document by ID '%s': %w", id, err)
+		return fmt.Errorf("storing file facts: %w", err)
 	}
 
-	if len(result) == 0 {
-		s.logger.Warnf("No document found with ID: %s (empty result array)", id)
-		return nil, nil // Or an error like fmt.Errorf("document with ID '%s' not found", id)
+	// 🚀 FILE UPLOAD CONSOLIDATION - Only run for file uploads, not chat messages
+	s.logger.Info("File documents stored successfully, starting consolidation pipeline")
+
+	// Get required dependencies for consolidation
+	deps := ConsolidationDependencies{
+		Logger:             s.logger,
+		Storage:            s, // Use the MemoryStorage interface (self)
+		CompletionsService: s.engine.CompletionsService,
+		CompletionsModel:   s.engine.CompletionsModel,
 	}
 
-	obj := result[0]
-	if obj.Properties == nil {
-		return nil, fmt.Errorf("document with ID '%s' has nil properties", id)
-	}
+	// Run consolidation for all canonical semantic subjects
+	consolidationSubjects := ConsolidationSubjects[:]
 
-	props, ok := obj.Properties.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("failed to cast properties to map[string]interface{} for ID '%s'", id)
-	}
+	var allReports []*ConsolidationReport
 
-	content, _ := props[contentProperty].(string)
-	docTimestampStr, _ := props[timestampProperty].(string)
-	tagsInterface, _ := props[tagsProperty].([]interface{})
-	metadataJSON, _ := props[metadataProperty].(string) // This string contains all metadata, including speakerID
-
-	var docTimestampP *time.Time
-	if docTimestampStr != "" {
-		parsedTime, pErr := time.Parse(time.RFC3339, docTimestampStr)
-		if pErr != nil {
-			s.logger.Warnf("Failed to parse timestamp for document ID '%s': %v. Setting to nil.", id, pErr)
-		} else {
-			docTimestampP = &parsedTime
+	for _, subject := range consolidationSubjects {
+		// Use semantic search with filtering for better results
+		filter := &memory.Filter{
+			Distance:          0.75,                                                  // Allow fairly broad semantic matches
+			Limit:             func() *int { limit := 30; return &limit }(),          // Reasonable limit
+			FactImportanceMin: func() *int { importance := 2; return &importance }(), // Only meaningful facts
 		}
-	}
 
-	var tags []string
-	for _, tagInterface := range tagsInterface {
-		if tagStr, okT := tagInterface.(string); okT {
-			tags = append(tags, tagStr)
-		}
-	}
-
-	metadataMap := make(map[string]string) // This will hold all metadata, including speakerID if it was stored
-	if metadataJSON != "" {
-		if errJson := json.Unmarshal([]byte(metadataJSON), &metadataMap); errJson != nil {
-			s.logger.Warnf("Failed to unmarshal metadataJson for document ID '%s': %v. Metadata will be empty.", id, errJson)
-			// metadataMap will remain empty or partially filled if unmarshalling failed mid-way (unlikely for simple map[string]string)
-		}
-	}
-
-	doc := &memory.TextDocument{
-		FieldID:        obj.ID.String(), // Use the ID from Weaviate's object, converting to string
-		FieldContent:   content,
-		FieldTimestamp: docTimestampP,
-		FieldTags:      tags,
-		FieldMetadata:  metadataMap, // speakerID is now part of this map if it was stored
-	}
-
-	s.logger.Debugf("Successfully retrieved document by ID: %s. speakerID from metadata: '%s'", id, metadataMap["speakerID"])
-	return doc, nil
-}
-
-// Update updates an existing document in Weaviate.
-// speakerID (if present) is expected to be within doc.Metadata, which is marshaled to metadataJson.
-func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
-	s.logger.Debugf("Attempting to update document ID: %s", id)
-
-	data := map[string]interface{}{
-		contentProperty: doc.FieldContent,
-	}
-
-	if doc.FieldTimestamp != nil {
-		data[timestampProperty] = doc.FieldTimestamp.Format(time.RFC3339)
-	}
-	if len(doc.FieldTags) > 0 {
-		data[tagsProperty] = doc.FieldTags
-	} else {
-		data[tagsProperty] = []string{} // Explicitly clear tags if doc.Tags is empty
-	}
-
-	// All metadata, including speakerID, is expected to be in doc.Metadata.
-	// This map will be marshaled into the metadataJson field.
-	if len(doc.FieldMetadata) > 0 {
-		metadataBytes, err := json.Marshal(doc.FieldMetadata)
+		report, err := ConsolidateMemoriesBySemantic(ctx, subject, filter, deps)
 		if err != nil {
-			s.logger.Errorf("Failed to marshal metadata for document ID '%s': %v", id, err)
-			return fmt.Errorf("marshaling metadata for update: %w", err)
+			s.logger.Warn("Consolidation failed for subject", "subject", subject, "error", err)
+			continue // Don't fail entire process for one subject
 		}
-		data[metadataProperty] = string(metadataBytes)
-		s.logger.Debugf("Updating doc %s, speakerID in marshaled metadata: '%s'", id, doc.FieldMetadata["speakerID"])
+
+		// Only add reports that actually found facts to consolidate
+		if report.SourceFactCount > 0 {
+			s.logger.Info("Subject consolidation completed",
+				"subject", subject,
+				"source_facts", report.SourceFactCount,
+				"consolidated_facts", len(report.ConsolidatedFacts))
+			allReports = append(allReports, report)
+		}
+	}
+
+	// Store consolidations if any were created
+	if len(allReports) > 0 {
+		err := StoreConsolidationReports(ctx, allReports, s, func(processed, total int) {
+			s.logger.Debug("Storing consolidated facts", "progress", fmt.Sprintf("%d/%d", processed, total))
+		})
+		if err != nil {
+			s.logger.Error("Failed to store consolidation reports", "error", err)
+			// Don't fail the entire Store operation for consolidation issues
+		} else {
+			// Calculate totals for logging
+			totalSourceFacts := 0
+			totalConsolidatedFacts := 0
+			for _, report := range allReports {
+				totalSourceFacts += report.SourceFactCount
+				totalConsolidatedFacts += len(report.ConsolidatedFacts)
+			}
+
+			s.logger.Info("File upload consolidation completed",
+				"subjects_processed", len(allReports),
+				"total_source_facts", totalSourceFacts,
+				"total_consolidated_facts", totalConsolidatedFacts)
+		}
 	} else {
-		data[metadataProperty] = "{}" // Store an empty JSON object string if no metadata
-		s.logger.Debugf("Updating doc %s with empty metadataJson", id)
+		s.logger.Info("No consolidations created (no qualifying facts found)")
 	}
 
-	updater := s.client.Data().Updater().
-		WithClassName(ClassName).
-		WithID(id).
-		WithProperties(data)
-
-	if len(vector) > 0 {
-		updater = updater.WithVector(vector)
-	}
-
-	err := updater.Do(ctx)
-	if err != nil {
-		return fmt.Errorf("updating document ID '%s': %w", id, err)
-	}
-
-	s.logger.Infof("Successfully updated document ID: %s", id)
 	return nil
 }
 
-// Delete removes a document from Weaviate by its ID.
-func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
-	err := s.client.Data().Deleter().
-		WithClassName(ClassName).
-		WithID(id).
-		Do(ctx)
-	if err != nil {
-		// Check if the error is because the object was not found. Often, delete is idempotent.
-		// For now, we just return the error. Specific error handling (e.g., for 404) can be added if needed.
-		return fmt.Errorf("failed to delete object %s: %w", id, err)
-	}
-
-	s.logger.Info("Successfully deleted document by ID (or it was already gone)", "id", id)
-	return nil
+// Query implements the memory.Storage interface by delegating to the storage interface.
+func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
+	return s.storage.Query(ctx, queryText, filter)
 }
 
-// DeleteAll deletes the entire Weaviate class to ensure a clean state for testing.
-func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
-	s.logger.Warn("Attempting to DELETE ENTIRE CLASS for testing purposes.", "class", ClassName)
+// GetDocumentReferences retrieves all document references for a memory.
+func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
+	return s.storage.GetDocumentReferences(ctx, memoryID)
+}
 
-	// Check if class exists before trying to delete
-	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
-	if err != nil {
-		return fmt.Errorf("checking class existence before delete all for '%s': %w", ClassName, err)
-	}
-	if !exists {
-		s.logger.Info("Class does not exist, no need to delete.", "class", ClassName)
+// GetFactsByIDs retrieves multiple memory facts by their IDs.
+func (s *StorageImpl) GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error) {
+	return s.storage.GetFactsByIDs(ctx, factIDs)
+}
+
+// StoreFactsDirectly stores memory facts directly without going through the extraction pipeline.
+// This is useful for:
+// - Test suite: storing pre-extracted facts from JSON
+// - Consolidation: storing consolidated facts
+// - Production: final step of the pipeline (called by orchestrator).
+func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.MemoryFact, progressCallback memory.ProgressCallback) error {
+	if len(facts) == 0 {
+		s.logger.Info("No facts to store")
 		return nil
 	}
 
-	err = s.client.Schema().ClassDeleter().WithClassName(ClassName).Do(ctx)
-	if err != nil {
-		// It's possible the class was deleted by another process between the check and here.
-		// Or a genuine error occurred.
-		// Check existence again to be sure.
-		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
-		if checkErr == nil && !existsAfterAttempt {
-			s.logger.Info("Class was deleted, possibly concurrently or by this attempt despite error.", "class", ClassName)
-			return nil // Treat as success if it's gone
-		}
-		return fmt.Errorf("failed to delete class '%s': %w. Initial error: %v", ClassName, err, err)
+	config := DefaultConfig()
+
+	// Convert facts to storage objects with embeddings
+	var objects []*models.Object
+	processed := 0
+
+	// Batch generate embeddings for efficiency
+	var factContents []string
+	for _, fact := range facts {
+		factContents = append(factContents, fact.GenerateContent())
 	}
-	s.logger.Info("Successfully deleted class for testing.", "class", ClassName)
-	// The schema will be recreated on the next operation that requires it via ensureSchemaExistsInternal.
+
+	// Generate ALL embeddings in batch - MUCH FASTER! 🚀
+	s.logger.Info("Generating embeddings in batch", "count", len(factContents))
+	embeddings, err := s.engine.EmbeddingsWrapper.Embeddings(ctx, factContents)
+	if err != nil {
+		return fmt.Errorf("failed to generate batch embeddings: %w", err)
+	}
+
+	// Create Weaviate objects with pre-generated embeddings
+	for i, fact := range facts {
+		// Build tags
+		tags := fact.Tags
+		if len(tags) == 0 {
+			tags = []string{fact.Category} // Fallback to category
+		}
+
+		// Build metadata JSON
+		metadata := fact.Metadata
+		if metadata == nil {
+			metadata = make(map[string]string)
+		}
+		metadata["fact_id"] = fact.ID
+		if fact.TemporalContext != nil {
+			metadata["temporal_context"] = *fact.TemporalContext
+		}
+		metadataJSON, _ := json.Marshal(metadata)
+
+		// Create Weaviate object with structured fields
+		properties := map[string]interface{}{
+			"content":            fact.GenerateContent(),
+			"timestamp":          fact.Timestamp.Format(time.RFC3339),
+			"source":             fact.Source,
+			"tags":               tags,
+			"documentReferences": fact.DocumentReferences,
+			"metadataJson":       string(metadataJSON),
+			// Structured fact fields for precise filtering
+			"factCategory":    fact.Category,
+			"factSubject":     fact.Subject,
+			"factAttribute":   fact.Attribute,
+			"factValue":       fact.Value,
+			"factSensitivity": fact.Sensitivity,
+			"factImportance":  fact.Importance,
+		}
+
+		// Add temporal context if present
+		if fact.TemporalContext != nil {
+			properties["factTemporalContext"] = *fact.TemporalContext
+		}
+
+		obj := &models.Object{
+			Class:      "MemoryFact",
+			Properties: properties,
+			Vector:     embeddings[i], // Use pre-generated embedding
+		}
+
+		// Only set ID if it's a valid UUID format
+		if fact.ID != "" {
+			obj.ID = strfmt.UUID(fact.ID)
+		}
+
+		objects = append(objects, obj)
+
+		// Batch storage when we reach the batch size
+		if len(objects) >= config.BatchSize {
+			if err := s.storage.StoreBatch(ctx, objects); err != nil {
+				return fmt.Errorf("batch storage failed: %w", err)
+			}
+
+			processed += len(objects)
+			objects = objects[:0] // Reset slice
+
+			// Report progress
+			if progressCallback != nil {
+				progressCallback(processed, len(facts))
+			}
+
+			s.logger.Infof("Stored batch of %d memory objects", config.BatchSize)
+		}
+	}
+
+	// Store remaining objects
+	if len(objects) > 0 {
+		if err := s.storage.StoreBatch(ctx, objects); err != nil {
+			return fmt.Errorf("final batch storage failed: %w", err)
+		}
+		processed += len(objects)
+
+		// Final progress callback
+		if progressCallback != nil {
+			progressCallback(processed, len(facts))
+		}
+
+		s.logger.Infof("Stored final batch of %d memory objects", len(objects))
+	}
+
+	s.logger.Infof("Successfully stored %d memory objects", processed)
 	return nil
 }
 
-// StoreConversations is an alias for Store to maintain backward compatibility.
-func (s *WeaviateStorage) StoreConversations(ctx context.Context, documents []memory.ConversationDocument, progressChan chan<- memory.ProgressUpdate) error {
-	var callback memory.ProgressCallback
-	if progressChan != nil {
-		callback = func(processed, total int) {
-			select {
-			case progressChan <- memory.ProgressUpdate{Processed: processed, Total: total}:
-			default:
-				s.logger.Warnf("Progress update dropped for StoreConversations: processed %d, total %d (channel busy or closed)", processed, total)
+// IntelligentQuery executes a 3-stage intelligent query that prioritizes consolidated insights
+// with supporting evidence and additional context.
+func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, filter *memory.Filter) (*memory.IntelligentQueryResult, error) {
+	s.logger.Info("Starting intelligent query", "query", queryText)
+
+	// Stage 1: Find relevant consolidated insights
+	consolidatedFilter := &memory.Filter{
+		Distance: 0.7,
+		Limit:    func() *int { limit := 10; return &limit }(),
+		Tags:     &memory.TagsFilter{Any: []string{"consolidated"}},
+	}
+
+	// Merge user-provided filter options
+	if filter != nil {
+		if filter.Distance > 0 {
+			consolidatedFilter.Distance = filter.Distance
+		}
+		if filter.Source != nil {
+			consolidatedFilter.Source = filter.Source
+		}
+		if filter.Subject != nil {
+			consolidatedFilter.Subject = filter.Subject
+		}
+	}
+
+	consolidatedResults, err := s.storage.Query(ctx, queryText, consolidatedFilter)
+	if err != nil {
+		return nil, fmt.Errorf("stage 1 - consolidated query failed: %w", err)
+	}
+
+	s.logger.Info("Stage 1 completed", "consolidated_insights", len(consolidatedResults.Facts))
+
+	// Stage 2: Retrieve cited source facts from consolidation metadata
+	var citedFactIDs []string
+	var citedFacts []memory.MemoryFact
+
+	for _, fact := range consolidatedResults.Facts {
+		// Extract source fact IDs from consolidation metadata
+		for key, value := range fact.Metadata {
+			if strings.HasPrefix(key, "source_fact_") {
+				citedFactIDs = append(citedFactIDs, value)
 			}
 		}
 	}
 
-	// Convert ConversationDocuments to unified Document interface
-	unifiedDocs := memory.ConversationDocumentsToDocuments(documents)
-	return s.Store(ctx, unifiedDocs, callback)
+	if len(citedFactIDs) > 0 {
+		citedFactsResult, err := s.GetFactsByIDs(ctx, citedFactIDs)
+		if err != nil {
+			s.logger.Warn("Failed to retrieve cited facts", "error", err, "fact_ids", citedFactIDs)
+		} else {
+			// Convert pointers to values
+			for _, factPtr := range citedFactsResult {
+				if factPtr != nil {
+					citedFacts = append(citedFacts, *factPtr)
+				}
+			}
+		}
+	}
+
+	s.logger.Info("Stage 2 completed", "cited_evidence", len(citedFacts))
+
+	// Stage 3: Additional context - query raw facts and exclude already included ones
+	rawFilter := &memory.Filter{
+		Distance: 0.75, // Slightly higher threshold for context
+		Limit:    func() *int { limit := 15; return &limit }(),
+	}
+
+	// Copy user filter settings
+	if filter != nil {
+		if filter.Source != nil {
+			rawFilter.Source = filter.Source
+		}
+		if filter.Subject != nil {
+			rawFilter.Subject = filter.Subject
+		}
+	}
+
+	rawResults, err := s.storage.Query(ctx, queryText, rawFilter)
+	if err != nil {
+		s.logger.Warn("Stage 3 - raw query failed", "error", err)
+		rawResults = memory.QueryResult{Facts: []memory.MemoryFact{}}
+	}
+
+	// Deduplicate against existing results
+	existingIDs := make(map[string]bool)
+	for _, fact := range consolidatedResults.Facts {
+		existingIDs[fact.ID] = true
+	}
+	for _, fact := range citedFacts {
+		existingIDs[fact.ID] = true
+	}
+
+	var additionalContext []memory.MemoryFact
+	for _, fact := range rawResults.Facts {
+		// Skip if already included or if it's a consolidated fact
+		if existingIDs[fact.ID] {
+			continue
+		}
+
+		// Skip consolidated facts (double-check via tags)
+		isConsolidated := false
+		for _, tag := range fact.Tags {
+			if tag == "consolidated" {
+				isConsolidated = true
+				break
+			}
+		}
+
+		if !isConsolidated {
+			additionalContext = append(additionalContext, fact)
+		}
+	}
+
+	s.logger.Info("Stage 3 completed", "additional_context", len(additionalContext))
+
+	// Build result using memory package types
+	result := &memory.IntelligentQueryResult{
+		Query:                queryText,
+		ConsolidatedInsights: consolidatedResults.Facts,
+		CitedEvidence:        citedFacts,
+		AdditionalContext:    additionalContext,
+		Metadata: memory.QueryMetadata{
+			QueriedAt:                time.Now().Format(time.RFC3339),
+			ConsolidatedInsightCount: len(consolidatedResults.Facts),
+			CitedEvidenceCount:       len(citedFacts),
+			AdditionalContextCount:   len(additionalContext),
+			TotalResults:             len(consolidatedResults.Facts) + len(citedFacts) + len(additionalContext),
+			QueryStrategy:            "3-stage-intelligent",
+		},
+	}
+
+	s.logger.Info("Intelligent query completed",
+		"query", queryText,
+		"insights", len(result.ConsolidatedInsights),
+		"evidence", len(result.CitedEvidence),
+		"context", len(result.AdditionalContext),
+		"total", result.Metadata.TotalResults)
+
+	return result, nil
+}
+
+// RunConsolidation performs manual consolidation across all canonical subjects.
+// This should be called periodically (e.g., after bulk imports complete) rather than
+// after every single document storage operation.
+func (s *StorageImpl) RunConsolidation(ctx context.Context) error {
+	s.logger.Info("Starting manual consolidation pipeline")
+
+	// Get required dependencies for consolidation
+	deps := ConsolidationDependencies{
+		Logger:             s.logger,
+		Storage:            s, // Use the MemoryStorage interface (self)
+		CompletionsService: s.engine.CompletionsService,
+		CompletionsModel:   s.engine.CompletionsModel,
+	}
+
+	// Run consolidation for all canonical semantic subjects
+	consolidationSubjects := ConsolidationSubjects[:]
+
+	var allReports []*ConsolidationReport
+
+	for _, subject := range consolidationSubjects {
+		// Use semantic search with filtering for better results (same as test harness)
+		filter := &memory.Filter{
+			Distance:          0.75,                                                  // Allow fairly broad semantic matches
+			Limit:             func() *int { limit := 30; return &limit }(),          // Reasonable limit
+			FactImportanceMin: func() *int { importance := 2; return &importance }(), // Only meaningful facts
+		}
+
+		report, err := ConsolidateMemoriesBySemantic(ctx, subject, filter, deps)
+		if err != nil {
+			s.logger.Warn("Consolidation failed for subject", "subject", subject, "error", err)
+			continue // Don't fail entire process for one subject
+		}
+
+		// Only add reports that actually found facts to consolidate
+		if report.SourceFactCount > 0 {
+			s.logger.Info("Subject consolidation completed",
+				"subject", subject,
+				"source_facts", report.SourceFactCount,
+				"consolidated_facts", len(report.ConsolidatedFacts))
+			allReports = append(allReports, report)
+		}
+	}
+
+	// Store consolidations if any were created
+	if len(allReports) > 0 {
+		err := StoreConsolidationReports(ctx, allReports, s, func(processed, total int) {
+			s.logger.Debug("Storing consolidated facts", "progress", fmt.Sprintf("%d/%d", processed, total))
+		})
+		if err != nil {
+			s.logger.Error("Failed to store consolidation reports", "error", err)
+			return fmt.Errorf("failed to store consolidation reports: %w", err)
+		}
+
+		// Calculate totals for logging
+		totalSourceFacts := 0
+		totalConsolidatedFacts := 0
+		for _, report := range allReports {
+			totalSourceFacts += report.SourceFactCount
+			totalConsolidatedFacts += len(report.ConsolidatedFacts)
+		}
+
+		s.logger.Info("Manual consolidation completed",
+			"subjects_processed", len(allReports),
+			"total_source_facts", totalSourceFacts,
+			"total_consolidated_facts", totalConsolidatedFacts)
+	} else {
+		s.logger.Info("No consolidations created (no qualifying facts found)")
+	}
+
+	return nil
 }

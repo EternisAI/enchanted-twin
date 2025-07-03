@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,7 +24,6 @@ import (
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
-	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
@@ -36,6 +35,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	schedulerTools "github.com/EternisAI/enchanted-twin/pkg/agent/scheduler/tools"
@@ -48,6 +48,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/engagement"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
@@ -58,13 +59,24 @@ import (
 	waTools "github.com/EternisAI/enchanted-twin/pkg/whatsapp/tools"
 )
 
+// customLogWriter routes logs to stderr if they contain "err" or "error", otherwise to stdout.
+type customLogWriter struct{}
+
+func (w *customLogWriter) Write(p []byte) (n int, err error) {
+	logContent := strings.ToLower(string(p))
+	if strings.Contains(logContent, "err") || strings.Contains(logContent, "error") || strings.Contains(logContent, "failed") {
+		return os.Stderr.Write(p)
+	}
+	return os.Stdout.Write(p)
+}
+
 func main() {
 	whatsappQRChan := whatsapp.GetQRChannel()
 	var currentWhatsAppQRCode *string
 	whatsAppConnected := false
 	var whatsappClient *whatsmeow.Client
 
-	logger := log.NewWithOptions(os.Stdout, log.Options{
+	logger := log.NewWithOptions(&customLogWriter{}, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
 		Level:           log.DebugLevel,
@@ -74,16 +86,6 @@ func main() {
 	envs, _ := config.LoadConfig(false)
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
-
-	var ollamaClient *ollamaapi.Client
-	if envs.OllamaBaseURL != "" {
-		baseURL, err := url.Parse(envs.OllamaBaseURL)
-		if err != nil {
-			logger.Error("Failed to parse Ollama base URL", "error", err)
-		} else {
-			ollamaClient = ollamaapi.NewClient(baseURL, http.DefaultClient)
-		}
-	}
 
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
@@ -171,12 +173,39 @@ func main() {
 		}
 	}()
 
-	// Initialize the AI service singleton
-	aiCompletionsService := ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
-	aiEmbeddingsService := ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+	dbsqlc, err := db.New(store.DB().DB, logger)
+	if err != nil {
+		logger.Error("Error creating database", "error", err)
+		panic(errors.Wrap(err, "Error creating database"))
+	}
+
+	getFirebaseToken := func() (string, error) {
+		firebaseToken, err := store.GetOAuthTokens(context.Background(), "firebase")
+		if err != nil {
+			return "", err
+		}
+		return firebaseToken.AccessToken, nil
+	}
+
+	var aiCompletionsService *ai.Service
+	if envs.ProxyTeeURL != "" {
+		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
+		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.CompletionsAPIURL)
+	} else {
+		aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
+	}
+
+	var aiEmbeddingsService *ai.Service
+	if envs.ProxyTeeURL != "" {
+		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
+		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
+	} else {
+		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+	}
+
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
+	weaviatePath := filepath.Join(envs.AppDataPath, "db", "weaviate")
 	logger.Info("Starting Weaviate bootstrap process", "path", weaviatePath, "port", envs.WeaviatePort)
 	weaviateBootstrapStart := time.Now()
 
@@ -200,7 +229,7 @@ func main() {
 
 	logger.Info("Initializing Weaviate schema")
 	schemaInitStart := time.Now()
-	if err := bootstrap.InitSchema(weaviateClient, logger); err != nil {
+	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel); err != nil {
 		logger.Error("Failed to initialize Weaviate schema", "error", err)
 		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
 	}
@@ -208,7 +237,28 @@ func main() {
 
 	logger.Info("Creating evolving memory instance")
 	memoryCreateStart := time.Now()
-	mem, err := evolvingmemory.New(logger, weaviateClient, aiCompletionsService, aiEmbeddingsService)
+
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, envs.EmbeddingsModel)
+	if err != nil {
+		logger.Fatal("Failed to create embedding wrapper", "error", err)
+	}
+
+	storageInterface, err := storage.New(storage.NewStorageInput{
+		Client:            weaviateClient,
+		Logger:            logger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
+	if err != nil {
+		logger.Fatal("Failed to create storage interface", "error", err)
+	}
+
+	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
+		Logger:             logger,
+		Storage:            storageInterface,
+		CompletionsService: aiCompletionsService,
+		CompletionsModel:   envs.CompletionsModel,
+		EmbeddingsWrapper:  embeddingsWrapper,
+	})
 	if err != nil {
 		logger.Error("Failed to create evolving memory", "error", err)
 		panic(errors.Wrap(err, "Failed to create evolving memory"))
@@ -218,8 +268,19 @@ func main() {
 
 	whatsappClientChan := make(chan *whatsmeow.Client)
 	go func() {
-		client := whatsapp.BootstrapWhatsAppClient(mem, logger, nc, envs.DBPath, envs)
+		client := whatsapp.BootstrapWhatsAppClient(mem, dbsqlc, logger, nc, envs.DBPath, envs, aiCompletionsService)
 		whatsappClientChan <- client
+	}()
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		connectChan := whatsapp.GetConnectChannel()
+		select {
+		case connectChan <- struct{}{}:
+			logger.Info("Sent automatic WhatsApp connect signal on startup")
+		default:
+			logger.Debug("WhatsApp connect channel already has a signal")
+		}
 	}()
 
 	ttsSvc, err := bootstrapTTS(logger)
@@ -275,6 +336,8 @@ func main() {
 		panic(errors.Wrap(err, "Failed to register telegram tool"))
 	}
 
+	identitySvc := identity.NewIdentityService(temporalClient)
+
 	twinChatService := twinchat.NewService(
 		logger,
 		aiCompletionsService,
@@ -285,6 +348,7 @@ func main() {
 		store,
 		envs.CompletionsModel,
 		envs.ReasoningModel,
+		identitySvc,
 	)
 
 	sendToChatTool := twinchat.NewSendToChatTool(chatStorage, nc)
@@ -327,7 +391,6 @@ func main() {
 			envs:                 envs,
 			store:                store,
 			nc:                   nc,
-			ollamaClient:         ollamaClient,
 			memory:               mem,
 			aiCompletionsService: aiCompletionsService,
 			toolsRegistry:        toolRegistry,
@@ -345,13 +408,68 @@ func main() {
 		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
 	}
 
-	identitySvc := identity.NewIdentityService(temporalClient)
-	personality, err := identitySvc.GetPersonality(context.Background())
+	userProfile, err := identitySvc.GetUserProfile(context.Background())
 	if err != nil {
-		logger.Error("Failed to get personality", "error", err)
-		panic(errors.Wrap(err, "Failed to get personality"))
+		logger.Error("Failed to get user profile", "error", err)
+		panic(errors.Wrap(err, "Failed to get user profile"))
 	}
-	logger.Info("Personality", "personality", personality)
+	logger.Info("User profile", "profile", userProfile)
+
+	holonConfig := holon.DefaultManagerConfig()
+	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
+
+	// Initialize thread processor with AI and memory services for LLM-based filtering
+	logger.Info("Initializing thread processor with LLM-based evaluation")
+	holonService.InitializeThreadProcessor(aiCompletionsService, envs.CompletionsModel, mem)
+
+	// Initialize and start background processor for automatic thread processing
+	processingInterval := 30 * time.Second // Process received threads every 30 seconds
+	holonService.InitializeBackgroundProcessor(processingInterval)
+
+	// Create a cancellable context for background processing that will be canceled on shutdown
+	backgroundCtx, cancelBackgroundProcessing := context.WithCancel(context.Background())
+
+	// Start background processing (this method spawns its own goroutine, so no need for additional go func)
+	if err := holonService.StartBackgroundProcessing(backgroundCtx); err != nil {
+		logger.Error("Failed to start background thread processing", "error", err)
+		cancelBackgroundProcessing() // Clean up context if startup fails
+	} else {
+		logger.Info("Background thread processing started successfully")
+	}
+
+	// Ensure background processing context is always canceled and service stopped on shutdown
+	defer func() {
+		cancelBackgroundProcessing()            // Cancel the context to stop background goroutines
+		holonService.StopBackgroundProcessing() // Stop the service and wait for cleanup
+	}()
+
+	// Initialize HolonZero API fetcher service with the main logger
+	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
+	if err := holonManager.Start(); err != nil {
+		logger.Error("Failed to start HolonZero fetcher service", "error", err)
+	} else {
+		logger.Info("HolonZero API fetcher service started successfully")
+		defer func() {
+			if err := holonManager.Stop(); err != nil {
+				logger.Error("Failed to stop holon manager", "error", err)
+			}
+		}()
+	}
+
+	threadPreviewTool := holon.NewThreadPreviewTool(holonService)
+	if err := toolRegistry.Register(threadPreviewTool); err != nil {
+		logger.Error("Failed to register thread preview tool", "error", err)
+	}
+
+	sendToHolonTool := holon.NewSendToHolonTool(holonService)
+	if err := toolRegistry.Register(sendToHolonTool); err != nil {
+		logger.Error("Failed to register send to holon tool", "error", err)
+	}
+
+	sendMessageToHolonTool := holon.NewAddMessageToThreadTool(holonService)
+	if err := toolRegistry.Register(sendMessageToHolonTool); err != nil {
+		logger.Error("Failed to register send message to holon tool", "error", err)
+	}
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
@@ -369,7 +487,7 @@ func main() {
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
 	go telegram.SubscribePoller(telegramService, logger)
-	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, store, envs)
+	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
@@ -381,6 +499,7 @@ func main() {
 		aiService:         aiCompletionsService,
 		mcpService:        mcpService,
 		telegramService:   telegramService,
+		holonService:      holonService,
 		whatsAppQRCode:    currentWhatsAppQRCode,
 		whatsAppConnected: whatsAppConnected,
 	})
@@ -422,7 +541,6 @@ type bootstrapTemporalWorkerInput struct {
 	envs                 *config.Config
 	store                *db.Store
 	nc                   *nats.Conn
-	ollamaClient         *ollamaapi.Client
 	memory               memory.Storage
 	toolsRegistry        tools.ToolRegistry
 	aiCompletionsService *ai.Service
@@ -449,7 +567,7 @@ func bootstrapTemporalWorker(
 	input *bootstrapTemporalWorkerInput,
 ) (worker.Worker, error) {
 	w := worker.New(input.temporalClient, "default", worker.Options{
-		MaxConcurrentActivityExecutionSize: 1,
+		MaxConcurrentActivityExecutionSize: 3,
 	})
 
 	dataProcessingWorkflow := workflows.DataProcessingWorkflows{
@@ -457,7 +575,6 @@ func bootstrapTemporalWorker(
 		Config:        input.envs,
 		Store:         input.store,
 		Nc:            input.nc,
-		OllamaClient:  input.ollamaClient,
 		Memory:        input.memory,
 		OpenAIService: input.aiCompletionsService,
 	}
@@ -486,6 +603,12 @@ func bootstrapTemporalWorker(
 		Store:           input.store,
 	})
 	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
+
+	// Register holon sync activities
+	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
+	holonSyncActivities := holon.NewHolonSyncActivities(input.logger, holonManager)
+	holonSyncActivities.RegisterWorkflowsAndActivities(w)
+
 	err := w.Start()
 	if err != nil {
 		input.logger.Error("Error starting worker", "error", err)
@@ -506,6 +629,7 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
+	holonService           *holon.Service
 	whatsAppQRCode         *string
 	whatsAppConnected      bool
 }
@@ -529,6 +653,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 		TelegramService:        input.telegramService,
+		HolonService:           input.holonService,
 		WhatsAppQRCode:         input.whatsAppQRCode,
 		WhatsAppConnected:      input.whatsAppConnected,
 	}
@@ -587,9 +712,24 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 }
 
 func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
-	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour, identity.DerivePersonalityWorkflow, nil)
+	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour*12, identity.DerivePersonalityWorkflow, nil)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create identity personality workflow")
 	}
+
+	// Create holon sync schedule with override flag to ensure it uses the updated 30-second interval
+	err = helpers.CreateOrUpdateSchedule(
+		logger,
+		temporalClient,
+		"holon-sync-schedule",
+		30*time.Second, // Use updated 30-second interval
+		holon.HolonSyncWorkflow,
+		[]any{holon.HolonSyncWorkflowInput{ForceSync: false}},
+		true, // Override if different settings
+	)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create holon sync schedule")
+	}
+
 	return nil
 }

@@ -4,18 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
+	"strings"
 	"time"
 
-	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -27,11 +26,6 @@ type InitializeStateQuery struct {
 	State model.IndexingState
 }
 
-const (
-	OLLAMA_COMPLETIONS_MODEL = "gemma3:1b"
-	OLLAMA_EMBEDDING_MODEL   = "nomic-embed-text"
-)
-
 func (w *DataProcessingWorkflows) InitializeWorkflow(
 	ctx workflow.Context,
 	input InitializeWorkflowInput,
@@ -41,18 +35,19 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 120 * time.Minute,
+		StartToCloseTimeout:    5 * time.Minute,
+		ScheduleToStartTimeout: 10 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second * 2,
 			MaximumInterval:    time.Minute * 10,
 			BackoffCoefficient: 4,
-			MaximumAttempts:    1,
+			MaximumAttempts:    3,
 		},
 	})
 
 	indexingState := model.IndexingStateNotStarted
 	dataSources := []*model.DataSource{}
-	w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, nil)
+	w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
 	err := workflow.SetQueryHandler(
 		ctx,
@@ -73,7 +68,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		workflow.GetLogger(ctx).Error("Failed to fetch data sources", "error", err)
 		indexingState = model.IndexingStateFailed
 		errMsg := err.Error()
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
+		w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to fetch data sources")
 	}
 
@@ -81,30 +76,8 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		workflow.GetLogger(ctx).Info("No data sources found")
 		indexingState = model.IndexingStateFailed
 		errMsg := "No data sources found"
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
+		w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 		return InitializeWorkflowResponse{}, errors.New(errMsg)
-	}
-
-	indexingState = model.IndexingStateDownloadingModel
-	w.publishIndexingStatus(ctx, indexingState, []*model.DataSource{}, 0, 0, nil)
-
-	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, OLLAMA_COMPLETIONS_MODEL).
-		Get(ctx, nil)
-	if err != nil {
-		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
-		indexingState = model.IndexingStateFailed
-		errMsg := err.Error()
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
-		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to download Ollama model")
-	}
-
-	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, OLLAMA_EMBEDDING_MODEL).Get(ctx, nil)
-	if err != nil {
-		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
-		errMsg := err.Error()
-		indexingState = model.IndexingStateFailed
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
-		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to download Ollama model")
 	}
 
 	for _, dataSource := range fetchDataSourcesResponse.DataSources {
@@ -119,10 +92,10 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	}
 
 	indexingState = model.IndexingStateProcessingData
-	w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, nil)
+	w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
 	for i, dataSource := range fetchDataSourcesResponse.DataSources {
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, nil)
+		w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
 		processDataActivityInput := ProcessDataActivityInput{
 			DataSourceName: dataSource.Name,
@@ -134,7 +107,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).
 			Get(ctx, &processDataResponse)
 
-		progress := int32((i + 1) * 100 / len(fetchDataSourcesResponse.DataSources))
 		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
 		if err != nil {
 			workflow.GetLogger(ctx).Error("Failed to process data source",
@@ -144,38 +116,175 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			dataSources[i].IsProcessed = false
 			dataSources[i].HasError = true
 			errMsg := err.Error()
-			w.publishIndexingStatus(ctx, indexingState, dataSources, progress, 0, &errMsg)
+			w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 		} else {
 			dataSources[i].IsProcessed = true
 			dataSources[i].HasError = false
 			dataSources[i].IsIndexed = false
-			w.publishIndexingStatus(ctx, indexingState, dataSources, progress, 0, nil)
+			w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 		}
-
-		w.publishIndexingStatus(ctx, indexingState, dataSources, progress, 0, nil)
 	}
 
 	indexingState = model.IndexingStateIndexingData
-	w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, nil)
+	w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
-	var indexDataResponse IndexDataActivityResponse
-
-	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{DataSourcesInput: dataSources, IndexingState: indexingState}).
-		Get(ctx, &indexDataResponse)
+	var fetchUnindexedResponse FetchDataSourcesActivityResponse
+	err = workflow.ExecuteActivity(ctx, w.FetchDataSourcesActivity, FetchDataSourcesActivityInput{}).
+		Get(ctx, &fetchUnindexedResponse)
 	if err != nil {
-		workflow.GetLogger(ctx).Error("Failed to index data", "error", err)
+		workflow.GetLogger(ctx).Error("Failed to fetch unindexed data sources", "error", err)
 		errMsg := err.Error()
 		indexingState = model.IndexingStateFailed
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, &errMsg)
-		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to index data")
+		w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
+		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to fetch unindexed data sources")
+	}
+
+	for i := range dataSources {
+		dataSources[i].IndexProgress = 0
+	}
+
+	for i, dataSourceDB := range fetchUnindexedResponse.DataSources {
+		if dataSourceDB.ProcessedPath == nil {
+			workflow.GetLogger(ctx).Error("Processed path is nil", "dataSource", dataSourceDB.Name)
+			continue
+		}
+
+		// TODO: systematically decide batching strategy
+		batchSize := 20
+		if dataSourceDB.Name == "Whatsapp" || dataSourceDB.Name == "Telegram" {
+			batchSize = 3
+		}
+		fmt.Println("Indexing batch size", dataSourceDB.Name, batchSize)
+
+		getBatchesInput := GetBatchesActivityInput{
+			DataSourceID:   dataSourceDB.ID,
+			DataSourceName: dataSourceDB.Name,
+			ProcessedPath:  *dataSourceDB.ProcessedPath,
+			BatchSize:      batchSize,
+		}
+
+		var getBatchesResponse GetBatchesActivityResponse
+		err = workflow.ExecuteActivity(ctx, w.GetBatchesActivity, getBatchesInput).
+			Get(ctx, &getBatchesResponse)
+		if err != nil {
+			workflow.GetLogger(ctx).Error("Failed to get batches", "error", err, "dataSource", dataSourceDB.Name)
+			dataSources[i].HasError = true
+			errMsg := err.Error()
+			w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
+			continue
+		}
+
+		if getBatchesResponse.TotalBatches == 0 {
+			workflow.GetLogger(ctx).Warn("No batches found for data source", "dataSource", dataSourceDB.Name)
+			dataSources[i].IsIndexed = true
+			dataSources[i].IndexProgress = 100
+			continue
+		}
+
+		// Replace sequential processing with parallel batch processing
+		failedBatches := 0
+		successfulBatches := 0
+
+		// Start all batch activities in parallel
+		batchFutures := make([]workflow.Future, getBatchesResponse.TotalBatches)
+		for batchIndex := 0; batchIndex < getBatchesResponse.TotalBatches; batchIndex++ {
+			indexBatchInput := IndexBatchActivityInput{
+				DataSourceID:   dataSourceDB.ID,
+				DataSourceName: dataSourceDB.Name,
+				ProcessedPath:  *dataSourceDB.ProcessedPath,
+				BatchIndex:     batchIndex,
+				BatchSize:      batchSize,
+				TotalBatches:   getBatchesResponse.TotalBatches,
+			}
+
+			// Start activity without blocking (no .Get())
+			batchFutures[batchIndex] = workflow.ExecuteActivity(ctx, w.IndexBatchActivity, indexBatchInput)
+
+			workflow.GetLogger(ctx).Info("Started batch processing",
+				"dataSource", dataSourceDB.Name,
+				"batch", batchIndex+1,
+				"total", getBatchesResponse.TotalBatches)
+		}
+
+		// Wait for all batch activities to complete and collect results
+		for batchIndex, future := range batchFutures {
+			var indexBatchResponse IndexBatchActivityResponse
+			err := future.Get(ctx, &indexBatchResponse)
+
+			if err != nil {
+				failedBatches++
+				workflow.GetLogger(ctx).Error("Failed to index batch",
+					"error", err,
+					"dataSource", dataSourceDB.Name,
+					"batch", batchIndex,
+					"failedBatches", failedBatches,
+					"totalBatches", getBatchesResponse.TotalBatches)
+
+				failureRate := float64(failedBatches) / float64(batchIndex+1)
+				if failureRate > 0.5 && failedBatches > 3 {
+					workflow.GetLogger(ctx).Error("High failure rate detected, marking data source as failed",
+						"dataSource", dataSourceDB.Name,
+						"failureRate", failureRate,
+						"failedBatches", failedBatches)
+					dataSources[i].HasError = true
+					errMsg := fmt.Sprintf("High batch failure rate: %d/%d batches failed", failedBatches, batchIndex+1)
+					w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
+					break
+				}
+			} else {
+				successfulBatches++
+				workflow.GetLogger(ctx).Info("Batch indexed successfully",
+					"dataSource", dataSourceDB.Name,
+					"batch", batchIndex+1,
+					"total", getBatchesResponse.TotalBatches,
+					"documentsStored", indexBatchResponse.DocumentsStored,
+					"successfulBatches", successfulBatches,
+					"failedBatches", failedBatches)
+			}
+
+			// Update progress as batches complete
+			batchProgress := float64(batchIndex+1) / float64(getBatchesResponse.TotalBatches) * 100
+			dataSources[i].IndexProgress = int32(batchProgress)
+			w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
+		}
+
+		finalFailureRate := float64(failedBatches) / float64(getBatchesResponse.TotalBatches)
+
+		if failedBatches > 0 {
+			workflow.GetLogger(ctx).Warn("Batch processing completed with some failures",
+				"dataSource", dataSourceDB.Name,
+				"successfulBatches", successfulBatches,
+				"failedBatches", failedBatches,
+				"totalBatches", getBatchesResponse.TotalBatches,
+				"finalFailureRate", finalFailureRate)
+		}
+
+		if !dataSources[i].HasError {
+			if finalFailureRate > 0.8 {
+				dataSources[i].HasError = true
+				errMsg := fmt.Sprintf("Too many batch failures: %d/%d batches failed", failedBatches, getBatchesResponse.TotalBatches)
+				w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
+			} else {
+				dataSources[i].IsIndexed = true
+				dataSources[i].IndexProgress = 100
+
+				updateStateInput := UpdateDataSourceStateActivityInput{
+					DataSourceID: dataSources[i].ID,
+					IsIndexed:    true,
+					HasError:     false,
+				}
+				err = workflow.ExecuteActivity(ctx, w.UpdateDataSourceStateActivity, updateStateInput).Get(ctx, nil)
+				if err != nil {
+					workflow.GetLogger(ctx).Error("Failed to update data source state", "error", err)
+				}
+			}
+		}
 	}
 
 	w.publishIndexingStatus(
 		ctx,
 		model.IndexingStateCompleted,
-		indexDataResponse.DataSourcesResponse,
-		100,
-		100,
+		dataSources,
 		nil,
 	)
 
@@ -186,7 +295,6 @@ func (w *DataProcessingWorkflows) publishIndexingStatus(
 	ctx workflow.Context,
 	state model.IndexingState,
 	dataSources []*model.DataSource,
-	processingProgress, indexingProgress int32,
 	error *string,
 ) {
 	status := &model.IndexingStatus{
@@ -246,7 +354,7 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 		input.DataSourceName,
 		input.DataSourceID,
 	)
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store)
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
 	success, err := dataprocessingService.ProcessSource(
 		ctx,
 		input.DataSourceName,
@@ -272,144 +380,223 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 	return ProcessDataActivityResponse{Success: success}, nil
 }
 
-type IndexDataActivityInput struct {
-	DataSourcesInput []*model.DataSource `json:"dataSources"`
-	IndexingState    model.IndexingState `json:"indexingState"`
+type UpdateDataSourceStateActivityInput struct {
+	DataSourceID string `json:"dataSourceId"`
+	IsIndexed    bool   `json:"isIndexed"`
+	HasError     bool   `json:"hasError"`
 }
 
-type IndexDataActivityResponse struct {
-	DataSourcesResponse []*model.DataSource `json:"dataSources"`
+type UpdateDataSourceStateActivityResponse struct {
+	Success bool `json:"success"`
 }
 
-func publishIndexingStatus(
-	w *DataProcessingWorkflows,
-	dataSources []*model.DataSource,
-	state model.IndexingState,
-	error *string,
-) {
-	status := &model.IndexingStatus{
-		Status:      state,
-		DataSources: dataSources,
-		Error:       error,
-	}
-	statusJson, _ := json.Marshal(status)
-	subject := "indexing_data"
-
-	if w.Nc == nil {
-		w.Logger.Error("NATS connection is nil")
-		return
-	}
-
-	if !w.Nc.IsConnected() {
-		w.Logger.Error("NATS connection is not connected")
-		return
-	}
-
-	w.Logger.Info("Publishing indexing status",
-		"subject", subject,
-		"data", string(statusJson),
-		"connected", w.Nc.IsConnected(),
-		"status", w.Nc.Status().String())
-
-	err := w.Nc.Publish(subject, statusJson)
-	if err != nil {
-		w.Logger.Error("Failed to publish indexing status",
-			"error", err,
-			"subject", subject,
-			"connected", w.Nc.IsConnected(),
-			"status", w.Nc.Status().String())
-	}
-}
-
-func (w *DataProcessingWorkflows) IndexDataActivity(
+func (w *DataProcessingWorkflows) UpdateDataSourceStateActivity(
 	ctx context.Context,
-	input IndexDataActivityInput,
-) (IndexDataActivityResponse, error) {
-	dataSourcesDB, err := w.Store.GetUnindexedDataSources(ctx)
+	input UpdateDataSourceStateActivityInput,
+) (UpdateDataSourceStateActivityResponse, error) {
+	_, err := w.Store.UpdateDataSourceState(
+		ctx,
+		input.DataSourceID,
+		input.IsIndexed,
+		input.HasError,
+	)
 	if err != nil {
-		return IndexDataActivityResponse{}, fmt.Errorf(
-			"failed to get unindexed data sources: %w",
-			err,
-		)
+		return UpdateDataSourceStateActivityResponse{}, err
+	}
+	return UpdateDataSourceStateActivityResponse{Success: true}, nil
+}
+
+type GetBatchesActivityInput struct {
+	DataSourceID   string `json:"dataSourceId"`
+	DataSourceName string `json:"dataSourceName"`
+	ProcessedPath  string `json:"processedPath"`
+	BatchSize      int    `json:"batchSize"`
+}
+
+type GetBatchesActivityResponse struct {
+	TotalBatches int `json:"totalBatches"`
+}
+
+func (w *DataProcessingWorkflows) GetBatchesActivity(
+	ctx context.Context,
+	input GetBatchesActivityInput,
+) (GetBatchesActivityResponse, error) {
+	if input.BatchSize <= 0 {
+		return GetBatchesActivityResponse{}, errors.New("batch size must be positive")
+	}
+	if input.ProcessedPath == "" {
+		return GetBatchesActivityResponse{}, errors.New("processed path cannot be empty")
 	}
 
-	dataSourcesResponse := make([]*model.DataSource, len(input.DataSourcesInput))
+	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
 
-	copy(dataSourcesResponse, input.DataSourcesInput)
+	var itemCount int
+	var err error
 
-	var wg sync.WaitGroup
-	resultChan := make(chan struct{})
-	for i, dataSourceDB := range dataSourcesDB {
-		if dataSourceDB.ProcessedPath == nil {
-			w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
-			continue
-		}
+	if isNewFormat {
+		// New format: JSON array - count array items
+		itemCount, err = w.countNewFormatItems(input.ProcessedPath)
+	} else {
+		// Old format: JSONL - count lines
+		itemCount, err = helpers.CountJSONLLines(input.ProcessedPath)
+	}
 
-		records, err := helpers.ReadJSONL[types.Record](*dataSourceDB.ProcessedPath)
+	if err != nil {
+		return GetBatchesActivityResponse{}, err
+	}
+
+	totalBatches := (itemCount + input.BatchSize - 1) / input.BatchSize
+	return GetBatchesActivityResponse{TotalBatches: totalBatches}, nil
+}
+
+type IndexBatchActivityInput struct {
+	DataSourceID   string `json:"dataSourceId"`
+	DataSourceName string `json:"dataSourceName"`
+	ProcessedPath  string `json:"processedPath"`
+	BatchIndex     int    `json:"batchIndex"`
+	BatchSize      int    `json:"batchSize"`
+	TotalBatches   int    `json:"totalBatches"`
+}
+
+type IndexBatchActivityResponse struct {
+	BatchIndex      int  `json:"batchIndex"`
+	DocumentsStored int  `json:"documentsStored"`
+	Success         bool `json:"success"`
+}
+
+func (w *DataProcessingWorkflows) IndexBatchActivity(
+	ctx context.Context,
+	input IndexBatchActivityInput,
+) (IndexBatchActivityResponse, error) {
+	if input.BatchIndex < 0 {
+		return IndexBatchActivityResponse{}, errors.New("batch index cannot be negative")
+	}
+	if input.BatchSize <= 0 {
+		return IndexBatchActivityResponse{}, errors.New("batch size must be positive")
+	}
+	if input.ProcessedPath == "" {
+		return IndexBatchActivityResponse{}, errors.New("processed path cannot be empty")
+	}
+
+	// Check if this is a new format processor (JSON array) or old format (JSONL)
+	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
+
+	var documents []memory.Document
+	var err error
+
+	if isNewFormat {
+		// New format: JSONL of ConversationDocument - read entire file and batch in memory
+		documents, err = w.readNewFormatBatch(input.ProcessedPath, input.BatchIndex, input.BatchSize)
+	} else {
+		// Old format: JSONL of types.Record - read batch from file
+		startIdx := input.BatchIndex * input.BatchSize
+		records, err := helpers.ReadJSONLBatch(input.ProcessedPath, startIdx, input.BatchSize)
 		if err != nil {
-			return IndexDataActivityResponse{}, err
+			return IndexBatchActivityResponse{}, err
 		}
 
 		if len(records) == 0 {
-			w.Logger.Warn("No records found for data source", "dataSource", dataSourceDB.Name)
-			dataSourcesResponse[i].IsIndexed = true
-			continue
+			return IndexBatchActivityResponse{
+				BatchIndex:      input.BatchIndex,
+				DocumentsStored: 0,
+				Success:         true,
+			}, nil
 		}
 
-		dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store)
-
-		batchSize := 20
-		totalBatches := (len(records) + batchSize - 1) / batchSize
-
-		for j := 0; j < len(records); j += batchSize {
-			end := j + batchSize
-			if end > len(records) {
-				end = len(records)
-			}
-
-			batchRecords := records[j:end]
-			documents, err := dataprocessingService.ToDocuments(ctx, dataSourceDB.Name, batchRecords)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-
-			batchNum := j/batchSize + 1
-			batchProgressCallback := func(processed, total int) {
-				batchProgress := float64(batchNum-1) / float64(totalBatches) * 100
-				if total > 0 {
-					withinBatchProgress := float64(processed) / float64(total) * (100.0 / float64(totalBatches))
-					batchProgress += withinBatchProgress
-				}
-				dataSourcesResponse[i].IndexProgress = int32(batchProgress)
-				publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
-			}
-
-			err = w.Memory.Store(ctx, documents, batchProgressCallback)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-		}
-
-		dataSourcesResponse[i].IsIndexed = true
-	}
-	go func() {
-		wg.Wait()
-		close(resultChan)
-	}()
-
-	for _, dataSource := range dataSourcesResponse {
-		_, err = w.Store.UpdateDataSourceState(
-			ctx,
-			dataSource.ID,
-			dataSource.IsIndexed,
-			dataSource.HasError,
+		dataprocessingService := dataprocessing.NewDataProcessingService(
+			w.OpenAIService,
+			w.Config.CompletionsModel,
+			w.Store,
+			w.Logger,
 		)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
+
+		documents, _ = dataprocessingService.ToDocuments(ctx, input.DataSourceName, records)
 	}
 
-	return IndexDataActivityResponse{DataSourcesResponse: dataSourcesResponse}, nil
+	if err != nil {
+		return IndexBatchActivityResponse{}, err
+	}
+
+	w.Logger.Info("Read documents", "documents", len(documents))
+
+	if len(documents) == 0 {
+		return IndexBatchActivityResponse{
+			BatchIndex:      input.BatchIndex,
+			DocumentsStored: 0,
+			Success:         true,
+		}, nil
+	}
+
+	progressCallback := func(processed, total int) {
+		w.Logger.Info("Batch progress",
+			"dataSource", input.DataSourceName,
+			"batch", input.BatchIndex+1,
+			"totalBatches", input.TotalBatches,
+			"processed", processed,
+			"total", total)
+	}
+
+	err = w.Memory.Store(ctx, documents, progressCallback)
+	if err != nil {
+		return IndexBatchActivityResponse{}, err
+	}
+
+	return IndexBatchActivityResponse{
+		BatchIndex:      input.BatchIndex,
+		DocumentsStored: len(documents),
+		Success:         true,
+	}, nil
+}
+
+// isNewFormatProcessor checks if the data source uses the new ConversationDocument format.
+func (w *DataProcessingWorkflows) isNewFormatProcessor(dataSourceName string) bool {
+	switch strings.ToLower(dataSourceName) {
+	case "telegram", "whatsapp", "gmail", "chatgpt":
+		return true
+	default:
+		return false
+	}
+}
+
+// readNewFormatBatch reads a batch from JSONL format (ConversationDocument JSONL).
+func (w *DataProcessingWorkflows) readNewFormatBatch(filePath string, batchIndex, batchSize int) ([]memory.Document, error) {
+	// Read ConversationDocuments from JSONL format using helper
+	conversationDocs, err := memory.LoadConversationDocumentsFromJSON(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load ConversationDocuments from JSONL: %w", err)
+	}
+
+	// Calculate batch boundaries
+	startIdx := batchIndex * batchSize
+	endIdx := startIdx + batchSize
+
+	if startIdx >= len(conversationDocs) {
+		return []memory.Document{}, nil
+	}
+
+	if endIdx > len(conversationDocs) {
+		endIdx = len(conversationDocs)
+	}
+
+	// Convert to Document interface
+	documents := make([]memory.Document, endIdx-startIdx)
+	for i := startIdx; i < endIdx; i++ {
+		// Create a copy to avoid pointer issues
+		doc := conversationDocs[i]
+		documents[i-startIdx] = &doc
+	}
+
+	return documents, nil
+}
+
+// countNewFormatItems counts items in JSONL format.
+func (w *DataProcessingWorkflows) countNewFormatItems(filePath string) (int, error) {
+	conversationDocs, err := memory.LoadConversationDocumentsFromJSON(filePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load ConversationDocuments from JSONL: %w", err)
+	}
+
+	return len(conversationDocs), nil
 }
 
 type PublishIndexingStatusInput struct {
@@ -429,12 +616,6 @@ func (w *DataProcessingWorkflows) PublishIndexingStatus(
 		return errors.New("NATS connection is not connected")
 	}
 
-	w.Logger.Info("Publishing indexing status",
-		"subject", input.Subject,
-		"data", string(input.Data),
-		"connected", w.Nc.IsConnected(),
-		"status", w.Nc.Status().String())
-
 	err := w.Nc.Publish(input.Subject, input.Data)
 	if err != nil {
 		w.Logger.Error("Failed to publish indexing status",
@@ -444,73 +625,6 @@ func (w *DataProcessingWorkflows) PublishIndexingStatus(
 			"status", w.Nc.Status().String())
 		return err
 	}
-
-	w.Logger.Info("Successfully published indexing status", "subject", input.Subject)
-	return nil
-}
-
-type DownloadModelProgress struct {
-	PercentageProgress float64
-}
-
-func (w *DataProcessingWorkflows) DownloadOllamaModel(ctx context.Context, modelName string) error {
-	if w.OllamaClient == nil {
-		w.Logger.Info("Ollama client is nil, skipping model download")
-		return nil
-	}
-
-	models, err := w.OllamaClient.List(ctx)
-	if err != nil {
-		w.Logger.Error("Failed to list ollama models", "error", err)
-		return err
-	}
-
-	modelFound := false
-	for _, model := range models.Models {
-		if model.Name == modelName {
-			modelFound = true
-			break
-		}
-	}
-
-	if modelFound {
-		w.Logger.Info("Model already downloaded", "modelName", modelName)
-		return nil
-	}
-
-	req := &ollamaapi.PullRequest{
-		Model: modelName,
-	}
-
-	pullProgressFunc := func(progress ollamaapi.ProgressResponse) error {
-		if progress.Total == 0 {
-			return nil
-		}
-
-		percentageProgress := float64(progress.Completed) / float64(progress.Total) * 100
-
-		w.Logger.Info("Download progress", "percentageProgress", percentageProgress)
-		userMessageJson, err := json.Marshal(DownloadModelProgress{
-			PercentageProgress: percentageProgress,
-		})
-		if err != nil {
-			return err
-		}
-
-		err = w.Nc.Publish("onboarding.download_model.progress", userMessageJson)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	err = w.OllamaClient.Pull(context.Background(), req, pullProgressFunc)
-	if err != nil {
-		return err
-	}
-
-	w.Logger.Info("Model downloaded", "modelName", modelName)
 
 	return nil
 }

@@ -50,136 +50,17 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("failed to enable foreign key constraints: %w", err)
 	}
 
-	// Create user_profiles table if it doesn't exist
-	_, err = db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS user_profiles (
-			id TEXT PRIMARY KEY,
-			name TEXT,
-			bio TEXT
-		);
-
-		CREATE TABLE IF NOT EXISTS chats (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			voice BOOLEAN NOT NULL DEFAULT FALSE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		);
-		CREATE INDEX IF NOT EXISTS idx_chats_id ON chats(id);
-
-		CREATE TABLE IF NOT EXISTS messages (
-			id TEXT PRIMARY KEY,
-			chat_id TEXT NOT NULL,
-			text TEXT,
-			tool_calls JSON,
-			tool_results JSON,
-			image_urls JSON,
-			role TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
-		);
-		CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
-		CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at DESC);
-
-		CREATE TABLE IF NOT EXISTS friend_activity_tracking (
-			id TEXT PRIMARY KEY,
-			chat_id TEXT NOT NULL,
-			activity_type TEXT NOT NULL,
-			timestamp TIMESTAMP NOT NULL,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		);
-		CREATE INDEX IF NOT EXISTS idx_friend_activity_chat_id ON friend_activity_tracking(chat_id);
-		CREATE INDEX IF NOT EXISTS idx_friend_activity_timestamp ON friend_activity_tracking(timestamp DESC);
-	`)
-	if err != nil {
-		return nil, err
+	// Run migrations to ensure all tables exist
+	if err := RunMigrations(db.DB); err != nil {
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	// Create mcp_servers table if it doesn't exist
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS mcp_servers (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			command TEXT NOT NULL,
-			args JSON,
-			envs JSON,
-			type TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			enabled BOOLEAN DEFAULT FALSE
-		);
-		CREATE INDEX IF NOT EXISTS idx_mcp_servers_id ON mcp_servers(id);
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
-	`)
-	if err != nil {
-		return nil, err
-	}
-
-	// Insert default profile if it doesn't exist
-	_, err = db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO user_profiles (id, name, bio) VALUES ('default', '(missing name)', '')
-	`)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS data_sources (
-			id TEXT PRIMARY KEY,
-			name TEXT,
-			path TEXT,
-			processed_path TEXT,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			is_indexed BOOLEAN DEFAULT FALSE,
-			has_error BOOLEAN DEFAULT FALSE
-		)
-	`)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create config table if it doesn't exist
-	_, err = db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS config (
-			key TEXT PRIMARY KEY,
-			value TEXT
-		)
-	`)
-	if err != nil {
-		return nil, err
-	}
-
+	// Generate UUID for telegram integration if not exists
 	uuid := uuid.New().String()
 	_, err = db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO config (key, value) 
 		VALUES ('telegram_chat_uuid', ?)
 	`, uuid)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO config (key, value) 
-		VALUES ('telegram_chat_id', NULL)
-	`)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create source_usernames table if it doesn't exist
-	_, err = db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS source_usernames (
-			id TEXT PRIMARY KEY,
-			source TEXT NOT NULL,
-			username TEXT NOT NULL,
-			user_id TEXT,
-			first_name TEXT,
-			last_name TEXT,
-			phone_number TEXT,
-			bio TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		);
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_source_usernames_source ON source_usernames(source);
-	`)
 	if err != nil {
 		return nil, err
 	}
@@ -229,15 +110,6 @@ func (s *Store) SetValue(ctx context.Context, key string, value string) error {
 		return err
 	}
 	return nil
-}
-
-func (s *Store) GetAllKeys(ctx context.Context) ([]string, error) {
-	var keys []string
-	err := s.db.SelectContext(ctx, &keys, "SELECT key FROM config")
-	if err != nil {
-		return nil, err
-	}
-	return keys, nil
 }
 
 type SourceUsername struct {

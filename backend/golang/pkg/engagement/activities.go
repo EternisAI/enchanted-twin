@@ -8,8 +8,9 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/openai/openai-go"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 )
 
@@ -37,9 +38,8 @@ func (s *FriendService) StoreSentMessage(ctx context.Context, message string, ac
 		},
 	}
 
-	err := s.memoryService.Store(ctx, memory.TextDocumentsToDocuments([]memory.TextDocument{doc}), func(processed, total int) {
-		// Progress callback - no action needed
-	})
+	docs := []memory.Document{&doc}
+	err := s.memoryService.Store(ctx, docs, nil)
 	if err != nil {
 		s.logger.Error("Failed to store sent message", "error", err, "message", message)
 		return fmt.Errorf("failed to store sent message: %w", err)
@@ -57,43 +57,33 @@ func (s *FriendService) CheckForSimilarFriendMessages(ctx context.Context, messa
 
 	s.logger.Info("Checking for similarity with previous friend messages", "message", message)
 
-	// Create a filtered query to only search friend messages
-	result, err := s.memoryService.QueryWithDistance(ctx, message, map[string]string{
-		"type": FriendMetadataType,
-	})
+	// Create a filter to only search friend messages with distance threshold
+	// Use tags to filter for sent messages (documents are tagged with "sent_message")
+	filter := &memory.Filter{
+		Distance: SimilarityThreshold, // Use the threshold as max distance
+		Tags: &memory.TagsFilter{
+			All: []string{"sent_message"}, // Only messages we've sent
+		},
+	}
+
+	result, err := s.memoryService.Query(ctx, message, filter)
 	if err != nil {
 		s.logger.Error("Failed to query for similar friend messages", "error", err)
 		return false, fmt.Errorf("failed to query for similar friend messages: %w", err)
 	}
 
-	s.logger.Debug("Query with distance result (friend messages only)", "total_documents", len(result.Documents))
+	s.logger.Debug("Query result (friend messages only)", "total_documents", len(result.Facts))
 
-	for _, docWithDistance := range result.Documents {
-		s.logger.Debug("Checking friend document",
-			"distance", docWithDistance.Distance,
+	// If we got any results, it means there are similar messages within the threshold
+	if len(result.Facts) > 0 {
+		s.logger.Info("Found similar friend message, skipping send",
 			"threshold", SimilarityThreshold,
-			"activity_type", docWithDistance.Document.FieldMetadata["activity_type"],
-			"content_preview", docWithDistance.Document.FieldContent[:min(50, len(docWithDistance.Document.FieldContent))])
-
-		if docWithDistance.Distance < SimilarityThreshold {
-			s.logger.Info("Found similar friend message, skipping send",
-				"distance", docWithDistance.Distance,
-				"threshold", SimilarityThreshold,
-				"similar_message", docWithDistance.Document.FieldContent[:min(100, len(docWithDistance.Document.FieldContent))])
-			return true, nil
-		}
+			"similar_message", result.Facts[0].Content[:min(100, len(result.Facts[0].Content))])
+		return true, nil
 	}
 
-	s.logger.Info("No similar friend messages found, safe to send",
-		"total_friend_documents_checked", len(result.Documents))
+	s.logger.Info("No similar friend messages found, safe to send")
 	return false, nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func (s *FriendService) FetchMemory(ctx context.Context) (string, error) {
@@ -101,18 +91,18 @@ func (s *FriendService) FetchMemory(ctx context.Context) (string, error) {
 		return "", nil
 	}
 
-	result, err := s.memoryService.Query(ctx, "what do you know about me")
+	result, err := s.memoryService.Query(ctx, "what do you know about me", nil)
 	if err != nil {
 		s.logger.Error("Failed to fetch memories", "error", err)
 		return "", err
 	}
 
-	if len(result.Documents) == 0 {
+	if len(result.Facts) == 0 {
 		return "No memories found", nil
 	}
 
-	randomIndex := rand.Intn(len(result.Documents))
-	return result.Documents[randomIndex].FieldContent, nil
+	randomIndex := rand.Intn(len(result.Facts))
+	return result.Facts[randomIndex].Content, nil
 }
 
 func (s *FriendService) FetchRandomMemory(ctx context.Context) (string, error) {
@@ -120,26 +110,26 @@ func (s *FriendService) FetchRandomMemory(ctx context.Context) (string, error) {
 		return "", nil
 	}
 
-	result, err := s.memoryService.Query(ctx, "user memories personal experiences activities")
+	result, err := s.memoryService.Query(ctx, "user memories personal experiences activities", nil)
 	if err != nil {
 		s.logger.Error("Failed to fetch random memory", "error", err)
 		return "", err
 	}
 
-	if len(result.Documents) == 0 {
+	if len(result.Facts) == 0 {
 		return "No memories found", nil
 	}
 
-	randomIndex := rand.Intn(len(result.Documents))
-	return result.Documents[randomIndex].FieldContent, nil
+	randomIndex := rand.Intn(len(result.Facts))
+	return result.Facts[randomIndex].Content, nil
 }
 
 func (s *FriendService) FetchIdentity(ctx context.Context) (string, error) {
-	personality, err := s.identityService.GetPersonality(ctx)
+	userProfile, err := s.identityService.GetUserProfile(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to get personality: %w", err)
+		return "", fmt.Errorf("failed to get user profile: %w", err)
 	}
-	return personality, nil
+	return userProfile, nil
 }
 
 type GeneratePokeMessageInput struct {
@@ -156,14 +146,11 @@ func (s *FriendService) GeneratePokeMessage(ctx context.Context, input GenerateP
 		return "", fmt.Errorf("failed to build prompt: %w", err)
 	}
 
-	messages := []ai.Message{
-		{
-			Role:    ai.MessageRoleSystem,
-			Content: prompt,
-		},
+	openaiMessages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(prompt),
 	}
 
-	response, err := s.aiService.CompletionsWithMessages(ctx, messages, nil, "gpt-4o-mini")
+	response, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini")
 	if err != nil {
 		return "", fmt.Errorf("failed to generate poke message: %w", err)
 	}
@@ -214,14 +201,11 @@ func (s *FriendService) GenerateMemoryPicture(ctx context.Context, input Generat
 		return "", fmt.Errorf("failed to build picture prompt: %w", err)
 	}
 
-	messages := []ai.Message{
-		{
-			Role:    ai.MessageRoleUser,
-			Content: prompt,
-		},
+	openaiMessages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
 	}
 
-	response, err := s.aiService.CompletionsWithMessages(ctx, messages, nil, "gpt-4o-mini")
+	response, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini")
 	if err != nil {
 		return "", fmt.Errorf("failed to generate picture description: %w", err)
 	}
@@ -462,9 +446,8 @@ func (s *FriendService) SendQuestion(ctx context.Context, input SendQuestionInpu
 			FieldMetadata: metaData,
 			FieldTags:     []string{"friend", "question"},
 		}
-		docs := []memory.TextDocument{doc}
-		if errStore := s.memoryService.Store(ctx, memory.TextDocumentsToDocuments(docs), func(processed, total int) {
-		}); errStore != nil {
+		documents := []memory.Document{&doc}
+		if errStore := s.memoryService.Store(ctx, documents, nil); errStore != nil {
 			s.logger.Error("Failed to store question in memory", "error", errStore)
 		}
 	}

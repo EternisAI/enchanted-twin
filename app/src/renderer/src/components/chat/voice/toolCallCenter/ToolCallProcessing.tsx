@@ -3,7 +3,7 @@ import { ToolCall } from '@renderer/graphql/generated/graphql'
 import { Badge } from '../../../ui/badge'
 import { CheckCircle, LoaderIcon } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
-import { formatToolName } from '../../config'
+import { getToolConfig } from '../../config'
 
 interface ToolCallProcessingProps {
   toolCalls: ToolCall[]
@@ -13,7 +13,7 @@ export default function ToolCallProcessing({ toolCalls }: ToolCallProcessingProp
   return (
     <div className="flex flex-col gap-2 w-full items-end">
       {toolCalls.map((toolCall) => {
-        const { toolNameInProgress, toolNameCompleted } = formatToolName(toolCall.name)
+        const { toolNameInProgress, toolNameCompleted } = getToolConfig(toolCall.name)
         const isCompleted = toolCall.isCompleted
 
         return (
@@ -26,10 +26,7 @@ export default function ToolCallProcessing({ toolCalls }: ToolCallProcessingProp
           >
             <Badge
               variant="outline"
-              className={cn(
-                'flex items-center gap-1.5 w-full rounded-full border text-sm px-1'
-                // isCompleted ? '' : ''
-              )}
+              className={cn('flex items-center gap-1.5 w-full rounded-full border text-sm px-1')}
             >
               {isCompleted ? (
                 <CheckCircle className="mr-1 text-green-600" />

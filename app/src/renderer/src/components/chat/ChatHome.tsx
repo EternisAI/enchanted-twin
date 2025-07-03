@@ -1,16 +1,18 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Input } from '@renderer/components/ui/input'
 import { Calendar, Search, GraduationCap, Telescope, Brain } from 'lucide-react'
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation, gql } from '@apollo/client'
+import { toast } from 'sonner'
+
+import { Input } from '@renderer/components/ui/input'
 import {
   GetProfileDocument,
   GetChatsDocument,
   CreateChatDocument,
+  ChatCategory,
   SendMessageDocument
 } from '@renderer/graphql/generated/graphql'
-import { toast } from 'sonner'
 import { client } from '@renderer/graphql/lib'
 import { ContextCard } from './ContextCard'
 import { cn } from '@renderer/lib/utils'
@@ -20,6 +22,7 @@ import { useVoiceStore } from '@renderer/lib/stores/voice'
 import ChatInputBox from './ChatInputBox'
 import VoiceVisualizer from './voice/VoiceVisualizer'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
+import { VoiceModeInput } from './voice/ChatVoiceModeView'
 
 interface IndexRouteSearch {
   focusInput?: string
@@ -36,7 +39,7 @@ export function Home() {
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
-  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
+  const { isVoiceMode, stopVoiceMode, startVoiceMode } = useVoiceStore()
   const navigate = useNavigate()
   const router = useRouter()
   const searchParams = useSearch({ from: '/' }) as IndexRouteSearch
@@ -48,8 +51,8 @@ export function Home() {
   const [isReasonSelected, setIsReasonSelected] = useState(false)
 
   const [createChat] = useMutation(CreateChatDocument)
-  const [sendMessage] = useMutation(SendMessageDocument)
   const [updateProfile] = useMutation(UPDATE_PROFILE)
+  const [sendMessage] = useMutation(SendMessageDocument)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -146,40 +149,50 @@ export function Home() {
     }
   }
 
-  const handleCreateChat = useCallback(async () => {
-    if (!query.trim()) return
+  const handleCreateChat = useCallback(
+    async (chatTitle?: string, isVoiceMode?: boolean) => {
+      const message = query || chatTitle || ''
+      if (!message.trim()) return
 
-    try {
-      const { data: createData } = await createChat({
-        variables: { name: query, voice: isVoiceMode }
-      })
-      const newChatId = createData?.createChat?.id
-
-      if (newChatId) {
-        navigate({
-          to: `/chat/${newChatId}`,
-          search: { initialMessage: query }
-        })
-
-        await client.cache.evict({ fieldName: 'getChats' })
-        await router.invalidate({
-          filter: (match) => match.routeId === '/chat/$chatId'
-        })
-
-        sendMessage({
+      try {
+        const reducedMessage = message.length > 100 ? message.slice(0, 100) + '...' : message
+        const { data: createData } = await createChat({
           variables: {
-            chatId: newChatId,
-            text: query,
-            reasoning: isReasonSelected,
-            voice: isVoiceMode
+            name: chatTitle || reducedMessage,
+            category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text
           }
         })
-        setQuery('')
+        const newChatId = createData?.createChat?.id
+
+        if (newChatId) {
+          navigate({
+            to: `/chat/${newChatId}`,
+            search: { initialMessage: query }
+          })
+
+          sendMessage({
+            variables: {
+              chatId: newChatId,
+              text: query,
+              reasoning: isReasonSelected,
+              voice: isVoiceMode || false
+            }
+          })
+
+          await client.cache.evict({ fieldName: 'getChats' })
+          await router.invalidate({
+            filter: (match) => match.routeId === '/chat/$chatId'
+          })
+
+          setQuery('')
+          isVoiceMode && startVoiceMode(newChatId)
+        }
+      } catch (error) {
+        console.error('Failed to create chat:', error)
       }
-    } catch (error) {
-      console.error('Failed to create chat:', error)
-    }
-  }, [query, navigate, createChat, sendMessage, router, isReasonSelected, isVoiceMode])
+    },
+    [query, navigate, createChat, router, startVoiceMode, isReasonSelected, sendMessage]
+  )
 
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault()
@@ -187,10 +200,11 @@ export function Home() {
       if (
         debouncedQuery &&
         filteredChats.length > 0 &&
-        selectedIndex < filteredChats.length &&
-        selectedIndex >= 0
+        selectedIndex < filteredChats.length + 1 &&
+        selectedIndex >= 1
       ) {
-        navigate({ to: `/chat/${filteredChats[selectedIndex].id}` })
+        // selectedIndex 1 corresponds to filteredChats[0], selectedIndex 2 to filteredChats[1], etc.
+        navigate({ to: `/chat/${filteredChats[selectedIndex - 1].id}` })
         setQuery('')
       } else {
         handleCreateChat()
@@ -203,11 +217,16 @@ export function Home() {
     }
   }
 
+  const handleToggleToVoiceMode = async () => {
+    await handleCreateChat('New Voice Chat', true)
+  }
+
   useEffect(() => {
     const handleArrowKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex((prev) => Math.min(prev + 1, suggestions.length - 1))
+        const maxIndex = debouncedQuery ? filteredChats.length : dummySuggestions.length - 1
+        setSelectedIndex((prev) => Math.min(prev + 1, maxIndex))
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
@@ -217,12 +236,16 @@ export function Home() {
 
     window.addEventListener('keydown', handleArrowKeyDown)
     return () => window.removeEventListener('keydown', handleArrowKeyDown)
-  }, [selectedIndex, suggestions])
+  }, [selectedIndex, debouncedQuery, filteredChats.length, dummySuggestions.length])
 
   const handleSuggestionClick = async (suggestion: (typeof dummySuggestions)[0]) => {
     try {
       const { data: createData } = await createChat({
-        variables: { name: suggestion.name, voice: isVoiceMode }
+        variables: {
+          name: 'New Chat',
+          category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
+          initialMessage: suggestion.name
+        }
       })
       const newChatId = createData?.createChat?.id
 
@@ -237,14 +260,6 @@ export function Home() {
           filter: (match) => match.routeId === '/chat/$chatId'
         })
 
-        sendMessage({
-          variables: {
-            chatId: newChatId,
-            text: suggestion.name,
-            reasoning: isReasonSelected,
-            voice: isVoiceMode
-          }
-        })
         setQuery('')
       }
     } catch (error) {
@@ -329,18 +344,22 @@ export function Home() {
         }}
         className="relative w-full"
       >
-        <ChatInputBox
-          isVoiceReady={isVoiceReady}
-          query={query}
-          textareaRef={textareaRef}
-          isReasonSelected={isReasonSelected}
-          isVoiceMode={isVoiceMode}
-          onVoiceModeChange={toggleVoiceMode}
-          onInputChange={setQuery}
-          handleSubmit={handleSubmit}
-          setIsReasonSelected={setIsReasonSelected}
-          handleCreateChat={handleCreateChat}
-        />
+        {isVoiceMode ? (
+          <VoiceModeInput onStop={stopVoiceMode} />
+        ) : (
+          <ChatInputBox
+            isVoiceReady={isVoiceReady}
+            query={query}
+            textareaRef={textareaRef}
+            isReasonSelected={isReasonSelected}
+            isVoiceMode={isVoiceMode}
+            onVoiceModeChange={handleToggleToVoiceMode}
+            onInputChange={setQuery}
+            handleSubmit={handleSubmit}
+            setIsReasonSelected={setIsReasonSelected}
+            handleCreateChat={handleCreateChat}
+          />
+        )}
 
         <AnimatePresence mode="wait">
           {!isVoiceMode && (
@@ -360,6 +379,23 @@ export function Home() {
                 <ScrollArea className="h-[280px]">
                   {debouncedQuery ? (
                     <>
+                      <motion.button
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.15, delay: 0 }}
+                        type="button"
+                        onClick={() => {
+                          handleCreateChat()
+                          setQuery('')
+                        }}
+                        className={cn(
+                          'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
+                          'hover:bg-muted/80',
+                          selectedIndex === 0 && 'bg-primary/10 text-primary'
+                        )}
+                      >
+                        <span className="truncate">Create new chat</span>
+                      </motion.button>
                       {filteredChats.map((chat, index) => (
                         <motion.button
                           key={chat.id}
@@ -374,7 +410,7 @@ export function Home() {
                           className={cn(
                             'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
                             'hover:bg-muted/80',
-                            selectedIndex === index && 'bg-primary/10 text-primary'
+                            selectedIndex === index + 1 && 'bg-primary/10 text-primary'
                           )}
                         >
                           <span className="truncate">{chat.name}</span>

@@ -89,6 +89,9 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 		}
 
 	case "google":
+		// Remote authentication is now handled automatically by the holon service
+		// when it's initialized, so we don't need to do it here anymore
+
 		_, err = r.MCPService.ConnectMCPServerIfNotExists(ctx, model.ConnectMCPServerInput{
 			Name:    model.MCPServerTypeGoogle.String(),
 			Command: "npx",
@@ -197,33 +200,84 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 }
 
 // CreateChat is the resolver for the createChat field.
-func (r *mutationResolver) CreateChat(ctx context.Context, name string, voice bool) (*model.Chat, error) {
-	chat, err := r.TwinChatService.CreateChat(ctx, name, voice)
+func (r *mutationResolver) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) (*model.Chat, error) {
+	chat, err := r.TwinChatService.CreateChat(ctx, name, category, holonThreadID)
 	if err != nil {
+		r.Logger.Error("Failed to create chat", "error", err)
 		return nil, err
 	}
+
+	if initialMessage != nil && *initialMessage != "" {
+		go func() {
+			bgCtx := context.Background()
+
+			isVoice := category == model.ChatCategoryVoice
+			_, err := r.TwinChatService.SendMessage(bgCtx, chat.ID, *initialMessage, false, isVoice)
+			if err != nil {
+				r.Logger.Error("Failed to send initial message asynchronously", "error", err, "chat_id", chat.ID)
+
+				errorMsg := map[string]interface{}{
+					"type":    "error",
+					"message": "Failed to send initial message",
+					"chatId":  chat.ID,
+				}
+				if errorData, marshalErr := json.Marshal(errorMsg); marshalErr == nil {
+					err := r.Nc.Publish(fmt.Sprintf("chat.%s.error", chat.ID), errorData)
+					if err != nil {
+						r.Logger.Error("Failed to publish error message", "error", err, "chat_id", chat.ID)
+					}
+				}
+			}
+		}()
+	}
+
 	return &chat, nil
 }
 
 // SendMessage is the resolver for the sendMessage field.
 func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error) {
-	subject := fmt.Sprintf("chat.%s", chatID)
+	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
+}
 
-	userMessageJson, err := json.Marshal(model.Message{
-		ID:        uuid.New().String(),
-		Text:      &text,
-		CreatedAt: time.Now().Format(time.RFC3339),
-		Role:      model.RoleUser,
+// ProcessMessageHistory processes a list of messages and saves them to the database.
+func (r *mutationResolver) ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (*model.Message, error) {
+	// Convert input messages to the format expected by the service for logging purposes
+	historyJson, err := json.Marshal(map[string]interface{}{
+		"chatId":     chatID,
+		"messages":   messages,
+		"count":      len(messages),
+		"onboarding": isOnboarding,
 	})
 	if err != nil {
 		return nil, err
 	}
-	err = r.Nc.Publish(subject, userMessageJson)
-	if err != nil {
-		return nil, err
+
+	r.Logger.Info("Processing message history", "data", string(historyJson))
+
+	// Only publish the last user message to NATS
+	subject := fmt.Sprintf("chat.%s", chatID)
+	if len(messages) > 0 {
+		lastMsg := messages[len(messages)-1]
+		if lastMsg.Role == model.RoleUser {
+			text := lastMsg.Text
+			userMessageJson, err := json.Marshal(model.Message{
+				ID:        uuid.New().String(),
+				Text:      &text,
+				CreatedAt: time.Now().Format(time.RFC3339),
+				Role:      model.RoleUser,
+			})
+			if err != nil {
+				return nil, err
+			}
+			err = r.Nc.Publish(subject, userMessageJson)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
-	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
+	// Process the messages and save them to the database
+	return r.TwinChatService.ProcessMessageHistory(ctx, chatID, messages, isOnboarding)
 }
 
 // DeleteChat is the resolver for the deleteChat field.
@@ -385,6 +439,32 @@ func (r *mutationResolver) Activate(ctx context.Context, inviteCode string) (boo
 	return auth.Activate(ctx, r.Logger, r.Store, inviteCode)
 }
 
+// JoinHolon is the resolver for the joinHolon field.
+func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network *string) (bool, error) {
+	networkName := "HolonNetwork"
+	if network != nil && *network != "" {
+		networkName = *network
+	}
+
+	err := r.HolonService.JoinHolonNetwork(ctx, userID, networkName)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (r *mutationResolver) StoreToken(ctx context.Context, input model.StoreTokenInput) (bool, error) {
+	r.Logger.Info("StoreToken called")
+
+	err := auth.StoreToken(ctx, r.Logger, r.Store, input.Token, input.RefreshToken)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -472,7 +552,7 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 	for i, tool := range tools {
 		toolsDefinitions[i] = &model.Tool{
 			Name:        tool.Name,
-			Description: *tool.Description,
+			Description: tool.Description,
 		}
 	}
 	return toolsDefinitions, nil
@@ -645,6 +725,21 @@ func (r *queryResolver) GetSetupProgress(ctx context.Context) ([]*model.SetupPro
 // WhitelistStatus is the resolver for the whitelistStatus field.
 func (r *queryResolver) WhitelistStatus(ctx context.Context) (bool, error) {
 	return auth.IsWhitelisted(ctx, r.Logger, r.Store)
+}
+
+// GetHolons is the resolver for the getHolons field.
+func (r *queryResolver) GetHolons(ctx context.Context, userID string) ([]string, error) {
+	return r.HolonService.GetHolons(ctx, userID)
+}
+
+// GetThreads is the resolver for the getThreads field.
+func (r *queryResolver) GetThreads(ctx context.Context, network *string, first int32, offset int32) ([]*model.Thread, error) {
+	return r.HolonService.GetThreads(ctx, first, offset)
+}
+
+// GetThread is the resolver for the getThread field.
+func (r *queryResolver) GetThread(ctx context.Context, network *string, id string) (*model.Thread, error) {
+	return r.HolonService.GetThread(ctx, id)
 }
 
 // MessageAdded is the resolver for the messageAdded field.
@@ -895,6 +990,48 @@ func (r *subscriptionResolver) MessageStream(ctx context.Context, chatID string)
 	}()
 
 	return ch, nil
+}
+
+// ProcessMessageHistoryStream is the resolver for the processMessageHistoryStream subscription.
+func (r *subscriptionResolver) ProcessMessageHistoryStream(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (<-chan *model.MessageStreamPayload, error) {
+	// Convert input messages to the format expected by the service for logging purposes
+	historyJson, err := json.Marshal(map[string]interface{}{
+		"chatId":     chatID,
+		"messages":   messages,
+		"count":      len(messages),
+		"onboarding": isOnboarding,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.Logger.Info("Processing message history with streaming", "data", string(historyJson))
+
+	// Use the streaming service method
+	streamChan, err := r.TwinChatService.ProcessMessageHistoryStream(ctx, chatID, messages, isOnboarding)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert the service channel to the expected GraphQL channel
+	gqlChan := make(chan *model.MessageStreamPayload, 10)
+
+	go func() {
+		defer close(gqlChan)
+		for {
+			select {
+			case payload, ok := <-streamChan:
+				if !ok {
+					return
+				}
+				gqlChan <- &payload
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return gqlChan, nil
 }
 
 // WhatsAppSyncStatus is the resolver for the whatsAppSyncStatus field.

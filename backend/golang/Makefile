@@ -9,6 +9,11 @@ run:
 build:
 	go build -o bin/enchanted-twin cmd/server/main.go
 
+fresh-db:
+	@echo "Removing all Weaviate and SQLite data to restart with fresh schema..."
+	rm -rf ./output
+	@echo "All data will be recreated on next server startup."
+
 release:
 	GOOS=darwin GOARCH=amd64 go build -o bin/enchanted-twin-darwin-amd64 cmd/server/main.go
 	GOOS=darwin GOARCH=arm64 go build -o bin/enchanted-twin-darwin-arm64 cmd/server/main.go
@@ -19,7 +24,10 @@ lint:
 	golangci-lint run --fix
 
 test:
-	go test ./...
+	go test -short ./...
+
+test-integration:
+	go test -v ./pkg/dataprocessing/integration/... -timeout=90m
 
 gqlgen:
 	go run github.com/99designs/gqlgen generate
@@ -31,5 +39,5 @@ deadcode:
 	@echo "=== Checking for transitively dead functions ==="
 	@go run golang.org/x/tools/cmd/deadcode@latest ./...
 
-test-memory:
-	go run cmd/memory-test/main.go
+sqlc-generate:
+	go run github.com/sqlc-dev/sqlc/cmd/sqlc generate

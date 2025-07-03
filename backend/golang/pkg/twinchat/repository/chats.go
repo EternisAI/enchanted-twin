@@ -24,7 +24,7 @@ func (r *Repository) GetChat(ctx context.Context, id string) (model.Chat, error)
 		}
 	}()
 
-	query := "SELECT id, name, voice, created_at FROM chats WHERE id = ?"
+	query := "SELECT id, name, category, holon_thread_id, created_at FROM chats WHERE id = ?"
 
 	var chatDB ChatDB
 	err = tx.GetContext(ctx, &chatDB, query, id)
@@ -80,7 +80,7 @@ func (r *Repository) GetChatByName(ctx context.Context, name string) (model.Chat
 		}
 	}()
 
-	query := "SELECT id, name, voice, created_at FROM chats WHERE name = ? ORDER BY created_at DESC LIMIT 1"
+	query := "SELECT id, name, category, holon_thread_id, created_at FROM chats WHERE name = ? ORDER BY created_at DESC LIMIT 1"
 
 	var chatDB ChatDB
 	err = tx.GetContext(ctx, &chatDB, query, name)
@@ -138,7 +138,8 @@ func (r *Repository) GetChats(ctx context.Context) ([]*model.Chat, error) {
 	SELECT
 		c.id,
 		c.name,
-		c.voice,
+		c.category,
+		c.holon_thread_id,
 		c.created_at,
 		COALESCE(MAX(m.created_at), c.created_at) AS last_message_at
 	FROM   chats AS c
@@ -169,7 +170,7 @@ func (r *Repository) GetChats(ctx context.Context) ([]*model.Chat, error) {
 	return chats, nil
 }
 
-func (r *Repository) CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error) {
+func (r *Repository) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (model.Chat, error) {
 	// Start a transaction to ensure consistency
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -183,16 +184,13 @@ func (r *Repository) CreateChat(ctx context.Context, name string, voice bool) (m
 		}
 	}()
 
-	chat := model.Chat{
-		ID:        uuid.New().String(),
-		Name:      name,
-		Voice:     voice,
-		CreatedAt: time.Now().Format(time.RFC3339),
-	}
+	chatID := uuid.New().String()
+	createdAt := time.Now().Format(time.RFC3339)
+	categoryStr := string(category)
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO chats (id, name, voice, created_at) VALUES (?, ?, ?, ?)
-	`, chat.ID, chat.Name, chat.Voice, chat.CreatedAt)
+		INSERT INTO chats (id, name, category, holon_thread_id, created_at) VALUES (?, ?, ?, ?, ?)
+	`, chatID, name, categoryStr, holonThreadID, createdAt)
 	if err != nil {
 		return model.Chat{}, fmt.Errorf("failed to create chat: %w", err)
 	}
@@ -204,6 +202,14 @@ func (r *Repository) CreateChat(ctx context.Context, name string, voice bool) (m
 
 	// Set tx to nil so rollback won't be called
 	tx = nil
+
+	chat := model.Chat{
+		ID:            chatID,
+		Name:          name,
+		Category:      category,
+		HolonThreadID: holonThreadID,
+		CreatedAt:     createdAt,
+	}
 
 	return chat, nil
 }
