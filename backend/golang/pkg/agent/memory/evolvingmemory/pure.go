@@ -4,74 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/google/uuid"
 	"github.com/openai/openai-go"
-	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
-
-// CreateMemoryObject builds the Weaviate object for ADD operations.
-func CreateMemoryObject(fact *memory.MemoryFact, source memory.Document) *models.Object {
-	// Get tags from the source document
-	tags := source.Tags()
-
-	// Get timestamp from source document
-	timestamp := time.Now()
-	if ts := source.Timestamp(); ts != nil && !ts.IsZero() {
-		timestamp = *ts
-	}
-
-	// Prepare properties with new direct fields
-	properties := map[string]interface{}{
-		"content":            fact.GenerateContent(),
-		"metadataJson":       "{}",
-		"timestamp":          timestamp.Format(time.RFC3339),
-		"tags":               tags,
-		"documentReferences": []string{},
-		// Store structured fact fields
-		"factCategory":    fact.Category,
-		"factSubject":     fact.Subject,
-		"factAttribute":   fact.Attribute,
-		"factValue":       fact.Value,
-		"factSensitivity": fact.Sensitivity,
-		"factImportance":  fact.Importance,
-	}
-
-	// Store temporal context if present
-	if fact.TemporalContext != nil {
-		properties["factTemporalContext"] = *fact.TemporalContext
-	}
-
-	// Extract and store source as direct field
-	if sourceField := source.Source(); sourceField != "" {
-		properties["source"] = sourceField
-	}
-
-	return &models.Object{
-		Class:      ClassName,
-		Properties: properties,
-	}
-}
-
-// CreateMemoryObjectWithDocumentReferences builds the Weaviate object with document references.
-func CreateMemoryObjectWithDocumentReferences(fact *memory.MemoryFact, source memory.Document, documentIDs []string) *models.Object {
-	obj := CreateMemoryObject(fact, source)
-
-	// Update with actual document references
-	props, ok := obj.Properties.(map[string]interface{})
-	if !ok {
-		return obj
-	}
-	props["documentReferences"] = documentIDs
-
-	return obj
-}
 
 // ExtractFactsFromDocument routes fact extraction based on document type.
 // This is pure business logic extracted from the adapter.
@@ -88,105 +29,6 @@ func ExtractFactsFromDocument(ctx context.Context, doc memory.Document, completi
 	default:
 		return nil, fmt.Errorf("unsupported document type: %T", doc)
 	}
-}
-
-// BuildSeparateMemoryDecisionPrompts constructs separate system and user prompts to prevent injection.
-// This is the secure version that properly separates system instructions from user content.
-func BuildSeparateMemoryDecisionPrompts(fact string, similar []ExistingMemory) (systemPrompt string, userPrompt string) {
-	// System prompt contains only instructions and guidelines - no user content
-	systemPrompt = MemoryUpdatePrompt
-
-	// User prompt contains only the user data to be analyzed
-	existingMemoriesContentForPrompt := []string{}
-	existingMemoriesForPromptStr := "No existing relevant memories found."
-
-	if len(similar) > 0 {
-		for _, mem := range similar {
-			memContext := fmt.Sprintf("ID: %s, Content: %s", mem.ID, mem.Content)
-			existingMemoriesContentForPrompt = append(existingMemoriesContentForPrompt, memContext)
-		}
-		existingMemoriesForPromptStr = strings.Join(existingMemoriesContentForPrompt, "\n---\n")
-	}
-
-	userPrompt = fmt.Sprintf(`Context to analyze:
-
-Existing Memories for the primary user (if any, related to the new fact):
-%s
-
-New Fact to consider for the primary user:
-%s
-
-Please analyze this context and decide what action should be taken for the NEW FACT.`, existingMemoriesForPromptStr, fact)
-
-	return systemPrompt, userPrompt
-}
-
-// ParseMemoryDecisionResponse parses LLM tool call response into MemoryDecision.
-// This is pure business logic extracted from the adapter.
-func ParseMemoryDecisionResponse(llmResponse openai.ChatCompletionMessage) (MemoryDecision, error) {
-	if len(llmResponse.ToolCalls) == 0 {
-		return MemoryDecision{
-			Action: ADD,
-			Reason: "No tool call made, defaulting to ADD",
-		}, nil
-	}
-
-	toolCall := llmResponse.ToolCalls[0]
-	action := MemoryAction(toolCall.Function.Name)
-
-	decision := MemoryDecision{
-		Action: action,
-	}
-
-	switch action {
-	case UPDATE:
-		var args UpdateToolArguments
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			return MemoryDecision{}, fmt.Errorf("unmarshaling UPDATE arguments: %w", err)
-		}
-		decision.TargetID = args.MemoryID
-		decision.Reason = args.Reason
-
-	case DELETE:
-		var args DeleteToolArguments
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			return MemoryDecision{}, fmt.Errorf("unmarshaling DELETE arguments: %w", err)
-		}
-		decision.TargetID = args.MemoryID
-		decision.Reason = args.Reason
-
-	case NONE:
-		var args NoneToolArguments
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			// Non-fatal for NONE - this is intentionally lenient
-		} else {
-			decision.Reason = args.Reason
-		}
-	}
-
-	return decision, nil
-}
-
-// SearchSimilarMemories performs semantic search for similar memories.
-// This is pure business logic extracted from the adapter.
-func SearchSimilarMemories(ctx context.Context, fact string, filter *memory.Filter, storage storage.Interface) ([]ExistingMemory, error) {
-	result, err := storage.Query(ctx, fact, filter)
-	if err != nil {
-		return nil, fmt.Errorf("querying similar memories: %w", err)
-	}
-
-	memories := make([]ExistingMemory, 0, len(result.Facts))
-	for _, memoryFact := range result.Facts {
-		mem := ExistingMemory{
-			ID:        memoryFact.ID,
-			Content:   memoryFact.Content,
-			Metadata:  memoryFact.Metadata,
-			Timestamp: memoryFact.Timestamp,
-		}
-		memories = append(memories, mem)
-	}
-
-	return memories, nil
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
@@ -247,9 +89,25 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 		for factIdx := range args.Facts {
 			memoryFact := &args.Facts[factIdx]
+
+			// Set required fields that LLM doesn't provide
+			memoryFact.ID = uuid.New().String()
 			memoryFact.Source = sourceDoc.Source()
+			memoryFact.Content = memoryFact.GenerateContent()
+			if timestamp := sourceDoc.Timestamp(); timestamp != nil {
+				memoryFact.Timestamp = *timestamp
+			} else {
+				memoryFact.Timestamp = time.Now() // fallback if no timestamp available
+			}
+
+			// Set document reference
+			if memoryFact.DocumentReferences == nil {
+				memoryFact.DocumentReferences = []string{sourceDoc.ID()}
+			}
+
 			logger.Debug("Conversation Fact",
 				"index", factIdx+1,
+				"id", memoryFact.ID,
 				"category", memoryFact.Category,
 				"subject", memoryFact.Subject,
 				"attribute", memoryFact.Attribute,
@@ -337,11 +195,24 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		for factIdx := range args.Facts {
 			memoryFact := &args.Facts[factIdx]
 
-			// FIX: Set the Source field from the source document
+			// Set required fields that LLM doesn't provide
+			memoryFact.ID = uuid.New().String()
 			memoryFact.Source = sourceDoc.Source()
+			memoryFact.Content = memoryFact.GenerateContent()
+			if timestamp := sourceDoc.Timestamp(); timestamp != nil {
+				memoryFact.Timestamp = *timestamp
+			} else {
+				memoryFact.Timestamp = time.Now() // fallback if no timestamp available
+			}
+
+			// Set document reference
+			if memoryFact.DocumentReferences == nil {
+				memoryFact.DocumentReferences = []string{sourceDoc.ID()}
+			}
 
 			logger.Debug("Text Document Fact",
 				"index", factIdx+1,
+				"id", memoryFact.ID,
 				"category", memoryFact.Category,
 				"subject", memoryFact.Subject,
 				"attribute", memoryFact.Attribute,
