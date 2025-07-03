@@ -347,7 +347,7 @@ function startOAuthServer(firebaseConfig?: FirebaseConfig): Promise<http.Server>
               </head>
               <body>
                 <div class="container">
-                  <h1>❌ Authentication Failed</h1>
+                  <h1>Authentication Failed</h1>
                   <p class="error">There was an error signing in: ${error || 'Unknown error'}</p>
                   <p>Please close this window and try again.</p>
                 </div>
