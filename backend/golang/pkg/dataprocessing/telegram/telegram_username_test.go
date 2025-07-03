@@ -111,8 +111,8 @@ func TestUsernameExtraction(t *testing.T) {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
 	}
 
-	if len(records) != 2 {
-		t.Errorf("Expected 2 records, got %d", len(records))
+	if len(records) != 1 {
+		t.Errorf("Expected 1 conversation document, got %d", len(records))
 	}
 
 	sourceUsername, err := store.GetSourceUsername(ctx, "telegram")
@@ -144,31 +144,28 @@ func TestUsernameExtraction(t *testing.T) {
 		t.Errorf("Expected bio 'ⵥ', got %v", sourceUsername.Bio)
 	}
 
-	// Verify message attribution - messages are now in conversation format
-	var conversationRecord map[string]interface{}
+	// Verify message attribution - messages are now in ConversationDocument format
+	var conversationDoc *memory.ConversationDocument
 	for _, record := range records {
-		if record.Data["type"] == "conversation" {
-			conversationRecord = record.Data
+		if record.User != "" && len(record.Conversation) > 0 {
+			conversationDoc = &record
 			break
 		}
 	}
 
-	if conversationRecord == nil {
-		t.Fatal("Expected to find conversation record")
+	if conversationDoc == nil {
+		t.Fatal("Expected to find conversation document")
 	}
 
-	messages, ok := conversationRecord["messages"].([]messageData)
-	if !ok {
-		t.Fatal("Expected messages to be []messageData")
-	}
+	messages := conversationDoc.Conversation
 
 	if len(messages) != 2 {
 		t.Errorf("Expected 2 messages in conversation, got %d", len(messages))
 	}
 
-	var userMessage, otherMessage *messageData
+	var userMessage, otherMessage *memory.ConversationMessage
 	for i := range messages {
-		switch messages[i].From {
+		switch messages[i].Speaker {
 		case "JohnDoe":
 			userMessage = &messages[i]
 		case "Alice Smith":
@@ -179,16 +176,12 @@ func TestUsernameExtraction(t *testing.T) {
 	if userMessage == nil {
 		t.Fatal("Expected to find user message")
 	}
-	if !userMessage.MyMessage {
-		t.Error("Expected user message to be marked as myMessage=true")
-	}
+	// Note: ConversationMessage doesn't have MyMessage field, but we know it's from the user
 
 	if otherMessage == nil {
 		t.Fatal("Expected to find other message")
 	}
-	if otherMessage.MyMessage {
-		t.Error("Expected other message to be marked as myMessage=false")
-	}
+	// Note: ConversationMessage doesn't have MyMessage field, but we know it's from the contact
 }
 
 func TestUsernameExtractionFallback(t *testing.T) {
@@ -453,20 +446,15 @@ func TestUsernameExtractionAndDocumentGeneration(t *testing.T) {
 		t.Errorf("Expected stored username '@JohnDoe', got '%s'", sourceUsername.Username)
 	}
 
-	// Step 3: Convert records to documents (this should trim the @ prefix)
-	documents, err := processor.ToDocuments(ctx, records)
-	if err != nil {
-		t.Fatalf("ToDocuments failed: %v", err)
-	}
+	// Step 3: Records are already ConversationDocuments (no conversion needed)
+	documents := records
 
 	// Step 4: Find and verify the conversation document
 	var conversationDoc *memory.ConversationDocument
-	for _, doc := range documents {
-		if doc.Metadata()["type"] == "conversation" {
-			if convDoc, ok := doc.(*memory.ConversationDocument); ok {
-				conversationDoc = convDoc
-				break
-			}
+	for i := range documents {
+		if documents[i].User != "" && len(documents[i].Conversation) > 0 {
+			conversationDoc = &documents[i]
+			break
 		}
 	}
 

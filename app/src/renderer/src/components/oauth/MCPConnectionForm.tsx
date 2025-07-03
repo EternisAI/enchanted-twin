@@ -11,6 +11,11 @@ interface MCPConnectionFormProps {
   onSuccess: () => void
 }
 
+enum MCPConnection {
+  STDIO = 'stdio',
+  STREAMBLE_HTTP = 'streamable-http'
+}
+
 export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps) {
   const [connectMcpServer, { loading }] = useMutation(ConnectMcpServerDocument, {
     onCompleted: () => {
@@ -23,7 +28,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
       onSuccess()
     },
     onError: (error: Error) => {
-      console.error(error)
+      console.error('[MCPConnectionForm] Failed to connect to MCP server', error)
       toast.error('Failed to connect to MCP server', {
         description: error.message
       })
@@ -35,8 +40,28 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
   const [argumentsString, setArgumentsString] = useState('')
   const [envVars, setEnvVars] = useState<{ key: string; value: string }[]>([{ key: '', value: '' }])
   const [pastedText, setPastedText] = useState('')
+  const [connection, setConnection] = useState<MCPConnection>(MCPConnection.STDIO)
 
   const handleConnect = () => {
+    console.log(connection)
+    // Right now backend does not support url props so we use the workaround of command url and args the actual url
+    if (connection === MCPConnection.STREAMBLE_HTTP) {
+      const mcpName = new URL(command).hostname.replace('www.', '').split('.')[0]
+      console.log('mcpName', mcpName)
+
+      connectMcpServer({
+        variables: {
+          input: {
+            name: mcpName || 'Streamble HTTP',
+            command: 'url',
+            args: [command],
+            type: McpServerType.Other
+          }
+        }
+      })
+      return
+    }
+
     connectMcpServer({
       variables: {
         input: {
@@ -53,22 +78,32 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
   const handleParsePaste = (): void => {
     try {
       const json = JSON.parse(pastedText)
-      const serverEntries = Object.entries(json?.mcpServers || {})
-      if (serverEntries.length === 0) {
-        toast.error('No MCP servers found')
+
+      console.log(json.type)
+      if (json.type === MCPConnection.STREAMBLE_HTTP) {
+        setConnection(MCPConnection.STREAMBLE_HTTP)
+        setCommand(json.url)
+        toast.success(`Prefilled with streamable HTTP server "${json.url}"`)
         return
+      } else {
+        const serverEntries = Object.entries(json?.mcpServers || {})
+        if (serverEntries.length === 0) {
+          toast.error('No MCP servers found')
+          return
+        }
+
+        const [firstName, config] = serverEntries[0]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { command, args = [], env = {} } = config as any
+        setConnection(MCPConnection.STDIO)
+        setName(firstName)
+        setCommand(command)
+        setArgumentsString(Array.isArray(args) ? args.join(' ') : '')
+        setEnvVars(Object.entries(env).map(([key, value]) => ({ key, value: value as string })))
+        toast.success(`Prefilled with STDIO server "${firstName}"`)
       }
 
-      const [firstName, config] = serverEntries[0]
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { command, args = [], env = {} } = config as any
-
-      setName(firstName)
-      setCommand(command)
-      setArgumentsString(Array.isArray(args) ? args.join(' ') : '')
-      setEnvVars(Object.entries(env).map(([key, value]) => ({ key, value: value as string })))
       setPastedText('')
-      toast.success(`Prefilled with server "${firstName}"`)
     } catch (err) {
       console.error(err)
       toast.error('Invalid JSON format')
@@ -77,6 +112,18 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
 
   return (
     <div className="flex flex-col gap-6 ">
+      <div className="flex flex-col gap-1">
+        <label htmlFor="connection">Connection Type</label>
+        <select
+          id="connection"
+          value={connection}
+          onChange={(e) => setConnection(e.target.value as MCPConnection)}
+          className="h-10 w-full rounded-md border border-gray-300 bg-white pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzM3NDE1MSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')] bg-no-repeat bg-[center_right_0.75rem]"
+        >
+          <option value={MCPConnection.STDIO}>STDIO</option>
+          <option value={MCPConnection.STREAMBLE_HTTP}>Streamble HTTP</option>
+        </select>
+      </div>
       <div className="flex flex-col gap-2">
         <label>Paste JSON Config</label>
         <Textarea
@@ -91,7 +138,52 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
         </Button>
       </div>
 
-      <div className="space-y-2">
+      {connection === 'stdio' ? (
+        <StdioConnectionForm
+          name={name}
+          setName={setName}
+          command={command}
+          setCommand={setCommand}
+          argumentsString={argumentsString}
+          setArgumentsString={setArgumentsString}
+          envVars={envVars}
+          setEnvVars={setEnvVars}
+        />
+      ) : (
+        <StreambleHttpConnectionForm command={command} setCommand={setCommand} />
+      )}
+
+      <Button className="w-full mt-4" onClick={handleConnect} disabled={loading}>
+        {loading ? 'Connecting...' : 'Connect'}
+      </Button>
+    </div>
+  )
+}
+
+type StdioConnectionFormProps = {
+  name: string
+  setName: (name: string) => void
+  command: string
+  setCommand: (command: string) => void
+  argumentsString: string
+  setArgumentsString: (argumentsString: string) => void
+  envVars: { key: string; value: string }[]
+  setEnvVars: (envVars: { key: string; value: string }[]) => void
+}
+
+function StdioConnectionForm({
+  name,
+  setName,
+  command,
+  setCommand,
+  argumentsString,
+  setArgumentsString,
+  envVars,
+  setEnvVars
+}: StdioConnectionFormProps) {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
         <label htmlFor="name">Name</label>
         <Input
           id="name"
@@ -101,7 +193,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
         />
       </div>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-1">
         <label htmlFor="command">Command</label>
         <Input
           id="command"
@@ -111,7 +203,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
         />
       </div>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-1">
         <div className="flex justify-between items-center">
           <label>Arguments</label>
           {/* <Button variant="link" onClick={() => setArgumentsList([...argumentsList, ''])}>
@@ -127,7 +219,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-1">
         <div className="flex justify-between items-center">
           <label>Environment Variables</label>
           <Button variant="link" onClick={() => setEnvVars([...envVars, { key: '', value: '' }])}>
@@ -166,10 +258,26 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
           ))}
         </div>
       </div>
+    </div>
+  )
+}
 
-      <Button className="w-full mt-4" onClick={handleConnect} disabled={loading}>
-        {loading ? 'Connecting...' : 'Connect'}
-      </Button>
+function StreambleHttpConnectionForm({
+  command,
+  setCommand
+}: {
+  command: string
+  setCommand: (command: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor="url">URL</label>
+      <Input
+        id="url"
+        placeholder="https://mcp.example.com"
+        value={command}
+        onChange={(e) => setCommand(e.target.value)}
+      />
     </div>
   )
 }

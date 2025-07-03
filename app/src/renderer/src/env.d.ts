@@ -51,7 +51,9 @@ interface IApi {
   checkForUpdates: (silent: boolean) => Promise<void>
   getAppVersion: () => Promise<string>
   restartApp: () => Promise<void>
-  onOpenSettings: (callback: () => void) => void
+  onOpenSettings: (callback: () => void) => () => void
+  onNewChat: (callback: () => void) => () => void
+  onToggleSidebar: (callback: () => void) => () => void
   screenpipe: {
     getStatus: () => Promise<ScreenpipeStatus>
     install: () => Promise<ScreenpipeResult>
@@ -118,6 +120,17 @@ interface IApi {
     set: (key: string, value: unknown) => void
   }
   onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => () => void
+  openMainWindowWithChat: (chatId?: string, initialMessage?: string) => Promise<{ success: boolean; error?: string }>
+  onNavigateTo: (callback: (url: string) => void) => () => void
+  resizeOmnibarWindow: (width: number, height: number) => Promise<{ success: boolean; error?: string }>
+  hideOmnibarWindow: () => Promise<{ success: boolean; error?: string }>
+  rendererReady: () => void
+  keyboardShortcuts: {
+    get: () => Promise<Record<string, { keys: string; default: string; global?: boolean }>>
+    set: (action: string, keys: string) => Promise<{ success: boolean; error?: string }>
+    reset: (action: string) => Promise<{ success: boolean; error?: string }>
+    resetAll: () => Promise<{ success: boolean; error?: string }>
+  }
 }
 
 interface ScreenpipeStatus {

@@ -49,7 +49,7 @@ func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (s
 			return "", err
 		}
 		for _, fact := range docs.Facts {
-			memoryDocuments = append(memoryDocuments, fact.Content)
+			memoryDocuments = append(memoryDocuments, fact.GenerateContentForLLM())
 		}
 	}
 

@@ -2,18 +2,20 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
-	"github.com/joho/godotenv"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	tcweaviate "github.com/testcontainers/testcontainers-go/modules/weaviate"
@@ -38,18 +40,15 @@ var (
 	sharedTempDir           string
 	setupOnce               sync.Once
 	teardownOnce            sync.Once
+	mockServer              *httptest.Server
 )
 
 type testConfig struct {
-	Source            string
-	InputPath         string
-	OutputPath        string
-	CompletionsModel  string
-	CompletionsApiKey string
-	CompletionsApiUrl string
-	EmbeddingsModel   string
-	EmbeddingsApiKey  string
-	EmbeddingsApiUrl  string
+	Source           string
+	InputPath        string
+	OutputPath       string
+	CompletionsModel string
+	EmbeddingsModel  string
 }
 
 type testEnvironment struct {
@@ -64,26 +63,206 @@ type testEnvironment struct {
 	cancel         context.CancelFunc
 }
 
-// deterministicAIService wraps ai.Service to use temperature 0.0 for deterministic testing.
-type deterministicAIService struct {
-	*ai.Service
-}
+// createMockAIService creates an AI service with a mock HTTP server that returns successful responses.
+func createMockAIService(logger *log.Logger) *ai.Service {
+	if mockServer == nil {
+		// Create a mock HTTP server that returns successful OpenAI API responses
+		mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			logger.Debug("Mock API called", "path", r.URL.Path, "method", r.Method)
 
-// Completions overrides the default method to use temperature 0.0 for deterministic results.
-func (d *deterministicAIService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
-	return d.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
-		Messages:    messages,
-		Model:       model,
-		Tools:       tools,
-		Temperature: param.Opt[float64]{Value: 0.0}, // Deterministic temperature
-	})
-}
+			w.Header().Set("Content-Type", "application/json")
 
-// newDeterministicAIService creates a test AI service that uses temperature 0.0.
-func newDeterministicAIService(logger *log.Logger, apiKey, baseURL string) *deterministicAIService {
-	return &deterministicAIService{
-		Service: ai.NewOpenAIService(logger, apiKey, baseURL),
+			if strings.Contains(r.URL.Path, "embeddings") {
+				// Mock embeddings response
+				response := map[string]interface{}{
+					"object": "list",
+					"data": []map[string]interface{}{
+						{
+							"object":    "embedding",
+							"index":     0,
+							"embedding": make([]float64, 1536), // Standard OpenAI embedding size
+						},
+					},
+					"model": "text-embedding-3-small",
+					"usage": map[string]interface{}{
+						"prompt_tokens": 8,
+						"total_tokens":  8,
+					},
+				}
+
+				// Generate deterministic but varied embeddings based on request content hash
+				body, _ := io.ReadAll(r.Body)
+				var requestData map[string]interface{}
+				if err := json.Unmarshal(body, &requestData); err != nil {
+					logger.Error("Failed to parse embeddings request", "error", err)
+				}
+
+				// Create a simple hash from the input text to make embeddings vary with content
+				contentHash := 0
+				if input, ok := requestData["input"].(string); ok {
+					for _, char := range input {
+						contentHash = (contentHash*31 + int(char)) % 10000
+					}
+				}
+
+				embedding, ok := response["data"].([]map[string]interface{})[0]["embedding"].([]float64)
+				if !ok {
+					logger.Error("Failed to assert embedding type")
+					return
+				}
+				for i := range embedding {
+					// Create more varied embeddings based on content and position
+					embedding[i] = float64(((i+contentHash)%200))/200.0 - 0.5
+				}
+
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					logger.Error("Failed to encode embeddings response", "error", err)
+				}
+				return
+			}
+
+			if strings.Contains(r.URL.Path, "chat/completions") {
+				// Read the request body to determine which type of call this is
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					logger.Error("Failed to read request body", "error", err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+
+				// Parse request to determine context
+				var requestData map[string]interface{}
+				if err := json.Unmarshal(body, &requestData); err != nil {
+					logger.Error("Failed to parse request JSON", "error", err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+
+				// Check if this is a memory decision call by looking for memory decision tools
+				isMemoryDecision := false
+				if tools, ok := requestData["tools"].([]interface{}); ok {
+					for _, tool := range tools {
+						if toolMap, ok := tool.(map[string]interface{}); ok {
+							if function, ok := toolMap["function"].(map[string]interface{}); ok {
+								if name, ok := function["name"].(string); ok {
+									if name == "ADD" || name == "UPDATE" || name == "DELETE" || name == "NONE" {
+										isMemoryDecision = true
+										break
+									}
+								}
+							}
+						}
+					}
+				}
+
+				var response map[string]interface{}
+
+				if isMemoryDecision {
+					// Memory decision response - return ADD action
+					response = map[string]interface{}{
+						"id":      "chatcmpl-mock-" + uuid.New().String(),
+						"object":  "chat.completion",
+						"created": time.Now().Unix(),
+						"model":   "gpt-4o-mini",
+						"choices": []map[string]interface{}{
+							{
+								"index": 0,
+								"message": map[string]interface{}{
+									"role":    "assistant",
+									"content": "",
+									"tool_calls": []map[string]interface{}{
+										{
+											"id":   "call_mock_" + uuid.New().String(),
+											"type": "function",
+											"function": map[string]interface{}{
+												"name":      "ADD",
+												"arguments": `{}`,
+											},
+										},
+									},
+								},
+								"finish_reason": "tool_calls",
+							},
+						},
+						"usage": map[string]interface{}{
+							"prompt_tokens":     20,
+							"completion_tokens": 10,
+							"total_tokens":      30,
+						},
+					}
+				} else {
+					// Fact extraction response - return EXTRACT_FACTS
+					response = map[string]interface{}{
+						"id":      "chatcmpl-mock-" + uuid.New().String(),
+						"object":  "chat.completion",
+						"created": time.Now().Unix(),
+						"model":   "gpt-4o-mini",
+						"choices": []map[string]interface{}{
+							{
+								"index": 0,
+								"message": map[string]interface{}{
+									"role":    "assistant",
+									"content": "",
+									"tool_calls": []map[string]interface{}{
+										{
+											"id":   "call_mock_" + uuid.New().String(),
+											"type": "function",
+											"function": map[string]interface{}{
+												"name": "EXTRACT_FACTS",
+												"arguments": `{
+												"facts": [
+													{
+														"category": "activity",
+														"subject": "primaryUser",
+														"attribute": "communication_activity",
+														"value": "actively engages in conversations and communications",
+														"sensitivity": "low",
+														"importance": 2
+													},
+													{
+														"category": "preference",
+														"subject": "primaryUser",
+														"attribute": "interaction_style",
+														"value": "participates in digital communications and online activities",
+														"sensitivity": "low",
+														"importance": 2
+													}
+												]
+											}`,
+											},
+										},
+									},
+								},
+								"finish_reason": "tool_calls",
+							},
+						},
+						"usage": map[string]interface{}{
+							"prompt_tokens":     50,
+							"completion_tokens": 100,
+							"total_tokens":      150,
+						},
+					}
+				}
+
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					logger.Error("Failed to encode completions response", "error", err)
+				}
+				return
+			}
+
+			// Default response for unknown endpoints
+			w.WriteHeader(http.StatusNotFound)
+			if err := json.NewEncoder(w).Encode(map[string]string{
+				"error": "Mock endpoint not found: " + r.URL.Path,
+			}); err != nil {
+				logger.Error("Failed to encode error response", "error", err)
+			}
+		}))
+
+		logger.Info("Created mock OpenAI API server", "url", mockServer.URL)
 	}
+
+	return ai.NewOpenAIService(logger, "mock-api-key", mockServer.URL)
 }
 
 func SetupSharedInfrastructure() {
@@ -123,18 +302,10 @@ func SetupSharedInfrastructure() {
 			panic(fmt.Sprintf("failed to create weaviate client: %v", err))
 		}
 
-		embeddingsApiUrl := os.Getenv("EMBEDDINGS_API_URL")
-		if embeddingsApiUrl == "" {
-			embeddingsApiUrl = "https://api.openai.com/v1"
-		}
-
-		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
-		if embeddingsModel == "" {
-			embeddingsModel = "text-embedding-3-small"
-		}
-
-		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, os.Getenv("EMBEDDINGS_API_KEY"), embeddingsApiUrl)
-		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, embeddingsModel)
+		// Use mock AI service for schema initialization to avoid API calls
+		embeddingsModel := "text-embedding-3-small" // Fixed model for deterministic testing
+		mockEmbeddingsService := createMockAIService(sharedLogger)
+		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, mockEmbeddingsService, embeddingsModel)
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize schema: %v", err))
 		}
@@ -145,6 +316,12 @@ func SetupSharedInfrastructure() {
 
 func TeardownSharedInfrastructure() {
 	teardownOnce.Do(func() {
+		if mockServer != nil {
+			sharedLogger.Info("Closing mock API server...")
+			mockServer.Close()
+			mockServer = nil
+		}
+
 		if sharedWeaviateContainer != nil {
 			sharedLogger.Info("Terminating shared Weaviate container...")
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -158,6 +335,27 @@ func TeardownSharedInfrastructure() {
 		if sharedTempDir != "" {
 			if err := os.RemoveAll(sharedTempDir); err != nil {
 				sharedLogger.Error("Failed to clean up temp directory", "error", err)
+			}
+		}
+
+		// Clean up any remaining test artifact directories
+		globalArtifactDirs := []string{
+			"output",
+			"pipeline_output",
+			filepath.Join("pkg", "dataprocessing", "integration", "output"),
+			filepath.Join("pkg", "dataprocessing", "integration", "pipeline_output"),
+			filepath.Join("pkg", "dataprocessing", "gmail", "pipeline_output"),
+			filepath.Join("cmd", "server", "output"),
+			filepath.Join("cmd", "memory-processor-test", "pipeline_output"),
+		}
+
+		for _, dir := range globalArtifactDirs {
+			if _, err := os.Stat(dir); err == nil {
+				if err := os.RemoveAll(dir); err != nil {
+					sharedLogger.Error("Failed to clean up global artifact directory", "dir", dir, "error", err)
+				} else {
+					sharedLogger.Info("Cleaned up global artifact directory", "dir", dir)
+				}
 			}
 		}
 	})
@@ -224,12 +422,13 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 		completionsModel = "gpt-4o-mini"
 	}
 
-	openAiService := newDeterministicAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
-	aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
+	// Use mock AI service for deterministic testing
+	mockAIService := createMockAIService(sharedLogger)
+	mockEmbeddingsService := createMockAIService(sharedLogger)
 
-	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store, sharedLogger)
+	dataprocessingService := dataprocessing.NewDataProcessingService(mockAIService, completionsModel, store, sharedLogger)
 
-	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, config.EmbeddingsModel)
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(mockEmbeddingsService, config.EmbeddingsModel)
 	if err != nil {
 		t.Fatalf("Failed to create embedding wrapper: %v", err)
 	}
@@ -247,7 +446,7 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 	mem, err = evolvingmemory.New(evolvingmemory.Dependencies{
 		Logger:             sharedLogger,
 		Storage:            storageInterface,
-		CompletionsService: openAiService.Service,
+		CompletionsService: mockAIService,
 		CompletionsModel:   config.CompletionsModel,
 		EmbeddingsWrapper:  embeddingsWrapper,
 	})
@@ -282,6 +481,27 @@ func (env *testEnvironment) Cleanup(t *testing.T) {
 	if err := os.RemoveAll(env.tempDir); err != nil {
 		t.Logf("Failed to clean up temp directory: %v", err)
 	}
+
+	// Clean up test artifact directories
+	artifactDirs := []string{
+		"output",
+		"pipeline_output",
+		filepath.Join("pkg", "dataprocessing", "integration", "output"),
+		filepath.Join("pkg", "dataprocessing", "integration", "pipeline_output"),
+		filepath.Join("pkg", "dataprocessing", "gmail", "pipeline_output"),
+		filepath.Join("cmd", "server", "output"),
+		filepath.Join("cmd", "memory-processor-test", "pipeline_output"),
+	}
+
+	for _, dir := range artifactDirs {
+		if _, err := os.Stat(dir); err == nil {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("Failed to clean up artifact directory %s: %v", dir, err)
+			} else {
+				t.Logf("Cleaned up artifact directory: %s", dir)
+			}
+		}
+	}
 }
 
 func (env *testEnvironment) LoadDocuments(t *testing.T, source, inputPath string) {
@@ -290,50 +510,114 @@ func (env *testEnvironment) LoadDocuments(t *testing.T, source, inputPath string
 	_, err := env.dataprocessing.ProcessSource(env.ctx, source, inputPath, env.config.OutputPath)
 	require.NoError(t, err)
 
-	count, err := jsonHelpers.CountJSONLLines(env.config.OutputPath)
-	if err != nil {
-		t.Fatalf("Failed to count JSONL lines: %v", err)
-	}
+	// Check if this is a conversation processor that outputs ConversationDocuments directly
+	sourceType := strings.ToLower(source)
+	isConversationProcessor := sourceType == "telegram" || sourceType == "whatsapp" || sourceType == "gmail" || sourceType == "chatgpt"
 
-	batchSize := 3
-	var allRecords []types.Record
+	if isConversationProcessor {
+		// Load ConversationDocuments from JSONL format using helper
+		conversationDocs, err := memory.LoadConversationDocumentsFromJSON(env.config.OutputPath)
+		require.NoError(t, err, "Failed to parse ConversationDocuments JSONL")
 
-	env.logger.Info("Loading documents in batches", "totalRecords", count, "batchSize", batchSize)
+		// Convert to Document interface
+		env.documents = make([]memory.Document, len(conversationDocs))
+		for i := range conversationDocs {
+			env.documents[i] = &conversationDocs[i]
+		}
 
-	for batchIndex := 0; ; batchIndex++ {
-		startIndex := batchIndex * batchSize
-		records, err := jsonHelpers.ReadJSONLBatch(env.config.OutputPath, startIndex, batchSize)
+		env.logger.Info("Loaded ConversationDocuments from JSONL", "count", len(env.documents))
+	} else {
+		// Legacy path for processors that still use records
+		fileContent, err := os.ReadFile(env.config.OutputPath)
 		require.NoError(t, err)
 
-		if len(records) == 0 {
-			break
+		var allRecords []types.Record
+
+		// Try to parse as JSON array first (for legacy processors that output JSON)
+		trimmedContent := strings.TrimSpace(string(fileContent))
+		if strings.HasPrefix(trimmedContent, "[") && strings.HasSuffix(trimmedContent, "]") {
+			// This is a JSON array
+			var jsonRecords []struct {
+				Data      map[string]interface{} `json:"data"`
+				Timestamp string                 `json:"timestamp"`
+				Source    string                 `json:"source"`
+			}
+
+			if err := json.Unmarshal(fileContent, &jsonRecords); err == nil {
+				// Successfully parsed as JSON array
+				for _, jsonRecord := range jsonRecords {
+					var timestamp time.Time
+					if jsonRecord.Timestamp != "" {
+						var err error
+						timestamp, err = time.Parse(time.RFC3339, jsonRecord.Timestamp)
+						if err != nil {
+							t.Fatalf("Failed to parse timestamp: %v", err)
+						}
+					} else {
+						// Use current time as default for empty timestamps
+						timestamp = time.Now()
+					}
+
+					record := types.Record{
+						Data:      jsonRecord.Data,
+						Timestamp: timestamp,
+						Source:    jsonRecord.Source,
+					}
+					allRecords = append(allRecords, record)
+				}
+				env.logger.Info("Loaded records from JSON array", "recordCount", len(allRecords))
+			} else {
+				t.Fatalf("Failed to parse JSON array: %v", err)
+			}
+		} else {
+			// Fall back to JSONL parsing
+			count, err := jsonHelpers.CountJSONLLines(env.config.OutputPath)
+			if err != nil {
+				t.Fatalf("Failed to count JSONL lines: %v", err)
+			}
+
+			batchSize := 3
+			env.logger.Info("Loading documents in batches", "totalRecords", count, "batchSize", batchSize)
+
+			for batchIndex := 0; ; batchIndex++ {
+				startIndex := batchIndex * batchSize
+				records, err := jsonHelpers.ReadJSONLBatch(env.config.OutputPath, startIndex, batchSize)
+				require.NoError(t, err)
+
+				if len(records) == 0 {
+					break
+				}
+
+				env.logger.Info("Loaded batch", "batchIndex", batchIndex, "recordCount", len(records), "startIndex", startIndex)
+				allRecords = append(allRecords, records...)
+
+				for i, record := range records {
+					env.logger.Info("Record in batch",
+						"batchIndex", batchIndex,
+						"recordIndex", i,
+						"globalIndex", startIndex+i,
+						"source", record.Source,
+						"content_preview", truncateString(record.Data["content"], 100))
+				}
+			}
+
+			env.logger.Info("All records processed", "totalLoaded", len(allRecords), "expectedCount", count)
+			require.Equal(t, count, len(allRecords), "Should load all records across batches")
 		}
 
-		env.logger.Info("Loaded batch", "batchIndex", batchIndex, "recordCount", len(records), "startIndex", startIndex)
-		allRecords = append(allRecords, records...)
+		// Convert records to documents using ToDocuments
+		documents, err := env.dataprocessing.ToDocuments(env.ctx, source, allRecords)
+		require.NoError(t, err)
 
-		for i, record := range records {
-			env.logger.Info("Record in batch",
-				"batchIndex", batchIndex,
-				"recordIndex", i,
-				"globalIndex", startIndex+i,
-				"source", record.Source,
-				"content_preview", truncateString(record.Data["content"], 100))
-		}
+		env.documents = documents
+		env.logger.Info("Documents converted from records", "count", len(documents))
 	}
 
-	env.logger.Info("All records processed", "totalLoaded", len(allRecords), "expectedCount", count)
-	require.Equal(t, count, len(allRecords), "Should load all records across batches")
+	require.NotEmpty(t, env.documents, "no documents to test with")
 
-	documents, err := env.dataprocessing.ToDocuments(env.ctx, source, allRecords)
-	require.NoError(t, err)
-
-	require.NotEmpty(t, documents, "no documents to test with")
-	env.documents = documents
-
-	env.logger.Info("Documents converted", "count", len(documents))
-	for i, fact := range documents {
-		env.logger.Info("Document", "index", i, "id", fact.ID(), "source", fact.Source(), "content_preview", truncateString(fact.Content(), 150))
+	env.logger.Info("Final documents loaded", "count", len(env.documents))
+	for i, doc := range env.documents {
+		env.logger.Info("Document", "index", i, "id", doc.ID(), "source", doc.Source(), "content_preview", truncateString(doc.Content(), 150))
 	}
 }
 
@@ -469,12 +753,6 @@ func (env *testEnvironment) StoreDocumentsWithTimeout(t *testing.T, timeout time
 func getTestConfig(t *testing.T) testConfig {
 	t.Helper()
 
-	envPath := filepath.Join("..", "..", "..", ".env")
-	if err := godotenv.Load(envPath); err != nil {
-		t.Logf("Could not load .env file from %s: %v", envPath, err)
-		_ = godotenv.Load()
-	}
-
 	source := getEnvOrDefault("TEST_SOURCE", "misc")
 
 	defaultInputPath := filepath.Join("testdata", "misc")
@@ -491,47 +769,16 @@ func getTestConfig(t *testing.T) testConfig {
 		t.Fatalf("Failed to create output directory %s: %v", outputDir, err)
 	}
 
-	completionsApiKey := os.Getenv("COMPLETIONS_API_KEY")
-
-	if completionsApiKey == "" {
-		t.Fatalf("No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
-	}
-	embeddingsApiKey := os.Getenv("EMBEDDINGS_API_KEY")
-	if embeddingsApiKey == "" {
-		t.Fatalf("No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
-	}
-
-	completionsModel := os.Getenv("COMPLETIONS_MODEL")
-	if completionsModel == "" {
-		completionsModel = "gpt-4o-mini"
-	}
-
-	embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
-	if embeddingsModel == "" {
-		embeddingsModel = "text-embedding-3-small"
-	}
-
-	// Read API URLs from environment variables
-	completionsApiUrl := os.Getenv("COMPLETIONS_API_URL")
-	if completionsApiUrl == "" {
-		completionsApiUrl = "https://openrouter.ai/api/v1" // fallback
-	}
-
-	embeddingsApiUrl := os.Getenv("EMBEDDINGS_API_URL")
-	if embeddingsApiUrl == "" {
-		embeddingsApiUrl = "https://api.openai.com/v1" // fallback
-	}
+	// Use fixed models for deterministic testing with mocks
+	completionsModel := "gpt-4o-mini"
+	embeddingsModel := "text-embedding-3-small"
 
 	return testConfig{
-		Source:            source,
-		InputPath:         inputPath,
-		OutputPath:        outputPath,
-		CompletionsModel:  completionsModel,
-		CompletionsApiKey: completionsApiKey,
-		CompletionsApiUrl: completionsApiUrl,
-		EmbeddingsModel:   embeddingsModel,
-		EmbeddingsApiKey:  embeddingsApiKey,
-		EmbeddingsApiUrl:  embeddingsApiUrl,
+		Source:           source,
+		InputPath:        inputPath,
+		OutputPath:       outputPath,
+		CompletionsModel: completionsModel,
+		EmbeddingsModel:  embeddingsModel,
 	}
 }
 

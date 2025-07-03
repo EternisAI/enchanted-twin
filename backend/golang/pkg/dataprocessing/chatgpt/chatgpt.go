@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -13,8 +12,6 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -66,7 +63,7 @@ type ChatGPTProcessor struct {
 	logger *log.Logger
 }
 
-func NewChatGPTProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+func NewChatGPTProcessor(store *db.Store, logger *log.Logger) (*ChatGPTProcessor, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store is nil")
 	}
@@ -81,7 +78,22 @@ func (s *ChatGPTProcessor) Name() string {
 	return "chatgpt"
 }
 
-func (s *ChatGPTProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
+func parseTimestamp(ts string) (time.Time, error) {
+	parts := strings.Split(ts, ".")
+	if len(parts) != 2 {
+		return time.Time{}, fmt.Errorf("invalid timestamp format: %s", ts)
+	}
+
+	seconds, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return time.Unix(seconds, 0), nil
+}
+
+// ProcessFile implements the DocumentProcessor interface - direct ConversationDocument output.
+func (s *ChatGPTProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.ConversationDocument, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled before processing: %w", err)
 	}
@@ -96,11 +108,12 @@ func (s *ChatGPTProcessor) ProcessFile(ctx context.Context, filePath string) ([]
 		return nil, err
 	}
 
-	var records []types.Record
+	var documents []memory.ConversationDocument
 
 	for i, conversation := range conversations {
-		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("context canceled during conversation processing: %w", err)
+		if conversation.Title == "" {
+			s.logger.Debug("Skipping conversation with empty title", "index", i)
+			continue
 		}
 
 		timestamp, err := parseTimestamp(strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64))
@@ -109,7 +122,7 @@ func (s *ChatGPTProcessor) ProcessFile(ctx context.Context, filePath string) ([]
 			continue
 		}
 
-		var messages []ConversationMessage
+		var messages []memory.ConversationMessage
 
 		for _, messageNode := range conversation.Mapping {
 			if messageNode.Message == nil {
@@ -138,9 +151,10 @@ func (s *ChatGPTProcessor) ProcessFile(ctx context.Context, filePath string) ([]
 			}
 
 			role := messageNode.Message.Author.Role
-			messages = append(messages, ConversationMessage{
-				Role: role,
-				Text: extractedText,
+			messages = append(messages, memory.ConversationMessage{
+				Speaker: role,
+				Content: extractedText,
+				Time:    timestamp,
 			})
 		}
 
@@ -149,156 +163,22 @@ func (s *ChatGPTProcessor) ProcessFile(ctx context.Context, filePath string) ([]
 		}
 
 		id := strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64)
-		conversationData := map[string]any{
-			"id":       id,
-			"title":    conversation.Title,
-			"messages": messages,
-		}
 
-		record := types.Record{
-			Data:      conversationData,
-			Timestamp: timestamp,
-			Source:    s.Name(),
-		}
-		records = append(records, record)
-	}
-
-	return records, nil
-}
-
-func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
-	// Look for conversations.json in the root or chatgpt subdirectory
-	possiblePaths := []string{
-		filepath.Join(inputPath, "conversations.json"),
-		filepath.Join(inputPath, "chatgpt", "conversations.json"),
-	}
-
-	for _, path := range possiblePaths {
-		if _, err := os.Stat(path); err == nil {
-			return s.ProcessFile(ctx, path)
-		}
-	}
-
-	// If not found in expected locations, search recursively
-	var records []types.Record
-	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() || filepath.Base(path) != "conversations.json" {
-			return nil
-		}
-
-		fileRecords, err := s.ProcessFile(ctx, path)
-		if err != nil {
-			s.logger.Warn("Failed to process file", "path", path, "error", err)
-			return nil
-		}
-
-		records = append(records, fileRecords...)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error walking directory %s: %w", inputPath, err)
-	}
-
-	if len(records) == 0 {
-		return nil, fmt.Errorf("no conversations.json file found in directory %s", inputPath)
-	}
-
-	return records, nil
-}
-
-func (s *ChatGPTProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
-	return nil, false, fmt.Errorf("sync operation not supported for ChatGPT")
-}
-
-func (s *ChatGPTProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	var documents []memory.Document
-
-	for _, record := range records {
-		getString := func(key string) string {
-			if val, ok := record.Data[key]; ok {
-				if strVal, ok := val.(string); ok {
-					return strVal
-				}
-			}
-			return ""
-		}
-
-		title := getString("title")
-		id := getString("id")
-
-		conversation := &memory.ConversationDocument{
-			User:        "user",
-			People:      []string{"user", "assistant"},
-			FieldID:     id,
-			FieldSource: "chatgpt",
-			FieldTags:   []string{"chat", "conversation"},
+		conversationDoc := memory.ConversationDocument{
+			User:         "user",
+			People:       []string{"user", "assistant"},
+			FieldID:      id,
+			FieldSource:  "chatgpt",
+			FieldTags:    []string{"chat", "conversation"},
+			Conversation: messages,
 			FieldMetadata: map[string]string{
 				"type":  "conversation",
-				"title": title,
+				"title": conversation.Title,
 			},
 		}
 
-		if messagesInterface, ok := record.Data["messages"]; ok {
-			var messages []ConversationMessage
-
-			// Handle both []ConversationMessage and []interface{} cases
-			switch v := messagesInterface.(type) {
-			case []ConversationMessage:
-				messages = v
-			case []interface{}:
-				for _, msgInterface := range v {
-					if msgMap, ok := msgInterface.(map[string]interface{}); ok {
-						role, ok := msgMap["Role"].(string)
-						if !ok {
-							s.logger.Warn("Role is not a string for message", "message", msgMap)
-							continue
-						}
-						text, ok := msgMap["Text"].(string)
-						if !ok {
-							s.logger.Warn("Text is not a string for message", "message", msgMap)
-							continue
-						}
-						if role != "" && text != "" {
-							messages = append(messages, ConversationMessage{
-								Role: role,
-								Text: text,
-							})
-						}
-					}
-				}
-			}
-
-			for _, message := range messages {
-				conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
-					Speaker: message.Role,
-					Content: message.Text,
-					Time:    record.Timestamp,
-				})
-			}
-		}
-
-		if len(conversation.Conversation) > 0 {
-			documents = append(documents, conversation)
-		}
+		documents = append(documents, conversationDoc)
 	}
 
 	return documents, nil
-}
-
-func parseTimestamp(ts string) (time.Time, error) {
-	parts := strings.Split(ts, ".")
-	if len(parts) != 2 {
-		return time.Time{}, fmt.Errorf("invalid timestamp format: %s", ts)
-	}
-
-	seconds, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return time.Unix(seconds, 0), nil
 }
