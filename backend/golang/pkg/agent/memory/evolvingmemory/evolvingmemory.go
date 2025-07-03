@@ -95,7 +95,10 @@ type MemoryStorage interface {
 	GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error)
 
 	// Intelligent 3-stage query system
-	IntelligentQuery(ctx context.Context, queryText string, filter *memory.Filter) (*IntelligentQueryResult, error)
+	IntelligentQuery(ctx context.Context, queryText string, filter *memory.Filter) (*memory.IntelligentQueryResult, error)
+
+	// Manual consolidation - should be called periodically rather than after every storage operation
+	RunConsolidation(ctx context.Context) error
 }
 
 // Dependencies holds all the required dependencies for creating a MemoryStorage instance.
@@ -186,6 +189,43 @@ func New(deps Dependencies) (MemoryStorage, error) {
 
 // Store implements the memory.Storage interface.
 func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
+	// Separate documents by processing strategy
+	var factExtractionDocs []memory.Document
+	var fileDocs []memory.Document
+
+	for _, doc := range documents {
+		switch doc.(type) {
+		case *memory.FileDocument:
+			fileDocs = append(fileDocs, doc)
+		default:
+			factExtractionDocs = append(factExtractionDocs, doc)
+		}
+	}
+
+	s.logger.Info("Type-based document routing",
+		"total", len(documents),
+		"fact_extraction", len(factExtractionDocs),
+		"file_direct", len(fileDocs))
+
+	// Process fact extraction documents (existing pipeline)
+	if len(factExtractionDocs) > 0 {
+		if err := s.storeFactExtractionDocuments(ctx, factExtractionDocs, callback); err != nil {
+			return fmt.Errorf("storing fact extraction documents: %w", err)
+		}
+	}
+
+	// Process file documents directly (new simple pipeline)
+	if len(fileDocs) > 0 {
+		if err := s.storeFileDocumentsDirectly(ctx, fileDocs, callback); err != nil {
+			return fmt.Errorf("storing file documents: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// storeFactExtractionDocuments handles the existing fact extraction pipeline.
+func (s *StorageImpl) storeFactExtractionDocuments(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
 	// Use default configuration
 	config := DefaultConfig()
 
@@ -236,8 +276,73 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 			len(errors), errors[0], len(errors)-1)
 	}
 
-	// 🚀 NEW: AUTOMATIC CONSOLIDATION PIPELINE
-	s.logger.Info("Facts stored successfully, starting automatic consolidation pipeline")
+	s.logger.Info("Facts stored successfully")
+
+	return nil
+}
+
+// storeFileDocumentsDirectly implements the new direct file storage pipeline.
+func (s *StorageImpl) storeFileDocumentsDirectly(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
+	s.logger.Info("Processing file documents directly", "count", len(documents))
+
+	// Step 1: Chunk documents (reuse existing logic)
+	var chunks []memory.Document
+	for _, doc := range documents {
+		docChunks := doc.Chunk()
+		chunks = append(chunks, docChunks...)
+	}
+
+	s.logger.Info("Chunked file documents", "original_count", len(documents), "chunk_count", len(chunks))
+
+	// Step 2: Convert chunks to MemoryFact objects (no LLM extraction)
+	var facts []*memory.MemoryFact
+	for _, chunk := range chunks {
+		// Extract filename from metadata for natural subject
+		subject := "document"
+		if filename, exists := chunk.Metadata()["path"]; exists {
+			// Use just the filename, not the full path
+			if lastSlash := strings.LastIndex(filename, "/"); lastSlash != -1 {
+				subject = filename[lastSlash+1:]
+			} else {
+				subject = filename
+			}
+		}
+
+		fact := &memory.MemoryFact{
+			ID:      "",              // Let Weaviate auto-generate UUID for file chunks
+			Content: chunk.Content(), // Direct content as searchable text
+			Timestamp: func() time.Time {
+				if chunk.Timestamp() != nil {
+					return *chunk.Timestamp()
+				}
+				return time.Now()
+			}(),
+			// Structured fields for file documents
+			Category:           "document",      // Mark as document type
+			Subject:            subject,         // Use filename as subject
+			Attribute:          "file_chunk",    // Attribute is file_chunk
+			Value:              chunk.Content(), // Value is the actual content
+			TemporalContext:    nil,             // No temporal context for files
+			Sensitivity:        "low",           // Files are typically low sensitivity
+			Importance:         1,               // Default importance
+			Source:             chunk.Source(),
+			DocumentReferences: []string{}, // No document references for direct storage
+			Tags:               chunk.Tags(),
+			Metadata:           chunk.Metadata(),
+		}
+		facts = append(facts, fact)
+	}
+
+	s.logger.Info("Converted file chunks to memory facts", "fact_count", len(facts))
+
+	// Step 3: Store using existing fact storage pipeline (includes embeddings)
+	err := s.StoreFactsDirectly(ctx, facts, callback)
+	if err != nil {
+		return fmt.Errorf("storing file facts: %w", err)
+	}
+
+	// 🚀 FILE UPLOAD CONSOLIDATION - Only run for file uploads, not chat messages
+	s.logger.Info("File documents stored successfully, starting consolidation pipeline")
 
 	// Get required dependencies for consolidation
 	deps := ConsolidationDependencies{
@@ -253,7 +358,7 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 	var allReports []*ConsolidationReport
 
 	for _, subject := range consolidationSubjects {
-		// Use semantic search with filtering for better results (same as test harness)
+		// Use semantic search with filtering for better results
 		filter := &memory.Filter{
 			Distance:          0.75,                                                  // Allow fairly broad semantic matches
 			Limit:             func() *int { limit := 30; return &limit }(),          // Reasonable limit
@@ -293,7 +398,7 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 				totalConsolidatedFacts += len(report.ConsolidatedFacts)
 			}
 
-			s.logger.Info("Automatic consolidation completed",
+			s.logger.Info("File upload consolidation completed",
 				"subjects_processed", len(allReports),
 				"total_source_facts", totalSourceFacts,
 				"total_consolidated_facts", totalConsolidatedFacts)
@@ -441,28 +546,9 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 	return nil
 }
 
-// IntelligentQueryResult represents the structured result of intelligent querying.
-type IntelligentQueryResult struct {
-	Query                string              `json:"query"`
-	ConsolidatedInsights []memory.MemoryFact `json:"consolidated_insights"`
-	CitedEvidence        []memory.MemoryFact `json:"cited_evidence"`
-	AdditionalContext    []memory.MemoryFact `json:"additional_context"`
-	Metadata             QueryMetadata       `json:"metadata"`
-}
-
-// QueryMetadata provides information about the query execution.
-type QueryMetadata struct {
-	QueriedAt                string `json:"queried_at"`
-	ConsolidatedInsightCount int    `json:"consolidated_insight_count"`
-	CitedEvidenceCount       int    `json:"cited_evidence_count"`
-	AdditionalContextCount   int    `json:"additional_context_count"`
-	TotalResults             int    `json:"total_results"`
-	QueryStrategy            string `json:"query_strategy"`
-}
-
 // IntelligentQuery executes a 3-stage intelligent query that prioritizes consolidated insights
 // with supporting evidence and additional context.
-func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, filter *memory.Filter) (*IntelligentQueryResult, error) {
+func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, filter *memory.Filter) (*memory.IntelligentQueryResult, error) {
 	s.logger.Info("Starting intelligent query", "query", queryText)
 
 	// Stage 1: Find relevant consolidated insights
@@ -496,34 +582,24 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 	var citedFactIDs []string
 	var citedFacts []memory.MemoryFact
 
-	if len(consolidatedResults.Facts) > 0 {
+	for _, fact := range consolidatedResults.Facts {
 		// Extract source fact IDs from consolidation metadata
-		citedIDSet := make(map[string]bool)
-		for _, fact := range consolidatedResults.Facts {
-			if fact.Metadata != nil {
-				// Look for source_fact_* keys in metadata
-				for key, value := range fact.Metadata {
-					if strings.HasPrefix(key, "source_fact_") && value != "" {
-						if !citedIDSet[value] {
-							citedFactIDs = append(citedFactIDs, value)
-							citedIDSet[value] = true
-						}
-					}
-				}
+		for key, value := range fact.Metadata {
+			if strings.HasPrefix(key, "source_fact_") {
+				citedFactIDs = append(citedFactIDs, value)
 			}
 		}
+	}
 
-		// Retrieve cited facts by ID
-		if len(citedFactIDs) > 0 {
-			citedFactPointers, err := s.storage.GetFactsByIDs(ctx, citedFactIDs)
-			if err != nil {
-				s.logger.Warn("Stage 2 - failed to retrieve cited facts", "error", err)
-			} else {
-				// Convert pointers to values
-				for _, factPtr := range citedFactPointers {
-					if factPtr != nil {
-						citedFacts = append(citedFacts, *factPtr)
-					}
+	if len(citedFactIDs) > 0 {
+		citedFactsResult, err := s.GetFactsByIDs(ctx, citedFactIDs)
+		if err != nil {
+			s.logger.Warn("Failed to retrieve cited facts", "error", err, "fact_ids", citedFactIDs)
+		} else {
+			// Convert pointers to values
+			for _, factPtr := range citedFactsResult {
+				if factPtr != nil {
+					citedFacts = append(citedFacts, *factPtr)
 				}
 			}
 		}
@@ -531,17 +607,14 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 
 	s.logger.Info("Stage 2 completed", "cited_evidence", len(citedFacts))
 
-	// Stage 3: Query additional raw facts for context, removing duplicates
+	// Stage 3: Additional context - query raw facts and exclude already included ones
 	rawFilter := &memory.Filter{
-		Distance: 0.8,
+		Distance: 0.75, // Slightly higher threshold for context
 		Limit:    func() *int { limit := 15; return &limit }(),
 	}
 
-	// Merge user-provided filter options
+	// Copy user filter settings
 	if filter != nil {
-		if filter.Distance > 0 {
-			rawFilter.Distance = filter.Distance
-		}
 		if filter.Source != nil {
 			rawFilter.Source = filter.Source
 		}
@@ -553,22 +626,18 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 	rawResults, err := s.storage.Query(ctx, queryText, rawFilter)
 	if err != nil {
 		s.logger.Warn("Stage 3 - raw query failed", "error", err)
+		rawResults = memory.QueryResult{Facts: []memory.MemoryFact{}}
 	}
 
-	// Remove duplicates: facts already in consolidated or cited results
+	// Deduplicate against existing results
 	existingIDs := make(map[string]bool)
-
-	// Mark consolidated fact IDs
 	for _, fact := range consolidatedResults.Facts {
 		existingIDs[fact.ID] = true
 	}
-
-	// Mark cited fact IDs
 	for _, fact := range citedFacts {
 		existingIDs[fact.ID] = true
 	}
 
-	// Filter out consolidated facts and duplicates from raw results
 	var additionalContext []memory.MemoryFact
 	for _, fact := range rawResults.Facts {
 		// Skip if already included or if it's a consolidated fact
@@ -592,13 +661,13 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 
 	s.logger.Info("Stage 3 completed", "additional_context", len(additionalContext))
 
-	// Build result
-	result := &IntelligentQueryResult{
+	// Build result using memory package types
+	result := &memory.IntelligentQueryResult{
 		Query:                queryText,
 		ConsolidatedInsights: consolidatedResults.Facts,
 		CitedEvidence:        citedFacts,
 		AdditionalContext:    additionalContext,
-		Metadata: QueryMetadata{
+		Metadata: memory.QueryMetadata{
 			QueriedAt:                time.Now().Format(time.RFC3339),
 			ConsolidatedInsightCount: len(consolidatedResults.Facts),
 			CitedEvidenceCount:       len(citedFacts),
@@ -616,4 +685,76 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 		"total", result.Metadata.TotalResults)
 
 	return result, nil
+}
+
+// RunConsolidation performs manual consolidation across all canonical subjects.
+// This should be called periodically (e.g., after bulk imports complete) rather than
+// after every single document storage operation.
+func (s *StorageImpl) RunConsolidation(ctx context.Context) error {
+	s.logger.Info("Starting manual consolidation pipeline")
+
+	// Get required dependencies for consolidation
+	deps := ConsolidationDependencies{
+		Logger:             s.logger,
+		Storage:            s, // Use the MemoryStorage interface (self)
+		CompletionsService: s.engine.CompletionsService,
+		CompletionsModel:   s.engine.CompletionsModel,
+	}
+
+	// Run consolidation for all canonical semantic subjects
+	consolidationSubjects := ConsolidationSubjects[:]
+
+	var allReports []*ConsolidationReport
+
+	for _, subject := range consolidationSubjects {
+		// Use semantic search with filtering for better results (same as test harness)
+		filter := &memory.Filter{
+			Distance:          0.75,                                                  // Allow fairly broad semantic matches
+			Limit:             func() *int { limit := 30; return &limit }(),          // Reasonable limit
+			FactImportanceMin: func() *int { importance := 2; return &importance }(), // Only meaningful facts
+		}
+
+		report, err := ConsolidateMemoriesBySemantic(ctx, subject, filter, deps)
+		if err != nil {
+			s.logger.Warn("Consolidation failed for subject", "subject", subject, "error", err)
+			continue // Don't fail entire process for one subject
+		}
+
+		// Only add reports that actually found facts to consolidate
+		if report.SourceFactCount > 0 {
+			s.logger.Info("Subject consolidation completed",
+				"subject", subject,
+				"source_facts", report.SourceFactCount,
+				"consolidated_facts", len(report.ConsolidatedFacts))
+			allReports = append(allReports, report)
+		}
+	}
+
+	// Store consolidations if any were created
+	if len(allReports) > 0 {
+		err := StoreConsolidationReports(ctx, allReports, s, func(processed, total int) {
+			s.logger.Debug("Storing consolidated facts", "progress", fmt.Sprintf("%d/%d", processed, total))
+		})
+		if err != nil {
+			s.logger.Error("Failed to store consolidation reports", "error", err)
+			return fmt.Errorf("failed to store consolidation reports: %w", err)
+		}
+
+		// Calculate totals for logging
+		totalSourceFacts := 0
+		totalConsolidatedFacts := 0
+		for _, report := range allReports {
+			totalSourceFacts += report.SourceFactCount
+			totalConsolidatedFacts += len(report.ConsolidatedFacts)
+		}
+
+		s.logger.Info("Manual consolidation completed",
+			"subjects_processed", len(allReports),
+			"total_source_facts", totalSourceFacts,
+			"total_consolidated_facts", totalConsolidatedFacts)
+	} else {
+		s.logger.Info("No consolidations created (no qualifying facts found)")
+	}
+
+	return nil
 }

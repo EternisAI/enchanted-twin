@@ -144,7 +144,7 @@ func (t *MemorySearchTool) formatIntelligentResults(result *IntelligentQueryResu
 			resultText += fmt.Sprintf("  %d. %s - %s [%s]\n",
 				i+1,
 				fact.Subject,
-				fact.GenerateContentForLLM(),
+				fact.GenerateContent(),
 				fact.Timestamp.Format("Jan 2006"))
 		}
 		resultText += "\n"
@@ -161,7 +161,7 @@ func (t *MemorySearchTool) formatIntelligentResults(result *IntelligentQueryResu
 			resultText += fmt.Sprintf("  %d. %s - %s [%s]\n",
 				i+1,
 				fact.Subject,
-				fact.GenerateContentForLLM(),
+				fact.GenerateContent(),
 				fact.Timestamp.Format("Jan 2006"))
 		}
 		resultText += "\n"
@@ -178,7 +178,7 @@ func (t *MemorySearchTool) formatIntelligentResults(result *IntelligentQueryResu
 			resultText += fmt.Sprintf("  %d. %s - %s [%s]\n",
 				i+1,
 				fact.Subject,
-				fact.GenerateContentForLLM(),
+				fact.GenerateContent(),
 				fact.Timestamp.Format("Jan 2006"))
 		}
 		resultText += "\n"
