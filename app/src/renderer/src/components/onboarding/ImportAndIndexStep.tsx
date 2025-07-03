@@ -34,7 +34,7 @@ export function ImportAndIndexStep() {
       subtitle="Select the data sources you'd like to import. You can always add more later."
     >
       <div className="flex flex-col gap-6">
-        <DataSourcesPanel header={false} onIndexingComplete={handleIndexingComplete} />
+        <DataSourcesPanel onIndexingComplete={handleIndexingComplete} />
 
         <div className="flex justify-between pt-8">
           <Button variant="outline" onClick={previousStep}>

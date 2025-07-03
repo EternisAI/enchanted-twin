@@ -67,9 +67,11 @@ export default function MCPPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-2 border-b pb-4">
-        <h2 className="text-2xl font-semibold">Quick Connects</h2>
-        <p className="text-muted-foreground">Takes under 30 seconds to connect.</p>
+      <header className="flex flex-col gap-2 border-b pb-3">
+        <h2 className="text-2xl font-bold leading-none">Quick Connect</h2>
+        <p className="text-muted-foreground leading-none text-sm">
+          Takes under 30 seconds to connect.
+        </p>
       </header>
       <div className="flex flex-col gap-4 w-full">
         {mcpServers.map((server) => (
