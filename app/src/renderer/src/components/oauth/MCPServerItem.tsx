@@ -49,12 +49,12 @@ const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> =
 }
 
 const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
-  GOOGLE: <Google className="w-6 h-6" />,
-  SLACK: <Slack className="w-6 h-6" />,
-  TWITTER: <XformerlyTwitter className="w-6 h-6" />,
-  SCREENPIPE: <ComputerIcon className="w-6 h-6" />,
-  OTHER: <PlugIcon className="w-6 h-6" />,
-  ENCHANTED: <img src={icon} alt="Enchanted" className="w-6 h-6" />
+  GOOGLE: <Google className="w-10 h-10" />,
+  SLACK: <Slack className="w-10 h-10" />,
+  TWITTER: <XformerlyTwitter className="w-10 h-10" />,
+  SCREENPIPE: <ComputerIcon className="w-10 h-10" />,
+  OTHER: <PlugIcon className="w-10 h-10" />,
+  ENCHANTED: <img src={icon} alt="Enchanted" className="w-10 h-10" />
 }
 
 interface MCPServerItemProps {

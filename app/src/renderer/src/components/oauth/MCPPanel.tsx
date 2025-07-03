@@ -6,11 +6,10 @@ import {
   McpServerType
 } from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
-import { Plug } from 'lucide-react'
 import { toast } from 'sonner'
 import { useEffect, useMemo } from 'react'
 
-export default function MCPPanel({ header = true }: { header?: boolean }) {
+export default function MCPPanel() {
   const { data: toolsData } = useQuery(GetToolsDocument)
   const { data, loading, error, refetch } = useQuery(GetMcpServersDocument, {
     fetchPolicy: 'network-only'
@@ -68,15 +67,10 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {header && (
-        <div className="flex flex-col gap-2 items-center">
-          <Plug className="w-6 h-6 text-primary" />
-          <h2 className="text-2xl font-semibold">Connect your future</h2>
-          <p className="text-muted-foreground">
-            Continually update future data from your connections
-          </p>
-        </div>
-      )}
+      <header className="flex flex-col gap-2 border-b pb-4">
+        <h2 className="text-2xl font-semibold">Quick Connects</h2>
+        <p className="text-muted-foreground">Takes under 30 seconds to connect.</p>
+      </header>
       <div className="flex flex-col gap-4 w-full">
         {mcpServers.map((server) => (
           <MCPServerItem
