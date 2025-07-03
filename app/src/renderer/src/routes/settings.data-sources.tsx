@@ -27,7 +27,7 @@ function Header() {
     <div className="flex flex-col gap-4">
       <h2 className="text-4xl font-semibold">Data Sources</h2>
       <Tabs defaultValue="available">
-        <div className="flex flex-row gap-2 w-full justify-between">
+        <div className="flex flex-row gap-2 w-full items-center justify-between pb-10">
           <TabsList>
             <TabsTrigger value="available">
               <NetworkIcon className="w-4 h-4" /> Available
@@ -41,7 +41,7 @@ function Header() {
           </TabsList>
           <ConnectMCPServerButton onSuccess={() => {}} />
         </div>
-        <TabsContent value="available" className="pt-10">
+        <TabsContent value="available">
           <MCPPanel />
           <DataSourcesPanel header={false} />
         </TabsContent>
