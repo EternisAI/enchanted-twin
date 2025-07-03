@@ -27,6 +27,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { Check, ComputerIcon, PlugIcon, Trash2 } from 'lucide-react'
 import icon from '../../../../../resources/icon.png'
+import IconContainer from '@renderer/assets/icons/IconContainer'
 
 const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
   GOOGLE: {
@@ -51,8 +52,16 @@ const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> =
 const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
   GOOGLE: <Google className="w-10 h-10" />,
   SLACK: <Slack className="w-10 h-10" />,
-  TWITTER: <XformerlyTwitter className="w-10 h-10" />,
-  SCREENPIPE: <ComputerIcon className="w-10 h-10" />,
+  TWITTER: (
+    <IconContainer className="bg-foreground">
+      <XformerlyTwitter className="w-7 h-7 text-primary-foreground" />
+    </IconContainer>
+  ),
+  SCREENPIPE: (
+    <IconContainer className="bg-foreground">
+      <ComputerIcon strokeWidth={1.5} className="w-7 h-7 text-primary-foreground/90" />
+    </IconContainer>
+  ),
   OTHER: <PlugIcon className="w-10 h-10" />,
   ENCHANTED: <img src={icon} alt="Enchanted" className="w-10 h-10" />
 }

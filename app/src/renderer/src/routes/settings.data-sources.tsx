@@ -42,8 +42,10 @@ function Header() {
           <ConnectMCPServerButton onSuccess={() => {}} />
         </div>
         <TabsContent value="available">
-          <MCPPanel />
-          <DataSourcesPanel header={false} />
+          <div className="flex flex-col gap-15">
+            <MCPPanel />
+            <DataSourcesPanel header={false} />
+          </div>
         </TabsContent>
         <TabsContent value="local-files">
           <LocalFilesTab />
