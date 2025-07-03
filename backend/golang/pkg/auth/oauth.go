@@ -124,26 +124,6 @@ func RefreshExpiredTokens(ctx context.Context, logger *log.Logger, store *db.Sto
 	return store.GetOAuthStatus(ctx)
 }
 
-// TokenRequest represents the parameters for token requests (both authorization and refresh).
-type TokenRequest struct {
-	GrantType    string
-	Code         string
-	RefreshToken string
-	RedirectURI  string
-	ClientID     string
-	ClientSecret string
-	CodeVerifier string
-}
-
-// TokenResponse encapsulates the response from token endpoints.
-type TokenResponse struct {
-	AccessToken  string
-	RefreshToken string
-	TokenType    string
-	ExpiresAt    time.Time
-	Username     string
-}
-
 func StoreToken(ctx context.Context, logger *log.Logger, store *db.Store, token string, refreshToken string) error {
 	provider := "firebase"
 	username := ""
@@ -257,7 +237,7 @@ func ExchangeToken(ctx context.Context, logger *log.Logger, store *db.Store, pro
 }
 
 // RefreshTokens handles the refresh token flow using the new API endpoint.
-func RefreshTokens(ctx context.Context, logger *log.Logger, store *db.Store, provider string, refreshToken string) (*TokenResponse, error) {
+func RefreshTokenCall(ctx context.Context, logger *log.Logger, store *db.Store, provider string, refreshToken string) (*TokenResponse, error) {
 	conf, err := config.LoadConfig(false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -513,7 +493,7 @@ func RefreshOAuthToken(
 		}
 
 		// Use the new RefreshTokens function
-		tokenResp, err := RefreshTokens(ctx, logger, store, provider, token.RefreshToken)
+		tokenResp, err := RefreshTokenCall(ctx, logger, store, provider, token.RefreshToken)
 		if err != nil {
 			logger.Error("failed to refresh token", "provider", provider, "error", err)
 			lastError = err
