@@ -3,7 +3,7 @@ package mcpserver
 import (
 	"context"
 
-	mcp "github.com/metoro-io/mcp-golang"
+	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
@@ -28,7 +28,7 @@ type MCPService interface {
 	// Load MCP Server from database
 	LoadMCP(ctx context.Context) error
 	// Get Tools from MCP Servers
-	GetTools(ctx context.Context) ([]mcp.ToolRetType, error)
+	GetTools(ctx context.Context) ([]mcp.Tool, error)
 	// Get Tools for internal use
 	GetInternalTools(ctx context.Context) ([]tools.Tool, error)
 	// Remove MCP Server

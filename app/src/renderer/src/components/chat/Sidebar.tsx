@@ -37,10 +37,12 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
+import { formatShortcutForDisplay } from '@renderer/lib/utils/shortcuts'
 
 interface SidebarProps {
   chats: Chat[]
   setSidebarOpen: (open: boolean) => void
+  shortcuts: Record<string, { keys: string; default: string; global?: boolean }>
 }
 
 const groupChatsByTime = (chats: Chat[]) => {
@@ -70,7 +72,7 @@ const groupChatsByTime = (chats: Chat[]) => {
   return groups
 }
 
-export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
+export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
   const { location } = useRouterState()
   const navigate = useNavigate()
   const { openOmnibar } = useOmnibarStore()
@@ -147,9 +149,11 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
                 <TooltipContent side="bottom" align="center">
                   <div className="flex items-center gap-2">
                     <span>Close sidebar</span>
-                    <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
-                      ⌘ S
-                    </kbd>
+                    {shortcuts.toggleSidebar?.keys && (
+                      <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
+                        {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
+                      </kbd>
+                    )}
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -188,10 +192,11 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
             <Plus className="w-3 h-3" />
             <span className="text-sm">New chat</span>
           </div>
-          <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
-            <kbd className="rounded bg-muted px-1.5 py-0.5">⌘ N</kbd>
-            {/* TODO: show control for windows */}
-          </div>
+          {shortcuts.newChat?.keys && (
+            <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
+              <kbd className="rounded bg-muted px-1.5 py-0.5">{formatShortcutForDisplay(shortcuts.newChat.keys)}</kbd>
+            </div>
+          )}
         </Button>
 
         <Button
@@ -252,9 +257,11 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
               <SettingsIcon className="w-4 h-4 mr-2" />
               <span className="text-sm">Settings</span>
             </div>
-            <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
-              <kbd className="rounded bg-muted px-1.5 py-0.5">⌘ ,</kbd>
-            </div>
+            {shortcuts.openSettings?.keys && (
+              <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
+                <kbd className="rounded bg-muted px-1.5 py-0.5">{formatShortcutForDisplay(shortcuts.openSettings.keys)}</kbd>
+              </div>
+            )}
           </Button>
         </div>
       </aside>

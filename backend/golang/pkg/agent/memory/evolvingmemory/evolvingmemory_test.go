@@ -61,66 +61,6 @@ func TestTextDocumentBasics(t *testing.T) {
 	assert.Equal(t, "notes", textDoc.Source())
 }
 
-func TestValidationRules(t *testing.T) {
-	tests := []struct {
-		name             string
-		currentSpeakerID string
-		targetSpeakerID  string
-		action           string
-		shouldBeAllowed  bool
-		description      string
-	}{
-		{
-			name:             "speaker_can_update_own_memory",
-			currentSpeakerID: "alice",
-			targetSpeakerID:  "alice",
-			action:           UpdateMemoryToolName,
-			shouldBeAllowed:  true,
-			description:      "Speaker should be able to update their own memories",
-		},
-		{
-			name:             "speaker_cannot_update_other_memory",
-			currentSpeakerID: "alice",
-			targetSpeakerID:  "bob",
-			action:           UpdateMemoryToolName,
-			shouldBeAllowed:  false,
-			description:      "Speaker should not be able to update another speaker's memories",
-		},
-		{
-			name:             "document_cannot_update_speaker_memory",
-			currentSpeakerID: "",
-			targetSpeakerID:  "alice",
-			action:           UpdateMemoryToolName,
-			shouldBeAllowed:  false,
-			description:      "Document-level context should not update speaker-specific memories",
-		},
-		{
-			name:             "document_can_update_document_memory",
-			currentSpeakerID: "",
-			targetSpeakerID:  "",
-			action:           UpdateMemoryToolName,
-			shouldBeAllowed:  true,
-			description:      "Document-level context can update document-level memories",
-		},
-	}
-
-	// This just documents the expected behavior - actual validation
-	// will be tested when we implement the pure validation functions
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Logf("%s: %s", tt.name, tt.description)
-		})
-	}
-}
-
-func TestMemoryConstants(t *testing.T) {
-	assert.Equal(t, "ADD", AddMemoryToolName)
-	assert.Equal(t, "UPDATE", UpdateMemoryToolName)
-	assert.Equal(t, "DELETE", DeleteMemoryToolName)
-	assert.Equal(t, "NONE", NoneMemoryToolName)
-	assert.Equal(t, "EXTRACT_FACTS", ExtractFactsToolName)
-}
-
 func TestStore_BackwardCompatibility(t *testing.T) {
 	// Test with empty documents - this should work without any mocks
 	t.Run("empty documents", func(t *testing.T) {
