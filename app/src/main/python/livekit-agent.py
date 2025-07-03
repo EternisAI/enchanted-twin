@@ -166,7 +166,7 @@ required_env_vars = [
     "STT_API_KEY",
     "STT_URL",
     "STT_MODEL",
-    "SEND_MESSAGE_URL"
+    "SEND_MESSAGE_URL",
 ]
 
 missing_vars = [var for var in required_env_vars if not os.getenv(var)]
@@ -176,11 +176,11 @@ if missing_vars:
     sys.exit(1)
 
 TTS_API_KEY = os.getenv("TTS_API_KEY")
-TTS_URL = os.getenv("TTS_URL")
+TTS_URL = os.getenv("PROXY_TEE_URL") or os.getenv("TTS_URL")
 TTS_MODEL = os.getenv("TTS_MODEL")
 
 STT_API_KEY = os.getenv("STT_API_KEY")
-STT_URL = os.getenv("STT_URL")
+STT_URL = os.getenv("PROXY_TEE_URL") or os.getenv("STT_URL")
 STT_MODEL = os.getenv("STT_MODEL")
 CHAT_ID = os.getenv("CHAT_ID")
 SEND_MESSAGE_URL = os.getenv("SEND_MESSAGE_URL")
