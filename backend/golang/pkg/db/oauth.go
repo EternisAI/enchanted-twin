@@ -154,6 +154,15 @@ type OAuthConfig struct {
 
 // TODO: The ClientSecret should not be stored in code.
 var oauthConfig = map[string]OAuthConfig{
+	"firebase": {
+		ClientID:      "1234567890",
+		RedirectURI:   "https://127.0.0.1:8443/callback",
+		ClientSecret:  "1234567890",
+		AuthEndpoint:  "https://accounts.google.com/o/oauth2/v2/auth",
+		TokenEndpoint: "https://oauth2.googleapis.com/token",
+		UserEndpoint:  "https://www.googleapis.com/oauth2/v3/userinfo",
+		DefaultScope:  "",
+	},
 	"twitter": {
 		ClientID:      "bEFtUmtyNm1wUFNtRUlqQTdmQmE6MTpjaQ",
 		RedirectURI:   "http://127.0.0.1:8080/callback",
@@ -165,7 +174,7 @@ var oauthConfig = map[string]OAuthConfig{
 	"google": {
 		ClientID:      "993981911648-vtgfk8g1am6kp36pubo5l46902ua1g4t.apps.googleusercontent.com",
 		RedirectURI:   "http://127.0.0.1:8080/callback",
-		ClientSecret:  "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",
+		ClientSecret:  "",
 		AuthEndpoint:  "https://accounts.google.com/o/oauth2/v2/auth",
 		TokenEndpoint: "https://oauth2.googleapis.com/token",
 		UserEndpoint:  "https://www.googleapis.com/oauth2/v3/userinfo",
@@ -183,7 +192,7 @@ var oauthConfig = map[string]OAuthConfig{
 	"slack": {
 		ClientID:      "6687557443010.8799848778913",
 		RedirectURI:   "https://127.0.0.1:8443/callback",
-		ClientSecret:  "aefeb979cb95332bd556f27b7e52b5cb",
+		ClientSecret:  "",
 		AuthEndpoint:  "https://slack.com/oauth/v2/authorize",
 		TokenEndpoint: "https://slack.com/api/oauth.v2.access",
 		UserEndpoint:  "https://slack.com/api/users.identity",

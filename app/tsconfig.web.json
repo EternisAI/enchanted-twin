@@ -1,5 +1,4 @@
 {
-  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
   "include": [
     "src/renderer/src/env.d.ts",
     "src/renderer/src/**/*",
@@ -9,6 +8,19 @@
   "compilerOptions": {
     "composite": true,
     "jsx": "react-jsx",
+    "module": "ES2020",
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": false,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
     "baseUrl": ".",
     "paths": {
       "@renderer/*": [

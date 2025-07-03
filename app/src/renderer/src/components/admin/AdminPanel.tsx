@@ -1,11 +1,13 @@
 import { Button } from '@renderer/components/ui/button'
-import { FolderOpen, Trash2 } from 'lucide-react'
+import { FolderOpen, Trash2, UsersRoundIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ContinueSetupButton } from '../ContinueSetupButton'
 import { Card } from '../ui/card'
+import { useAuth } from '@renderer/contexts/AuthContext'
 
 export default function AdminPanel() {
+  const { signOut } = useAuth()
   const [isLoading, setIsLoading] = useState({
     logs: false,
     app: false,
@@ -111,6 +113,15 @@ export default function AdminPanel() {
           >
             <Trash2 className="mr-2" />
             {isLoading.data ? 'Deleting...' : 'Delete App Data'}
+          </Button>
+          <Button
+            variant="outline"
+            className="flex items-center justify-start h-14"
+            onClick={signOut}
+            disabled={isLoading.data}
+          >
+            <UsersRoundIcon className="mr-2" />
+            Sign Out
           </Button>
           {process.env.NODE_ENV === 'development' && <ContinueSetupButton />}
         </Card>

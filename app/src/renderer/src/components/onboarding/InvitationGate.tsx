@@ -1,41 +1,27 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation } from '@apollo/client'
+import { toast } from 'sonner'
+
 import {
-  GetMcpServersDocument,
   GetWhitelistStatusDocument,
-  ActivateInviteCodeDocument,
-  McpServerType
+  ActivateInviteCodeDocument
 } from '@renderer/graphql/generated/graphql'
 import { OnboardingLayout } from './OnboardingLayout'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
-import MCPServerItem from '../oauth/MCPServerItem'
 import { router } from '../../main'
 import { OnboardingVoiceAnimation } from './voice/Animations'
 import { useTheme } from '@renderer/lib/theme'
+import { useAuth } from '@renderer/contexts/AuthContext'
+import GoogleSignInButton from '../auth/GoogleSignInButton'
 
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isActivated, setIsActivated] = useState(false)
 
-  const {
-    data: mcpData,
-    loading: mcpLoading,
-    error: mcpError,
-    refetch: refetchMcpServers
-  } = useQuery(GetMcpServersDocument, {
-    fetchPolicy: 'network-only'
-  })
-
-  const hasGoogleConnected = useMemo(() => {
-    if (!mcpData?.getMCPServers) return false
-    return mcpData.getMCPServers.some(
-      (server) => server.type === McpServerType.Google && server.connected
-    )
-  }, [mcpData])
+  const { user, authError, loading: authLoading, waitingForLogin, hasUpdatedToken } = useAuth()
 
   const {
     data: whitelistData,
@@ -44,7 +30,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     refetch: refetchWhitelist
   } = useQuery(GetWhitelistStatusDocument, {
     fetchPolicy: 'network-only',
-    skip: !hasGoogleConnected
+    skip: !user || !hasUpdatedToken
   })
 
   const [activateInviteCode] = useMutation(ActivateInviteCodeDocument, {
@@ -63,15 +49,15 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   console.log('whitelistData', whitelistData, whitelistError)
 
   const errorFetching = useMemo(() => {
-    return whitelistError || mcpError
-  }, [whitelistError, mcpError])
+    return whitelistError?.message || authError
+  }, [whitelistError, authError])
 
   useEffect(() => {
     const handleError = async () => {
       if (errorFetching) {
-        console.error('Whitelist query failed:', errorFetching?.message)
-        // await new Promise((resolve) => setTimeout(resolve, 3000))
-        // router.navigate({ to: '/settings/advanced' })
+        console.error('Whitelist query failed:', errorFetching)
+        await new Promise((resolve) => setTimeout(resolve, 3000))
+        router.navigate({ to: '/settings/advanced' })
       }
     }
     handleError()
@@ -103,7 +89,22 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     return <>{children}</>
   }
 
-  if (mcpLoading || whitelistLoading) {
+  if (waitingForLogin) {
+    return (
+      <div className="flex justify-center py-8 w-full">
+        <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">
+          <div className="flex flex-col items-center justify-center gap-6 py-0 w-full text-primary">
+            <h1 className="text-lg font-bold">
+              A browser tab will open to login using your Google account
+            </h1>
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </OnboardingLayout>
+      </div>
+    )
+  }
+
+  if (whitelistLoading || authLoading) {
     return (
       <div className="flex justify-center py-8 w-full">
         <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">
@@ -115,7 +116,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     )
   }
 
-  if (!hasGoogleConnected) {
+  if (!user) {
     return (
       <InvitationWrapper showTitlebar showAnimation showPrivacyText>
         <OnboardingLayout
@@ -124,20 +125,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
           className="text-white"
         >
           <div className="flex flex-col gap-6 items-center ">
-            <MCPServerItem
-              server={{
-                id: 'GOOGLE',
-                type: McpServerType.Google,
-                connected: false,
-                command: '',
-                enabled: false,
-                name: 'Google'
-              }}
-              onConnect={() => {
-                refetchMcpServers()
-              }}
-              onRemove={() => {}}
-            />
+            <GoogleSignInButton />
           </div>
         </OnboardingLayout>
       </InvitationWrapper>
