@@ -357,9 +357,9 @@ export function DataSourcesPanel({
         <Card className="p-6">
           <div className="flex flex-col gap-2 items-center">
             <History className="w-6 h-6 text-primary" />
-            <h2 className="text-2xl font-semibold">Import your history</h2>
+            <h2 className="text-2xl font-semibold">Imports & Takeouts</h2>
             <p className="text-muted-foreground text-balance max-w-md text-center">
-              Your imported data will be used to power your Twin&apos;s understanding of you.
+              It’s easy, but takes multiple steps to connect & get data from external sources.
             </p>
           </div>
         </Card>

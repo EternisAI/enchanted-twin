@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, Navigate } from '@tanstack/react-router'
 import { Button } from '@renderer/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Monitor, Database, Settings2, Plug, Shield, RefreshCcw, Keyboard } from 'lucide-react'
+import { Monitor, Database, Settings2, Shield, RefreshCcw, Keyboard } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
@@ -14,10 +14,10 @@ export const Route = createFileRoute('/settings')({
 
 const settingsTabs = [
   {
-    value: 'import-data',
-    label: 'Import Data',
+    value: 'data-sources',
+    label: 'Data Sources',
     icon: Database,
-    path: '/settings/import-data'
+    path: '/settings/data-sources'
   },
   {
     value: 'permissions',
