@@ -21,7 +21,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isActivated, setIsActivated] = useState(false)
 
-  const { user, authError, loading: authLoading, waitingForLogin } = useAuth()
+  const { user, authError, loading: authLoading, waitingForLogin, hasUpdatedToken } = useAuth()
 
   const {
     data: whitelistData,
@@ -30,7 +30,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     refetch: refetchWhitelist
   } = useQuery(GetWhitelistStatusDocument, {
     fetchPolicy: 'network-only',
-    skip: !user
+    skip: !user || !hasUpdatedToken
   })
 
   const [activateInviteCode] = useMutation(ActivateInviteCodeDocument, {

@@ -17,6 +17,7 @@ interface AuthContextType {
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
   authError: string | null
+  hasUpdatedToken: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -26,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [authError, setAuthError] = useState<string | null>(null)
   const [waitingForLogin, setWaitingForLogin] = useState(false)
+  const [hasUpdatedToken, setHasUpdatedToken] = useState(false)
 
   const [storeToken] = useMutation(StoreTokenDocument)
 
@@ -43,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
         })
+        setHasUpdatedToken(true)
       } catch (error) {
         console.error('[Auth] Failed to store token:', error)
       }
@@ -59,7 +62,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('[Auth] Firebase auth state changed:', user ? user.email : 'null')
       setUser(user)
       setLoading(false)
     })
@@ -69,40 +71,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Listen for Firebase auth success from main process
   useEffect(() => {
-    console.log('[Auth] Setting up IPC listeners')
+    const handleFirebaseAuthSuccess = async (...args: unknown[]) => {
+      const [, userData] = args as [
+        unknown,
+        {
+          uid: string
+          email: string
+          displayName: string
+          photoURL: string
+          accessToken: string
+          idToken: string
+          refreshToken?: string
+        }
+      ]
 
-    const handleFirebaseAuthSuccess = async (
-      _event: unknown,
-      userData: {
-        uid: string
-        email: string
-        displayName: string
-        photoURL: string
-        accessToken: string
-        idToken: string
-        refreshToken?: string
-      }
-    ) => {
-      console.log('[Auth] ✅ Received Firebase auth success from main process:', userData?.email)
-      console.log('[Auth] 🔍 Full userData object:', userData)
-      console.log('[Auth] 🎫 Firebase JWT (idToken):', userData?.idToken)
       setAuthError(null)
       setLoading(false)
       setWaitingForLogin(false)
 
       try {
         const credential = GoogleAuthProvider.credential(userData.idToken, userData.accessToken)
-        const userCredential = await signInWithCredential(auth, credential)
-        console.log('[Auth] ✅ Successfully signed in to Firebase:', userCredential.user.email)
+        await signInWithCredential(auth, credential)
         localStorage.setItem('enchanted_user_data', JSON.stringify(userData))
-        console.log('[Auth] ✅ Stored user data in localStorage')
       } catch (error) {
         console.error('[Auth] ❌ Failed to sign in with Google credential:', error)
         setAuthError(error instanceof Error ? error.message : 'Authentication failed')
       }
     }
 
-    const handleFirebaseAuthError = (_event: unknown, errorData: { error: string }) => {
+    const handleFirebaseAuthError = (...args: unknown[]) => {
+      const [, errorData] = args as [unknown, { error: string }]
       console.error('[Auth] ❌ Received Firebase auth error from main process:', errorData)
       setAuthError(errorData.error)
       setLoading(false)
@@ -122,7 +120,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = async () => {
     console.log('[Auth]  Starting Google sign-in flow')
     setAuthError(null)
-    // setLoading(true)
     setWaitingForLogin(true)
 
     try {
@@ -155,6 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       await firebaseSignOut(auth)
+      setUser(null)
+      console.log('[Auth] Signed out from Firebase')
       localStorage.removeItem('enchanted_user_data')
       await window.electron.ipcRenderer.invoke('cleanup-oauth-server')
     } catch (error) {
@@ -169,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         waitingForLogin,
+        hasUpdatedToken,
         signOut,
         signInWithGoogle,
         authError

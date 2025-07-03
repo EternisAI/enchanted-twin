@@ -378,7 +378,6 @@ function startOAuthServer(firebaseConfig?: FirebaseConfig): Promise<http.Server>
   })
 }
 
-// Legacy function for backward compatibility
 function startOAuthCallbackServer(callbackPath: string): Promise<http.Server> {
   return new Promise((resolve, reject) => {
     if (oauthServer) {
@@ -450,9 +449,9 @@ function startOAuthCallbackServer(callbackPath: string): Promise<http.Server> {
       reject(err)
     })
 
-    server.listen(DEFAULT_OAUTH_SERVER_PORT, 'localhost', () => {
+    server.listen(DEFAULT_OAUTH_SERVER_PORT, '127.0.0.1', () => {
       log.info(
-        `[OAuth] Callback server listening on http://localhost:${DEFAULT_OAUTH_SERVER_PORT}${callbackPath}`
+        `[OAuth] Callback server listening on http://127.0.0.1:${DEFAULT_OAUTH_SERVER_PORT}${callbackPath}`
       )
       resolve(server)
     })
@@ -589,9 +588,17 @@ export function openOAuthWindow(authUrl: string, redirectUri?: string) {
         })
     } catch (err) {
       log.error('[OAuth] Failed to parse redirect URI:', err)
+      shell
+        .openExternal(authUrl)
+        .then(() => log.info('[OAuth] Opened auth URL in default browser'))
+        .catch((err) => log.error('[OAuth] Failed to open auth URL in default browser', err))
     }
   } else {
     log.error('[OAuth] No redirect URI provided')
+    shell
+      .openExternal(authUrl)
+      .then(() => log.info('[OAuth] Opened auth URL in default browser'))
+      .catch((err) => log.error('[OAuth] Failed to open auth URL in default browser', err))
   }
 }
 
