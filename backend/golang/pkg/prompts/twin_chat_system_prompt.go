@@ -10,12 +10,14 @@ import (
 var twinChatSystemPromptTemplate string
 
 type TwinChatSystemPrompt struct {
-	UserName      *string
-	Bio           *string
-	ChatID        *string
-	CurrentTime   string
-	EmailAccounts []string
-	IsVoice       bool
+	UserName          *string
+	Bio               *string
+	ChatID            *string
+	CurrentTime       string
+	EmailAccounts     []string
+	IsVoice           bool
+	UserMemoryProfile string
+	HolonThreadID     *string
 }
 
 func BuildTwinChatSystemPrompt(data TwinChatSystemPrompt) (string, error) {

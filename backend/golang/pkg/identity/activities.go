@@ -29,25 +29,31 @@ type identityActivities struct {
 	completionsModel string
 }
 
-func (a *identityActivities) GeneratePersonalityActivity(ctx context.Context) (string, error) {
+func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (string, error) {
 	personalityPrompts := []string{
 		"My personality",
-		"What makes me happy",
-		"What makes me angry",
+		"What do I want to do lately",
+		"What are my job and hobbies",
+		"Who are my friends and main relationships",
 		"I am interested in",
-		"Things that excite me",
 		"I am uncomfortable with",
 	}
 	memoryDocuments := []string{}
+	limit := 30
 	for _, prompt := range personalityPrompts {
-		docs, err := a.memory.Query(ctx, prompt)
+		filter := memory.Filter{
+			Limit: &limit,
+		}
+		docs, err := a.memory.Query(ctx, prompt, &filter)
 		if err != nil {
 			return "", err
 		}
-		for _, doc := range docs.Documents {
-			memoryDocuments = append(memoryDocuments, doc.Content())
+		for _, fact := range docs.Facts {
+			memoryDocuments = append(memoryDocuments, fact.GenerateContentForLLM())
 		}
 	}
+
+	a.logger.Info("Memory documents", "memory_documents", len(memoryDocuments))
 
 	systemPrompt, err := prompts.BuildIdentityPersonalitySystemPrompt()
 	if err != nil {
@@ -64,10 +70,12 @@ func (a *identityActivities) GeneratePersonalityActivity(ctx context.Context) (s
 		return "", err
 	}
 
-	return response.Content, nil
+	cleanedContent := ai.StripThinkingTags(response.Content)
+
+	return cleanedContent, nil
 }
 
 func (a *identityActivities) RegisterWorkflowsAndActivities(worker worker.Worker) {
 	worker.RegisterWorkflow(DerivePersonalityWorkflow)
-	worker.RegisterActivity(a.GeneratePersonalityActivity)
+	worker.RegisterActivity(a.GenerateUserProfileActivity)
 }

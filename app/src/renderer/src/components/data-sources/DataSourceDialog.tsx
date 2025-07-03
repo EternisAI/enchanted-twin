@@ -1,4 +1,4 @@
-import { Clock, ExternalLink, FileUp, Settings } from 'lucide-react'
+import { Clock, ExternalLink, FileUp, Settings, Upload } from 'lucide-react'
 import { Button } from '../ui/button'
 import {
   Dialog,
@@ -15,6 +15,7 @@ import { ReactNode, useState } from 'react'
 import { TabsContent } from '../ui/tabs'
 import { TabsList, TabsTrigger } from '../ui/tabs'
 import { Tabs } from '../ui/tabs'
+import { cn } from '@renderer/lib/utils'
 
 export const DataSourceDialog = ({
   selectedSource,
@@ -22,6 +23,7 @@ export const DataSourceDialog = ({
   pendingDataSources,
   onFileSelect,
   onAddSource,
+  onFileDrop,
   customComponent
 }: {
   selectedSource: DataSource | null
@@ -29,6 +31,7 @@ export const DataSourceDialog = ({
   pendingDataSources: Record<string, PendingDataSource>
   onFileSelect: () => void
   onAddSource: () => void
+  onFileDrop?: (files: File[], sourceName: string) => Promise<void>
   customComponent?: {
     name: string
     component: ReactNode
@@ -44,7 +47,7 @@ export const DataSourceDialog = ({
     <Dialog open={!!selectedSource} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Add {selectedSource.name} Data</DialogTitle>
+          <DialogTitle>Add {selectedSource.label} Data</DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground flex items-center gap-2">
             <Clock className="h-4 w-4 text-muted-foreground/50" />
             {EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate}
@@ -73,6 +76,7 @@ export const DataSourceDialog = ({
               onFileSelect={onFileSelect}
               onClose={onClose}
               onAddSource={onAddSource}
+              onFileDrop={onFileDrop}
             />
           </TabsContent>
 
@@ -90,14 +94,57 @@ const StandardFileUpload = ({
   pendingDataSources,
   onFileSelect,
   onClose,
-  onAddSource
+  onAddSource,
+  onFileDrop
 }: {
   selectedSource: DataSource
   pendingDataSources: Record<string, PendingDataSource>
   onFileSelect: () => void
   onClose: () => void
   onAddSource: () => void
+  onFileDrop?: (files: File[], sourceName: string) => Promise<void>
 }) => {
+  const [isDragOver, setIsDragOver] = useState(false)
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Only set isDragOver to false if we're leaving the drop zone entirely
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false)
+    }
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length === 0) return
+
+    // If we have a file drop handler, use it
+    if (onFileDrop) {
+      try {
+        await onFileDrop(files, selectedSource.name)
+      } catch (error) {
+        console.error('Error handling dropped files:', error)
+        // Fall back to file browser if drag and drop fails
+        onFileSelect()
+      }
+    } else {
+      // Fallback to file browser
+      onFileSelect()
+    }
+    onClose()
+  }
+
   return (
     <>
       <div className="space-y-8">
@@ -129,19 +176,59 @@ const StandardFileUpload = ({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 bg-card p-4 rounded-lg dark text-white dark:bg-muted dark:text-muted-foreground">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <div
-                className="flex-1 h-9 px-3 py-1 flex flex-col justify-center rounded-md border bg-background text-sm"
-                onClick={onFileSelect}
+        <div
+          className={cn(
+            'flex flex-col gap-2 p-4 rounded-lg border-2 border-dashed transition-all duration-200 cursor-pointer',
+            isDragOver
+              ? 'border-primary bg-primary/5 scale-[1.02]'
+              : 'border-border bg-card dark:bg-muted'
+          )}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={onFileSelect}
+        >
+          <div className="flex flex-col items-center gap-2 text-center">
+            <div
+              className={cn(
+                'p-4 rounded-full transition-colors',
+                isDragOver ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+              )}
+            >
+              <Upload className="w-5 h-5" />
+            </div>
+
+            <div className="space-y-2">
+              <p
+                className={cn(
+                  'text-md font-medium transition-colors',
+                  isDragOver ? 'text-primary' : 'text-foreground'
+                )}
               >
+                {isDragOver ? 'Drop your file here' : 'Drag & drop your file here'}
+              </p>
+              <p className="text-xs text-muted-foreground">
                 {pendingDataSources[selectedSource.name]?.path
                   ? truncatePath(pendingDataSources[selectedSource.name]?.path)
                   : selectedSource.fileRequirement}
-              </div>
-              <Button onClick={onFileSelect}>Browse</Button>
+              </p>
             </div>
+
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="h-px bg-border flex-1"></div>
+              <span>or</span>
+              <div className="h-px bg-border flex-1"></div>
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation()
+                onFileSelect()
+              }}
+            >
+              Browse Files
+            </Button>
           </div>
         </div>
       </div>

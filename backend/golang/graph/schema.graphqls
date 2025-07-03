@@ -18,6 +18,12 @@ directive @goTag(
   value: String
 ) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
 
+enum ChatCategory {
+  TEXT
+  VOICE
+  HOLON
+}
+
 type UserProfile {
   name: String
   bio: String
@@ -28,6 +34,11 @@ type UserProfile {
 input UpdateProfileInput {
   name: String
   bio: String
+}
+
+input StoreTokenInput {
+  token: String!
+  refreshToken: String!
 }
 
 type ToolCall {
@@ -48,7 +59,9 @@ type Chat {
   name: String!
   messages: [Message!]! @goField(forceResolver: true)
   createdAt: DateTime!
-  voice: Boolean!
+  category: ChatCategory!
+  holonThreadId: String #include this in the system prompt so user does not have to excit. on twinchat.go
+  initialMessage: String
 }
 
 type Message {
@@ -101,6 +114,9 @@ type Query {
   getAgentTasks: [AgentTask!]!
   getSetupProgress: [SetupProgress!]!
   whitelistStatus: Boolean!
+  getHolons(userId: ID!): [String!]
+  getThreads(network: String, first: Int! = 10, offset: Int! = 0): [Thread!]!
+  getThread(network: String, id: ID!): Thread
 }
 
 type SetupProgress {
@@ -119,12 +135,22 @@ type Mutation {
   completeOAuthFlow(state: String!, authCode: String!): String!
   refreshExpiredOAuthTokens: [OAuthStatus!]!
   updateProfile(input: UpdateProfileInput!): Boolean!
-  createChat(name: String!, voice: Boolean! = False): Chat!
+  createChat(
+    name: String!
+    category: ChatCategory! = TEXT
+    holonThreadId: String
+    initialMessage: String
+  ): Chat!
   sendMessage(
     chatId: ID!
     text: String!
     reasoning: Boolean! = False
     voice: Boolean! = False
+  ): Message!
+  processMessageHistory(
+    chatId: ID!
+    messages: [MessageInput!]!
+    isOnboarding: Boolean! = False
   ): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
@@ -137,6 +163,8 @@ type Mutation {
   removeMCPServer(id: String!): Boolean!
   startWhatsAppConnection: Boolean!
   activate(inviteCode: String!): Boolean!
+  joinHolon(userId: String!, network: String): Boolean!
+  storeToken(input: StoreTokenInput!): Boolean!
 }
 
 type Subscription {
@@ -146,6 +174,11 @@ type Subscription {
   notificationAdded: AppNotification!
   telegramMessageAdded(chatUUID: ID!): Message!
   messageStream(chatId: ID!): MessageStreamPayload!
+  processMessageHistoryStream(
+    chatId: ID!
+    messages: [MessageInput!]!
+    isOnboarding: Boolean! = False
+  ): MessageStreamPayload!
   whatsAppSyncStatus: WhatsAppSyncStatus!
 }
 
@@ -279,4 +312,38 @@ type AgentTask {
   upcomingRuns: [DateTime!]!
   previousRuns: [DateTime!]!
   notify: Boolean!
+}
+
+type Author {
+  alias: String
+  identity: String!
+}
+
+type ThreadMessage {
+  id: ID!
+  author: Author!
+  content: String!
+  createdAt: DateTime!
+  isDelivered: Boolean
+  actions: [String!]
+  state: String!
+}
+
+type Thread {
+  id: ID!
+  title: String!
+  content: String!
+  imageURLs: [String!]!
+  author: Author!
+  createdAt: DateTime!
+  expiresAt: DateTime
+  messages: [ThreadMessage!]!
+  actions: [String!]
+  views: Int!
+  remoteThreadId: Int
+}
+
+input MessageInput {
+  text: String!
+  role: Role!
 }

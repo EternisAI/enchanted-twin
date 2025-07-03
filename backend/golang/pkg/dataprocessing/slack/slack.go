@@ -1,3 +1,5 @@
+// owner: slimane@eternis.ai
+
 package slack
 
 import (
@@ -9,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
@@ -26,17 +30,27 @@ type SlackMessage struct {
 	Timestamp   string      `json:"ts"`
 }
 
-type SlackProcessor struct{}
+type SlackProcessor struct {
+	store  *db.Store
+	logger *log.Logger
+}
 
-func NewSlackProcessor() processor.Processor {
-	return &SlackProcessor{}
+func NewSlackProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &SlackProcessor{store: store, logger: logger}, nil
 }
 
 func (s *SlackProcessor) Name() string {
 	return "slack"
 }
 
-func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
+func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -55,7 +69,7 @@ func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string, store
 	for _, message := range messages {
 		timestamp, err := parseTimestamp(message.Timestamp)
 		if err != nil {
-			// fmt.Printf("Warning: Failed to parse message timestamp in file %s: %v\n", filePath, err)
+			s.logger.Warn("Failed to parse message timestamp in file", "filePath", filePath, "error", err)
 			continue
 		}
 
@@ -80,7 +94,7 @@ func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string, store
 	return records, nil
 }
 
-func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string, store *db.Store) ([]types.Record, error) {
+func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
 	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
@@ -96,9 +110,9 @@ func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string,
 			return nil
 		}
 
-		records, err := s.ProcessFile(ctx, path, store)
+		records, err := s.ProcessFile(ctx, path)
 		if err != nil {
-			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
+			s.logger.Warn("Failed to process file", "path", path, "error", err)
 			return nil
 		}
 
@@ -112,7 +126,7 @@ func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string,
 	return allRecords, nil
 }
 
-func (s *SlackProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *SlackProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	textDocuments := make([]memory.TextDocument, 0, len(records))
 
 	for _, record := range records {
@@ -136,11 +150,15 @@ func (s *SlackProcessor) ToDocuments(records []types.Record) ([]memory.Document,
 
 		message = fmt.Sprintf("From %s in channel %s: %s", authorUsername, channelName, message)
 
+		// Generate unique document ID using channel + timestamp + author
+		docID := fmt.Sprintf("slack-msg-%s-%s-%d", channelName, authorUsername, record.Timestamp.Unix())
+
 		textDocuments = append(textDocuments, memory.TextDocument{
+			FieldID:        docID,
 			FieldSource:    "slack",
 			FieldContent:   message,
 			FieldTimestamp: &record.Timestamp,
-			FieldTags:      []string{"social", "slack", "chat"},
+			FieldTags:      []string{"social", "chat"},
 			FieldMetadata: map[string]string{
 				"type":           "message",
 				"channelName":    channelName,

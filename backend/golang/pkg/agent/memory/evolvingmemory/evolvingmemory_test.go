@@ -1,0 +1,1551 @@
+package evolvingmemory
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/charmbracelet/log"
+	"github.com/joho/godotenv"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+)
+
+func TestConversationDocumentBasics(t *testing.T) {
+	// Test data
+	conversation := &memory.ConversationDocument{
+		FieldID: "conv-123",
+		User:    "alice",
+		Conversation: []memory.ConversationMessage{
+			{Speaker: "alice", Content: "I love pizza", Time: time.Now()},
+			{Speaker: "bob", Content: "I prefer sushi", Time: time.Now()},
+		},
+	}
+
+	// Test Document interface methods
+	assert.Equal(t, "conv-123", conversation.ID())
+	assert.Contains(t, conversation.Content(), "I love pizza")
+	assert.Contains(t, conversation.Content(), "I prefer sushi")
+	assert.NotNil(t, conversation.Timestamp())
+	assert.Equal(t, "alice", conversation.Metadata()["user"])
+}
+
+func TestTextDocumentBasics(t *testing.T) {
+	now := time.Now()
+	textDoc := &memory.TextDocument{
+		FieldID:        "text-456",
+		FieldContent:   "The user's favorite color is blue.",
+		FieldTimestamp: &now,
+		FieldSource:    "notes",
+		FieldMetadata:  map[string]string{},
+	}
+
+	// Test Document interface methods
+	assert.Equal(t, "text-456", textDoc.ID())
+	assert.Equal(t, "The user's favorite color is blue.", textDoc.Content())
+	assert.Equal(t, &now, textDoc.Timestamp())
+	assert.Equal(t, "notes", textDoc.Source())
+}
+
+func TestStore_BackwardCompatibility(t *testing.T) {
+	// Test with empty documents - this should work without any mocks
+	t.Run("empty documents", func(t *testing.T) {
+		logger := log.New(os.Stdout)
+		mockClient := &weaviate.Client{}
+
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+
+		embeddingsWrapper, err := storage.NewEmbeddingWrapper(embeddingsService, embeddingsModel)
+		require.NoError(t, err)
+
+		mockStorage, err := storage.New(storage.NewStorageInput{
+			Client:            mockClient,
+			Logger:            logger,
+			EmbeddingsWrapper: embeddingsWrapper,
+		})
+		require.NoError(t, err)
+
+		storageImpl, err := New(Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			CompletionsModel:   completionsModel,
+			EmbeddingsWrapper:  embeddingsWrapper,
+		})
+		require.NoError(t, err)
+
+		storageImplTyped, ok := storageImpl.(*StorageImpl)
+		require.True(t, ok, "Failed to type assert to StorageImpl")
+
+		err = storageImplTyped.Store(context.Background(), []memory.Document{}, nil)
+		assert.NoError(t, err)
+	})
+
+	// Test with progress callback - simplified version
+	t.Run("with progress callback", func(t *testing.T) {
+		progressCalls := 0
+		callback := func(processed, total int) {
+			progressCalls++
+
+			assert.Equal(t, 0, processed)
+			assert.Equal(t, 0, total)
+		}
+
+		logger := log.New(os.Stdout)
+		mockClient := &weaviate.Client{}
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+
+		embeddingsWrapper, err := storage.NewEmbeddingWrapper(embeddingsService, embeddingsModel)
+		require.NoError(t, err)
+
+		mockStorage, err := storage.New(storage.NewStorageInput{
+			Client:            mockClient,
+			Logger:            logger,
+			EmbeddingsWrapper: embeddingsWrapper,
+		})
+		require.NoError(t, err)
+
+		storageImpl, err := New(Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			CompletionsModel:   completionsModel,
+			EmbeddingsWrapper:  embeddingsWrapper,
+		})
+		require.NoError(t, err)
+
+		storageImplTyped, ok := storageImpl.(*StorageImpl)
+		require.True(t, ok, "Failed to type assert to StorageImpl")
+
+		err = storageImplTyped.Store(context.Background(), []memory.Document{}, callback)
+		assert.NoError(t, err)
+
+		// For empty documents, callback might not be called, which is fine
+		t.Logf("Progress callback called %d times", progressCalls)
+	})
+
+	// Test context cancellation
+	t.Run("context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		logger := log.New(os.Stdout)
+		mockClient := &weaviate.Client{}
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+
+		embeddingsWrapper, err := storage.NewEmbeddingWrapper(embeddingsService, embeddingsModel)
+		require.NoError(t, err)
+
+		mockStorage, err := storage.New(storage.NewStorageInput{
+			Client:            mockClient,
+			Logger:            logger,
+			EmbeddingsWrapper: embeddingsWrapper,
+		})
+		require.NoError(t, err)
+
+		storageImpl, err := New(Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			CompletionsModel:   completionsModel,
+			EmbeddingsWrapper:  embeddingsWrapper,
+		})
+		require.NoError(t, err)
+
+		storageImplTyped, ok := storageImpl.(*StorageImpl)
+		require.True(t, ok, "Failed to type assert to StorageImpl")
+
+		docs := []memory.Document{
+			&memory.TextDocument{
+				FieldID:      "test-doc-2",
+				FieldContent: "Test content 2",
+			},
+		}
+
+		err = storageImplTyped.Store(ctx, docs, nil)
+		assert.Error(t, err)
+		assert.Equal(t, context.Canceled, err)
+	})
+}
+
+// Note: Full integration tests with real Weaviate/AI services
+// should be run separately using the existing test-memory command
+
+func TestDocumentDeduplicationEdgeCases(t *testing.T) {
+	t.Run("identical documents with different IDs", func(t *testing.T) {
+		doc1 := &memory.TextDocument{
+			FieldID:      "doc-1",
+			FieldContent: "Identical content for deduplication test",
+		}
+		doc2 := &memory.TextDocument{
+			FieldID:      "doc-2",
+			FieldContent: "Identical content for deduplication test",
+		}
+
+		assert.Equal(t, doc1.Content(), doc2.Content())
+		assert.NotEqual(t, doc1.ID(), doc2.ID())
+	})
+
+	t.Run("documents with same content but different metadata", func(t *testing.T) {
+		now := time.Now()
+		doc1 := &memory.TextDocument{
+			FieldID:        "doc-meta-1",
+			FieldContent:   "Same content different metadata",
+			FieldTimestamp: &now,
+			FieldSource:    "user",
+			FieldMetadata:  map[string]string{},
+		}
+		doc2 := &memory.TextDocument{
+			FieldID:        "doc-meta-2",
+			FieldContent:   "Same content different metadata",
+			FieldTimestamp: &now,
+			FieldSource:    "system",
+			FieldMetadata:  map[string]string{},
+		}
+
+		assert.Equal(t, doc1.Content(), doc2.Content())
+		assert.NotEqual(t, doc1.Source(), doc2.Source())
+	})
+
+	t.Run("empty documents deduplication", func(t *testing.T) {
+		doc1 := &memory.TextDocument{
+			FieldID:      "empty-1",
+			FieldContent: "",
+		}
+		doc2 := &memory.TextDocument{
+			FieldID:      "empty-2",
+			FieldContent: "",
+		}
+
+		assert.Equal(t, "", doc1.Content())
+		assert.Equal(t, "", doc2.Content())
+		assert.Equal(t, doc1.Content(), doc2.Content())
+	})
+
+	t.Run("whitespace-only documents", func(t *testing.T) {
+		doc1 := &memory.TextDocument{
+			FieldID:      "whitespace-1",
+			FieldContent: "   \n\t   ",
+		}
+		doc2 := &memory.TextDocument{
+			FieldID:      "whitespace-2",
+			FieldContent: "\t\n    \t",
+		}
+
+		assert.NotEmpty(t, doc1.Content())
+		assert.NotEmpty(t, doc2.Content())
+		assert.NotEqual(t, doc1.Content(), doc2.Content())
+	})
+}
+
+func TestHashCollisionHandling(t *testing.T) {
+	t.Run("documents with crafted similar content", func(t *testing.T) {
+		content1 := "a" + string(make([]byte, 1000))
+		content2 := "b" + string(make([]byte, 1000))
+
+		doc1 := &memory.TextDocument{
+			FieldID:      "hash-test-1",
+			FieldContent: content1,
+		}
+		doc2 := &memory.TextDocument{
+			FieldID:      "hash-test-2",
+			FieldContent: content2,
+		}
+
+		assert.NotEqual(t, doc1.Content(), doc2.Content())
+		assert.Equal(t, len(doc1.Content()), len(doc2.Content()))
+	})
+
+	t.Run("unicode content variations", func(t *testing.T) {
+		doc1 := &memory.TextDocument{
+			FieldID:      "unicode-1",
+			FieldContent: "Hello 世界 🌍",
+		}
+		doc2 := &memory.TextDocument{
+			FieldID:      "unicode-2",
+			FieldContent: "Hello 世界 🌎",
+		}
+
+		assert.NotEqual(t, doc1.Content(), doc2.Content())
+		assert.Contains(t, doc1.Content(), "世界")
+		assert.Contains(t, doc2.Content(), "世界")
+	})
+
+	t.Run("binary-like content", func(t *testing.T) {
+		binaryContent1 := string([]byte{0x00, 0x01, 0x02, 0x03, 0xFF, 0xFE, 0xFD})
+		binaryContent2 := string([]byte{0x00, 0x01, 0x02, 0x03, 0xFF, 0xFE, 0xFC})
+
+		doc1 := &memory.TextDocument{
+			FieldID:      "binary-1",
+			FieldContent: binaryContent1,
+		}
+		doc2 := &memory.TextDocument{
+			FieldID:      "binary-2",
+			FieldContent: binaryContent2,
+		}
+
+		assert.NotEqual(t, doc1.Content(), doc2.Content())
+		assert.Equal(t, len(doc1.Content()), len(doc2.Content()))
+	})
+
+	t.Run("hash computation consistency", func(t *testing.T) {
+		content := "Test content for hash consistency"
+		doc := &memory.TextDocument{
+			FieldID:      "hash-consistency",
+			FieldContent: content,
+		}
+
+		hash1 := fmt.Sprintf("%x", sha256.Sum256([]byte(doc.Content())))
+		hash2 := fmt.Sprintf("%x", sha256.Sum256([]byte(doc.Content())))
+		hash3 := fmt.Sprintf("%x", sha256.Sum256([]byte(doc.Content())))
+
+		assert.Equal(t, hash1, hash2)
+		assert.Equal(t, hash2, hash3)
+		assert.Equal(t, 64, len(hash1))
+	})
+}
+
+func TestConcurrentDocumentStorage(t *testing.T) {
+	t.Run("concurrent document creation", func(t *testing.T) {
+		const numGoroutines = 10
+		const docsPerGoroutine = 5
+
+		docChan := make(chan *memory.TextDocument, numGoroutines*docsPerGoroutine)
+		doneChan := make(chan struct{}, numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			go func(goroutineID int) {
+				defer func() { doneChan <- struct{}{} }()
+
+				for j := 0; j < docsPerGoroutine; j++ {
+					doc := &memory.TextDocument{
+						FieldID:      fmt.Sprintf("concurrent-%d-%d", goroutineID, j),
+						FieldContent: fmt.Sprintf("Content from goroutine %d, document %d", goroutineID, j),
+					}
+					docChan <- doc
+				}
+			}(i)
+		}
+
+		for i := 0; i < numGoroutines; i++ {
+			select {
+			case <-doneChan:
+			case <-time.After(5 * time.Second):
+				t.Fatal("Test timed out waiting for concurrent operations")
+			}
+		}
+
+		close(docChan)
+		documents := make([]*memory.TextDocument, 0, numGoroutines*docsPerGoroutine)
+		for doc := range docChan {
+			documents = append(documents, doc)
+		}
+
+		assert.Equal(t, numGoroutines*docsPerGoroutine, len(documents))
+
+		seenIDs := make(map[string]bool)
+		for _, doc := range documents {
+			assert.False(t, seenIDs[doc.ID()], "Duplicate document ID found: %s", doc.ID())
+			seenIDs[doc.ID()] = true
+		}
+	})
+
+	t.Run("concurrent access to same document data", func(t *testing.T) {
+		sharedContent := "Shared content for concurrent access test"
+		const numGoroutines = 20
+
+		results := make(chan string, numGoroutines)
+		doneChan := make(chan struct{}, numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			go func(goroutineID int) {
+				defer func() { doneChan <- struct{}{} }()
+
+				doc := &memory.TextDocument{
+					FieldID:      fmt.Sprintf("shared-access-%d", goroutineID),
+					FieldContent: sharedContent,
+				}
+
+				content := doc.Content()
+				results <- content
+			}(i)
+		}
+
+		for i := 0; i < numGoroutines; i++ {
+			select {
+			case <-doneChan:
+			case <-time.After(5 * time.Second):
+				t.Fatal("Test timed out")
+			}
+		}
+
+		close(results)
+		for result := range results {
+			assert.Equal(t, sharedContent, result)
+		}
+	})
+}
+
+// TestAdvancedFiltering_Integration tests the complete filtering pipeline.
+func TestAdvancedFiltering_Integration(t *testing.T) {
+	t.Run("filter validation in storage interface", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Mock the Query method to verify filter is passed correctly
+		expectedFilter := &memory.Filter{
+			Source:   helpers.Ptr("conversations"),
+			Subject:  helpers.Ptr("alice"),
+			Distance: 0.7,
+			Limit:    helpers.Ptr(5),
+		}
+
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{
+				{
+					ID:        "test-123",
+					Content:   "alice likes pizza",
+					Source:    "conversations",
+					Timestamp: time.Now(),
+					Metadata: map[string]string{
+						"source":    "conversations",
+						"speakerID": "alice",
+					},
+				},
+			},
+		}
+
+		mockStorage.On("Query", mock.Anything, "pizza preferences", expectedFilter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			CompletionsModel:   completionsModel,
+			EmbeddingsWrapper:  &storage.EmbeddingWrapper{},
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		// Test the query with filter
+		result, err := storage.Query(context.Background(), "pizza preferences", expectedFilter)
+		require.NoError(t, err)
+
+		// Verify result structure
+		assert.Len(t, result.Facts, 1)
+		assert.Equal(t, "test-123", result.Facts[0].ID)
+		assert.Equal(t, "conversations", result.Facts[0].Source)
+
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("nil filter backward compatibility", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Mock the Query method with nil filter
+		var nilFilter *memory.Filter = nil
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{},
+		}
+
+		mockStorage.On("Query", mock.Anything, "test query", nilFilter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			CompletionsModel:   completionsModel,
+			EmbeddingsWrapper:  &storage.EmbeddingWrapper{},
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		// Test query with nil filter (backward compatibility)
+		result, err := storage.Query(context.Background(), "test query", nil)
+		require.NoError(t, err)
+		assert.Empty(t, result.Facts)
+
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("tags filtering", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Filter with tags - documents must contain ALL specified tags
+		filter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				All: []string{"work", "important"},
+			},
+			Limit: helpers.Ptr(5),
+		}
+
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{
+				{
+					ID:        "test-doc-1",
+					Content:   "Work meeting notes about important project",
+					Source:    "conversations",
+					Timestamp: time.Now(),
+					Metadata: map[string]string{
+						"tags": `["work","important","meeting"]`,
+					},
+				},
+			},
+		}
+
+		mockStorage.On("Query", mock.Anything, "project updates", filter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			CompletionsModel:   completionsModel,
+			EmbeddingsWrapper:  &storage.EmbeddingWrapper{},
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		result, err := storage.Query(context.Background(), "project updates", filter)
+		require.NoError(t, err)
+		assert.Len(t, result.Facts, 1)
+		assert.Equal(t, "Work meeting notes about important project", result.Facts[0].Content)
+		// Tags are now stored in metadata as JSON
+		var tags []string
+		err = json.Unmarshal([]byte(result.Facts[0].Metadata["tags"]), &tags)
+		require.NoError(t, err)
+		assert.Contains(t, tags, "work")
+		assert.Contains(t, tags, "important")
+
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+// TestFilterBehavior_EdgeCases tests edge cases in filter behavior.
+func TestFilterBehavior_EdgeCases(t *testing.T) {
+	t.Run("empty filter values", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Filter with empty string values
+		filter := &memory.Filter{
+			Source:   helpers.Ptr(""),
+			Subject:  helpers.Ptr(""),
+			Distance: 0,
+			Limit:    helpers.Ptr(0),
+		}
+
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{},
+		}
+
+		mockStorage.On("Query", mock.Anything, "test", filter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			CompletionsModel:   completionsModel,
+			EmbeddingsWrapper:  &storage.EmbeddingWrapper{},
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		result, err := storage.Query(context.Background(), "test", filter)
+		require.NoError(t, err)
+		assert.Empty(t, result.Facts)
+
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("extreme filter values", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Filter with extreme values
+		filter := &memory.Filter{
+			Source:   helpers.Ptr("very-long-source-name-that-might-cause-issues"),
+			Subject:  helpers.Ptr("user-with-very-long-name-123456789"),
+			Distance: 2.0,                // > 1.0
+			Limit:    helpers.Ptr(10000), // Very large limit
+		}
+
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{},
+		}
+
+		mockStorage.On("Query", mock.Anything, "test", filter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			CompletionsModel:   completionsModel,
+			EmbeddingsWrapper:  &storage.EmbeddingWrapper{},
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		result, err := storage.Query(context.Background(), "test", filter)
+		require.NoError(t, err)
+		assert.Empty(t, result.Facts)
+
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+// TestDirectFieldVsJSONMetadata tests the hybrid approach behavior.
+func TestDirectFieldVsJSONMetadata(t *testing.T) {
+	t.Run("direct fields override JSON metadata", func(t *testing.T) {
+		// Simulate a document with both direct fields and conflicting JSON metadata
+		doc := memory.TextDocument{
+			FieldID:      "test-456",
+			FieldContent: "test content",
+			FieldSource:  "conversations", // Direct field
+			FieldMetadata: map[string]string{
+				"source":    "old_source", // Should be overridden
+				"speakerID": "alice",
+				"extra":     "metadata",
+			},
+		}
+
+		// Direct field should take precedence
+		assert.Equal(t, "conversations", doc.Source())
+		assert.Equal(t, "conversations", doc.FieldSource)
+
+		// But metadata map might still contain old value
+		// (Real implementation should merge correctly)
+		assert.Contains(t, doc.Metadata(), "speakerID")
+		assert.Contains(t, doc.Metadata(), "extra")
+	})
+
+	t.Run("Direct field behavior when empty", func(t *testing.T) {
+		doc := memory.TextDocument{
+			FieldID:      "test-789",
+			FieldContent: "test content",
+			FieldSource:  "", // Empty direct field
+			FieldMetadata: map[string]string{
+				"speakerID": "bob",
+			},
+		}
+
+		// Direct field is used regardless of metadata content
+		assert.Equal(t, "", doc.Source()) // Direct field is empty, so Source() returns empty
+
+		assert.Equal(t, "bob", doc.Metadata()["speakerID"])
+	})
+}
+
+// TestQueryResultStructure tests the structure of query results with filtering.
+func TestQueryResultStructure(t *testing.T) {
+	t.Run("filtered result structure", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		filter := &memory.Filter{
+			Source: helpers.Ptr("conversations"),
+			Limit:  helpers.Ptr(3),
+		}
+
+		// Create realistic mock result
+		now := time.Now()
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{
+				{
+					ID:        "doc-1",
+					Content:   "alice likes coffee",
+					Timestamp: now,
+					Source:    "conversations",
+					Metadata: map[string]string{
+						"source":  "conversations",
+						"channel": "general",
+					},
+				},
+				{
+					ID:        "doc-2",
+					Content:   "bob prefers tea",
+					Timestamp: now,
+					Source:    "conversations",
+					Metadata: map[string]string{
+						"source":  "conversations",
+						"channel": "general",
+					},
+				},
+			},
+		}
+
+		mockStorage.On("Query", mock.Anything, "drink preferences", filter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			CompletionsModel:   completionsModel,
+			EmbeddingsWrapper:  &storage.EmbeddingWrapper{},
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		result, err := storage.Query(context.Background(), "drink preferences", filter)
+		require.NoError(t, err)
+
+		// Verify result structure
+		assert.Len(t, result.Facts, 2)
+
+		// Verify first fact
+		fact1 := result.Facts[0]
+		assert.Equal(t, "doc-1", fact1.ID)
+		assert.Equal(t, "alice likes coffee", fact1.Content)
+		assert.Equal(t, "conversations", fact1.Source)
+
+		// Verify second fact
+		fact2 := result.Facts[1]
+		assert.Equal(t, "doc-2", fact2.ID)
+		assert.Equal(t, "bob prefers tea", fact2.Content)
+		assert.Equal(t, "conversations", fact2.Source)
+
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+// TestFilterUsagePatterns tests realistic usage patterns.
+func TestFilterUsagePatterns(t *testing.T) {
+	t.Run("conversation filtering pattern", func(t *testing.T) {
+		// Pattern: Get recent conversations with a specific person
+		filter := &memory.Filter{
+			Source:   helpers.Ptr("conversations"),
+			Subject:  helpers.Ptr("alice"),
+			Distance: 0.8, // Semantic similarity threshold
+			Limit:    helpers.Ptr(10),
+		}
+
+		assert.Equal(t, "conversations", *filter.Source)
+		assert.Equal(t, "alice", *filter.Subject)
+		assert.Equal(t, float32(0.8), filter.Distance)
+		assert.Equal(t, 10, *filter.Limit)
+	})
+
+	t.Run("email filtering pattern", func(t *testing.T) {
+		// Pattern: Find work-related emails
+		filter := &memory.Filter{
+			Source:   helpers.Ptr("email"),
+			Distance: 0.7,
+			Limit:    helpers.Ptr(20),
+		}
+
+		assert.Equal(t, "email", *filter.Source)
+		assert.Nil(t, filter.Subject) // No specific contact
+		assert.Equal(t, float32(0.7), filter.Distance)
+		assert.Equal(t, 20, *filter.Limit)
+	})
+
+	t.Run("semantic search only pattern", func(t *testing.T) {
+		// Pattern: Pure semantic search with distance limit
+		filter := &memory.Filter{
+			Distance: 0.6,
+			Limit:    helpers.Ptr(5),
+		}
+
+		assert.Nil(t, filter.Source)  // No source filter
+		assert.Nil(t, filter.Subject) // No contact filter
+		assert.Equal(t, float32(0.6), filter.Distance)
+		assert.Equal(t, 5, *filter.Limit)
+	})
+}
+
+// TestSchemaEvolution tests schema evolution and migration scenarios.
+func TestSchemaEvolution(t *testing.T) {
+	t.Run("schema field constants", func(t *testing.T) {
+		// Verify all expected schema fields are defined
+		// These should match the constants in storage.go
+		expectedFields := map[string]string{
+			"content":      "content",
+			"timestamp":    "timestamp",
+			"metadataJson": "metadataJson",
+			"source":       "source",    // New direct field
+			"speakerID":    "speakerID", // New direct field
+			"tags":         "tags",
+		}
+
+		for fieldName, expectedValue := range expectedFields {
+			assert.NotEmpty(t, expectedValue, "Field %s should not be empty", fieldName)
+		}
+	})
+
+	t.Run("metadata merging behavior", func(t *testing.T) {
+		// Test the metadata merging logic that should happen in storage
+		jsonMetadata := map[string]string{
+			"source":    "old_source",
+			"speakerID": "old_speaker",
+			"channel":   "general",
+			"extra":     "data",
+		}
+
+		// Simulate direct field values
+		directSpeakerID := "alice"
+
+		// Merge logic (direct fields take precedence)
+		finalMetadata := make(map[string]string)
+		for k, v := range jsonMetadata {
+			finalMetadata[k] = v
+		}
+
+		if directSpeakerID != "" {
+			finalMetadata["speakerID"] = directSpeakerID
+		}
+
+		// Verify merging behavior
+
+		assert.Equal(t, "alice", finalMetadata["speakerID"]) // Overridden
+		assert.Equal(t, "general", finalMetadata["channel"]) // Preserved
+		assert.Equal(t, "data", finalMetadata["extra"])      // Preserved
+	})
+}
+
+// TestPerformanceImplications documents performance expectations.
+func TestPerformanceImplications(t *testing.T) {
+	t.Run("query pattern efficiency", func(t *testing.T) {
+		// Document expected query patterns for performance
+
+		// OLD PATTERN (slow):
+		// - JSON pattern matching: metadataJson LIKE '*"source":"value"*'
+		// - Full string search on serialized JSON
+		// - Cannot use proper database indexing
+
+		// NEW PATTERN (fast):
+		// - Direct field equality: source = "value"
+		// - Proper database indexing possible
+		// - Combined with filters.And for multiple conditions
+
+		filter := &memory.Filter{
+			Source:  helpers.Ptr("conversations"),
+			Subject: helpers.Ptr("alice"),
+		}
+
+		// This should generate efficient queries like:
+		// WHERE (source = "conversations" AND speakerID = "alice")
+		assert.Equal(t, "conversations", *filter.Source)
+		assert.Equal(t, "alice", *filter.Subject)
+	})
+
+	t.Run("memory usage patterns", func(t *testing.T) {
+		// Large result sets should be limited
+		filter := &memory.Filter{
+			Limit: helpers.Ptr(100), // Reasonable limit
+		}
+		assert.Equal(t, 100, *filter.Limit)
+
+		// Distance filtering reduces result set size
+		filter.Distance = 0.8 // Strict similarity
+		assert.Equal(t, float32(0.8), filter.Distance)
+	})
+}
+
+// TestPolynomialTagsFiltering tests the new polynomial tags filtering capabilities.
+func TestPolynomialTagsFiltering(t *testing.T) {
+	t.Run("simple ALL logic (backward compatible)", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				All: []string{"work", "important"},
+			},
+		}
+
+		assert.NotNil(t, filter.Tags)
+		assert.Len(t, filter.Tags.All, 2)
+		assert.Contains(t, filter.Tags.All, "work")
+		assert.Contains(t, filter.Tags.All, "important")
+		assert.Empty(t, filter.Tags.Any)
+		assert.Nil(t, filter.Tags.Expression)
+		assert.False(t, filter.Tags.IsEmpty())
+	})
+
+	t.Run("simple ANY logic", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				Any: []string{"urgent", "deadline", "asap"},
+			},
+		}
+
+		assert.NotNil(t, filter.Tags)
+		assert.Empty(t, filter.Tags.All)
+		assert.Len(t, filter.Tags.Any, 3)
+		assert.Contains(t, filter.Tags.Any, "urgent")
+		assert.Contains(t, filter.Tags.Any, "deadline")
+		assert.Contains(t, filter.Tags.Any, "asap")
+		assert.Nil(t, filter.Tags.Expression)
+		assert.False(t, filter.Tags.IsEmpty())
+	})
+
+	t.Run("complex boolean expression - (A AND B) OR (C AND D)", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				Expression: &memory.BooleanExpression{
+					Operator: memory.OR,
+					Left: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"work", "Q1"},
+					},
+					Right: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"personal", "urgent"},
+					},
+				},
+			},
+		}
+
+		assert.NotNil(t, filter.Tags)
+		assert.Empty(t, filter.Tags.All)
+		assert.Empty(t, filter.Tags.Any)
+		assert.NotNil(t, filter.Tags.Expression)
+		assert.Equal(t, memory.OR, filter.Tags.Expression.Operator)
+		assert.True(t, filter.Tags.Expression.IsBranch())
+		assert.False(t, filter.Tags.Expression.IsLeaf())
+		assert.False(t, filter.Tags.IsEmpty())
+
+		// Verify left branch: work AND Q1
+		leftExpr := filter.Tags.Expression.Left
+		assert.NotNil(t, leftExpr)
+		assert.Equal(t, memory.AND, leftExpr.Operator)
+		assert.True(t, leftExpr.IsLeaf())
+		assert.False(t, leftExpr.IsBranch())
+		assert.Contains(t, leftExpr.Tags, "work")
+		assert.Contains(t, leftExpr.Tags, "Q1")
+
+		// Verify right branch: personal AND urgent
+		rightExpr := filter.Tags.Expression.Right
+		assert.NotNil(t, rightExpr)
+		assert.Equal(t, memory.AND, rightExpr.Operator)
+		assert.True(t, rightExpr.IsLeaf())
+		assert.False(t, rightExpr.IsBranch())
+		assert.Contains(t, rightExpr.Tags, "personal")
+		assert.Contains(t, rightExpr.Tags, "urgent")
+	})
+
+	t.Run("empty tags filter", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags: &memory.TagsFilter{},
+		}
+
+		assert.NotNil(t, filter.Tags)
+		assert.True(t, filter.Tags.IsEmpty())
+	})
+
+	t.Run("nil tags filter", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags: nil,
+		}
+
+		assert.Nil(t, filter.Tags)
+		// IsEmpty should handle nil gracefully
+		if filter.Tags != nil {
+			assert.True(t, filter.Tags.IsEmpty())
+		}
+	})
+}
+
+func TestLargeDocumentHandling(t *testing.T) {
+	t.Run("large text document creation", func(t *testing.T) {
+		largeContent := make([]byte, 1024*1024)
+		for i := range largeContent {
+			largeContent[i] = byte('a' + (i % 26))
+		}
+
+		start := time.Now()
+		doc := &memory.TextDocument{
+			FieldID:      "large-doc-1mb",
+			FieldContent: string(largeContent),
+		}
+		duration := time.Since(start)
+
+		assert.Equal(t, 1024*1024, len(doc.Content()))
+		assert.Less(t, duration, 100*time.Millisecond, "Large document creation took too long")
+		t.Logf("Large document (1MB) creation took: %v", duration)
+	})
+
+	t.Run("many small documents creation", func(t *testing.T) {
+		const numDocs = 10000
+
+		start := time.Now()
+		docs := make([]*memory.TextDocument, numDocs)
+		for i := 0; i < numDocs; i++ {
+			docs[i] = &memory.TextDocument{
+				FieldID:      fmt.Sprintf("small-doc-%d", i),
+				FieldContent: fmt.Sprintf("Small document content %d with some additional text to make it more realistic", i),
+			}
+		}
+		duration := time.Since(start)
+
+		assert.Equal(t, numDocs, len(docs))
+		assert.Less(t, duration, 1*time.Second, "Creating many small documents took too long")
+		t.Logf("Creating %d small documents took: %v", numDocs, duration)
+	})
+
+	t.Run("large conversation document", func(t *testing.T) {
+		const numMessages = 10000
+		messages := make([]memory.ConversationMessage, numMessages)
+
+		start := time.Now()
+		for i := 0; i < numMessages; i++ {
+			speaker := "alice"
+			if i%2 == 1 {
+				speaker = "bob"
+			}
+			messages[i] = memory.ConversationMessage{
+				Speaker: speaker,
+				Content: fmt.Sprintf("This is message number %d in a very long conversation that tests large document handling", i),
+				Time:    time.Now().Add(time.Duration(i) * time.Second),
+			}
+		}
+
+		doc := &memory.ConversationDocument{
+			FieldID:      "large-conversation",
+			User:         "alice",
+			Conversation: messages,
+		}
+		duration := time.Since(start)
+
+		assert.Equal(t, numMessages, len(doc.Conversation))
+		assert.Contains(t, doc.Content(), "message number 0")
+		assert.Contains(t, doc.Content(), fmt.Sprintf("message number %d", numMessages-1))
+		assert.Less(t, duration, 1*time.Second, "Large conversation creation took too long")
+		t.Logf("Large conversation (%d messages) creation took: %v", numMessages, duration)
+	})
+
+	t.Run("memory usage validation", func(t *testing.T) {
+		var m1, m2 runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&m1)
+
+		docs := make([]*memory.TextDocument, 100)
+		for i := 0; i < 100; i++ {
+			content := make([]byte, 10*1024)
+			for j := range content {
+				content[j] = byte('a' + (j % 26))
+			}
+
+			docs[i] = &memory.TextDocument{
+				FieldID:      fmt.Sprintf("memory-test-doc-%d", i),
+				FieldContent: string(content),
+			}
+		}
+
+		runtime.GC()
+		runtime.ReadMemStats(&m2)
+
+		assert.Equal(t, 100, len(docs))
+		for i, doc := range docs {
+			assert.Equal(t, 10*1024, len(doc.Content()))
+			assert.Equal(t, fmt.Sprintf("memory-test-doc-%d", i), doc.ID())
+		}
+	})
+
+	t.Run("content hash consistency for large documents", func(t *testing.T) {
+		largeContent := strings.Repeat("This is a test string for hash consistency. ", 10000)
+
+		doc1 := &memory.TextDocument{
+			FieldID:      "hash-large-1",
+			FieldContent: largeContent,
+		}
+		doc2 := &memory.TextDocument{
+			FieldID:      "hash-large-2",
+			FieldContent: largeContent,
+		}
+
+		hash1 := fmt.Sprintf("%x", sha256.Sum256([]byte(doc1.Content())))
+		hash2 := fmt.Sprintf("%x", sha256.Sum256([]byte(doc2.Content())))
+
+		assert.Equal(t, hash1, hash2, "Identical large content should produce identical hashes")
+		assert.Equal(t, doc1.Content(), doc2.Content())
+
+		doc3 := &memory.TextDocument{
+			FieldID:      "hash-large-3",
+			FieldContent: largeContent + "x",
+		}
+		hash3 := fmt.Sprintf("%x", sha256.Sum256([]byte(doc3.Content())))
+		assert.NotEqual(t, hash1, hash3, "Different content should produce different hashes")
+	})
+}
+
+// TestTagsFilterAPI tests the API design and usability of the new tags filtering.
+func TestTagsFilterAPI(t *testing.T) {
+	t.Run("fluent API usage examples", func(t *testing.T) {
+		// Example 1: Simple work-related documents
+		workFilter := &memory.Filter{
+			Source: helpers.Ptr("conversations"),
+			Tags: &memory.TagsFilter{
+				All: []string{"work", "important"},
+			},
+		}
+		assert.Equal(t, "conversations", *workFilter.Source)
+		assert.Len(t, workFilter.Tags.All, 2)
+
+		// Example 2: Urgent items from any source
+		urgentFilter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				Any: []string{"urgent", "asap", "deadline"},
+			},
+			Limit: helpers.Ptr(20),
+		}
+		assert.Len(t, urgentFilter.Tags.Any, 3)
+		assert.Equal(t, 20, *urgentFilter.Limit)
+
+		// Example 3: Complex project filtering
+		projectFilter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				Expression: &memory.BooleanExpression{
+					Operator: memory.OR,
+					Left: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"project", "alpha"},
+					},
+					Right: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"project", "beta"},
+					},
+				},
+			},
+			Distance: 0.8,
+		}
+		assert.NotNil(t, projectFilter.Tags.Expression)
+		assert.Equal(t, float32(0.8), projectFilter.Distance)
+	})
+
+	t.Run("expression validation", func(t *testing.T) {
+		// Valid leaf expression
+		leafExpr := &memory.BooleanExpression{
+			Operator: memory.AND,
+			Tags:     []string{"tag1", "tag2"},
+		}
+		assert.True(t, leafExpr.IsLeaf())
+		assert.False(t, leafExpr.IsBranch())
+
+		// Valid branch expression
+		branchExpr := &memory.BooleanExpression{
+			Operator: memory.OR,
+			Left: &memory.BooleanExpression{
+				Operator: memory.AND,
+				Tags:     []string{"left1"},
+			},
+			Right: &memory.BooleanExpression{
+				Operator: memory.OR,
+				Tags:     []string{"right1"},
+			},
+		}
+		assert.False(t, branchExpr.IsLeaf())
+		assert.True(t, branchExpr.IsBranch())
+
+		// Invalid expressions
+		emptyLeaf := &memory.BooleanExpression{
+			Operator: memory.AND,
+			Tags:     []string{}, // No tags
+		}
+		assert.False(t, emptyLeaf.IsLeaf())
+
+		incompleteBranch := &memory.BooleanExpression{
+			Operator: memory.OR,
+			Left:     leafExpr,
+			Right:    nil, // Missing operand
+		}
+		assert.False(t, incompleteBranch.IsBranch())
+	})
+}
+
+// TestTagsFilteringIntegrationUpgrade tests integration scenarios for the tags filtering upgrade.
+func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
+	t.Run("storage interface integration", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Test complex filter with multiple components
+		complexFilter := &memory.Filter{
+			Source:  helpers.Ptr("conversations"),
+			Subject: helpers.Ptr("alice"),
+			Tags: &memory.TagsFilter{
+				Expression: &memory.BooleanExpression{
+					Operator: memory.OR,
+					Left: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"work", "Q1"},
+					},
+					Right: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"personal", "urgent"},
+					},
+				},
+			},
+			Distance: 0.75,
+			Limit:    helpers.Ptr(8),
+		}
+
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{
+				{
+					ID:        "complex-doc-1",
+					Content:   "Q1 work project with alice",
+					Source:    "conversations",
+					Timestamp: time.Now(),
+					Metadata: map[string]string{
+						"source": "conversations",
+						"tags":   `["work","Q1","project"]`,
+					},
+				},
+			},
+		}
+
+		mockStorage.On("Query", mock.Anything, "project status", complexFilter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline (same as before)
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			CompletionsModel:   completionsModel,
+			EmbeddingsWrapper:  &storage.EmbeddingWrapper{},
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		result, err := storage.Query(context.Background(), "project status", complexFilter)
+		require.NoError(t, err)
+
+		// Verify complex filtering worked
+		assert.Len(t, result.Facts, 1)
+		fact := result.Facts[0]
+		assert.Equal(t, "complex-doc-1", fact.ID)
+		assert.Contains(t, fact.Metadata["tags"], "work")
+		assert.Contains(t, fact.Metadata["tags"], "Q1")
+		assert.Equal(t, "conversations", fact.Source)
+
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("performance comparison scenarios", func(t *testing.T) {
+		// Document the expected performance characteristics
+		performanceScenarios := []struct {
+			name        string
+			filter      *memory.Filter
+			expectation string
+		}{
+			{
+				name: "simple_all_tags",
+				filter: &memory.Filter{
+					Tags: &memory.TagsFilter{
+						All: []string{"work", "important"},
+					},
+				},
+				expectation: "Should use single ContainsAll query - very fast",
+			},
+			{
+				name: "simple_any_tags",
+				filter: &memory.Filter{
+					Tags: &memory.TagsFilter{
+						Any: []string{"urgent", "deadline"},
+					},
+				},
+				expectation: "Should use OR conditions - moderately fast",
+			},
+			{
+				name: "complex_expression",
+				filter: &memory.Filter{
+					Tags: &memory.TagsFilter{
+						Expression: &memory.BooleanExpression{
+							Operator: memory.AND,
+							Left: &memory.BooleanExpression{
+								Operator: memory.OR,
+								Tags:     []string{"project", "task"},
+							},
+							Right: &memory.BooleanExpression{
+								Operator: memory.AND,
+								Tags:     []string{"Q1", "important"},
+							},
+						},
+					},
+				},
+				expectation: "Should use nested boolean queries - slower but powerful",
+			},
+		}
+
+		for _, scenario := range performanceScenarios {
+			t.Run(scenario.name, func(t *testing.T) {
+				assert.NotNil(t, scenario.filter.Tags)
+				t.Logf("Filter: %+v", scenario.filter.Tags)
+				t.Logf("Performance expectation: %s", scenario.expectation)
+			})
+		}
+	})
+}

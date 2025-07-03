@@ -34,8 +34,8 @@ interface IApi {
   openAppDataFolder: () => Promise<boolean>
   deleteAppData: () => Promise<boolean>
   isPackaged: () => Promise<boolean>
-  restartApp: () => void
-  notify: (notification: AppNotification) => void
+  restartApp: () => Promise<void>
+  notify: (notification: { id?: string; title?: string; message?: string }) => void
   onDeepLink: (cb: (url: string) => void) => void
   getNotificationStatus: () => Promise<string>
   openSettings: () => Promise<void>
@@ -51,7 +51,9 @@ interface IApi {
   checkForUpdates: (silent: boolean) => Promise<void>
   getAppVersion: () => Promise<string>
   restartApp: () => Promise<void>
-  onOpenSettings: (callback: () => void) => void
+  onOpenSettings: (callback: () => void) => () => void
+  onNewChat: (callback: () => void) => () => void
+  onToggleSidebar: (callback: () => void) => () => void
   screenpipe: {
     getStatus: () => Promise<ScreenpipeStatus>
     install: () => Promise<ScreenpipeResult>
@@ -94,6 +96,40 @@ interface IApi {
   voiceStore: {
     get: (key: string) => unknown
     set: (key: string, value: unknown) => void
+  }
+  livekit: {
+    setup: () => Promise<{ success: boolean; error?: string }>
+    start: (chatId: string, isOnboarding?: boolean) => Promise<{ success: boolean; error?: string }>
+    stop: () => Promise<{ success: boolean; error?: string }>
+    isRunning: () => Promise<boolean>
+    isSessionReady: () => Promise<boolean>
+    getState: () => Promise<{
+      dependency: string
+      progress: number
+      status: string
+      error?: string
+    }>
+    mute: () => Promise<boolean>
+    unmute: () => Promise<boolean>
+    getAgentState: () => Promise<'initializing' | 'idle' | 'listening' | 'thinking' | 'speaking'>
+    onSessionStateChange: (callback: (data: { sessionReady: boolean }) => void) => () => void
+    onAgentStateChange: (callback: (data: { state: string }) => void) => () => void
+  }
+  screenpipeStore: {
+    get: (key: string) => unknown
+    set: (key: string, value: unknown) => void
+  }
+  onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => () => void
+  openMainWindowWithChat: (chatId?: string, initialMessage?: string) => Promise<{ success: boolean; error?: string }>
+  onNavigateTo: (callback: (url: string) => void) => () => void
+  resizeOmnibarWindow: (width: number, height: number) => Promise<{ success: boolean; error?: string }>
+  hideOmnibarWindow: () => Promise<{ success: boolean; error?: string }>
+  rendererReady: () => void
+  keyboardShortcuts: {
+    get: () => Promise<Record<string, { keys: string; default: string; global?: boolean }>>
+    set: (action: string, keys: string) => Promise<{ success: boolean; error?: string }>
+    reset: (action: string) => Promise<{ success: boolean; error?: string }>
+    resetAll: () => Promise<{ success: boolean; error?: string }>
   }
 }
 

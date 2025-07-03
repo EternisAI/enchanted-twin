@@ -3,24 +3,32 @@ package slack
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 	"github.com/slack-go/slack"
 
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 const (
-	LIST_CHANNELS_TOOL_NAME   = "list_slack_channels"
-	POST_MESSAGE_TOOL_NAME    = "post_slack_message"
-	SEARCH_MESSAGES_TOOL_NAME = "search_slack_messages"
+	LIST_CHANNELS_TOOL_NAME                     = "list_slack_channels"
+	LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_NAME = "list_slack_direct_message_conversations"
+	POST_MESSAGE_TOOL_NAME                      = "post_slack_message"
+	SEARCH_MESSAGES_TOOL_NAME                   = "search_slack_messages"
 )
 
 const (
-	LIST_CHANNELS_TOOL_DESCRIPTION   = "List the channels the user is a member of"
-	POST_MESSAGE_TOOL_DESCRIPTION    = "Post a message to a channel"
-	SEARCH_MESSAGES_TOOL_DESCRIPTION = "Search for messages in channels"
+	LIST_CHANNELS_TOOL_DESCRIPTION                     = "List the channels the user is a member of"
+	LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_DESCRIPTION = "List the direct message conversations the user is a member of"
+	POST_MESSAGE_TOOL_DESCRIPTION                      = "Post a message to a channel"
+	SEARCH_MESSAGES_TOOL_DESCRIPTION                   = "Search for messages in channels"
 )
+
+type ListDirectMessageConversationsArguments struct {
+	Cursor string `json:"cursor" jsonschema:"description=The cursor for pagination, empty if first page"`
+	Limit  int    `json:"limit"  jsonschema:"required,description=The number of channels to list, minimum 10, maximum 50"`
+}
 
 type ListChannelsArguments struct {
 	Cursor string `json:"cursor" jsonschema:"description=The cursor for pagination, empty if first page"`
@@ -38,63 +46,150 @@ type SearchMessagesArguments struct {
 	ID     string `json:"id"     jsonschema:"description=The ID of the channel/conversation to search in"`
 }
 
+func processListDirectMessageConversations(
+	ctx context.Context,
+	accessToken string,
+	arguments ListDirectMessageConversationsArguments,
+) ([]mcp_golang.Content, error) {
+	api := slack.New(accessToken)
+
+	allChannels := []slack.Channel{}
+	cursor := arguments.Cursor
+	var finalNextCursor string
+
+	fmt.Println("Fetching all available channels")
+
+	for {
+		params := &slack.GetConversationsParameters{
+			Cursor: cursor,
+			Limit:  50, // Use max per call to minimize API calls
+			Types: []string{
+				"mpim",
+				"im",
+			}, // Adjust types as needed
+		}
+
+		channels, nextCursor, err := api.GetConversationsContext(ctx, params)
+		if err != nil {
+			fmt.Println("Error getting channels:", err)
+			return nil, err
+		}
+
+		allChannels = append(allChannels, channels...)
+		finalNextCursor = nextCursor
+
+		// Stop only when no more pages
+		if nextCursor == "" {
+			break
+		}
+
+		cursor = nextCursor
+	}
+
+	contents := []mcp_golang.Content{}
+	userNames := map[string]string{}
+	for _, channel := range allChannels {
+		var channelInfo string
+		if channel.IsIM {
+			// For DMs, you might want to fetch the user's name
+			// This requires additional API calls and permissions
+
+			if userName, ok := userNames[channel.User]; !ok {
+				user, err := api.GetUserInfo(channel.User)
+				if err != nil {
+					fmt.Println("Error getting user info:", err)
+					continue
+				}
+				userNames[channel.User] = user.Name
+				channelInfo = fmt.Sprintf("Direct Message (ID: %s), members: %s", channel.ID, user.Name)
+			} else {
+				channelInfo = fmt.Sprintf("Direct Message (ID: %s), members: %s", channel.ID, userName)
+			}
+		} else if channel.IsMpIM {
+			memberNames := []string{}
+			ids, _, _ := api.GetUsersInConversationContext(
+				ctx, &slack.GetUsersInConversationParameters{ChannelID: channel.ID})
+			for _, member := range ids {
+				if userName, ok := userNames[member]; !ok {
+					user, err := api.GetUserInfo(member)
+					if err != nil {
+						fmt.Println("Error getting user info:", err)
+						continue
+					}
+					userNames[member] = user.Name
+					memberNames = append(memberNames, user.Name)
+				} else {
+					memberNames = append(memberNames, userName)
+				}
+			}
+
+			channelInfo = fmt.Sprintf("Group Direct Message (ID: %s) with: %s", channel.ID, strings.Join(memberNames, ", "))
+		}
+
+		contents = append(contents, mcp_golang.NewTextContent(channelInfo))
+	}
+
+	// Append the next cursor information as a text content if it exists
+	if finalNextCursor != "" {
+		contents = append(contents, mcp_golang.NewTextContent(fmt.Sprintf("Next page cursor: %s", finalNextCursor)))
+	}
+
+	return contents, nil
+}
+
 func processListChannels(
 	ctx context.Context,
 	accessToken string,
 	arguments ListChannelsArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	api := slack.New(accessToken)
-	params := &slack.GetConversationsParameters{
-		Cursor: arguments.Cursor,
-		Limit:  arguments.Limit,
-		Types: []string{
-			"public_channel",
-			"private_channel",
-			"mpim",
-			"im",
-		}, // Adjust types as needed
-	}
 
-	if arguments.Limit > 50 {
-		params.Limit = 50
-	}
+	allChannels := []slack.Channel{}
+	cursor := arguments.Cursor
+	var finalNextCursor string
 
-	if arguments.Limit < 10 {
-		params.Limit = 10
-	}
+	fmt.Println("Fetching all available channels")
 
-	channels, nextCursor, err := api.GetConversationsContext(ctx, params)
-	if err != nil {
-		fmt.Println("Error getting channels:", err)
-		return nil, err
-	}
-
-	contents := []*mcp_golang.Content{}
-	for _, channel := range channels {
-		channelInfo := fmt.Sprintf("Channel: %s (ID: %s)", channel.Name, channel.ID)
-		if channel.IsIM {
-			// For DMs, you might want to fetch the user's name
-			// This requires additional API calls and permissions
-			channelInfo = fmt.Sprintf("Direct Message (ID: %s)", channel.ID)
-		} else if channel.IsMpIM {
-			channelInfo = fmt.Sprintf("Group Direct Message (ID: %s)", channel.ID)
+	for {
+		params := &slack.GetConversationsParameters{
+			Cursor: cursor,
+			Limit:  50, // Use max per call to minimize API calls
+			Types: []string{
+				"public_channel",
+				"private_channel",
+			}, // Adjust types as needed
 		}
-		contents = append(contents, &mcp_golang.Content{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: channelInfo,
-			},
-		})
+
+		fmt.Println("Getting channels with params", params)
+		channels, nextCursor, err := api.GetConversationsContext(ctx, params)
+		if err != nil {
+			fmt.Println("Error getting channels:", err)
+			return nil, err
+		}
+
+		allChannels = append(allChannels, channels...)
+		fmt.Println("Total channels fetched so far:", len(allChannels))
+		finalNextCursor = nextCursor
+
+		// Stop only when no more pages
+		if nextCursor == "" {
+			break
+		}
+
+		cursor = nextCursor
+	}
+
+	contents := []mcp_golang.Content{}
+	fmt.Println("Final number of channels:", len(allChannels))
+	for _, channel := range allChannels {
+		channelInfo := fmt.Sprintf("Channel: %s (ID: %s)", channel.Name, channel.ID)
+
+		contents = append(contents, mcp_golang.NewTextContent(channelInfo))
 	}
 
 	// Append the next cursor information as a text content if it exists
-	if nextCursor != "" {
-		contents = append(contents, &mcp_golang.Content{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf("Next page cursor: %s", nextCursor),
-			},
-		})
+	if finalNextCursor != "" {
+		contents = append(contents, mcp_golang.NewTextContent(fmt.Sprintf("Next page cursor: %s", finalNextCursor)))
 	}
 
 	return contents, nil
@@ -104,7 +199,7 @@ func processPostMessage(
 	ctx context.Context,
 	accessToken string,
 	arguments PostMessageArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	api := slack.New(accessToken)
 
 	// Post the message
@@ -121,13 +216,8 @@ func processPostMessage(
 
 	messageLink := fmt.Sprintf("https://slack.com/archives/%s/p%s", channelID, timestamp)
 
-	return []*mcp_golang.Content{
-		{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf("Message posted successfully: %s", messageLink),
-			},
-		},
+	return []mcp_golang.Content{
+		mcp_golang.NewTextContent(fmt.Sprintf("Message posted successfully: %s", messageLink)),
 	}, nil
 }
 
@@ -135,7 +225,7 @@ func processSearchMessages(
 	ctx context.Context,
 	accessToken string,
 	arguments SearchMessagesArguments,
-) ([]*mcp_golang.Content, error) {
+) ([]mcp_golang.Content, error) {
 	api := slack.New(accessToken)
 
 	// Slack's search parameters are a bit different.
@@ -157,7 +247,7 @@ func processSearchMessages(
 
 	// searchParams.Count = arguments.Limit // Slack API uses 'count', not 'limit'
 
-	var results *slack.SearchMessages
+	contents := []mcp_golang.Content{}
 
 	if channelID == "" {
 		messageResults, err := api.SearchMessagesContext(ctx, arguments.Query, searchParams)
@@ -165,28 +255,37 @@ func processSearchMessages(
 			fmt.Println("Error searching messages:", err)
 			return nil, err
 		}
-		results = messageResults
+
+		for _, match := range messageResults.Matches {
+			// Format the message content for display
+			// Note: match.User might be a user ID. You might need another API call to get the username.
+			messageInfo := fmt.Sprintf("Channel: %s\nUser: %s\nTimestamp: %s\nLink: %s\nText: %s\n---",
+				match.Channel.Name, match.Username, match.Timestamp, match.Permalink, match.Text)
+			contents = append(contents, mcp_golang.NewTextContent(messageInfo))
+		}
 	} else {
-		messageResults, err := api.SearchMessages(channelID, searchParams)
+		params := &slack.GetConversationHistoryParameters{
+			ChannelID: channelID, // e.g. "C01234567"
+			Cursor:    "",        // first page
+			Limit:     100,       // max 100; Slack may return fewer
+			Inclusive: false,     // don’t include the message at oldest/latest
+		}
+
+		// one page
+		messages, err := api.GetConversationHistoryContext(ctx, params)
 		if err != nil {
-			fmt.Println("Error searching messages:", err)
+			fmt.Println("Error getting conversation history:", err)
 			return nil, err
 		}
-		results = messageResults
-	}
 
-	contents := []*mcp_golang.Content{}
-	for _, match := range results.Matches {
-		// Format the message content for display
-		// Note: match.User might be a user ID. You might need another API call to get the username.
-		messageInfo := fmt.Sprintf("Channel: %s\nUser: %s\nTimestamp: %s\nLink: %s\nText: %s\n---",
-			match.Channel.Name, match.User, match.Timestamp, match.Permalink, match.Text)
-		contents = append(contents, &mcp_golang.Content{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: messageInfo,
-			},
-		})
+		fmt.Println("Message results length", len(messages.Messages))
+
+		for _, message := range messages.Messages {
+			// Note: match.User might be a user ID. You might need another API call to get the username.
+			messageInfo := fmt.Sprintf("Channel: %s\nUser: %s\nTimestamp: %s\nLink: %s\nText: %s\n---",
+				message.Channel, message.Username, message.Timestamp, message.Permalink, message.Text)
+			contents = append(contents, mcp_golang.NewTextContent(messageInfo))
+		}
 	}
 
 	// Determine the next page cursor (which is just the next page number as a string)
@@ -209,43 +308,51 @@ func processSearchMessages(
 	return contents, nil
 }
 
-func GenerateSlackTools() ([]mcp_golang.ToolRetType, error) {
-	var tools []mcp_golang.ToolRetType
+func GenerateSlackTools() ([]mcp_golang.Tool, error) {
+	var tools []mcp_golang.Tool
 
-	// List Channels Tool
+	// List channels tool
 	listChannelsSchema, err := utils.ConverToInputSchema(ListChannelsArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for list_channels: %w", err)
 	}
-	listChannelsDesc := LIST_CHANNELS_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        LIST_CHANNELS_TOOL_NAME,
-		Description: &listChannelsDesc,
-		InputSchema: listChannelsSchema,
+	tools = append(tools, mcp_golang.Tool{
+		Name:           LIST_CHANNELS_TOOL_NAME,
+		Description:    LIST_CHANNELS_TOOL_DESCRIPTION,
+		RawInputSchema: listChannelsSchema,
 	})
 
-	// Post Message Tool
+	// List direct message conversations tool
+	listDMConversationsSchema, err := utils.ConverToInputSchema(ListDirectMessageConversationsArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for list_direct_message_conversations: %w", err)
+	}
+	tools = append(tools, mcp_golang.Tool{
+		Name:           LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_NAME,
+		Description:    LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_DESCRIPTION,
+		RawInputSchema: listDMConversationsSchema,
+	})
+
+	// Post message tool
 	postMessageSchema, err := utils.ConverToInputSchema(PostMessageArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for post_message: %w", err)
 	}
-	postMessageDesc := POST_MESSAGE_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        POST_MESSAGE_TOOL_NAME,
-		Description: &postMessageDesc,
-		InputSchema: postMessageSchema,
+	tools = append(tools, mcp_golang.Tool{
+		Name:           POST_MESSAGE_TOOL_NAME,
+		Description:    POST_MESSAGE_TOOL_DESCRIPTION,
+		RawInputSchema: postMessageSchema,
 	})
 
-	// Search Messages Tool
+	// Search messages tool
 	searchMessagesSchema, err := utils.ConverToInputSchema(SearchMessagesArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for search_messages: %w", err)
 	}
-	searchMessagesDesc := SEARCH_MESSAGES_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        SEARCH_MESSAGES_TOOL_NAME,
-		Description: &searchMessagesDesc,
-		InputSchema: searchMessagesSchema,
+	tools = append(tools, mcp_golang.Tool{
+		Name:           SEARCH_MESSAGES_TOOL_NAME,
+		Description:    SEARCH_MESSAGES_TOOL_DESCRIPTION,
+		RawInputSchema: searchMessagesSchema,
 	})
 
 	return tools, nil

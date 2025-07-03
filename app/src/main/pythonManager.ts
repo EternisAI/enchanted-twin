@@ -1,26 +1,46 @@
 import { app } from 'electron'
 import path from 'node:path'
 import fs, { constants as fsc } from 'node:fs'
-import { pipeline } from 'node:stream/promises'
-import { tmpdir } from 'node:os'
-import http from 'node:http'
-import https from 'node:https'
-import { spawn, SpawnOptions } from 'node:child_process'
-import unzipper from 'unzipper'
+import { spawn } from 'node:child_process'
 import log from 'electron-log/main'
 
-export interface DependencyProgress {
-  dependency: string
-  progress: number
-  status: string
-  error?: string
-}
+import {
+  DependencyProgress,
+  AgentState,
+  AgentStateUpdate,
+  AgentCommand,
+  RunOptions,
+  LiveKitAgentCallbacks
+} from './types/pythonManager.types'
+import {
+  PYTHON_VERSION,
+  UV_INSTALL_SCRIPT,
+  REQUIRED_ENV_VARS,
+  PYTHON_REQUIREMENTS,
+  PROGRESS_STEPS,
+  SESSION_READY_INDICATORS,
+  GRACEFUL_SHUTDOWN_TIMEOUT_MS
+} from './constants/pythonManager.constants'
+import {
+  PythonManagerError,
+  EnvironmentError,
+  InstallationError,
+  AgentError
+} from './errors/pythonManager.errors'
 
-type RunOptions = SpawnOptions & { label: string }
+// Re-export types for external use
+export type {
+  DependencyProgress,
+  AgentState,
+  AgentStateUpdate,
+  AgentCommand,
+  LiveKitAgentCallbacks
+}
+export { PythonManagerError, EnvironmentError, InstallationError, AgentError }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-export class KokoroBootstrap {
+export class LiveKitAgentBootstrap {
   private readonly USER_DIR = app.getPath('userData')
   private readonly USER_BIN = path.join(this.USER_DIR, 'bin')
   private readonly UV_PATH = path.join(
@@ -28,11 +48,10 @@ export class KokoroBootstrap {
     process.platform === 'win32' ? 'uv.exe' : 'uv'
   )
 
-  private readonly KOKORO_DIR = path.join(this.USER_DIR, 'dependencies', 'kokoro')
-  private readonly VENV_DIR = path.join(this.KOKORO_DIR, '.venv')
-
-  private readonly ZIP_URL =
-    'https://github.com/remsky/Kokoro-FastAPI/archive/refs/heads/master.zip'
+  private readonly LIVEKIT_DIR = path.join(this.USER_DIR, 'dependencies', 'livekit-agent')
+  private readonly VENV_DIR = path.join(this.LIVEKIT_DIR, '.venv')
+  private readonly greetingFile = path.join(this.LIVEKIT_DIR, 'greeting.txt')
+  private readonly onboardingStateFile = path.join(this.LIVEKIT_DIR, 'onboarding_state.txt')
 
   /** absolute path to the python executable in the venv */
   private pythonBin(): string {
@@ -41,20 +60,86 @@ export class KokoroBootstrap {
     return path.join(this.VENV_DIR, sub)
   }
 
-  private kokoroProc: import('child_process').ChildProcess | null = null
+  private agentProc: import('child_process').ChildProcess | null = null
   private onProgress?: (data: DependencyProgress) => void
+  private onSessionReady?: (ready: boolean) => void
+  private onStateChange?: (state: AgentState) => void
   private latestProgress: DependencyProgress = {
-    dependency: 'Kokoro',
+    dependency: 'LiveKit Agent',
     progress: 0,
     status: 'Not started'
   }
 
-  constructor(onProgress?: (data: DependencyProgress) => void) {
-    this.onProgress = onProgress
+  constructor(callbacks: LiveKitAgentCallbacks = {}) {
+    this.onProgress = callbacks.onProgress
+    this.onSessionReady = callbacks.onSessionReady
+    this.onStateChange = callbacks.onStateChange
   }
 
   getLatestProgress() {
     return this.latestProgress
+  }
+
+  getCurrentState(): AgentState {
+    log.warn('[LiveKit] getCurrentState called but state is managed by Python agent')
+    return 'idle' // Default fallback since state is managed by Python
+  }
+
+  private updateProgress(progress: number, status: string, error?: string) {
+    const progressData: DependencyProgress = {
+      dependency: 'LiveKit Agent',
+      progress,
+      status,
+      error
+    }
+    this.latestProgress = progressData
+    this.onProgress?.(progressData)
+  }
+
+  sendCommand(command: AgentCommand) {
+    if (!this.agentProc || !this.agentProc.stdin) {
+      log.warn('[LiveKit] Cannot send command: agent process not running or stdin not available')
+      return false
+    }
+
+    try {
+      const commandStr = JSON.stringify(command) + '\n'
+      this.agentProc.stdin.write(commandStr)
+      log.info(`[LiveKit] Sent command: ${command.type}`)
+      return true
+    } catch (error) {
+      log.error('[LiveKit] Failed to send command:', error)
+      return false
+    }
+  }
+
+  muteUser() {
+    return this.sendCommand({ type: 'mute', timestamp: Date.now() })
+  }
+
+  unmuteUser() {
+    return this.sendCommand({ type: 'unmute', timestamp: Date.now() })
+  }
+
+  private handleAgentOutput(data: string) {
+    const lines = data.toString().trim().split('\n')
+    for (const line of lines) {
+      if (line.startsWith('STATE:')) {
+        try {
+          const stateData = JSON.parse(line.substring(6)) as AgentStateUpdate
+          log.info(`[LiveKit] Agent state changed to: ${stateData.state}`)
+          this.onStateChange?.(stateData.state)
+        } catch (error) {
+          log.error('[LiveKit] Failed to parse state update:', error)
+        }
+      } else if (line.trim()) {
+        log.info(`[LiveKit] [agent] ${line}`)
+        // Check for session ready indicators
+        if (SESSION_READY_INDICATORS.some((indicator) => line.includes(indicator))) {
+          this.onSessionReady?.(true)
+        }
+      }
+    }
   }
 
   /* ── helpers ────────────────────────────────────────────────────────────── */
@@ -74,20 +159,20 @@ export class KokoroBootstrap {
 
   private run(cmd: string, args: readonly string[], opts: RunOptions) {
     return new Promise<void>((resolve, reject) => {
-      log.info(`[Kokoro] [${opts.label}] → ${cmd} ${args.join(' ')}`)
+      log.info(`[LiveKit] [${opts.label}] → ${cmd} ${args.join(' ')}`)
       const p = spawn(cmd, args, { ...opts, stdio: 'pipe' })
 
       p.stdout?.on('data', (data) => {
         const output = data.toString().trim()
         if (output) {
-          log.info(`[Kokoro] [${opts.label}] ${output}`)
+          log.info(`[LiveKit] [${opts.label}] ${output}`)
         }
       })
 
       p.stderr?.on('data', (data) => {
         const output = data.toString().trim()
         if (output) {
-          log.error(`[Kokoro] [${opts.label}] ${output}`)
+          log.error(`[LiveKit] [${opts.label}] ${output}`)
         }
       })
 
@@ -96,274 +181,243 @@ export class KokoroBootstrap {
     })
   }
 
-  private download(url: string, dest: string, redirects = 5): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const req = (u: string, r: number) =>
-        https
-          .get(u, { headers: { 'User-Agent': 'kokoro-installer' } }, (res) => {
-            const { statusCode, headers } = res
-            if (statusCode && statusCode >= 300 && statusCode < 400 && headers.location) {
-              return r ? req(headers.location, r - 1) : reject(new Error('Too many redirects'))
-            }
-            if (statusCode !== 200) {
-              res.resume()
-              return reject(new Error(`HTTP ${statusCode} on ${u}`))
-            }
-            pipeline(res, fs.createWriteStream(dest)).then(resolve).catch(reject)
-          })
-          .on('error', reject)
-      req(url, redirects)
-    })
-  }
-
-  private async extractZipFlattened(src: string, dest: string) {
-    const zip = await unzipper.Open.file(src)
-    for (const e of zip.files) {
-      if (e.type === 'Directory') continue
-      const rel = e.path.split(/[/\\]/).slice(1)
-      if (!rel.length) continue
-      const out = path.join(dest, ...rel)
-      await fs.promises.mkdir(path.dirname(out), { recursive: true })
-      await new Promise<void>((res, rej) =>
-        e.stream().pipe(fs.createWriteStream(out)).on('finish', res).on('error', rej)
-      )
-    }
-  }
-
   /* ── install steps ──────────────────────────────────────────────────────── */
   private async ensureUv() {
     if (await this.exists(this.UV_PATH, fsc.X_OK)) {
-      log.info('[Kokoro] UV already installed')
+      log.info('[LiveKit] UV already installed')
       return
     }
-    log.info('[Kokoro] Installing UV package manager')
+    log.info('[LiveKit] Installing UV package manager')
     await fs.promises.mkdir(this.USER_BIN, { recursive: true })
-    await this.run('sh', ['-c', 'curl -LsSf https://astral.sh/uv/install.sh | sh'], {
+    await this.run('sh', ['-c', UV_INSTALL_SCRIPT], {
       label: 'uv-install',
       env: { ...process.env, UV_INSTALL_DIR: this.USER_BIN }
     })
   }
 
   private async ensurePython312() {
-    await this.run(this.UV_PATH, ['python', 'install', '3.12', '--quiet'], { label: 'py312' })
+    await this.run(this.UV_PATH, ['python', 'install', PYTHON_VERSION, '--quiet'], {
+      label: 'py312'
+    })
   }
 
-  private async ensureRepo() {
-    if (await this.exists(path.join(this.KOKORO_DIR, 'api'))) {
-      log.info('[Kokoro] Repository already exists')
-      return
-    }
-    log.info('[Kokoro] Downloading Kokoro repository')
-    await fs.promises.rm(this.KOKORO_DIR, { recursive: true, force: true }).catch(() => {})
-    await fs.promises.mkdir(this.KOKORO_DIR, { recursive: true })
+  private async ensureAgentFiles() {
+    log.info('[LiveKit] Setting up agent files')
+    await fs.promises.mkdir(this.LIVEKIT_DIR, { recursive: true })
 
-    const zipTmp = path.join(tmpdir(), `kokoro-${Date.now()}.zip`)
+    const agentFile = path.join(this.LIVEKIT_DIR, 'agent.py')
+    const requirementsFile = path.join(this.LIVEKIT_DIR, 'requirements.txt')
+
+    // Copy agent file from embedded Python code
+    const sourcePaths = [
+      path.join(__dirname, 'python', 'livekit-agent.py'), // Built output path
+      path.join(__dirname, '..', '..', '..', 'src', 'main', 'python', 'livekit-agent.py'), // Source path
+      path.join(process.cwd(), 'app', 'src', 'main', 'python', 'livekit-agent.py') // Alternative source path
+    ]
+
+    let agentCode: string | null = null
+
+    for (const sourcePath of sourcePaths) {
+      try {
+        agentCode = await fs.promises.readFile(sourcePath, 'utf8')
+        log.info(`[LiveKit] Found agent source at: ${sourcePath}`)
+        break
+      } catch {
+        // Continue to next path
+      }
+    }
+
+    if (!agentCode) {
+      log.error('[LiveKit] Failed to read agent source file from any location, using fallback')
+      agentCode = await this.getFallbackAgentCode()
+    }
+
+    await fs.promises.writeFile(agentFile, agentCode)
+
+    await fs.promises.writeFile(requirementsFile, PYTHON_REQUIREMENTS)
+    log.info('[LiveKit] Agent files created successfully')
+  }
+
+  private async getFallbackAgentCode(): Promise<string> {
+    // Simple fallback - read from the external python file if possible
     try {
-      log.info('[Kokoro] Downloading repository archive')
-      await this.download(this.ZIP_URL, zipTmp)
-      log.info('[Kokoro] Extracting repository archive')
-      await this.extractZipFlattened(zipTmp, this.KOKORO_DIR)
-    } finally {
-      await fs.promises.unlink(zipTmp).catch(() => {})
+      const sourcePath = path.join(__dirname, 'python', 'livekit-agent.py')
+      return await fs.promises.readFile(sourcePath, 'utf8')
+    } catch {
+      throw new InstallationError('Unable to locate agent Python source code', 'agent-files')
     }
   }
 
   private async ensureVenv() {
-    const cfg = path.join(this.VENV_DIR, 'pyvenv.cfg')
-
-    let venvIs312 = false
-    if (await this.exists(cfg)) {
-      const txt = await fs.promises.readFile(cfg, 'utf8')
-      venvIs312 = /^version = 3\.12\./m.test(txt)
-    }
-
-    if (venvIs312) {
-      log.info('[Kokoro] Virtual environment already exists with Python 3.12')
+    if (await this.exists(this.VENV_DIR)) {
+      log.info('[LiveKit] Virtual environment already exists')
       return
     }
 
-    log.info('[Kokoro] Creating Python 3.12 virtual environment')
-    if (await this.exists(this.VENV_DIR)) {
-      log.info('[Kokoro] Removing existing virtual environment')
-      await fs.promises.rm(this.VENV_DIR, { recursive: true, force: true }).catch(() => {})
-    }
+    log.info(`[LiveKit] Creating virtual environment with Python ${PYTHON_VERSION}`)
 
-    await this.run(this.UV_PATH, ['venv', '--python', '3.12', this.VENV_DIR], {
+    await this.run(this.UV_PATH, ['venv', '--python', PYTHON_VERSION, this.VENV_DIR], {
       label: 'uv-venv'
     })
   }
 
   private async ensureDeps() {
-    const stamp = path.join(this.VENV_DIR, '.kokoro-installed')
+    const stamp = path.join(this.VENV_DIR, '.livekit-installed')
     if (await this.exists(stamp)) {
-      log.info('[Kokoro] Dependencies already installed')
+      log.info('[LiveKit] Dependencies already installed')
       return
     }
 
-    log.info('[Kokoro] Installing Python dependencies')
-    await this.run(this.UV_PATH, ['pip', 'install', '-e', '.'], {
-      cwd: this.KOKORO_DIR,
+    log.info('[LiveKit] Installing Python dependencies using uv pip install')
+    await this.run(this.UV_PATH, ['pip', 'install', '-r', 'requirements.txt'], {
+      cwd: this.LIVEKIT_DIR,
       env: this.uvEnv(this.VENV_DIR),
       label: 'uv-pip'
     })
 
     await fs.promises.writeFile(stamp, '')
-    log.info('[Kokoro] Dependencies installation completed')
-  }
-
-  private async startTts() {
-    /* print interpreter info */
-    await this.run(
-      this.pythonBin(),
-      [
-        '-c',
-        'import sys;print("\\n=== Kokoro Runtime ===");' +
-          'print("Python:",sys.version);print("Exec:",sys.executable);print("====================\\n")'
-      ],
-      { cwd: this.KOKORO_DIR, env: this.uvEnv(this.VENV_DIR), label: 'python-info' }
-    )
-
-    const env = {
-      ...this.uvEnv(this.VENV_DIR),
-      USE_GPU: 'true',
-      USE_ONNX: 'false',
-      PYTHONPATH: `${this.KOKORO_DIR}${path.delimiter}${path.join(this.KOKORO_DIR, 'api')}`,
-      MODEL_DIR: 'src/models',
-      VOICES_DIR: 'src/voices/v1_0',
-      WEB_PLAYER_PATH: `${this.KOKORO_DIR}/web`,
-      DEVICE_TYPE: 'mps',
-      PYTORCH_ENABLE_MPS_FALLBACK: '1',
-      TORCHVISION_DISABLE_META_REGISTRATION: '1'
-    }
-
-    /* download model */
-    await this.run(
-      this.pythonBin(),
-      ['docker/scripts/download_model.py', '--output', 'api/src/models/v1_0'],
-      { cwd: this.KOKORO_DIR, env, label: 'model-dl' }
-    )
-
-    /* start uvicorn */
-    this.kokoroProc?.kill()
-    log.info('[Kokoro] Starting uvicorn server on port 45000')
-    this.kokoroProc = spawn(
-      this.pythonBin(),
-      ['-m', 'uvicorn', 'api.src.main:app', '--host', '0.0.0.0', '--port', '45000'],
-      { cwd: this.KOKORO_DIR, env, stdio: 'pipe' }
-    )
-
-    this.kokoroProc.stdout?.on('data', (data) => {
-      const output = data.toString().trim()
-      if (output) {
-        log.info(`[Kokoro] [uvicorn] ${output}`)
-      }
-    })
-
-    this.kokoroProc.stderr?.on('data', (data) => {
-      const output = data.toString().trim()
-      if (output) {
-        log.error(`[Kokoro] [uvicorn] ${output}`)
-      }
-    })
-
-    this.kokoroProc.on('exit', (code) => {
-      log.info(`[Kokoro] uvicorn server exited with code ${code}`)
-      this.kokoroProc = null
-    })
-
-    const checkServer = () =>
-      new Promise<boolean>((resolve) => {
-        const req = http.get('http://localhost:45000/web', (res) => {
-          res.resume()
-          resolve(res.statusCode === 200 || res.statusCode === 307)
-        })
-        req.on('error', () => resolve(false))
-      })
-
-    log.info('[Kokoro] Waiting for server to become ready...')
-    const start = Date.now()
-    const timeout = 10 * 60 * 1000
-    let checkCount = 0
-    while (Date.now() - start < timeout) {
-      if (await checkServer()) {
-        log.info('[Kokoro] Server is ready and responding!')
-        this.onProgress?.({ dependency: 'Kokoro', progress: 100, status: 'Running' })
-        this.latestProgress = { dependency: 'Kokoro', progress: 100, status: 'Running' }
-        return
-      }
-      checkCount++
-      if (checkCount % 10 === 0) {
-        log.info(
-          `[Kokoro] Still waiting for server... (${Math.round((Date.now() - start) / 1000)}s elapsed)`
-        )
-      }
-      await new Promise((r) => setTimeout(r, 1000))
-    }
-
-    log.error('[Kokoro] Timed out waiting for server to start')
-    throw new Error('Timed out waiting for Kokoro server to start')
+    log.info('[LiveKit] Dependencies installation completed')
   }
 
   async setup() {
-    log.info('[Kokoro] Starting Kokoro setup process')
+    log.info('[LiveKit] Starting LiveKit Agent setup process')
     try {
-      this.onProgress?.({
-        dependency: 'Kokoro',
-        progress: 10,
-        status: 'Setting up dependency manager'
-      })
-      this.latestProgress = {
-        dependency: 'Kokoro',
-        progress: 10,
-        status: 'Setting up dependency manager'
-      }
+      this.updateProgress(PROGRESS_STEPS.UV_SETUP, 'Setting up dependency manager')
       await this.ensureUv()
-      this.onProgress?.({ dependency: 'Kokoro', progress: 20, status: 'Installing Python' })
-      this.latestProgress = { dependency: 'Kokoro', progress: 20, status: 'Installing Python' }
+
+      this.updateProgress(PROGRESS_STEPS.PYTHON_INSTALL, 'Installing Python')
       await this.ensurePython312()
-      this.onProgress?.({ dependency: 'Kokoro', progress: 30, status: 'Downloading Kokoro' })
-      this.latestProgress = { dependency: 'Kokoro', progress: 30, status: 'Downloading Kokoro' }
-      await this.ensureRepo()
-      this.onProgress?.({
-        dependency: 'Kokoro',
-        progress: 45,
-        status: 'Creating virtual environment'
-      })
-      this.latestProgress = {
-        dependency: 'Kokoro',
-        progress: 45,
-        status: 'Creating virtual environment'
-      }
+
+      this.updateProgress(PROGRESS_STEPS.AGENT_FILES, 'Setting up agent files')
+      await this.ensureAgentFiles()
+
+      this.updateProgress(PROGRESS_STEPS.VENV_CREATION, 'Creating virtual environment')
       await this.ensureVenv()
-      this.onProgress?.({ dependency: 'Kokoro', progress: 60, status: 'Installing dependencies' })
-      this.latestProgress = {
-        dependency: 'Kokoro',
-        progress: 60,
-        status: 'Installing dependencies'
-      }
+
+      this.updateProgress(PROGRESS_STEPS.DEPENDENCIES, 'Installing dependencies')
       await this.ensureDeps()
-      this.onProgress?.({ dependency: 'Kokoro', progress: 90, status: 'Starting speech model' })
-      this.latestProgress = { dependency: 'Kokoro', progress: 90, status: 'Starting speech model' }
-      await this.startTts()
+
+      this.updateProgress(PROGRESS_STEPS.COMPLETE, 'Ready')
+
+      log.info('[LiveKit] LiveKit Agent setup completed successfully')
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Unknown error occurred'
-      log.error('[Kokoro] KokoroBootstrap failed', e)
-      this.latestProgress = {
-        dependency: 'Kokoro',
-        progress: this.latestProgress.progress,
-        status: 'Failed',
-        error
+      log.error('[LiveKit] LiveKit Agent setup failed', e)
+      this.updateProgress(this.latestProgress.progress, 'Failed', error)
+
+      if (e instanceof InstallationError) {
+        throw e
       }
-      this.onProgress?.({ dependency: 'Kokoro', progress: 0, status: 'Failed', error })
-      throw e
+      throw new InstallationError(error, 'setup')
     }
   }
 
-  async cleanup() {
-    try {
-      this.kokoroProc?.kill()
-    } finally {
-      this.kokoroProc = null
+  async startAgent(chatId: string, isOnboarding: boolean = false, isInitialising: boolean = false) {
+    if (this.agentProc) {
+      log.warn('[LiveKit] Agent is already running')
+      return
     }
+
+    log.info('[LiveKit] Starting LiveKit agent', isOnboarding)
+
+    // Note: Room connection is handled by the LiveKit agent framework via ctx.connect()
+
+    // Check for required environment variables before starting
+    const missingEnvVars = REQUIRED_ENV_VARS.filter((envVar) => !process.env[envVar])
+    if (missingEnvVars.length > 0) {
+      throw new EnvironmentError(missingEnvVars)
+    }
+
+    let greeting = ``
+    if (isOnboarding) {
+      greeting = `Hello there! Welcome to Enchanted, what is your name?`
+    }
+
+    await fs.promises.writeFile(this.greetingFile, greeting)
+    await fs.promises.writeFile(this.onboardingStateFile, isOnboarding.toString())
+
+    isOnboarding && console.log('isOnboarding starting', isOnboarding)
+
+    const initialising = isInitialising ? 'true' : 'false'
+
+    // Start the agent using the virtual environment Python
+    this.agentProc = spawn(this.pythonBin(), ['agent.py', 'console'], {
+      cwd: this.LIVEKIT_DIR,
+      env: {
+        ...process.env,
+        CHAT_ID: chatId,
+        FAKE_INIT: initialising,
+        TTS_API_KEY: process.env.TTS_API_KEY,
+        TTS_URL: process.env.TTS_URL,
+        TTS_MODEL: process.env.TTS_MODEL,
+        STT_API_KEY: process.env.STT_API_KEY,
+        STT_URL: process.env.STT_URL,
+        STT_MODEL: process.env.STT_MODEL,
+        SEND_MESSAGE_URL: `http://localhost:44999/query`,
+        TERM: 'dumb', // Use dumb terminal to avoid TTY features
+        PYTHONUNBUFFERED: '1', // Ensure immediate output
+        NO_COLOR: '1', // Disable color codes
+        LIVEKIT_DISABLE_TERMIOS: '1' // Custom flag to disable termios
+      },
+      stdio: 'pipe' // Use pipe for logging
+    })
+
+    this.agentProc.stdout?.on('data', (data) => {
+      this.handleAgentOutput(data.toString())
+    })
+
+    this.agentProc.stderr?.on('data', (data) => {
+      const output = data.toString().trim()
+      if (output) {
+        log.error(`[LiveKit] [agent] ${output}`)
+      }
+    })
+
+    this.agentProc.on('exit', (code) => {
+      log.info(`[LiveKit] Agent exited with code ${code}`)
+      this.onSessionReady?.(false)
+      this.agentProc = null
+    })
+
+    log.info('[LiveKit] Agent started successfully')
+  }
+
+  async stopAgent() {
+    if (!this.agentProc) {
+      log.warn('[LiveKit] No agent process to stop')
+      return
+    }
+
+    log.info('[LiveKit] Stopping LiveKit agent')
+    this.onSessionReady?.(false)
+    this.agentProc.kill('SIGTERM')
+
+    // Give it a moment to exit gracefully
+    await new Promise((resolve) => setTimeout(resolve, GRACEFUL_SHUTDOWN_TIMEOUT_MS))
+
+    if (this.agentProc) {
+      log.info('[LiveKit] Force killing agent process')
+      this.agentProc.kill('SIGKILL')
+    }
+
+    this.agentProc = null
+    log.info('[LiveKit] Agent stopped')
+
+    // Clear the greeting and onboarding state files
+    await fs.promises.writeFile(this.greetingFile, '')
+    await fs.promises.writeFile(this.onboardingStateFile, 'false')
+  }
+
+  isAgentRunning(): boolean {
+    return this.agentProc !== null
+  }
+
+  async updateOnboardingState(isOnboarding: boolean): Promise<void> {
+    await fs.promises.writeFile(this.onboardingStateFile, isOnboarding.toString())
+    log.info(`[LiveKit] Updated onboarding state to: ${isOnboarding}`)
+  }
+
+  async cleanup() {
+    await this.stopAgent()
   }
 }

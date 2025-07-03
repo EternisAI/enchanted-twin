@@ -43,3 +43,4 @@ alwaysApply: false
 - For forms, prefer to use Shadcn UI components.
 - All UI needs to be performant and responsive.
 - Create animations with Framer Motion. DO NOT create setTimeouts unless absolutely necessary.
+- For routing, use @tanstack/react-router

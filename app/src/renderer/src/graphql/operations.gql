@@ -9,7 +9,8 @@ query GetChats($first: Int!, $offset: Int!) {
     id
     name
     createdAt
-    voice
+    category
+    holonThreadId
     messages {
       id
       text
@@ -36,7 +37,8 @@ query GetChat($id: ID!) {
     id
     name
     createdAt
-    voice
+    category
+    holonThreadId
     messages {
       id
       text
@@ -136,12 +138,23 @@ query GetWhitelistStatus {
   whitelistStatus
 }
 
-mutation CreateChat($name: String!, $voice: Boolean! = false) {
-  createChat(name: $name, voice: $voice) {
+mutation CreateChat(
+  $name: String!
+  $category: ChatCategory! = TEXT
+  $holonThreadId: String
+  $initialMessage: String
+) {
+  createChat(
+    name: $name
+    category: $category
+    holonThreadId: $holonThreadId
+    initialMessage: $initialMessage
+  ) {
     id
     name
     createdAt
-    voice
+    category
+    holonThreadId
   }
 }
 
@@ -302,6 +315,74 @@ query GetWhatsAppStatus {
   }
 }
 
+query GetThreads($network: String, $first: Int! = 10, $offset: Int! = 0) {
+  getThreads(network: $network, first: $first, offset: $offset) {
+    id
+    title
+    content
+    imageURLs
+    author {
+      alias
+      identity
+    }
+    createdAt
+    expiresAt
+    messages {
+      id
+      author {
+        alias
+        identity
+      }
+      content
+      createdAt
+      isDelivered
+      actions
+    }
+    actions
+    views
+  }
+}
+
+query GetThread($network: String, $id: ID!) {
+  getThread(network: $network, id: $id) {
+    id
+    title
+    content
+    imageURLs
+    author {
+      alias
+      identity
+    }
+    createdAt
+    expiresAt
+    messages {
+      id
+      author {
+        alias
+        identity
+      }
+      content
+      createdAt
+      isDelivered
+      actions
+    }
+    actions
+    views
+  }
+}
+
+query GetHolons($userId: ID!) {
+  getHolons(userId: $userId)
+}
+
+mutation JoinHolon($userId: String!, $network: String) {
+  joinHolon(userId: $userId, network: $network)
+}
+
 mutation StartWhatsAppConnection {
   startWhatsAppConnection
+}
+
+mutation StoreToken($input: StoreTokenInput!) {
+  storeToken(input: $input)
 }

@@ -1,5 +1,10 @@
 import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
-import { Chat, DeleteChatDocument, GetChatsDocument } from '@renderer/graphql/generated/graphql'
+import {
+  Chat,
+  ChatCategory,
+  DeleteChatDocument,
+  GetChatsDocument
+} from '@renderer/graphql/generated/graphql'
 import { cn } from '@renderer/lib/utils'
 import {
   AlertDialog,
@@ -20,7 +25,8 @@ import {
   SearchIcon,
   ChevronDown,
   ChevronUp,
-  CheckSquare
+  CheckSquare,
+  Globe
 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
@@ -31,10 +37,12 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
+import { formatShortcutForDisplay } from '@renderer/lib/utils/shortcuts'
 
 interface SidebarProps {
   chats: Chat[]
   setSidebarOpen: (open: boolean) => void
+  shortcuts: Record<string, { keys: string; default: string; global?: boolean }>
 }
 
 const groupChatsByTime = (chats: Chat[]) => {
@@ -64,16 +72,16 @@ const groupChatsByTime = (chats: Chat[]) => {
   return groups
 }
 
-export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
+export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
   const { location } = useRouterState()
   const navigate = useNavigate()
   const { openOmnibar } = useOmnibarStore()
-  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
+  const { isVoiceMode, stopVoiceMode } = useVoiceStore()
   const [showAllChats, setShowAllChats] = useState(false)
 
   const handleNewChat = () => {
     if (isVoiceMode) {
-      toggleVoiceMode()
+      stopVoiceMode()
     }
     navigate({ to: '/', search: { focusInput: 'true' } })
   }
@@ -141,9 +149,11 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
                 <TooltipContent side="bottom" align="center">
                   <div className="flex items-center gap-2">
                     <span>Close sidebar</span>
-                    <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
-                      ⌘ S
-                    </kbd>
+                    {shortcuts.toggleSidebar?.keys && (
+                      <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
+                        {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
+                      </kbd>
+                    )}
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -182,10 +192,11 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
             <Plus className="w-3 h-3" />
             <span className="text-sm">New chat</span>
           </div>
-          <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
-            <kbd className="rounded bg-muted px-1.5 py-0.5">⌘ N</kbd>
-            {/* TODO: show control for windows */}
-          </div>
+          {shortcuts.newChat?.keys && (
+            <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
+              <kbd className="rounded bg-muted px-1.5 py-0.5">{formatShortcutForDisplay(shortcuts.newChat.keys)}</kbd>
+            </div>
+          )}
         </Button>
 
         <Button
@@ -195,6 +206,15 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         >
           <CheckSquare className="w-4 h-4 mr-2 text-muted-foreground" />
           <span className="text-sm">Tasks</span>
+        </Button>
+
+        <Button
+          variant="outline"
+          className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-1"
+          onClick={() => navigate({ to: '/holon' })}
+        >
+          <Globe className="w-4 h-4 mr-2 text-muted-foreground" />
+          <span className="text-sm">Holon Networks</span>
         </Button>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
@@ -237,9 +257,11 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
               <SettingsIcon className="w-4 h-4 mr-2" />
               <span className="text-sm">Settings</span>
             </div>
-            <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
-              <kbd className="rounded bg-muted px-1.5 py-0.5">⌘ ,</kbd>
-            </div>
+            {shortcuts.openSettings?.keys && (
+              <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
+                <kbd className="rounded bg-muted px-1.5 py-0.5">{formatShortcutForDisplay(shortcuts.openSettings.keys)}</kbd>
+              </div>
+            )}
           </Button>
         </div>
       </aside>
@@ -251,7 +273,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
 function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
   const navigate = useNavigate()
   const router = useRouter()
-  const { setVoiceMode } = useVoiceStore()
+  const { startVoiceMode, stopVoiceMode } = useVoiceStore()
   const [deleteChat] = useMutation(DeleteChatDocument, {
     refetchQueries: [GetChatsDocument],
     onError: (error) => {
@@ -300,13 +322,17 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         key={chat.id}
         disabled={isActive}
         to="/chat/$chatId"
+        params={{ chatId: chat.id }}
         onClick={() => {
-          setVoiceMode(chat.voice)
+          if (chat.category === ChatCategory.Voice) {
+            startVoiceMode(chat.id)
+          } else {
+            stopVoiceMode()
+          }
           window.api.analytics.capture('open_chat', {
             method: 'ui'
           })
         }}
-        params={{ chatId: chat.id }}
         className={cn('block px-2 py-1.5 flex-1 truncate', {
           'text-primary font-medium': isActive,
           'text-foreground': !isActive

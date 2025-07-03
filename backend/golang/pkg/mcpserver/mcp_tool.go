@@ -2,11 +2,11 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 
@@ -14,13 +14,13 @@ import (
 )
 
 type MCPClient interface {
-	CallTool(ctx context.Context, name string, arguments any) (*mcp_golang.ToolResponse, error)
-	ListTools(ctx context.Context, cursor *string) (*mcp_golang.ToolsResponse, error)
+	CallTool(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
+	ListTools(ctx context.Context, request mcp.ListToolsRequest) (*mcp.ListToolsResult, error)
 }
 
 type MCPTool struct {
 	Client MCPClient
-	Tool   mcp_golang.ToolRetType
+	Tool   mcp.Tool
 }
 
 func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (agenttypes.ToolResult, error) {
@@ -32,8 +32,11 @@ func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (agenttype
 			ToolError:  "client not found",
 		}, errors.New("client not found")
 	}
-
-	response, err := t.Client.CallTool(ctx, t.Tool.Name, inputs)
+	fmt.Println("Executing tool in execute", t.Tool.Name, inputs)
+	request := mcp.CallToolRequest{}
+	request.Params.Name = t.Tool.GetName()
+	request.Params.Arguments = inputs
+	response, err := t.Client.CallTool(ctx, request)
 	if err != nil {
 		return &agenttypes.StructuredToolResult{
 			ToolName:   t.Tool.Name,
@@ -55,11 +58,10 @@ func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (agenttype
 	resultText := ""
 	resultImages := []string{}
 	for _, content := range response.Content {
-		if content.ImageContent != nil {
-			resultImages = append(resultImages, content.ImageContent.Data)
-		}
-		if content.TextContent != nil {
-			resultText = fmt.Sprintf("%s\n%s", resultText, content.TextContent.Text)
+		if textContent, ok := content.(mcp.TextContent); ok {
+			resultText = fmt.Sprintf("%s\n%s", resultText, textContent.Text)
+		} else if imageContent, ok := content.(mcp.ImageContent); ok {
+			resultImages = append(resultImages, imageContent.Data)
 		}
 	}
 
@@ -78,8 +80,22 @@ type EmptyParams struct{}
 func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 	params := make(openai.FunctionParameters)
 
-	if inputSchemaMap, ok := t.Tool.InputSchema.(map[string]any); ok && inputSchemaMap != nil {
-		maps.Copy(params, inputSchemaMap)
+	// Some tools use raw input schema
+	// We unmarshal it into the InputSchema field
+	if t.Tool.RawInputSchema != nil {
+		var rawSchema mcp.ToolInputSchema
+		if err := json.Unmarshal(t.Tool.RawInputSchema, &rawSchema); err == nil {
+			t.Tool.InputSchema = rawSchema
+		}
+	}
+
+	if t.Tool.InputSchema.Properties != nil {
+		// See: https://platform.openai.com/docs/guides/function-calling
+		params["type"] = t.Tool.InputSchema.Type
+		params["properties"] = t.Tool.InputSchema.Properties
+		if len(t.Tool.InputSchema.Required) > 0 {
+			params["required"] = t.Tool.InputSchema.Required
+		}
 	}
 
 	if len(params) == 1 && params["type"] == "object" {
@@ -89,8 +105,8 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        t.Tool.Name,
-			Description: param.NewOpt(*t.Tool.Description),
+			Name:        t.Tool.GetName(),
+			Description: param.NewOpt(t.Tool.Description),
 			Parameters:  params,
 		},
 	}

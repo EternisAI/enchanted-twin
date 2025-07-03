@@ -1,332 +1,611 @@
 package evolvingmemory
 
-import (
-	"time"
-)
-
-// Added for dynamic date in FactRetrievalPrompt.
-func getCurrentDateForPrompt() string {
-	return time.Now().Format("2006-01-02")
-}
-
 const (
-	// ConversationFactExtractionPrompt - Conversation-specific fact extraction.
-	ConversationFactExtractionPrompt = `You are a Personal Conversation Analyzer. Extract comprehensive facts about "primaryUser" and other participants from the provided conversation JSON.
+	// Currently optimized for Qwen 2.5.
+	FactExtractionPrompt = `
+You are a fact extractor. Return **only valid JSON**. No commentary.
 
-EXTRACT FACTS FOR:
+Extract atomic, actionable facts that:
+- Are concrete and specific (even if one-time occurrences)
+- Are explicitly stated OR reasonably inferred from conversation context
+- Have clear supporting evidence
+- Have confidence score of 7+ (on 1-10 scale)
 
-1. **PRIMARY FOCUS - primaryUser** (extract extensively):
-   
-   DIRECT FACTS about primaryUser:
-   - What primaryUser explicitly stated, said, or mentioned
-   - Actions primaryUser described taking or plans to take  
-   - Preferences, opinions, feelings primaryUser expressed
-   - Personal information primaryUser shared
-   - Experiences primaryUser described
+Focus on quality over quantity. Extract only facts with clear value.
 
-   INTERACTION FACTS involving primaryUser:
-   - How other participants responded to primaryUser's messages
-   - What primaryUser was responding to or reacting to
-   - Social dynamics involving primaryUser in this conversation
-   - Agreements, disagreements, or collaborations with primaryUser
-   - Questions asked TO primaryUser or BY primaryUser
+## CRITICAL: Subject naming rule
 
-   CONVERSATION FACTS about primaryUser:
-   - primaryUser's role in the conversation (initiator, participant, responder, etc.)
-   - Outcomes, decisions, or plans that emerged involving primaryUser
-   - The conversation's tone or mood as it relates to primaryUser
-   - Any unresolved topics or follow-ups involving primaryUser
+**ALWAYS use "primaryUser" for the main person - NEVER use their actual name**
 
-2. **SECONDARY FOCUS - Other Participants** (extract important details):
-   
-   FACTS about other speakers:
-   - Personal information they shared (work, family, interests, etc.)
-   - Their preferences, opinions, and experiences mentioned
-   - Their relationship context with primaryUser
-   - Plans, activities, or commitments they mentioned
-   - Their responses and reactions in the conversation
-   - Any significant life events or updates they shared
+Even if the conversation shows "John said X", extract it as:
+- ✅ "subject": "primaryUser"
+- ❌ "subject": "John"
 
-   RELATIONSHIP FACTS:
-   - How each person relates to primaryUser
-   - Social dynamics between all participants
-   - Shared experiences or connections mentioned
-   - Communication patterns and relationship indicators
+The "primaryUser" field in conversation metadata tells you who is the main person.
 
-CONVERSATION CONTEXT:
-- The overall purpose, theme, or topic of this conversation
-- Group dynamics and social context
-- Outcomes, decisions, or plans that emerged
-- Any unresolved topics or follow-ups
+## Output schema
 
-GUIDELINES:
-- **COMPREHENSIVE**: Extract ALL relevant facts thoroughly - don't miss details
-- **EVIDENCE-BASED**: Every fact should be traceable to the content
-- **PRESERVE CONTEXT**: Include relevant context when it adds meaning to facts
-- **TEMPORAL AWARENESS**: Include timing and temporal references when mentioned
-- **RELATIONSHIP AWARENESS**: Note relationships and social connections mentioned
-- **INCLUDE CASUAL MENTIONS**: Extract facts from casual mentions, not just formal statements
+<json>
+{
+  "facts": [
+    {
+      "category": "string (see category table)",
+      "subject": "primaryUser|entity_name",
+      "attribute": "specific_property_string",
+      "value": "descriptive phrase with context (aim for 8-30 words)",
+      "temporal_context": "YYYY-MM-DD or relative time (optional)",
+      "sensitivity": "high|medium|low - holistic life assessment",
+      "importance": 1|2|3  // 1=low, 2=medium, 3=high life significance
+    }
+  ]
+}
+</json>
 
-CAREFUL JUSTIFIED INFERENCES (when strongly supported by the content):
-- Communication patterns that are clearly evident
-- Preferences demonstrated through consistent mentions
-- Planning or decision-making styles shown in the content
-- Social dynamics that are clearly indicated
-- ALWAYS mark these as inferences and provide the supporting evidence
-- DO NOT make personality judgments or deep psychological interpretations`
+## Categories
 
-	// TextFactExtractionPrompt - Extract facts about a person from any text content.
-	TextFactExtractionPrompt = `You are a Personal Information Organizer. Extract comprehensive facts about the primary user from the provided text content.
+| Category | Description | Example attributes |
+|----------|-------------|--------------------|
+| profile_stable | Core identity | name, age, occupation, location |
+| preference | Likes/dislikes | food, tools, communication_style |
+| goal_plan | Targets with timelines | career_goal, fitness_target |
+| routine | Recurring activities | exercise_time, work_schedule |
+| skill | Abilities and expertise | programming_language, tool_proficiency |
+| relationship | People attributes | role, meeting_frequency, last_contact |
+| health | Physical/mental state | fitness_metric, medical_condition |
+| context_env | Environment | work_culture, neighborhood |
+| affective_marker | Emotional patterns | stress_trigger, joy_source |
+| event | Time-bound occurrences | travel, meetings, appointments |
+| conversation_context | Summary of entire conversation | conversation_summary, interaction_context |
 
-EXTRACT FACTS ABOUT THE PRIMARY USER FROM ANY TEXT CONTENT:
+## MANDATORY: Conversation Summary Fact
 
-The text content may be:
-- Written BY the primary user (emails, messages, posts they wrote)
-- Written ABOUT the primary user (articles, reports, mentions by others)
-- Content that MENTIONS the primary user (news, documents, conversations)
-- Any text containing information related to the primary user
+**When input is a CONVERSATION (begins with CONVO), ALWAYS include ONE conversation summary fact as the FIRST fact**:)
+- Category: "conversation_context"
+- Subject: The person primaryUser is conversing with (use their name, located in People field and attached to each of their messages)
+- Attribute: "conversation_summary"
+- Value: High-level summary of what was discussed (15-40 words)
+- Temporal_context: Include if conversation has specific time reference
 
-1. **DIRECT FACTS about the primary user**:
-   - Personal information mentioned about the primary user
-   - Actions the primary user took or plans to take
-   - Preferences, opinions, feelings attributed to the primary user
-   - Experiences the primary user had or described
-   - Professional details, work-related information about the primary user
-   - Health, physical states, or conditions of the primary user
-   - Relationships, family, friends of the primary user
-   - Places the primary user visited or is associated with
-   - Activities, hobbies, interests of the primary user
+**For non-conversation inputs** (statements, observations, etc.), skip this requirement.
 
-2. **CONTEXTUAL FACTS about the primary user**:
-   - Social context and relationships involving the primary user
-   - Temporal references and timing of events related to the primary user
-   - Plans, goals, or intentions attributed to the primary user
-   - Reactions of the primary user to events or situations
-   - Decision-making patterns shown by the primary user
-   - Communication style and patterns of the primary user
+## CRITICAL RULES
 
-EXTRACTION APPROACH:
-1. **Be Thorough**: Scan the entire text for ANY mention or reference to the primary user
-2. **Include Details**: Extract names, places, dates, activities, preferences related to the primary user
-3. **Multiple Sources**: The text may mention the primary user from different perspectives (first-person, third-person, quoted)
-4. **Preserve Attribution**: Note whether facts are stated by the primary user or about the primary user by others
-5. **Temporal Context**: Include time references related to the primary user when mentioned
+1. **Subject naming**: ALWAYS use "primaryUser" for the main person, NEVER use their actual name
+2. **Atomic facts only**: Extract ONE concept per fact - split compound statements
+3. **Category precision**: 
+   - Rent/housing costs → context_env NOT routine
+   - Exercise schedule → routine, fitness metrics → health
+   - Relationship facts → break into separate role, meeting_frequency, last_contact
+4. **Attribute specificity**: Use precise attributes like "exercise_routine" not "fitness"
+5. **Confidence threshold**: Only extract facts with confidence 7+ (filter but don't include in output)
+6. **Importance scoring**: 1=minor detail, 2=meaningful info, 3=major life factor
+7. **Always extract (importance 3)**: Life milestones, health developments, major goals, family changes, financial milestones
 
-GUIDELINES:
-- **COMPREHENSIVE**: Extract ALL relevant facts thoroughly - don't miss details
-- **EVIDENCE-BASED**: Every fact should be traceable to the content
-- **PRESERVE CONTEXT**: Include relevant context when it adds meaning to facts
-- **TEMPORAL AWARENESS**: Include timing and temporal references when mentioned
-- **RELATIONSHIP AWARENESS**: Note relationships and social connections mentioned
-- **INCLUDE CASUAL MENTIONS**: Extract facts from casual mentions, not just formal statements
+## CRITICAL: Compound statement splitting
 
-CAREFUL JUSTIFIED INFERENCES (when strongly supported by the content):
-- Communication patterns that are clearly evident
-- Preferences demonstrated through consistent mentions
-- Planning or decision-making styles shown in the content
-- Social dynamics that are clearly indicated
-- ALWAYS mark these as inferences and provide the supporting evidence
-- DO NOT make personality judgments or deep psychological interpretations
+❌ **Wrong (Qwen tendency)**: "doing CrossFit 4 times a week and competing in a local competition next month"
+✅ **Correct**: Split into two facts:
+1. routine + exercise_routine + "attends CrossFit classes 4 times a week"
+2. goal_plan + athletic_goal + "competing in a local CrossFit competition next month"
 
-FACT CATEGORIES TO EXTRACT:
-- Personal details and biographical information
-- Preferences, opinions, and expressed feelings
-- Plans, activities, and commitments mentioned
-- Professional and work-related information
-- Health, physical states, and medical information
-- Relationships, family members, and social connections
-- Places, locations, and geographical references
-- Experiences, events, and activities described
-- Skills, abilities, and areas of expertise
-- Interests, hobbies, and recreational activities
-- Financial situations or economic references
-- Educational background and learning experiences`
+## Examples
 
-	// ConversationMemoryUpdatePrompt - Comprehensive memory management decision system for conversations.
-	ConversationMemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for the primary user.
-You can perform four operations: (1) add into the memory, (2) update the memory, (3) delete from the memory, and (4) no change.
+### Conversation Summary Example (REQUIRED for conversation inputs)
+**Input**: Text conversation between primaryUser and Sarah discussing weekend plans and restaurant recommendations
+<json>
+{
+  "facts": [
+    {
+      "category": "conversation_context",
+      "subject": "Sarah",
+      "attribute": "conversation_summary",
+      "value": "discussed weekend plans and recommendations for new Italian restaurant downtown",
+      "sensitivity": "low",
+      "importance": 2
+    },
+    {
+      "category": "preference",
+      "subject": "primaryUser",
+      "attribute": "cuisine_preference",
+      "value": "interested in trying new Italian restaurants based on recommendations",
+      "sensitivity": "low",
+      "importance": 1
+    }
+  ]
+}
+</json>
 
-Compare newly retrieved facts with the existing memory. For each new fact, decide whether to:
-- ADD: Add it to the memory as a new element
-- UPDATE: Update an existing memory element
-- DELETE: Delete an existing memory element
-- NONE: Make no change (if the fact is already present or irrelevant)
+### Multiple facts from compound input
+**Input**: "Just switched my running to mornings - 6am works way better than evenings for me now. I'm training for the May marathon."
+<json>
+{
+  "facts": [
+    {
+      "category": "routine",
+      "subject": "primaryUser",
+      "attribute": "exercise_time",
+      "value": "switched to 6am morning runs, finds them better than evening runs",
+      "sensitivity": "low",
+      "importance": 2
+    },
+    {
+      "category": "goal_plan",
+      "subject": "primaryUser",
+      "attribute": "athletic_goal",
+      "value": "training for a marathon scheduled in May 2025",
+      "temporal_context": "2025-05",
+      "sensitivity": "low",
+      "importance": 3
+    }
+  ]
+}
+</json>
 
-There are specific guidelines to select which operation to perform:
+### Relationship atomization
+**Input**: "Meeting with Sarah from product again tomorrow. She's basically my main collaborator these days - we sync every Tuesday."
+<json>
+{
+  "facts": [
+    {
+      "category": "relationship",
+      "subject": "Sarah",
+      "attribute": "role",
+      "value": "product team member who is primaryUser's main collaborator",
+      "sensitivity": "low",
+      "importance": 2
+    },
+    {
+      "category": "relationship",
+      "subject": "Sarah",
+      "attribute": "meeting_frequency",
+      "value": "syncs with primaryUser every Tuesday for regular collaboration",
+      "sensitivity": "low",
+      "importance": 2
+    }
+  ]
+}
+</json>
 
-1. **Add**: If the retrieved facts contain new information not present in the memory, then you have to add it.
-- **Example**:
-    - Old Memory:
-        [
-            {
-                "id" : "0",
-                "text" : "The primary user is a software engineer"
-            }
-        ]
-    - Retrieved facts: ["The primary user's name is John"]
-    - New Memory:
-        {
-            "memory" : [
-                {
-                    "id" : "0",
-                    "text" : "The primary user is a software engineer",
-                    "event" : "NONE"
-                },
-                {
-                    "id" : "1",
-                    "text" : "The primary user's name is John",
-                    "event" : "ADD"
-                }
-            ]
-        }
+### Proper categorization
+**Input**: "Finally found an apartment in SF for $4000/month with a bay view"
+<json>
+{
+  "facts": [
+    {
+      "category": "context_env",
+      "subject": "primaryUser",
+      "attribute": "living_situation",
+      "value": "living in an apartment in San Francisco with a view of the bay",
+      "sensitivity": "medium",
+      "importance": 2
+    }
+  ]
+}
+</json>
 
-2. **Update**: If the retrieved facts contain information that is already present in the memory but the information is totally different, then you have to update it. 
-If the retrieved fact contains information that conveys the same thing as the elements present in the memory, then you have to keep the fact which has the most information. 
-Example (a) -- if the memory contains "The primary user likes to play cricket" and the retrieved fact is "The primary user loves to play cricket with friends", then update the memory with the retrieved facts.
-Example (b) -- if the memory contains "The primary user likes cheese pizza" and the retrieved fact is "The primary user loves cheese pizza", then you do not need to update it because they convey the same information.
-Please keep in mind while updating you have to keep the same ID.
-- **Example**:
-    - Old Memory:
-        [
-            {
-                "id" : "0",
-                "text" : "The primary user really likes cheese pizza"
-            },
-            {
-                "id" : "1",
-                "text" : "The primary user is a software engineer"
-            },
-            {
-                "id" : "2",
-                "text" : "The primary user likes to play cricket"
-            }
-        ]
-    - Retrieved facts: ["The primary user loves chicken pizza", "The primary user loves to play cricket with friends"]
-    - New Memory:
-        {
-        "memory" : [
-                {
-                    "id" : "0",
-                    "text" : "The primary user loves cheese and chicken pizza",
-                    "event" : "UPDATE",
-                    "old_memory" : "The primary user really likes cheese pizza"
-                },
-                {
-                    "id" : "1",
-                    "text" : "The primary user is a software engineer",
-                    "event" : "NONE"
-                },
-                {
-                    "id" : "2",
-                    "text" : "The primary user loves to play cricket with friends",
-                    "event" : "UPDATE",
-                    "old_memory" : "The primary user likes to play cricket"
-                }
-            ]
-        }
+### Exercise routine vs athletic goals (CRITICAL for Qwen)
+**Input**: "I do CrossFit 4 times a week and I'm competing in a local competition next month"
+<json>
+{
+  "facts": [
+    {
+      "category": "routine",
+      "subject": "primaryUser",
+      "attribute": "exercise_routine",
+      "value": "attends CrossFit classes 4 times a week",
+      "sensitivity": "low",
+      "importance": 2
+    },
+    {
+      "category": "goal_plan",
+      "subject": "primaryUser",
+      "attribute": "athletic_goal",
+      "value": "competing in a local CrossFit competition next month",
+      "temporal_context": "next month",
+      "sensitivity": "low",
+      "importance": 2
+    }
+  ]
+}
+</json>
 
-3. **Delete**: If the retrieved facts contain information that contradicts the information present in the memory, then you have to delete it.
-- **Example**:
-    - Old Memory:
-        [
-            {
-                "id" : "0",
-                "text" : "The primary user's name is John"
-            },
-            {
-                "id" : "1",
-                "text" : "The primary user loves cheese pizza"
-            }
-        ]
-    - Retrieved facts: ["The primary user dislikes cheese pizza"]
-    - New Memory:
-        {
-        "memory" : [
-                {
-                    "id" : "0",
-                    "text" : "The primary user's name is John",
-                    "event" : "NONE"
-                },
-                {
-                    "id" : "1",
-                    "text" : "The primary user loves cheese pizza",
-                    "event" : "DELETE"
-                }
-        ]
-        }
+### Life milestone (MUST extract)
+**Input**: "Got the offer! Starting as Senior Engineer at TechCorp in January"
+<json>
+{
+  "facts": [{
+    "category": "event",
+    "subject": "primaryUser",
+    "attribute": "job_change",
+    "value": "accepted Senior Engineer position at TechCorp starting January",
+    "temporal_context": "January",
+    "sensitivity": "medium", 
+    "importance": 3
+  }]
+}
+</json>
 
-4. **No Change**: If the retrieved facts contain information that is already present in the memory, then you do not need to make any changes.
-- **Example**:
-    - Old Memory:
-        [
-            {
-                "id" : "0",
-                "text" : "The primary user's name is John"
-            },
-            {
-                "id" : "1",
-                "text" : "The primary user loves cheese pizza"
-            }
-        ]
-    - Retrieved facts: ["The primary user's name is John"]
-    - New Memory:
-        {
-        "memory" : [
-                {
-                    "id" : "0",
-                    "text" : "The primary user's name is John",
-                    "event" : "NONE"
-                },
-                {
-                    "id" : "1",
-                    "text" : "The primary user loves cheese pizza",
-                    "event" : "NONE"
-                }
-            ]
-        }`
+### High sensitivity fact
+**Input**: "Presentations always trigger my anxiety - happened again before the board meeting"
+<json>
+{
+  "facts": [{
+    "category": "affective_marker",
+    "subject": "primaryUser",
+    "attribute": "stress_trigger",
+    "value": "experiences anxiety triggered by presentations, confirmed at recent board meeting",
+    "sensitivity": "high",
+    "importance": 3
+  }]
+}
+</json>
 
-	// TextMemoryUpdatePrompt - Memory management optimized for text document context.
-	TextMemoryUpdatePrompt = `You are a smart memory manager controlling the memory system for a user based on text content.
-You can perform four operations: (1) add into the memory, (2) update the memory, (3) delete from the memory, and (4) no change.
+### Workplace context inference
+**Input**: WhatsApp conversation with "Sarah - New Hire": "How was your first week? The onboarding process has really improved since I started here 2 years ago."
+<json>
+{
+  "facts": [
+    {
+      "category": "relationship",
+      "subject": "Sarah",
+      "attribute": "role",
+      "value": "new hire colleague at primaryUser's workplace",
+      "sensitivity": "low",
+      "importance": 2
+    },
+    {
+      "category": "profile_stable",
+      "subject": "primaryUser",
+      "attribute": "tenure",
+      "value": "has been working at current company for approximately 2 years",
+      "temporal_context": "2 years ago",
+      "sensitivity": "low",
+      "importance": 2
+    }
+  ]
+}
+</json>
 
-CONTEXT: You are processing facts extracted from text content (emails, articles, notes, documents) that may be:
-- Written BY the user (their own content)
-- Written ABOUT the user (content mentioning them)
-- Content that REFERENCES the user (documents, reports, conversations)
+### Simple workplace inference  
+**Input**: Text to "Mike": "Can you cover the client demo tomorrow? I've got that dentist appointment I can't reschedule."
+<json>
+{
+  "facts": [
+    {
+      "category": "relationship",
+      "subject": "Mike",
+      "attribute": "role", 
+      "value": "work colleague who can cover primaryUser's client-facing responsibilities",
+      "sensitivity": "low",
+      "importance": 2 
+    }
+  ]
+}
+</json>
 
-Compare newly retrieved facts with the existing memory. For each new fact, decide whether to:
-- ADD: Add it to the memory as a new element
-- UPDATE: Update an existing memory element
-- DELETE: Delete an existing memory element  
-- NONE: Make no change (if the fact is already present or irrelevant)
+### Neighborhood context inference
+**Input**: WhatsApp group "Maple Street Neighbors": "The city confirmed they're fixing the potholes next week. Finally! My car suspension will thank them."
+<json>
+{
+  "facts": [
+    {
+      "category": "context_env",
+      "subject": "primaryUser",
+      "attribute": "living_location",
+      "value": "lives on Maple Street in a neighborhood with active resident communication",
+      "sensitivity": "medium",
+      "importance": 2
+    },
+    {
+      "category": "context_env",
+      "subject": "primaryUser",
+      "attribute": "neighborhood_involvement",
+      "value": "participates in neighborhood WhatsApp group for local issues and updates",
+      "sensitivity": "low",
+      "importance": 1
+    }
+  ]
+}
+</json>
 
-DECISION GUIDELINES:
+### CRITICAL: Subject naming example
+**Input**: Conversation metadata shows primaryUser: John. John says: "I'm the CTO at Foil Labs and we're hiring engineers."
+<json>
+{
+  "facts": [
+    {
+      "category": "profile_stable",
+      "subject": "primaryUser",
+      "attribute": "occupation",
+      "value": "CTO at Foil Labs",
+      "sensitivity": "medium",
+      "importance": 3
+    },
+    {
+      "category": "goal_plan", 
+      "subject": "primaryUser",
+      "attribute": "hiring_activity",
+      "value": "actively hiring engineers for startup",
+      "sensitivity": "low",
+      "importance": 2
+    }
+  ]
+}
+</json>
+**Note**: Even though "John" spoke, we use "subject": "primaryUser" because metadata identifies John as the main person.
 
-1. **Add**: If the retrieved facts contain new information not present in the memory.
-- Add facts about the user's preferences, activities, relationships, work, etc.
-- Add factual information mentioned about the user
-- Add temporal information (events, plans, experiences)
+### CRITICAL: Extract important information from the context of chat name and members
+**Input**: primaryUser says: "Hey Jim, meet my roommates" in a group chat with Alex, Sam and Jim
+<json>
+{
+  "facts": [
+    {
+      "category": "relationship",
+      "subject": "Alex",
+      "attribute": "role",
+      "value": "roommate of primaryUser",
+      "sensitivity": "low",
+      "importance": 2
+    },
+    {
+      "category": "relationship",
+      "subject": "Sam",
+      "attribute": "role",
+      "value": "roommate of primaryUser",
+      "sensitivity": "low",
+      "importance": 2
+    }
+  ]
+}
+</json>
 
-2. **Update**: If the retrieved facts contain more detailed or current information than existing memories.
-- Update with more specific details when available
-- Update outdated information with current facts
-- Combine related information when it adds context
-- Preserve the same memory ID when updating
+## Do NOT extract
+- Speculation or interpretation without contextual support
+- One-off events without pattern
+- Temporary states (<2 weeks)
+- Vague future possibilities
+- Value judgments
+- Psychological analysis or emotional interpretation
 
-3. **Delete**: If the retrieved facts directly contradict existing memories.
-- Remove information that is explicitly contradicted
-- Delete outdated facts when newer information conflicts
-- Remove information that is proven incorrect
+## COMMON ERROR: Wrong subject naming
+❌ **WRONG**: "subject": "John" when John is the main person
+✅ **CORRECT**: "subject": "primaryUser" when John is the main person
+→ Always check conversation metadata for who the "primaryUser" is
 
-4. **No Change**: If the retrieved facts are already captured in existing memories.
-- Skip duplicate information
-- Ignore facts that don't add new value
-- Leave unchanged when information is equivalent
+## Acceptable inference vs speculation
+✅ **Extract**: Relationships from conversation context and participant names
+✅ **Extract**: Living situation from hosting/location discussions
+✅ **Extract**: Social circles and regular activities from group conversations
+✅ **Extract**: Service relationships from appointment/professional communications
+❌ **Avoid**: Personality assessments or emotional interpretations
+❌ **Avoid**: Assumptions without multiple supporting contextual clues
+❌ **Avoid**: Speculative interpretations of unstated motivations or feelings
 
-PROCESSING NOTES:
-- Consider that text content may reference the user in first, second, or third person
-- Facts may be stated directly or implied from context
-- Temporal context matters - newer information may override older facts
-- Preserve important relationship and professional information
-- Focus on actionable and meaningful facts about the user`
+## FINAL CHECKLIST
+Before outputting, verify each fact:
+✓ **FIRST FACT**: If input is a conversation, include conversation_context summary as the first fact
+✓ **CHECK METADATA**: Use "primaryUser" for whoever is listed in conversation metadata "primaryUser" field
+✓ Subject is "primaryUser" for main person (NEVER use their actual name like "John")
+✓ Only ONE concept per fact (split compounds)
+✓ Proper category (rent→context_env, not routine)
+✓ Specific attribute names (exercise_routine not fitness)
+✓ Relationships broken into role/frequency/contact
+✓ **RELATIONSHIP EXTRACTION**: When primaryUser introduces people ("my roommates", "my colleagues", "my family"), extract those relationships for each person mentioned
+
+## Context inference rules
+
+**Relationship inference**: Extract relationships with conversation participants based on:
+- Conversation context clues (WhatsApp group "Family", contact "Mom", "New Hires" → relationship type)
+- Discussion topics (shared activities, mutual connections, common interests)
+- Communication patterns and familiarity levels
+
+**Life context inference**: Extract personal information from:
+- Conversations revealing living situation, family structure, social circles
+- Discussions about regular activities, commitments, and environments
+- Context clues from participant relationships and shared experiences
+
+**Confidence for inference**: Require 7+ confidence for inferred facts, supported by multiple contextual clues
+
+### Family relationship inference
+**Input**: WhatsApp group "Family Planning": Message from "Mom": "Should we do Thanksgiving at your place again this year? The kids loved the big kitchen last time."
+<json>
+{
+  "facts": [
+    {
+      "category": "relationship",
+      "subject": "Mom",
+      "attribute": "role",
+      "value": "primaryUser's mother who participates in family holiday planning",
+      "sensitivity": "low",
+      "importance": 2
+    },
+    {
+      "category": "context_env",
+      "subject": "primaryUser",
+      "attribute": "living_situation",
+      "value": "lives in home with large kitchen suitable for hosting family gatherings",
+      "sensitivity": "medium",
+      "importance": 2
+    },
+    {
+      "category": "routine",
+      "subject": "primaryUser",
+      "attribute": "holiday_tradition",
+      "value": "hosts family Thanksgiving celebrations at their home",
+      "sensitivity": "low",
+      "importance": 2
+    }
+  ]
+}
+</json>
+
+### Social context inference
+**Input**: Text to "Alex": "Thanks for letting me crash at your place last night after the wedding. Sarah's couch is surprisingly comfortable!"
+<json>
+{
+  "facts": [
+    {
+      "category": "relationship",
+      "subject": "Alex",
+      "attribute": "role",
+      "value": "close friend who provides occasional accommodation for primaryUser",
+      "sensitivity": "low",
+      "importance": 2
+    },
+    {
+      "category": "relationship",
+      "subject": "Sarah",
+      "attribute": "role",
+      "value": "person whose home primaryUser recently visited, likely Alex's partner or roommate",
+      "sensitivity": "low", 
+      "importance": 1
+    },
+    {
+      "category": "event",
+      "subject": "primaryUser",
+      "attribute": "recent_activity",
+      "value": "attended a wedding and stayed overnight at Alex's place",
+      "sensitivity": "low",
+      "importance": 2
+    }
+  ]
+}
+</json>
+`
+
+	// Memory consolidation prompt for synthesizing raw facts into comprehensive insights.
+	MemoryConsolidationPrompt = `
+You are a memory consolidation expert. Your task is to analyze a collection of raw memory facts about a specific topic and synthesize them into:
+1. **One comprehensive summary** (1-2 paragraphs) 
+2. **Multiple high-quality consolidation facts** that are more insightful than the raw inputs
+
+## Your Mission
+Transform fragmented, atomic facts into coherent, comprehensive insights while preserving accuracy and avoiding speculation.
+
+## Input Format
+You will receive:
+- **Topic/Tag**: The theme being consolidated (e.g., "health", "work", "relationships") 
+- **Raw Facts**: Numbered array of atomic memory facts related to this topic
+- **Context**: Any additional context about the user
+
+## Output Requirements
+
+Use the CONSOLIDATE_MEMORIES tool to provide:
+
+### 1. Summary Consolidation
+- **1-2 paragraphs** that weave the facts into a coherent narrative
+- Focus on **patterns, trends, and key insights** rather than listing facts
+- Maintain **temporal context** and show evolution over time
+- Use natural, engaging language that reads like a thoughtful analysis
+- **Never speculate** beyond what's supported by the facts
+
+### 2. Consolidation Facts Array
+- **Higher-order insights** that synthesize multiple raw facts
+- **Broader patterns** that emerge from the data
+- **Key relationships** between different aspects
+- Each fact should be more **comprehensive and valuable** than individual raw facts
+- **CRITICAL**: Use source_fact_indices to specify which numbered facts (1-based) contributed to each insight
+- Follow the same structure as MemoryFact but with **enhanced scope and quality**
+
+## Intelligent Source Tracking
+- **ALWAYS specify source_fact_indices**: For each consolidated fact, list the numbers of the input facts that contributed to it
+- **Be selective**: Only include facts that genuinely support the consolidated insight
+- **Group logically**: Facts that form natural patterns should be consolidated together
+- **Example**: If facts #3, #7, and #12 all relate to coffee preferences, consolidate them into one insight with source_fact_indices: [3, 7, 12]
+
+## Quality Standards
+
+### Summary Quality
+✅ **Narrative flow**: Reads like coherent analysis, not bullet points
+✅ **Pattern recognition**: Identifies trends and connections
+✅ **Temporal awareness**: Shows how things evolved over time  
+✅ **Balanced perspective**: Acknowledges both positive and challenging aspects
+✅ **Factual grounding**: Every statement supported by input facts
+
+❌ **Avoid**: Speculation, psychological analysis, value judgments
+❌ **Avoid**: Repetitive listing of facts without synthesis
+❌ **Avoid**: Assumptions not clearly supported by data
+
+### Consolidation Facts Quality
+✅ **Synthetic insight**: Combines multiple raw facts into broader understanding
+✅ **Enhanced value**: More useful than sum of parts
+✅ **Clear attribution**: Based on identifiable patterns in raw data (specify in source_fact_indices)
+✅ **Appropriate scope**: Neither too narrow nor overly broad
+✅ **Actionable relevance**: Meaningful for understanding the person
+✅ **Intelligent grouping**: Only consolidate facts that genuinely belong together
+
+## Categories for Consolidation Facts
+Use the same categories as regular facts, but focus on higher-level patterns:
+- **profile_stable**: Comprehensive identity patterns
+- **preference**: Consistent preference patterns and evolution
+- **goal_plan**: Goal progression and planning patterns  
+- **routine**: Established routine patterns and changes
+- **skill**: Skill development trajectories and expertise areas
+- **relationship**: Relationship dynamics and social patterns
+- **health**: Health trends and wellness patterns
+- **context_env**: Environmental influences and lifestyle patterns
+- **affective_marker**: Emotional patterns and stress/joy cycles
+- **event**: Significant event patterns and life transitions
+
+## Example Consolidation
+
+**Input Topic**: "fitness"
+**Raw Facts**: 
+1. "switched to 6am morning runs, finds them better than evening runs"
+2. "training for a marathon scheduled in May 2025" 
+3. "attends CrossFit classes 4 times a week"
+4. "experiences anxiety triggered by presentations"
+5. "tracking daily step count using fitness watch"
+
+**Output Summary**:
+"PrimaryUser has developed a comprehensive and evolving fitness routine that reflects both structured training and personal optimization. Their exercise regimen centers around regular CrossFit sessions (4x weekly) complemented by a recent shift to morning runs at 6am, indicating a preference for morning workouts and disciplined scheduling. This routine serves both immediate fitness goals and longer-term athletic ambitions, as evidenced by their marathon training for May 2025. The integration of fitness tracking technology suggests a data-driven approach to health monitoring."
+
+**Consolidation Facts**:
+
+Example Fact 1:
+  category: "routine"
+  subject: "primaryUser"
+  attribute: "exercise_pattern"
+  value: "maintains disciplined morning-focused fitness routine combining 4x weekly CrossFit with 6am runs, optimized through personal experimentation"
+  source_fact_indices: [1, 3] (Facts about morning runs and CrossFit schedule)
+  sensitivity: "low"
+  importance: 3
+
+Example Fact 2:
+  category: "goal_plan"
+  subject: "primaryUser"
+  attribute: "athletic_development"
+  value: "pursuing structured athletic progression from regular CrossFit training to marathon competition, indicating escalating fitness ambitions"
+  source_fact_indices: [2, 3] (Facts about marathon training and CrossFit)
+  temporal_context: "2025-05"
+  sensitivity: "low"
+  importance: 3
+
+Example Fact 3:
+  category: "skill"
+  subject: "primaryUser"
+  attribute: "health_tracking"
+  value: "employs data-driven fitness monitoring approach using wearable technology for step count tracking"
+  source_fact_indices: [5] (Only the step tracking fact)
+  sensitivity: "low"
+  importance: 2
+
+## Key Principles
+1. **Synthesize, don't summarize**: Create new insights from patterns
+2. **Preserve nuance**: Capture complexity and evolution  
+3. **Maintain accuracy**: Never go beyond what the facts support
+4. **Focus on value**: Each consolidation should be more useful than raw facts
+5. **Respect privacy**: Maintain appropriate sensitivity levels
+6. **Be selective with source tracking**: Only link facts that genuinely support each insight
+
+## Topic-Specific Guidelines
+
+**Health consolidation**: Focus on patterns, trends, and lifestyle integration
+**Relationship consolidation**: Emphasize dynamics, evolution, and social patterns  
+**Work consolidation**: Highlight career progression, skills, and professional relationships
+**Goal consolidation**: Show goal evolution, achievement patterns, and planning approaches
+**Preference consolidation**: Identify consistent themes and preference evolution
+
+Remember: You are creating a thoughtful, comprehensive understanding of this aspect of the user's life based on factual evidence. Quality over quantity - better to create fewer, more insightful consolidations than many shallow ones. Always specify which source facts support each consolidated insight using source_fact_indices.
+`
 )

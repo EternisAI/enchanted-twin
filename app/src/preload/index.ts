@@ -54,7 +54,19 @@ const api = {
   },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   onOpenSettings: (callback: () => void) => {
-    ipcRenderer.on('open-settings', callback)
+    const listener = () => callback()
+    ipcRenderer.on('open-settings', listener)
+    return () => ipcRenderer.removeListener('open-settings', listener)
+  },
+  onNewChat: (callback: () => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('new-chat', listener)
+    return () => ipcRenderer.removeListener('new-chat', listener)
+  },
+  onToggleSidebar: (callback: () => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('toggle-sidebar', listener)
+    return () => ipcRenderer.removeListener('toggle-sidebar', listener)
   },
   screenpipe: {
     getStatus: () => ipcRenderer.invoke('screenpipe:get-status'),
@@ -108,6 +120,51 @@ const api = {
   screenpipeStore: {
     get: (key: string) => screenpipeStore.get(key),
     set: (key: string, value: unknown) => screenpipeStore.set(key, value)
+  },
+  livekit: {
+    setup: () => ipcRenderer.invoke('livekit:setup'),
+    start: (chatId: string, isOnboarding?: boolean) =>
+      ipcRenderer.invoke('livekit:start', chatId, isOnboarding),
+    stop: () => ipcRenderer.invoke('livekit:stop'),
+    isRunning: () => ipcRenderer.invoke('livekit:is-running'),
+    isSessionReady: () => ipcRenderer.invoke('livekit:is-session-ready'),
+    getState: () => ipcRenderer.invoke('livekit:get-state'),
+    mute: () => ipcRenderer.invoke('livekit:mute'),
+    unmute: () => ipcRenderer.invoke('livekit:unmute'),
+    getAgentState: () => ipcRenderer.invoke('livekit:get-agent-state'),
+    onSessionStateChange: (callback: (data: { sessionReady: boolean }) => void) => {
+      const cleanup = () => ipcRenderer.removeAllListeners('livekit-session-state')
+      ipcRenderer.on('livekit-session-state', (_event, data) => callback(data))
+      return cleanup
+    },
+    onAgentStateChange: (callback: (data: { state: string }) => void) => {
+      const cleanup = () => ipcRenderer.removeAllListeners('livekit-agent-state')
+      ipcRenderer.on('livekit-agent-state', (_event, data) => callback(data))
+      return cleanup
+    }
+  },
+  onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => {
+    const listener = (_: unknown, data: { source: 'stdout' | 'stderr'; line: string }) =>
+      callback(data)
+    ipcRenderer.on('go-log', listener)
+    return () => ipcRenderer.removeListener('go-log', listener)
+  },
+  openMainWindowWithChat: (chatId?: string, initialMessage?: string) =>
+    ipcRenderer.invoke('open-main-window-with-chat', chatId, initialMessage),
+  onNavigateTo: (callback: (url: string) => void) => {
+    const listener = (_: unknown, url: string) => callback(url)
+    ipcRenderer.on('navigate-to', listener)
+    return () => ipcRenderer.removeListener('navigate-to', listener)
+  },
+  resizeOmnibarWindow: (width: number, height: number) =>
+    ipcRenderer.invoke('resize-omnibar-window', width, height),
+  hideOmnibarWindow: () => ipcRenderer.invoke('hide-omnibar-window'),
+  rendererReady: () => ipcRenderer.send('renderer-ready'),
+  keyboardShortcuts: {
+    get: () => ipcRenderer.invoke('keyboard-shortcuts:get'),
+    set: (action: string, keys: string) => ipcRenderer.invoke('keyboard-shortcuts:set', action, keys),
+    reset: (action: string) => ipcRenderer.invoke('keyboard-shortcuts:reset', action),
+    resetAll: () => ipcRenderer.invoke('keyboard-shortcuts:reset-all')
   }
 }
 
