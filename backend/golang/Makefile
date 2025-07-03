@@ -41,3 +41,29 @@ deadcode:
 
 sqlc-generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc generate
+
+# CoreML Inference Server
+build-coreml:
+	@echo "Building CoreML inference server..."
+	@mkdir -p bin/models
+	@if [ -d "test_coreml" ]; then cp -r test_coreml/ bin/models/; fi
+	CGO_ENABLED=1 go build -tags coreml -o bin/coreml-inference-server cmd/coreml_inference_server/main.go
+	@echo "CoreML inference server built successfully"
+
+run-coreml:
+	@echo "Starting CoreML inference server..."
+	go run -tags coreml cmd/coreml_inference_server/main.go
+
+release-coreml:
+	@echo "Building CoreML inference server for macOS..."
+	@mkdir -p bin/models
+	@if [ -d "test_coreml" ]; then cp -r test_coreml/ bin/models/; fi
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -tags coreml -o bin/coreml-inference-server-darwin-arm64 cmd/coreml_inference_server/main.go
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -tags coreml -o bin/coreml-inference-server-darwin-amd64 cmd/coreml_inference_server/main.go
+	@echo "CoreML inference server release builds completed"
+
+clean-coreml:
+	@echo "Cleaning CoreML build artifacts..."
+	rm -f bin/coreml-inference-server*
+	rm -rf bin/models
+	@echo "CoreML build artifacts cleaned"
