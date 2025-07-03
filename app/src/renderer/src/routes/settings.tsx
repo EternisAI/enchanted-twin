@@ -14,12 +14,6 @@ export const Route = createFileRoute('/settings')({
 
 const settingsTabs = [
   {
-    value: 'connections',
-    label: 'Connections',
-    icon: Plug,
-    path: '/settings/connections'
-  },
-  {
     value: 'import-data',
     label: 'Import Data',
     icon: Database,
