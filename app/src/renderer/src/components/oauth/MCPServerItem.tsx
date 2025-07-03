@@ -11,7 +11,6 @@ import {
 import { useEffect, useState } from 'react'
 import { Button } from '../ui/button'
 import { toast } from 'sonner'
-import { Card } from '../ui/card'
 import Google from '@renderer/assets/icons/google'
 import Slack from '@renderer/assets/icons/slack'
 import XformerlyTwitter from '@renderer/assets/icons/x'
@@ -26,7 +25,7 @@ import {
   AlertDialogCancel
 } from '../ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
-import { Check, Trash2 } from 'lucide-react'
+import { Check, ComputerIcon, PlugIcon, Trash2 } from 'lucide-react'
 import icon from '../../../../../resources/icon.png'
 
 const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
@@ -50,12 +49,12 @@ const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> =
 }
 
 const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
-  GOOGLE: <Google />,
-  SLACK: <Slack />,
-  TWITTER: <XformerlyTwitter />,
-  SCREENPIPE: <></>,
-  OTHER: <></>,
-  ENCHANTED: <img src={icon} alt="Enchanted" className="w-8 h-8" />
+  GOOGLE: <Google className="w-6 h-6" />,
+  SLACK: <Slack className="w-6 h-6" />,
+  TWITTER: <XformerlyTwitter className="w-6 h-6" />,
+  SCREENPIPE: <ComputerIcon className="w-6 h-6" />,
+  OTHER: <PlugIcon className="w-6 h-6" />,
+  ENCHANTED: <img src={icon} alt="Enchanted" className="w-6 h-6" />
 }
 
 interface MCPServerItemProps {
@@ -183,7 +182,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }, [completeOAuthFlow, server.name, server.type, onConnect, authStateId])
 
   return (
-    <Card className="p-4 w-full">
+    <div className="p-4 w-full">
       <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-4">
         <div className="flex items-center gap-2">
           {PROVIDER_ICON_MAP[server.type]}
@@ -251,6 +250,6 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
           )}
         </div>
       </div>
-    </Card>
+    </div>
   )
 }
