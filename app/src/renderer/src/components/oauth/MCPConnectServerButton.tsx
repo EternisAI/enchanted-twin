@@ -1,3 +1,4 @@
+import { PlusIcon } from 'lucide-react'
 import { Button } from '../ui/button'
 import { DialogHeader, DialogTitle, DialogContent, Dialog, DialogTrigger } from '../ui/dialog'
 import MCPConnectionForm from './MCPConnectionForm'
@@ -9,7 +10,8 @@ export default function ConnectMCPServerButton({ onSuccess }: { onSuccess: () =>
   return (
     <Dialog open={isConnectOpen} onOpenChange={setIsConnectOpen}>
       <DialogTrigger asChild>
-        <Button variant="default" size="sm">
+        <Button variant="default" size="lg" className="h-12 rounded-sm">
+          <PlusIcon className="w-4 h-4" />
           Connect MCP
         </Button>
       </DialogTrigger>
