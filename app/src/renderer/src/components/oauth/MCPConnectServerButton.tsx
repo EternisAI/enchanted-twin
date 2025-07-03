@@ -1,5 +1,3 @@
-import { Plus } from 'lucide-react'
-import { Card } from '../ui/card'
 import { Button } from '../ui/button'
 import { DialogHeader, DialogTitle, DialogContent, Dialog, DialogTrigger } from '../ui/dialog'
 import MCPConnectionForm from './MCPConnectionForm'
@@ -11,19 +9,9 @@ export default function ConnectMCPServerButton({ onSuccess }: { onSuccess: () =>
   return (
     <Dialog open={isConnectOpen} onOpenChange={setIsConnectOpen}>
       <DialogTrigger asChild>
-        <Card className="p-4 w-[350px] max-w-full">
-          <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-4">
-            <div className="flex items-center gap-1">
-              <Plus className="w-5 h-5" />
-              Custom MCP
-            </div>
-            <div className="flex flex-col gap-2">
-              <Button variant="outline" size="sm">
-                Connect
-              </Button>
-            </div>
-          </div>
-        </Card>
+        <Button variant="default" size="sm">
+          Connect MCP
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
         <DialogHeader>
