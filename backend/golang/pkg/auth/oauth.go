@@ -158,10 +158,12 @@ func StoreToken(ctx context.Context, logger *log.Logger, store *db.Store, token 
 		if claims.Sub == "" {
 			return fmt.Errorf("no subject (sub) found in token claims")
 		}
-		username = claims.ID
+		logger.Info("claims", "claims", claims)
+		username = claims.Email
+		logger.Info("got username from token", "username", username)
 	}
 
-	existingTokens, err := store.GetOAuthTokensByUsername(ctx, provider, username)
+	existingTokens, err := store.GetOAuthTokens(ctx, provider)
 	isUpdate := err == nil && existingTokens != nil
 
 	oauthTokens := db.OAuthTokens{
@@ -179,9 +181,9 @@ func StoreToken(ctx context.Context, logger *log.Logger, store *db.Store, token 
 	}
 
 	if isUpdate {
-		logger.Debug("updated existing firebase tokens", "provider", provider, "expires_at", oauthTokens.ExpiresAt)
+		logger.Debug("updated existing firebase tokens", "provider", provider, "expires_at", oauthTokens.ExpiresAt, "username", username)
 	} else {
-		logger.Debug("stored new firebase tokens", "provider", provider, "expires_at", oauthTokens.ExpiresAt)
+		logger.Debug("stored new firebase tokens", "provider", provider, "expires_at", oauthTokens.ExpiresAt, "username", username)
 	}
 
 	return nil
@@ -648,13 +650,14 @@ func Activate(ctx context.Context, logger *log.Logger, store *db.Store, inviteCo
 }
 
 func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bool, error) {
-	oauthTokens, err := store.GetOAuthTokensArray(ctx, "firebase")
+	oauthToken, err := store.GetOAuthTokens(ctx, "firebase")
 	if err != nil {
+		logger.Error("failed to get OAuth tokens in isWhitelisted check", "error", err)
 		return false, fmt.Errorf("failed to get OAuth tokens: %w", err)
 	}
 
-	if len(oauthTokens) == 0 {
-		logger.Info("no OAuth tokens found to check whitelist", "provider", "firebase")
+	if oauthToken == nil {
+		logger.Error("no OAuth tokens found in isWhitelisted check", "provider", "firebase")
 		return false, nil
 	}
 
@@ -664,53 +667,50 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 	}
 	inviteServerURL := conf.ProxyTeeURL
 
-	for _, token := range oauthTokens {
-		// Make GET request to check if this email is whitelisted
-		whitelistURL := fmt.Sprintf("%s/api/v1/invites/%s/whitelist", inviteServerURL, token.Username)
-		req, err := http.NewRequestWithContext(ctx, "GET", whitelistURL, nil)
-		if err != nil {
-			logger.Error("failed to create whitelist request", "email", token.Username, "error", err)
-			continue
-		}
+	// Make GET request to check if this email is whitelisted
+	whitelistURL := fmt.Sprintf("%s/api/v1/invites/%s/whitelist", inviteServerURL, oauthToken.Username)
+	req, err := http.NewRequestWithContext(ctx, "GET", whitelistURL, nil)
+	if err != nil {
+		logger.Error("failed to create whitelist request", "email", oauthToken.Username, "error", err)
+		return false, fmt.Errorf("failed to create whitelist request: %w", err)
+	}
 
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", oauthTokens[0].AccessToken))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", oauthToken.AccessToken))
 
-		client := &http.Client{Timeout: 30 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			logger.Error("failed to send whitelist request", "email", token.Username, "error", err)
-			continue
-		}
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Error("failed to send whitelist request", "email", oauthToken.Username, "error", err)
+	}
 
-		if resp.StatusCode != http.StatusOK {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				logger.Error("failed to close whitelist response body", "error", closeErr)
-			}
-			logger.Error("whitelist request failed", "email", token.Username, "status", resp.StatusCode)
-			continue
-		}
-
-		var whitelistResp struct {
-			Email       string `json:"email"`
-			Whitelisted bool   `json:"whitelisted"`
-		}
-
-		if err := json.NewDecoder(resp.Body).Decode(&whitelistResp); err != nil {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				logger.Error("failed to close whitelist response body", "error", closeErr)
-			}
-			logger.Error("failed to decode whitelist response", "email", token.Username, "error", err)
-			continue
-		}
+	if resp.StatusCode != http.StatusOK {
 		if closeErr := resp.Body.Close(); closeErr != nil {
 			logger.Error("failed to close whitelist response body", "error", closeErr)
 		}
+		logger.Error("whitelist request failed", "email", oauthToken.Username, "status", resp.StatusCode)
+		return false, fmt.Errorf("whitelist request failed: %d", resp.StatusCode)
+	}
 
-		logger.Debug("whitelist check result", "email", whitelistResp.Email, "whitelisted", whitelistResp.Whitelisted)
+	var whitelistResp struct {
+		Email       string `json:"email"`
+		Whitelisted bool   `json:"whitelisted"`
+	}
 
-		if whitelistResp.Whitelisted {
-			return true, nil
+	if err := json.NewDecoder(resp.Body).Decode(&whitelistResp); err != nil {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Error("failed to close whitelist response body", "error", closeErr)
 		}
+		logger.Error("failed to decode whitelist response", "email", oauthToken.Username, "error", err)
+		return false, fmt.Errorf("failed to decode whitelist response: %w", err)
+	}
+	if closeErr := resp.Body.Close(); closeErr != nil {
+		logger.Error("failed to close whitelist response body", "error", closeErr)
+	}
+
+	logger.Debug("whitelist check result", "email", whitelistResp.Email, "whitelisted", whitelistResp.Whitelisted)
+
+	if whitelistResp.Whitelisted {
+		return true, nil
 	}
 
 	return false, nil
@@ -773,6 +773,8 @@ func PublishOAuthTokenRefresh(ctx context.Context, logger *log.Logger, store *db
 // StandardClaims represents the standard claims in a JWT token.
 type StandardClaims struct {
 	// Standard JWT claims
-	Sub string `json:"sub"`
+	Sub    string `json:"sub"`
+	UserId string `json:"user_id"`
+	Email  string `json:"email"`
 	jwt.RegisteredClaims
 }
