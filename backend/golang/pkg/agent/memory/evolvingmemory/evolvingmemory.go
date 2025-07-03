@@ -277,8 +277,6 @@ func (s *StorageImpl) storeFactExtractionDocuments(ctx context.Context, document
 	}
 
 	s.logger.Info("Facts stored successfully")
-	// ❌ REMOVED: Automatic consolidation that was too expensive
-	// Note: Consolidation can be triggered manually via RunConsolidation() when needed
 
 	return nil
 }

@@ -409,7 +409,17 @@ func main() {
 	logger.Info("User profile", "profile", userProfile)
 
 	holonConfig := holon.DefaultManagerConfig()
-	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
+	holonConfig.EnableLogging = false // Disable holon logging to reduce noise
+
+	// Create a holon-specific logger that only shows errors to reduce noise
+	holonLogger := log.NewWithOptions(&customLogWriter{}, log.Options{
+		ReportCaller:    false,
+		ReportTimestamp: true,
+		Level:           log.ErrorLevel, // Only show errors, no info/debug
+		TimeFormat:      time.Kitchen,
+	})
+
+	holonService := holon.NewServiceWithConfig(store, holonLogger, holonConfig.HolonAPIURL)
 
 	// Initialize thread processor with AI and memory services for LLM-based filtering
 	logger.Info("Initializing thread processor with LLM-based evaluation")
@@ -436,8 +446,8 @@ func main() {
 		holonService.StopBackgroundProcessing() // Stop the service and wait for cleanup
 	}()
 
-	// Initialize HolonZero API fetcher service with the main logger
-	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
+	// Initialize HolonZero API fetcher service with the filtered holon logger
+	holonManager := holon.NewManager(store, holonConfig, holonLogger, temporalClient, temporalWorker)
 	if err := holonManager.Start(); err != nil {
 		logger.Error("Failed to start HolonZero fetcher service", "error", err)
 	} else {
@@ -597,9 +607,20 @@ func bootstrapTemporalWorker(
 	})
 	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
 
-	// Register holon sync activities
-	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
-	holonSyncActivities := holon.NewHolonSyncActivities(input.logger, holonManager)
+	// Register holon sync activities with filtered logger
+	holonManagerConfig := holon.DefaultManagerConfig()
+	holonManagerConfig.EnableLogging = false // Disable holon logging to reduce noise
+
+	// Create a holon-specific logger that only shows errors
+	holonWorkerLogger := log.NewWithOptions(&customLogWriter{}, log.Options{
+		ReportCaller:    false,
+		ReportTimestamp: true,
+		Level:           log.ErrorLevel, // Only show errors, no info/debug
+		TimeFormat:      time.Kitchen,
+	})
+
+	holonManager := holon.NewManager(input.store, holonManagerConfig, holonWorkerLogger, input.temporalClient, w)
+	holonSyncActivities := holon.NewHolonSyncActivities(holonWorkerLogger, holonManager)
 	holonSyncActivities.RegisterWorkflowsAndActivities(w)
 
 	err := w.Start()
