@@ -17,7 +17,7 @@ export function GlobalIndexingStatus() {
   const hasActiveOperation = isIndexing || isProcessing || isNotStarted || isDownloadingModel
 
   const handleClick = () => {
-    navigate({ to: '/settings/import-data' })
+    navigate({ to: '/settings/data-sources' })
   }
 
   // Only show if there's an active indexing operation
