@@ -6,7 +6,6 @@ import {
   McpServerType
 } from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
-import { Card } from '../ui/card'
 import { Plug } from 'lucide-react'
 import { toast } from 'sonner'
 import { useEffect, useMemo } from 'react'
@@ -68,7 +67,7 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
     )
 
   return (
-    <Card className="flex flex-col max-w-4xl gap-4 mx-auto p-6">
+    <div className="flex flex-col gap-4">
       {header && (
         <div className="flex flex-col gap-2 items-center">
           <Plug className="w-6 h-6 text-primary" />
@@ -96,6 +95,6 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
           </div>
         )}
       </div>
-    </Card>
+    </div>
   )
 }

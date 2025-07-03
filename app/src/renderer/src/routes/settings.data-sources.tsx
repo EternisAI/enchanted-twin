@@ -3,6 +3,7 @@ import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesP
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
 import ConnectMCPServerButton from '@renderer/components/oauth/MCPConnectServerButton'
+import LocalFilesTab from '@renderer/components/data-sources/LocalFilesTab'
 
 export const Route = createFileRoute('/settings/data-sources')({
   component: ImportDataSettings
@@ -22,8 +23,8 @@ function ImportDataSettings() {
 
 function Header() {
   return (
-    <div className="flex flex-col gap-2">
-      <h2 className="text-2xl font-semibold">Data Sources</h2>
+    <div className="flex flex-col gap-4">
+      <h2 className="text-4xl font-semibold">Data Sources</h2>
       <Tabs defaultValue="available">
         <div className="flex flex-row gap-2 w-full justify-between">
           <TabsList>
@@ -38,7 +39,7 @@ function Header() {
           <DataSourcesPanel header={false} />
         </TabsContent>
         <TabsContent value="local-files">
-          <DataSourcesPanel header={false} />
+          <LocalFilesTab />
         </TabsContent>
         <TabsContent value="connected">
           <DataSourcesPanel header={false} />
