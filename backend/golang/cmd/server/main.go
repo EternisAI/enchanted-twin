@@ -436,7 +436,7 @@ func main() {
 		holonService.StopBackgroundProcessing() // Stop the service and wait for cleanup
 	}()
 
-	// Initialize HolonZero API fetcher service
+	// Initialize HolonZero API fetcher service with the main logger
 	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
 	if err := holonManager.Start(); err != nil {
 		logger.Error("Failed to start HolonZero fetcher service", "error", err)
