@@ -1,0 +1,36 @@
+{
+  "storage" : "model.espresso.weights",
+  "analyses" : {
+
+  },
+  "properties" : {
+
+  },
+  "format_version" : 200,
+  "metadata_in_weights" : [
+
+  ],
+  "layers" : [
+    {
+      "has_prelu" : 0,
+      "top" : "output",
+      "has_biases" : 1,
+      "weights" : {
+
+      },
+      "nC" : 1,
+      "blob_weights" : 3,
+      "type" : "inner_product",
+      "has_relu" : 0,
+      "attributes" : {
+        "is_output" : 1
+      },
+      "bottom" : "input",
+      "debug_info" : "linear",
+      "has_tanh" : 0,
+      "blob_biases" : 1,
+      "name" : "linear",
+      "nB" : 1
+    }
+  ]
+}
