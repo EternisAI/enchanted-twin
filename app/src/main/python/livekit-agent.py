@@ -160,10 +160,12 @@ if os.getenv("LIVEKIT_DISABLE_TERMIOS"):
 # Verify required environment variables
 required_env_vars = [
     "CHAT_ID",
-    "TINFOIL_API_KEY",
-    "TINFOIL_AUDIO_URL",
-    "TINFOIL_STT_MODEL",
-    "TINFOIL_TTS_MODEL",
+    "TTS_API_KEY",
+    "TTS_URL",
+    "TTS_MODEL",
+    "STT_API_KEY",
+    "STT_URL",
+    "STT_MODEL",
     "SEND_MESSAGE_URL",
 ]
 
@@ -173,13 +175,13 @@ if missing_vars:
     logger.error("Please create a .env file with the required API keys")
     sys.exit(1)
 
-TTS_API_KEY = os.getenv("TINFOIL_API_KEY")
-TTS_URL = os.getenv("TINFOIL_AUDIO_URL")
-TTS_MODEL = os.getenv("TINFOIL_TTS_MODEL")
+TTS_API_KEY = os.getenv("TTS_API_KEY")
+TTS_URL = os.getenv("PROXY_TEE_URL") or os.getenv("TTS_URL")
+TTS_MODEL = os.getenv("TTS_MODEL")
 
-STT_API_KEY = os.getenv("TINFOIL_API_KEY")
-STT_URL = os.getenv("TINFOIL_AUDIO_URL")
-STT_MODEL = os.getenv("TINFOIL_STT_MODEL")
+STT_API_KEY = os.getenv("STT_API_KEY")
+STT_URL = os.getenv("PROXY_TEE_URL") or os.getenv("STT_URL")
+STT_MODEL = os.getenv("STT_MODEL")
 CHAT_ID = os.getenv("CHAT_ID")
 SEND_MESSAGE_URL = os.getenv("SEND_MESSAGE_URL")
 GREETING = open(os.path.join(os.path.dirname(__file__), "greeting.txt")).read()

@@ -7,10 +7,12 @@ export const GRACEFUL_SHUTDOWN_TIMEOUT_MS = 2000
 export const UV_INSTALL_SCRIPT = 'curl -LsSf https://astral.sh/uv/install.sh | sh'
 
 export const REQUIRED_ENV_VARS = [
-  'TINFOIL_API_KEY',
-  'TINFOIL_AUDIO_URL',
-  'TINFOIL_STT_MODEL',
-  'TINFOIL_TTS_MODEL'
+  'TTS_API_KEY',
+  'TTS_URL',
+  'TTS_MODEL',
+  'STT_API_KEY',
+  'STT_URL',
+  'STT_MODEL'
 ] as const
 
 export const PYTHON_REQUIREMENTS = `livekit==1.0.8
