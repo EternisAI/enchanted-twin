@@ -99,7 +99,11 @@ interface IApi {
   }
   livekit: {
     setup: () => Promise<{ success: boolean; error?: string }>
-    start: (chatId: string, isOnboarding?: boolean) => Promise<{ success: boolean; error?: string }>
+    start: (
+      chatId: string,
+      isOnboarding?: boolean,
+      jwtToken?: string
+    ) => Promise<{ success: boolean; error?: string }>
     stop: () => Promise<{ success: boolean; error?: string }>
     isRunning: () => Promise<boolean>
     isSessionReady: () => Promise<boolean>
@@ -120,9 +124,15 @@ interface IApi {
     set: (key: string, value: unknown) => void
   }
   onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => () => void
-  openMainWindowWithChat: (chatId?: string, initialMessage?: string) => Promise<{ success: boolean; error?: string }>
+  openMainWindowWithChat: (
+    chatId?: string,
+    initialMessage?: string
+  ) => Promise<{ success: boolean; error?: string }>
   onNavigateTo: (callback: (url: string) => void) => () => void
-  resizeOmnibarWindow: (width: number, height: number) => Promise<{ success: boolean; error?: string }>
+  resizeOmnibarWindow: (
+    width: number,
+    height: number
+  ) => Promise<{ success: boolean; error?: string }>
   hideOmnibarWindow: () => Promise<{ success: boolean; error?: string }>
   rendererReady: () => void
   keyboardShortcuts: {
