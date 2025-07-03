@@ -441,7 +441,7 @@ func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath 
 func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	s.logger.Info("Converting records to documents", "records", len(records))
 
-	documents := make([]memory.TextDocument, 0, len(records))
+	documents := make([]memory.FileDocument, 0, len(records))
 	for _, record := range records {
 		metadata := map[string]string{}
 
@@ -481,7 +481,7 @@ func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types
 			}
 		}
 
-		doc := memory.TextDocument{
+		doc := memory.FileDocument{
 			FieldID:        docID,
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,
