@@ -38,7 +38,7 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 declare const __APP_ENV__: Record<string, string>
 
 for (const [key, val] of Object.entries(typeof __APP_ENV__ === 'object' ? __APP_ENV__ : {})) {
-  if (!(key in process.env)) {
+  if (!(key in process.env) && (key.startsWith('TTS') || key.startsWith('STT'))) {
     process.env[key] = val
   }
 }
