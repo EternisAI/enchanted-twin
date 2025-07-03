@@ -79,11 +79,11 @@ jobs:
 
       - name: Build & notarize macOS app
         env:
-          COMPLETIONS_API_URL: 'https://qwen2-5-72b.model.tinfoil.sh/v1'
-          COMPLETIONS_MODEL: 'qwen2-5-72b'
-          REASONING_MODEL: 'qwen2-5-72b'
-          EMBEDDINGS_API_URL: 'https://nomic-embed-text.model.tinfoil.sh/v1'
-          EMBEDDINGS_MODEL: 'nomic-embed-text'
+          COMPLETIONS_API_URL: 'https://openrouter.ai/api/v1'
+          COMPLETIONS_MODEL: 'openai/gpt-4o-mini'
+          REASONING_MODEL: 'openai/gpt-4.1'
+          EMBEDDINGS_API_URL: 'https://api.openai.com/v1'
+          EMBEDDINGS_MODEL: 'text-embedding-3-small'
           IS_PROD_BUILD: 'true'
           NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
           NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
