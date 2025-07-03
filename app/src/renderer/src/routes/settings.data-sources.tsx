@@ -34,8 +34,8 @@ function Header() {
           </TabsList>
           <ConnectMCPServerButton onSuccess={() => {}} />
         </div>
-        <TabsContent value="available">
-          <MCPPanel header={false} />
+        <TabsContent value="available" className="pt-10">
+          <MCPPanel />
           <DataSourcesPanel header={false} />
         </TabsContent>
         <TabsContent value="local-files">
