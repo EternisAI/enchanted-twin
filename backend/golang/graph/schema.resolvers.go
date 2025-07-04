@@ -514,7 +514,6 @@ func (r *mutationResolver) DeleteTrackedFolder(ctx context.Context, id string) (
 		return false, err
 	}
 
-	// Reload DirectoryWatcher to stop watching the removed folder
 	if r.DirectoryWatcher != nil {
 		if err := r.DirectoryWatcher.ReloadTrackedFolders(ctx); err != nil {
 			r.Logger.Warn("Failed to reload tracked folders in DirectoryWatcher", "error", err)
@@ -536,7 +535,6 @@ func (r *mutationResolver) UpdateTrackedFolder(ctx context.Context, id string, i
 		return false, err
 	}
 
-	// Reload DirectoryWatcher to handle enabled/disabled changes
 	if r.DirectoryWatcher != nil {
 		if err := r.DirectoryWatcher.ReloadTrackedFolders(ctx); err != nil {
 			r.Logger.Warn("Failed to reload tracked folders in DirectoryWatcher", "error", err)
