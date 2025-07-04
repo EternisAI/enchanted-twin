@@ -44,19 +44,23 @@ interface IApi {
     setAutoStart: (enabled: boolean) => Promise<any>
   }
   launch: {
-    onProgress: (callback: (data: {
-      dependency: string
-      status: string
-      progress: number
-      error?: string
-    }) => void) => () => void
+    onProgress: (
+      callback: (data: {
+        dependency: string
+        status: string
+        progress: number
+        error?: string
+      }) => void
+    ) => () => void
     notifyReady: () => void
     complete: () => void
     getCurrentState: () => Promise<any>
   }
   onLaunch: (
     channel: 'launch-complete' | 'launch-progress',
-    callback: (data: { dependency: string; status: string; progress: number; error?: string } | void) => void
+    callback: (
+      data: { dependency: string; status: string; progress: number; error?: string } | void
+    ) => void
   ) => void
   analytics: {
     capture: (event: string, properties: Record<string, unknown>) => Promise<void>
@@ -75,7 +79,7 @@ interface IApi {
   }
   livekit: {
     setup: () => Promise<any>
-    start: (chatId: string, isOnboarding?: boolean) => Promise<any>
+    start: (chatId: string, isOnboarding?: boolean, jwtToken?: string) => Promise<any>
     stop: () => Promise<any>
     isRunning: () => Promise<boolean>
     isSessionReady: () => Promise<boolean>
@@ -87,9 +91,15 @@ interface IApi {
     onAgentStateChange: (callback: (data: { state: string }) => void) => () => void
   }
   onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => () => void
-  openMainWindowWithChat: (chatId?: string, initialMessage?: string) => Promise<{ success: boolean; error?: string }>
+  openMainWindowWithChat: (
+    chatId?: string,
+    initialMessage?: string
+  ) => Promise<{ success: boolean; error?: string }>
   onNavigateTo: (callback: (url: string) => void) => () => void
-  resizeOmnibarWindow: (width: number, height: number) => Promise<{ success: boolean; error?: string }>
+  resizeOmnibarWindow: (
+    width: number,
+    height: number
+  ) => Promise<{ success: boolean; error?: string }>
   hideOmnibarWindow: () => Promise<{ success: boolean; error?: string }>
   rendererReady: () => void
   keyboardShortcuts: {
