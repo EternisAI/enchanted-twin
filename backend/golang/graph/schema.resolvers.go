@@ -13,12 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/lnquy/cron"
-	nats "github.com/nats-io/nats.go"
-	common "go.temporal.io/api/common/v1"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -26,6 +20,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	"github.com/google/uuid"
+	"github.com/lnquy/cron"
+	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -239,47 +238,6 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
 }
 
-// ProcessMessageHistory processes a list of messages and saves them to the database.
-func (r *mutationResolver) ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (*model.Message, error) {
-	// Convert input messages to the format expected by the service for logging purposes
-	historyJson, err := json.Marshal(map[string]interface{}{
-		"chatId":     chatID,
-		"messages":   messages,
-		"count":      len(messages),
-		"onboarding": isOnboarding,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	r.Logger.Info("Processing message history", "data", string(historyJson))
-
-	// Only publish the last user message to NATS
-	subject := fmt.Sprintf("chat.%s", chatID)
-	if len(messages) > 0 {
-		lastMsg := messages[len(messages)-1]
-		if lastMsg.Role == model.RoleUser {
-			text := lastMsg.Text
-			userMessageJson, err := json.Marshal(model.Message{
-				ID:        uuid.New().String(),
-				Text:      &text,
-				CreatedAt: time.Now().Format(time.RFC3339),
-				Role:      model.RoleUser,
-			})
-			if err != nil {
-				return nil, err
-			}
-			err = r.Nc.Publish(subject, userMessageJson)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// Process the messages and save them to the database
-	return r.TwinChatService.ProcessMessageHistory(ctx, chatID, messages, isOnboarding)
-}
-
 // DeleteChat is the resolver for the deleteChat field.
 func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*model.Chat, error) {
 	chat, err := r.TwinChatService.GetChat(ctx, chatID)
@@ -454,6 +412,7 @@ func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network
 	return true, nil
 }
 
+// StoreToken is the resolver for the storeToken field.
 func (r *mutationResolver) StoreToken(ctx context.Context, input model.StoreTokenInput) (bool, error) {
 	r.Logger.Info("StoreToken called")
 
@@ -1183,10 +1142,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }
