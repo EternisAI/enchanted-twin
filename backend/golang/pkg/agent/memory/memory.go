@@ -751,6 +751,7 @@ type FileDocument struct {
 	FieldSource    string            `json:"source,omitempty"`
 	FieldTags      []string          `json:"tags,omitempty"`
 	FieldMetadata  map[string]string `json:"metadata,omitempty"`
+	FieldFilePath  string            `json:"file_path,omitempty"`
 }
 
 // Document interface implementation for FileDocument.
@@ -780,6 +781,10 @@ func (fd *FileDocument) Metadata() map[string]string {
 
 func (fd *FileDocument) Source() string {
 	return fd.FieldSource
+}
+
+func (fd *FileDocument) FilePath() string {
+	return fd.FieldFilePath
 }
 
 // Chunk implements intelligent document chunking by reusing TextDocument's proven logic.
@@ -815,6 +820,7 @@ func (fd *FileDocument) Chunk() []Document {
 				FieldSource:    textChunk.FieldSource,
 				FieldTags:      textChunk.FieldTags,
 				FieldMetadata:  textChunk.FieldMetadata,
+				FieldFilePath:  textChunk.FieldFilePath,
 			}
 			fileChunks = append(fileChunks, fileChunk)
 		}
