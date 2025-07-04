@@ -3,6 +3,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -37,10 +38,35 @@ func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 // GetUnindexedDataSources retrieves all active data sources that are not indexed.
 func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE AND state = 'active' ORDER BY created_at DESC`)
+	query := `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE AND state = 'active' ORDER BY created_at DESC`
+
+	// First, let's see what's in the database
+	var allDataSources []*DataSource
+	err := s.db.SelectContext(ctx, &allDataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
+
+	// Log all data sources for debugging
+	for _, ds := range allDataSources {
+		hasError := "NULL"
+		if ds.HasError != nil {
+			hasError = fmt.Sprintf("%v", *ds.HasError)
+		}
+		isIndexed := "NULL"
+		if ds.IsIndexed != nil {
+			isIndexed = fmt.Sprintf("%v", *ds.IsIndexed)
+		}
+		fmt.Printf("DEBUG: DataSource ID=%s, Name=%s, State=%s, HasError=%s, IsIndexed=%s\n",
+			ds.ID, ds.Name, ds.State, hasError, isIndexed)
+	}
+
+	err = s.db.SelectContext(ctx, &dataSources, query)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("DEBUG: Found %d unindexed data sources\n", len(dataSources))
 	return dataSources, nil
 }
 
@@ -136,8 +162,8 @@ func (s *Store) GetDataSourceHistory(ctx context.Context, path string) ([]*DataS
 func (s *Store) CreateDataSourceFromFile(ctx context.Context, input *CreateDataSourceFromFileInput) (string, error) {
 	id := uuid.New().String()
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO data_sources (id, name, path, state, created_at) 
-		VALUES (?, ?, ?, 'active', CURRENT_TIMESTAMP)
+		INSERT INTO data_sources (id, name, path, state, created_at, is_indexed, has_error) 
+		VALUES (?, ?, ?, 'active', CURRENT_TIMESTAMP, FALSE, FALSE)
 	`, id, input.Name, input.Path)
 	if err != nil {
 		return "", err
