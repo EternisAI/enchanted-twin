@@ -9,6 +9,7 @@ import {
 import { auth, firebaseConfig } from '@renderer/lib/firebase'
 import { useMutation } from '@apollo/client'
 import { StoreTokenDocument } from '@renderer/graphql/generated/graphql'
+import { useRouter } from '@tanstack/react-router'
 
 interface AuthContextType {
   user: User | null
@@ -28,8 +29,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null)
   const [waitingForLogin, setWaitingForLogin] = useState(false)
   const [hasUpdatedToken, setHasUpdatedToken] = useState(false)
+  const router = useRouter()
 
-  const [storeToken] = useMutation(StoreTokenDocument)
+  const [storeToken] = useMutation(StoreTokenDocument, {
+    onError: async (error) => {
+      console.error('[Auth] Failed to store token:', error)
+      await new Promise((resolve) => setTimeout(resolve, 3000))
+      router.navigate({ to: '/settings/advanced' })
+    }
+  })
 
   useEffect(() => {
     if (!user) return
