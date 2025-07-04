@@ -238,7 +238,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 	const progressInterval = 10
 
 	for chatIndex, chat := range telegramData.Chats.List {
-
 		chatId := strconv.Itoa(chat.ID)
 		chatMessageCount := len(chat.Messages)
 
