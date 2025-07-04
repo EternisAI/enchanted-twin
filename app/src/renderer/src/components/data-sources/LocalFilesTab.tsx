@@ -27,7 +27,9 @@ export default function LocalFilesTab() {
     const files = Array.from(e.dataTransfer.files)
     if (files.length > 0) {
       try {
-        const filePaths = files.map((file) => window.api.getPathForFile(file.path))
+        const filePaths = files.map((file) =>
+          (window.api.getPathForFile as unknown as (file: File) => string)(file)
+        )
         const copiedPaths = await window.api.copyDroppedFiles(filePaths)
         if (copiedPaths && copiedPaths.length > 0) {
           setSelectedFiles((prev) => [...prev, ...copiedPaths])
