@@ -14,6 +14,8 @@ import HolonThreadContext from '../holon/HolonThreadContext'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Switch } from '../ui/switch'
+import { Button } from '../ui/button'
+import { ArrowDown } from 'lucide-react'
 
 interface ChatViewProps {
   chat: Chat
@@ -23,6 +25,8 @@ export default function ChatView({ chat }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const { isVoiceMode, stopVoiceMode, startVoiceMode } = useVoiceStore()
   const [mounted, setMounted] = useState(false)
+  const [isAtBottom, setIsAtBottom] = useState(true)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 
   const {
     messages,
@@ -97,11 +101,35 @@ export default function ChatView({ chat }: ChatViewProps) {
   })
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: mounted ? 'smooth' : 'instant' })
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const isBottom = entry.isIntersecting
+        setIsAtBottom(isBottom)
+        setShowScrollToBottom(!isBottom)
+      },
+      { threshold: 1.0 }
+    )
+
+    if (bottomRef.current) {
+      observer.observe(bottomRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (isAtBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: mounted ? 'smooth' : 'instant' })
+    }
+
     if (!mounted) {
       setMounted(true)
     }
-  }, [messages, mounted, isVoiceMode])
+  }, [messages, mounted, isVoiceMode, isAtBottom])
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   if (isVoiceMode) {
     return (
@@ -119,7 +147,7 @@ export default function ChatView({ chat }: ChatViewProps) {
   }
 
   return (
-    <div className="flex flex-col h-full w-full items-center">
+    <div className="flex flex-col h-full w-full items-center relative">
       <div className="flex flex-1 flex-col w-full overflow-y-auto ">
         <div className="flex w-full justify-center">
           <div className="flex flex-col max-w-4xl items-center p-4 w-full">
@@ -138,6 +166,15 @@ export default function ChatView({ chat }: ChatViewProps) {
           </div>
         </div>
       </div>
+
+      {/* Scroll to bottom button */}
+      {showScrollToBottom && (
+        <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-10">
+          <Button onClick={scrollToBottom} size="sm" className="rounded-full p-2" variant="outline">
+            <ArrowDown className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
 
       <div className="flex flex-col w-full items-center justify-center px-2">
         <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">

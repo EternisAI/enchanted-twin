@@ -65,7 +65,7 @@ export function UserMessageBubble({
           )}
         </div>
         <div className="flex items-center gap-2 w-full">
-          {showAnonymize && (
+          {showAnonymize && chatPrivacyDict && (
             <button
               onClick={() => setIsAnonymized(!isAnonymized)}
               className="p-1 rounded-md bg-accent cursor-pointer hover:bg-accent/50"
