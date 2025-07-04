@@ -127,7 +127,11 @@ export default function ChatView({ chat }: ChatViewProps) {
               {chat.category === ChatCategory.Holon && chat.holonThreadId && (
                 <HolonThreadContext threadId={chat.holonThreadId} />
               )}
-              <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
+              <MessageList
+                messages={messages}
+                isWaitingTwinResponse={isWaitingTwinResponse}
+                chatPrivacyDict={chat.privacyDictJson}
+              />
               {error && (
                 <div className="py-2 px-4 mt-2 rounded-md border border-red-500 bg-red-500/10 text-red-500">
                   Error: {error}

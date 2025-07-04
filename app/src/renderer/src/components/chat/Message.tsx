@@ -28,18 +28,14 @@ const messageAnimation = {
 
 export function UserMessageBubble({
   message,
-  showAnonymize = false
+  showAnonymize = false,
+  chatPrivacyDict
 }: {
   message: Message
+  chatPrivacyDict: string | null
   showAnonymize?: boolean
 }) {
   const [isAnonymized, setIsAnonymized] = useState(false)
-
-  const privacyDictJson = {
-    Arthur: 'Max',
-    google: 'BigCorp',
-    'san francisco': 'US CITY'
-  }
 
   return (
     <motion.div
@@ -50,7 +46,7 @@ export function UserMessageBubble({
     >
       <div className="flex flex-col gap-1 max-w-md">
         <div className="bg-accent dark:bg-black dark:border dark:border-border text-foreground rounded-lg px-4 py-2 max-w-md relative group">
-          {message.text && <p>{anonymizeText(message.text, privacyDictJson, isAnonymized)}</p>}
+          {message.text && <p>{anonymizeText(message.text, chatPrivacyDict, isAnonymized)}</p>}
           {message.imageUrls.length > 0 && (
             <div className="grid grid-cols-4 gap-y-4 my-2">
               {message.imageUrls.map((url, i) => (
@@ -235,16 +231,14 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
   )
 }
 
-const anonymizeText = (
-  text: string,
-  privacyDictJson: Record<string, string>,
-  isAnonymized: boolean
-) => {
-  if (!isAnonymized) return text
+const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymized: boolean) => {
+  if (!privacyDictJson || !isAnonymized) return text
+
+  const privacyDict = JSON.parse(privacyDictJson) as Record<string, string>
 
   let parts: (string | React.ReactElement)[] = [text]
 
-  Object.entries(privacyDictJson).forEach(([original, replacement]) => {
+  Object.entries(privacyDict).forEach(([original, replacement]) => {
     const regex = new RegExp(`(${original})`, 'gi')
     parts = parts.flatMap((part) => {
       if (typeof part === 'string') {

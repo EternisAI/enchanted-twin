@@ -62,6 +62,7 @@ type Chat {
   category: ChatCategory!
   holonThreadId: String #include this in the system prompt so user does not have to excit. on twinchat.go
   initialMessage: String
+  privacyDictJson: JSON
 }
 
 type Message {
