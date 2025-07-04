@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// MockAnonymizer returns a mock privacy dictionary JSON that accumulates entries over time
+// MockAnonymizer returns a mock privacy dictionary JSON that accumulates entries over time.
 func MockAnonymizer(ctx context.Context, chatID string, message string) (*string, error) {
 	// Base dictionary (starting structure)
 	baseDict := map[string]interface{}{
@@ -60,12 +60,12 @@ func MockAnonymizer(ctx context.Context, chatID string, message string) (*string
 	}
 
 	// Add 2-4 random new entries each time
-	rand.Seed(time.Now().UnixNano())
-	numToAdd := rand.Intn(3) + 2 // 2-4 entries
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	numToAdd := rng.Intn(3) + 2 // 2-4 entries
 
 	for i := 0; i < numToAdd && len(mockEntries) > 0; i++ {
 		// Pick a random entry
-		index := rand.Intn(len(mockEntries))
+		index := rng.Intn(len(mockEntries))
 		entry := mockEntries[index]
 
 		// Add the entry to current dict
@@ -82,7 +82,7 @@ func MockAnonymizer(ctx context.Context, chatID string, message string) (*string
 		"chat_id":      chatID,
 		"last_updated": time.Now().Format(time.RFC3339),
 		"total_rules":  len(currentDict) - 1, // -1 to exclude metadata itself
-		"version":      fmt.Sprintf("v%d", rand.Intn(10)+1),
+		"version":      fmt.Sprintf("v%d", rng.Intn(10)+1),
 	}
 
 	jsonData, err := json.Marshal(currentDict)
