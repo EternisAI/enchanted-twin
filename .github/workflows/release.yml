@@ -93,7 +93,7 @@ jobs:
           TELEGRAM_CHAT_SERVER: "http://54.82.31.213:8080/query"
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          ENCHANTED_MCP_URL: https://enchanted-mcp-dev.up.railway.app
+          ENCHANTED_MCP_URL: https://enchanted-mcp-dev.up.railway.app/mcp
           POSTHOG_API_KEY: phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8
           INVITE_SERVER_URL: http://52.90.4.74:8080
           TTS_MODEL: kokoro
