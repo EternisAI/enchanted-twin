@@ -24,7 +24,7 @@ type DatabaseTokenStore struct {
 	mu       sync.RWMutex
 }
 
-// NewDatabaseTokenStore creates a new DatabaseTokenStore
+// NewDatabaseTokenStore creates a new DatabaseTokenStore.
 func NewDatabaseTokenStore(store *db.Store, identifier string) *DatabaseTokenStore {
 	provider := "mcp"
 
@@ -35,7 +35,7 @@ func NewDatabaseTokenStore(store *db.Store, identifier string) *DatabaseTokenSto
 	}
 }
 
-// GetToken retrieves a token by username from the database
+// GetToken retrieves a token by username from the database.
 func (s *DatabaseTokenStore) GetToken() (*mcpclient.Token, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -67,7 +67,7 @@ func (s *DatabaseTokenStore) GetToken() (*mcpclient.Token, error) {
 	return mcpToken, nil
 }
 
-// SaveToken saves a token to the database
+// SaveToken saves a token to the database.
 func (s *DatabaseTokenStore) SaveToken(token *mcpclient.Token) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
