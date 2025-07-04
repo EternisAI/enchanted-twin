@@ -40,14 +40,12 @@ func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, err
 	var dataSources []*DataSource
 	query := `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE AND state = 'active' ORDER BY created_at DESC`
 
-	// First, let's see what's in the database
 	var allDataSources []*DataSource
 	err := s.db.SelectContext(ctx, &allDataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
 
-	// Log all data sources for debugging
 	for _, ds := range allDataSources {
 		hasError := "NULL"
 		if ds.HasError != nil {
@@ -66,7 +64,6 @@ func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, err
 		return nil, err
 	}
 
-	fmt.Printf("DEBUG: Found %d unindexed data sources\n", len(dataSources))
 	return dataSources, nil
 }
 
