@@ -3,14 +3,9 @@ import { useRef, useEffect, useState } from 'react'
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
 import { Chat, ChatCategory } from '@renderer/graphql/generated/graphql'
-import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
-import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
-import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
-import { usePrivacyDictUpdate } from '@renderer/hooks/usePrivacyDictUpdate'
 import VoiceModeChatView from './voice/ChatVoiceModeView'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { useChat } from '@renderer/contexts/ChatContext'
-import { Role } from '@renderer/graphql/generated/graphql'
 import HolonThreadContext from '../holon/HolonThreadContext'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
@@ -34,74 +29,9 @@ export default function ChatView({ chat }: ChatViewProps) {
     activeToolCalls,
     historicToolCalls,
     sendMessage,
-    upsertMessage,
-    updateToolCallInMessage,
     setIsWaitingTwinResponse,
-    setIsReasonSelected,
-    setActiveToolCalls,
-    updatePrivacyDict
+    setIsReasonSelected
   } = useChat()
-
-  useMessageSubscription(chat.id, (message) => {
-    if (message.role !== Role.User) {
-      upsertMessage(message)
-      window.api.analytics.capture('message_received', {
-        tools: message.toolCalls.map((tool) => tool.name)
-      })
-    }
-
-    // Messages on voice mode are sent by python code via livekit
-    if (message.role === Role.User && isVoiceMode) {
-      upsertMessage(message)
-      window.api.analytics.capture('voice_message_sent', {
-        tools: message.toolCalls.map((tool) => tool.name)
-      })
-    }
-  })
-
-  useMessageStreamSubscription(chat.id, (messageId, chunk, isComplete, imageUrls) => {
-    const existingMessage = messages.find((m) => m.id === messageId)
-    if (!existingMessage) {
-      upsertMessage({
-        id: messageId,
-        text: chunk ?? '',
-        role: Role.Assistant,
-        createdAt: new Date().toISOString(),
-        imageUrls: imageUrls ?? [],
-        toolCalls: [],
-        toolResults: []
-      })
-    } else {
-      const allImageUrls = existingMessage.imageUrls.concat(imageUrls ?? [])
-      const updatedMessage = {
-        ...existingMessage,
-        text: (existingMessage.text ?? '') + (chunk ?? ''),
-        imageUrls: allImageUrls
-      }
-      upsertMessage(updatedMessage)
-    }
-
-    setIsWaitingTwinResponse(false)
-  })
-
-  useToolCallUpdate(chat.id, (toolCall) => {
-    updateToolCallInMessage(toolCall)
-
-    // Update active tool calls
-    setActiveToolCalls((prev) => {
-      const existingIndex = prev.findIndex((tc) => tc.id === toolCall.id)
-      if (existingIndex !== -1) {
-        const updated = [...prev]
-        updated[existingIndex] = { ...updated[existingIndex], ...toolCall }
-        return updated
-      }
-      return [...prev, toolCall]
-    })
-  })
-
-  usePrivacyDictUpdate(chat.id, (privacyDict) => {
-    updatePrivacyDict(privacyDict)
-  })
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: mounted ? 'smooth' : 'instant' })
@@ -121,6 +51,7 @@ export default function ChatView({ chat }: ChatViewProps) {
         onSendMessage={sendMessage}
         isWaitingTwinResponse={isWaitingTwinResponse}
         error={error}
+        chatPrivacyDict={privacyDict}
       />
     )
   }

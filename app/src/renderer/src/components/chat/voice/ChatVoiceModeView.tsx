@@ -23,6 +23,7 @@ interface VoiceModeChatViewProps {
   stopVoiceMode: () => void
   error: string
   isWaitingTwinResponse: boolean
+  chatPrivacyDict: string | null
 }
 
 export default function VoiceModeChatView({
@@ -31,7 +32,8 @@ export default function VoiceModeChatView({
   activeToolCalls,
   historicToolCalls,
   stopVoiceMode,
-  error
+  error,
+  chatPrivacyDict
 }: VoiceModeChatViewProps) {
   const { isAgentSpeaking } = useVoiceAgent()
 
@@ -72,7 +74,7 @@ export default function VoiceModeChatView({
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
             >
-              <UserMessageBubble message={lastUserMessage} />
+              <UserMessageBubble message={lastUserMessage} chatPrivacyDict={chatPrivacyDict} />
             </motion.div>
           )}
           {error && (

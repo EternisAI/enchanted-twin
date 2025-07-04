@@ -223,7 +223,7 @@ function VoiceOnboarding() {
                 transition={{ duration: 0.3, ease: 'easeOut' }}
                 className="z-1"
               >
-                <UserMessageBubble message={lastMessage} />
+                <UserMessageBubble message={lastMessage} chatPrivacyDict={null} />
               </motion.div>
             )}
 
