@@ -136,8 +136,8 @@ func (s *Store) GetDataSourceHistory(ctx context.Context, path string) ([]*DataS
 func (s *Store) CreateDataSourceFromFile(ctx context.Context, input *CreateDataSourceFromFileInput) (string, error) {
 	id := uuid.New().String()
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO data_sources (id, name, path) 
-		VALUES (?, ?, ?)
+		INSERT INTO data_sources (id, name, path, state, created_at) 
+		VALUES (?, ?, ?, 'active', CURRENT_TIMESTAMP)
 	`, id, input.Name, input.Path)
 	if err != nil {
 		return "", err
