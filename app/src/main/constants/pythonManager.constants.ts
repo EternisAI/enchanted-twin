@@ -6,15 +6,6 @@ export const GRACEFUL_SHUTDOWN_TIMEOUT_MS = 2000
 
 export const UV_INSTALL_SCRIPT = 'curl -LsSf https://astral.sh/uv/install.sh | sh'
 
-export const REQUIRED_ENV_VARS = [
-  'TTS_API_KEY',
-  'TTS_URL',
-  'TTS_MODEL',
-  'STT_API_KEY',
-  'STT_URL',
-  'STT_MODEL'
-] as const
-
 export const PYTHON_REQUIREMENTS = `livekit==1.0.8
 livekit-agents==1.0.23
 livekit-plugins-openai==1.0.23

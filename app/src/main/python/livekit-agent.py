@@ -160,10 +160,8 @@ if os.getenv("LIVEKIT_DISABLE_TERMIOS"):
 # Verify required environment variables
 required_env_vars = [
     "CHAT_ID",
-    "TTS_API_KEY",
     "TTS_URL",
     "TTS_MODEL",
-    "STT_API_KEY",
     "STT_URL",
     "STT_MODEL",
     "SEND_MESSAGE_URL",
