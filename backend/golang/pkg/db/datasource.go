@@ -3,7 +3,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -44,19 +43,6 @@ func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, err
 	err := s.db.SelectContext(ctx, &allDataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
-	}
-
-	for _, ds := range allDataSources {
-		hasError := "NULL"
-		if ds.HasError != nil {
-			hasError = fmt.Sprintf("%v", *ds.HasError)
-		}
-		isIndexed := "NULL"
-		if ds.IsIndexed != nil {
-			isIndexed = fmt.Sprintf("%v", *ds.IsIndexed)
-		}
-		fmt.Printf("DEBUG: DataSource ID=%s, Name=%s, State=%s, HasError=%s, IsIndexed=%s\n",
-			ds.ID, ds.Name, ds.State, hasError, isIndexed)
 	}
 
 	err = s.db.SelectContext(ctx, &dataSources, query)

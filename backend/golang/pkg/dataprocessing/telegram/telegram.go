@@ -238,11 +238,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 	const progressInterval = 10
 
 	for chatIndex, chat := range telegramData.Chats.List {
-		// if chat.Type == "private_supergroup" {
-		// 	s.logger.Info("Skipping private_supergroup chat", "chatId", chat.ID, "chatName", chat.Name)
-		// 	processedChats++
-		// 	continue
-		// }
 
 		chatId := strconv.Itoa(chat.ID)
 		chatMessageCount := len(chat.Messages)

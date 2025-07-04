@@ -188,7 +188,6 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 	renamePairs := dw.identifyRenamePairs(events)
 
 	for oldPath, newPath := range renamePairs {
-
 		if err := dw.processRenameEventWithNewPath(oldPath, newPath); err != nil {
 			dw.logger.Error("Failed to process rename pair", "error", err, "oldPath", oldPath, "newPath", newPath)
 		}
@@ -539,7 +538,7 @@ func (dw *DirectoryWatcher) processRenameEvent(filePath string) error {
 	return dw.processNewFile(absPath)
 }
 
-// processRenameEventWithNewPath handles rename when we know both old and new paths
+// processRenameEventWithNewPath handles rename when we know both old and new paths.
 func (dw *DirectoryWatcher) processRenameEventWithNewPath(oldPath, newPath string) error {
 	ctx := context.Background()
 
@@ -617,7 +616,7 @@ func (dw *DirectoryWatcher) processRenameEventWithNewPath(oldPath, newPath strin
 	return nil
 }
 
-// processFileRename handles the actual rename operation by updating database and memory
+// processFileRename handles the actual rename operation by updating database and memory.
 func (dw *DirectoryWatcher) processFileRename(oldPath, newPath string) error {
 	ctx := context.Background()
 
@@ -660,7 +659,7 @@ func (dw *DirectoryWatcher) processFileRename(oldPath, newPath string) error {
 	return nil
 }
 
-// couldBeRenamedFile checks if the new file could be a renamed version of the old file
+// couldBeRenamedFile checks if the new file could be a renamed version of the old file.
 func (dw *DirectoryWatcher) couldBeRenamedFile(oldPath, newPath, dataSourceType string) bool {
 	// Check if both files have the same extension
 	oldExt := strings.ToLower(filepath.Ext(oldPath))
