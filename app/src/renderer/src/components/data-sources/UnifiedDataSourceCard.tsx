@@ -1,9 +1,8 @@
-import { CheckCircle2, Loader2, Play, RefreshCw, Clock, AlertCircle } from 'lucide-react'
+import { CheckCircle2, Loader2, Play, RefreshCw, Clock, AlertCircle, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { Button } from '../ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { Progress } from '../ui/progress'
-import { Badge } from '../ui/badge'
 import { DataSource, PendingDataSource, IndexedDataSource } from './types'
 import { estimateRemainingTime } from './utils'
 import { useIndexingStore } from '@renderer/stores/indexingStore'
@@ -71,135 +70,122 @@ export const UnifiedDataSourceCard = ({
   const canImport = !isImporting && !isGlobalProcessing && !importingSource && !isBeingProcessed
 
   return (
-    <div className="hover:bg-muted rounded-md p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div className="flex-1 flex flex-col gap-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            {source.icon}
-            <div>
-              <h3 className="font-medium">{source.label}</h3>
-              <p className="text-sm text-muted-foreground">{source.description}</p>
-            </div>
-          </div>
+    <div className="p-4 w-full">
+      <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-5">
+        <div className="flex items-center gap-5">
+          <div className="w-10 h-10 flex items-center justify-center">{source.icon}</div>
+          <span className="font-semibold text-lg leading-none">{source.label}</span>
         </div>
-
-        {/* Status Section */}
-        <div className="flex flex-col gap-2">
-          {/* Previous imports */}
+        <div className="flex items-center gap-2">
+          {/* Show status badges and button */}
           {latestIndexedSource && !importingSource && !pendingSource && (
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-primary" />
-                <span className="text-muted-foreground">Last imported</span>
-              </div>
-              <TooltipProvider>
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger>
-                    <span className="text-muted-foreground">
-                      {format(latestIndexedSource.updatedAt, 'MMM d, yyyy')}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{format(latestIndexedSource.updatedAt, 'h:mm a')}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400 bg-green-500/20 rounded-full p-1" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Last imported {format(latestIndexedSource.updatedAt, 'MMM d, yyyy')}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
 
-          {/* Pending selection */}
-          {pendingSource && !importingSource && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Ready to import
-                </Badge>
-                {(pendingSource.fileSize || fileSize) && source.name === 'WhatsApp' && (
-                  <span className="text-xs text-muted-foreground">
-                    {estimateRemainingTime(
-                      source.name,
-                      0,
-                      undefined,
-                      pendingSource.fileSize || fileSize
-                    )}
-                  </span>
-                )}
-              </div>
-              <Button variant="ghost" size="sm" onClick={onRemovePending} className="h-7 text-xs">
-                Remove
-              </Button>
-            </div>
-          )}
-
-          {/* Importing status */}
+          {/* Importing status inline */}
           {(importingSource || isBeingProcessed) && !isStuck && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span>
-                    {importingSource?.isProcessed
-                      ? `Indexing ${Math.round(importingSource.indexProgress ?? 0)}%`
-                      : 'Processing'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  <span className="text-xs">
-                    {estimateRemainingTime(source.name, progress, importStartTime, fileSize)}
-                  </span>
-                </div>
-              </div>
-              <Progress value={progress} className="h-1.5" />
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">
+                {importingSource?.isProcessed
+                  ? `Indexing ${Math.round(importingSource.indexProgress ?? 0)}%`
+                  : 'Processing'}
+              </span>
             </div>
           )}
 
-          {/* Stuck status */}
-          {isStuck && (
-            <div className="flex items-center gap-2 text-sm text-amber-600">
-              <AlertCircle className="h-4 w-4" />
-              <span>Import appears to be stuck</span>
-            </div>
-          )}
+          {/* Error state inline */}
+          {hasError && !importingSource && <AlertCircle className="w-5 h-5 text-destructive" />}
 
-          {/* Error state */}
-          {hasError && !importingSource && (
-            <div className="flex items-center gap-2 text-sm text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              <span>Import failed</span>
-            </div>
+          {/* Stuck status inline */}
+          {isStuck && <AlertCircle className="w-5 h-5 text-amber-600" />}
+
+          {/* Action button */}
+          <Button
+            variant={pendingSource ? 'default' : 'outline'}
+            size="sm"
+            onClick={pendingSource ? onStartImport : () => onSelect(source)}
+            disabled={!canImport}
+          >
+            {importingSource || isBeingProcessed ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Importing...
+              </>
+            ) : pendingSource ? (
+              <>
+                Start Import
+                <Play className="ml-2 h-4 w-4" />
+              </>
+            ) : latestIndexedSource ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Import Again
+              </>
+            ) : (
+              <>Import</>
+            )}
+          </Button>
+
+          {/* Remove button for pending sources */}
+          {pendingSource && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive rounded-full"
+                    onClick={onRemovePending}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Remove pending import</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
       </div>
 
-      {/* Action button */}
-      <Button
-        variant={pendingSource ? 'default' : 'outline'}
-        size="sm"
-        onClick={pendingSource ? onStartImport : () => onSelect(source)}
-        disabled={!canImport}
-        className="w-full sm:w-auto"
-      >
-        {importingSource || isBeingProcessed ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Importing...
-          </>
-        ) : pendingSource ? (
-          <>
-            Start Import
-            <Play className="ml-2 h-4 w-4" />
-          </>
-        ) : latestIndexedSource ? (
-          <>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Import Again
-          </>
-        ) : (
-          <>Import</>
+      {/* Progress bar and additional info moved below main row */}
+      {(importingSource || isBeingProcessed) && !isStuck && (
+        <div className="mt-3 px-4">
+          <Progress value={progress} className="h-1.5" />
+          {startTimeMs && (
+            <div className="flex items-center gap-1 text-muted-foreground mt-1">
+              <Clock className="h-3 w-3" />
+              <span className="text-xs">
+                {estimateRemainingTime(source.name, progress, importStartTime, fileSize)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pending file info */}
+      {pendingSource &&
+        !importingSource &&
+        (pendingSource.fileSize || fileSize) &&
+        source.name === 'WhatsApp' && (
+          <div className="mt-2 px-4">
+            <span className="text-xs text-muted-foreground">
+              Estimated time:{' '}
+              {estimateRemainingTime(source.name, 0, undefined, pendingSource.fileSize || fileSize)}
+            </span>
+          </div>
         )}
-      </Button>
     </div>
   )
 }
