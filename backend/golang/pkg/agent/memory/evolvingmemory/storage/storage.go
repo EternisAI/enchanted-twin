@@ -429,7 +429,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				sourceProperty,
 				factCategoryProperty, factSubjectProperty, factAttributeProperty,
 				factValueProperty, factTemporalContextProperty, factSensitivityProperty,
-				factImportanceProperty,
+				factImportanceProperty, factFilePathProperty,
 			}
 
 			needsUpdate := false
@@ -1660,6 +1660,7 @@ func (s *WeaviateStorage) GetFactsByIDs(ctx context.Context, factIDs []string) (
 		{Name: factTemporalContextProperty},
 		{Name: factSensitivityProperty},
 		{Name: factImportanceProperty},
+		{Name: factFilePathProperty},
 		{
 			Name: "_additional",
 			Fields: []weaviateGraphql.Field{

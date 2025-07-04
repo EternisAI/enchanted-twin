@@ -94,7 +94,6 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			memoryFact.ID = uuid.New().String()
 			memoryFact.Source = sourceDoc.Source()
 
-			// NEW: Preserve FilePath if source document has one
 			if filePath := sourceDoc.FilePath(); filePath != "" {
 				memoryFact.FilePath = filePath
 			}
@@ -216,7 +215,6 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 				memoryFact.DocumentReferences = []string{sourceDoc.ID()}
 			}
 
-			// NEW: Preserve FilePath if source document has one
 			if filePath := sourceDoc.FilePath(); filePath != "" {
 				memoryFact.FilePath = filePath
 			}
