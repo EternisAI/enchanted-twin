@@ -282,15 +282,6 @@ func (s *service) ConnectMCPServer(
 		}
 	}
 
-	// Only start HTTP clients, stdio clients auto-start
-	if command == "url" {
-		err = mcpClient.Start(ctx)
-		if err != nil {
-			log.Error("Error starting mcp client", "error", err)
-			return nil, err
-		}
-	}
-
 	// Use the initialized client as an MCPClient interface
 	clientInterface := mcpClient
 
