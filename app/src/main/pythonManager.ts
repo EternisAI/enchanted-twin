@@ -347,10 +347,8 @@ export class LiveKitAgentBootstrap {
         CHAT_ID: chatId,
         FAKE_INIT: initialising,
         FIREBASE_JWT_TOKEN: jwtToken || '', // Pass JWT token as environment variable
-        TTS_API_KEY: process.env.TTS_API_KEY,
         TTS_URL: process.env.TTS_URL,
         TTS_MODEL: process.env.TTS_MODEL,
-        STT_API_KEY: process.env.STT_API_KEY,
         STT_URL: process.env.STT_URL,
         STT_MODEL: process.env.STT_MODEL,
         SEND_MESSAGE_URL: `http://localhost:44999/query`,
