@@ -22,6 +22,7 @@ interface ChatViewProps {
 }
 
 export default function ChatView({ chat }: ChatViewProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const { isVoiceMode, stopVoiceMode, startVoiceMode } = useVoiceStore()
   const [mounted, setMounted] = useState(false)
@@ -100,35 +101,33 @@ export default function ChatView({ chat }: ChatViewProps) {
     })
   })
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        const isBottom = entry.isIntersecting
-        setIsAtBottom(isBottom)
-        setShowScrollToBottom(!isBottom)
-      },
-      { threshold: 1.0 }
-    )
-
-    if (bottomRef.current) {
-      observer.observe(bottomRef.current)
-    }
-
-    return () => observer.disconnect()
-  }, [])
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20
+    setIsAtBottom(atBottom)
+    setShowScrollToBottom(!atBottom)
+  }
 
   useEffect(() => {
-    if (isAtBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: mounted ? 'smooth' : 'instant' })
-    }
+    const container = containerRef.current
+    if (!container) return
 
+    const scrollOptions = { top: container.scrollHeight }
     if (!mounted) {
+      container.scrollTo({ ...scrollOptions, behavior: 'instant' })
       setMounted(true)
+    } else if (isAtBottom) {
+      container.scrollTo({ ...scrollOptions, behavior: 'smooth' })
     }
-  }, [messages, mounted, isVoiceMode, isAtBottom])
+  }, [messages, mounted, isAtBottom])
 
   const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (containerRef.current) {
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: 'smooth'
+      })
+    }
   }
 
   if (isVoiceMode) {
@@ -148,7 +147,11 @@ export default function ChatView({ chat }: ChatViewProps) {
 
   return (
     <div className="flex flex-col h-full w-full items-center relative">
-      <div className="flex flex-1 flex-col w-full overflow-y-auto ">
+      <div
+        ref={containerRef}
+        onScroll={onScroll}
+        className="flex flex-1 flex-col w-full overflow-y-auto"
+      >
         <div className="flex w-full justify-center">
           <div className="flex flex-col max-w-4xl items-center p-4 w-full">
             <div className="w-full flex flex-col gap-2">
@@ -161,7 +164,7 @@ export default function ChatView({ chat }: ChatViewProps) {
                   Error: {error}
                 </div>
               )}
-              <div ref={bottomRef} />
+              <div ref={bottomRef} className="h-8" />
             </div>
           </div>
         </div>
@@ -169,7 +172,7 @@ export default function ChatView({ chat }: ChatViewProps) {
 
       {/* Scroll to bottom button */}
       {showScrollToBottom && (
-        <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-10">
+        <div className="absolute bottom-30 left-1/2 transform -translate-x-1/2 z-10">
           <Button onClick={scrollToBottom} size="sm" className="rounded-full p-2" variant="outline">
             <ArrowDown className="w-4 h-4" />
           </Button>
