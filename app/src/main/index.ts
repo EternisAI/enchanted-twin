@@ -85,6 +85,9 @@ app.whenReady().then(async () => {
   // Register global shortcuts from store
   registerStoredShortcuts()
 
+  // Setup LiveKit cleanup on renderer issues
+  setupLiveKitCleanup(mainWindow)
+
   // startKokoro(mainWindow)
   startLiveKitSetup(mainWindow)
   autoStartScreenpipeIfEnabled()
@@ -148,3 +151,32 @@ app.on('will-quit', async () => {
   await cleanupLiveKitAgent()
   cleanupScreenpipe()
 })
+
+// Simple rule: Non-voice mode = no process should live
+function setupLiveKitCleanup(mainWindow: Electron.BrowserWindow) {
+  // Any renderer issue = stop process (keep agent ready)
+  mainWindow.webContents.on('render-process-gone', async (_event, details) => {
+    log.error(`Renderer process gone: ${details.reason} - stopping LiveKit process`)
+    const { stopLiveKitAgent } = await import('./livekitManager')
+    await stopLiveKitAgent()
+  })
+
+  // Page refresh = stop process (keep agent ready)
+  mainWindow.webContents.on(
+    'did-start-navigation',
+    async (_event, _url, isInPlace, isMainFrame) => {
+      if (isMainFrame && isInPlace) {
+        log.info('Page refresh - stopping LiveKit process')
+        const { stopLiveKitAgent } = await import('./livekitManager')
+        await stopLiveKitAgent()
+      }
+    }
+  )
+
+  // Window close = stop process (keep agent ready)
+  mainWindow.on('close', async () => {
+    log.info('Window closing - stopping LiveKit process')
+    const { stopLiveKitAgent } = await import('./livekitManager')
+    await stopLiveKitAgent()
+  })
+}
