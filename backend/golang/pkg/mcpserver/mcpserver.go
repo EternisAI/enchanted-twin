@@ -243,7 +243,8 @@ func (s *service) ConnectMCPServer(
 			Name:    "enchanted-twin-mcp-client",
 			Version: "1.0.0",
 		}
-		_, err = mcpClient.Initialize(ctx, initRequest)
+		// Initialize the connection and get the server info (name, version)
+		r, err := mcpClient.Initialize(ctx, initRequest)
 		if err != nil {
 			// If requires authorization, handle it, again
 			if mcpclient.IsOAuthAuthorizationRequiredError(err) {
@@ -251,7 +252,7 @@ func (s *service) ConnectMCPServer(
 				if err != nil {
 					return nil, fmt.Errorf("failed to complete OAuth authorization: %w", err)
 				}
-				_, err = mcpClient.Initialize(ctx, initRequest)
+				r, err = mcpClient.Initialize(ctx, initRequest)
 				if err != nil {
 					return nil, fmt.Errorf("failed to initialize HTTP MCP client after OAuth: %w", err)
 				}
@@ -259,6 +260,9 @@ func (s *service) ConnectMCPServer(
 				return nil, fmt.Errorf("failed to initialize HTTP MCP client: %w", err)
 			}
 		}
+		// Get the actual name of the MCP server
+		// This shows up in the UI now
+		input.Name = r.ServerInfo.Name
 	} else {
 		// Convert envs to string slice
 		envStrings := make([]string, len(transportEnvs))
