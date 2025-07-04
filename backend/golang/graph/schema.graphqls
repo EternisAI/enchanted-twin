@@ -181,6 +181,7 @@ type Subscription {
     isOnboarding: Boolean! = False
   ): MessageStreamPayload!
   whatsAppSyncStatus: WhatsAppSyncStatus!
+  privacyDictUpdated(chatId: ID!): PrivacyDictUpdate!
 }
 
 type WhatsAppSyncStatus {
@@ -298,6 +299,11 @@ type WhatsAppQRCodeUpdate {
   event: String!
   timestamp: DateTime!
   isConnected: Boolean!
+}
+
+type PrivacyDictUpdate {
+  chatId: ID!
+  privacyDictJson: JSON!
 }
 
 type AgentTask {
