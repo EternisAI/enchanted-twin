@@ -81,10 +81,9 @@ func (s *Service) Start(ctx context.Context) error {
 
 	s.logger.Info("Starting WhatsApp service...")
 
-	s.wg.Add(4)
+	s.wg.Add(3)
 	go s.safeGoroutine("handleQRCodeEvents", s.handleQRCodeEvents)
 	go s.safeGoroutine("bootstrapClient", s.bootstrapClient)
-	go s.safeGoroutine("triggerAutoConnect", s.triggerAutoConnect)
 	go s.safeGoroutine("registerToolsWhenReady", s.registerToolsWhenReady)
 
 	s.started = true
@@ -315,22 +314,7 @@ func (s *Service) bootstrapClient() {
 	}
 }
 
-func (s *Service) triggerAutoConnect() {
-	select {
-	case <-time.After(100 * time.Millisecond):
-	case <-s.ctx.Done():
-		return
-	}
 
-	select {
-	case s.connectChan <- struct{}{}:
-		s.logger.Info("Sent automatic WhatsApp connect signal on startup")
-	case <-s.ctx.Done():
-		return
-	default:
-		s.logger.Debug("WhatsApp connect channel already has a signal")
-	}
-}
 
 func (s *Service) registerToolsWhenReady() {
 	s.logger.Info("Waiting for WhatsApp client to register tool...")
