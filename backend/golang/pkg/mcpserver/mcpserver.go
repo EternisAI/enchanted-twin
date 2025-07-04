@@ -201,7 +201,9 @@ func (s *service) ConnectMCPServer(
 	var mcpClient *mcpclient.Client
 
 	if command == "url" {
-		tokenStore := mcpclient.NewMemoryTokenStore()
+		// Store tokens in the database so that they are persisted across restarts.
+		// The URL is used as the username to identify the token.
+		tokenStore := NewDatabaseTokenStore(s.store, input.Args[0])
 		oauthConfig := mcpclient.OAuthConfig{
 			// The client ID can be set if dynamic clients are not used or if
 			// the MCP server itself acts as the client like Freysa Video MCP
@@ -490,7 +492,9 @@ func (s *service) LoadMCP(ctx context.Context) error {
 
 		var mcpClient *mcpclient.Client
 		if command == "url" {
-			tokenStore := mcpclient.NewMemoryTokenStore()
+			// Retrieve the token from the database if it exists.
+			// If not, get a token and save it to the database.
+			tokenStore := NewDatabaseTokenStore(s.store, server.Args[0])
 			oauthConfig := mcpclient.OAuthConfig{
 				ClientID:     os.Getenv("MCP_CLIENT_ID"),
 				ClientSecret: os.Getenv("MCP_CLIENT_SECRET"),
