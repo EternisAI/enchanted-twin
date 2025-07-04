@@ -297,6 +297,9 @@ export class LiveKitAgentBootstrap {
       this.updateProgress(PROGRESS_STEPS.DEPENDENCIES, 'Installing dependencies')
       await this.ensureDeps()
 
+      this.updateProgress(PROGRESS_STEPS.INITIALIZATION, 'Initializing agent')
+      await this.startAgent('FAKE_CHAT_ID', false, true, undefined)
+
       this.updateProgress(PROGRESS_STEPS.COMPLETE, 'Ready')
 
       log.info('[LiveKit] LiveKit Agent setup completed successfully')
@@ -391,6 +394,11 @@ export class LiveKitAgentBootstrap {
   async stopAgent() {
     if (!this.agentProc) {
       log.warn('[LiveKit] No agent process to stop')
+      return
+    }
+
+    if (this.latestProgress.progress !== PROGRESS_STEPS.COMPLETE) {
+      log.warn('[LiveKit] Agent process is not really running.')
       return
     }
 
