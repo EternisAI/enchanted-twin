@@ -119,19 +119,22 @@ func (dw *DirectoryWatcher) eventLoop() {
 
 func (dw *DirectoryWatcher) handleFileEvent(event fsnotify.Event) {
 	if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
+		dw.logger.Debug("Ignoring directory event", "path", event.Name, "op", event.Op.String())
 		return
 	}
 
 	fileName := filepath.Base(event.Name)
 	if strings.HasPrefix(fileName, ".") || strings.HasSuffix(fileName, ".tmp") {
+		dw.logger.Debug("Ignoring hidden or temporary file", "path", event.Name, "op", event.Op.String())
 		return
 	}
 
 	if !dw.isSupportedFile(event.Name) {
+		dw.logger.Debug("Ignoring unsupported file type", "path", event.Name, "op", event.Op.String())
 		return
 	}
 
-	dw.logger.Debug("File event", "path", event.Name, "op", event.Op.String())
+	dw.logger.Debug("File event accepted for processing", "path", event.Name, "op", event.Op.String())
 
 	dw.bufferFileEvent(&FileEvent{
 		Path:      event.Name,
@@ -144,13 +147,19 @@ func (dw *DirectoryWatcher) bufferFileEvent(event *FileEvent) {
 	dw.bufferMu.Lock()
 	defer dw.bufferMu.Unlock()
 
+	dw.logger.Debug("Buffering file event", "path", event.Path, "operation", event.Operation)
+
 	dw.fileBuffer[event.Path] = event
+	dw.logger.Debug("File buffer status", "totalBuffered", len(dw.fileBuffer), "path", event.Path)
 
 	if dw.bufferTimer != nil {
+		dw.logger.Debug("Stopping existing buffer timer")
 		dw.bufferTimer.Stop()
 	}
 
+	dw.logger.Debug("Starting new buffer timer", "duration", dw.bufferDuration)
 	dw.bufferTimer = time.AfterFunc(dw.bufferDuration, func() {
+		dw.logger.Debug("Buffer timer expired, processing events")
 		dw.processBatchedEvents()
 	})
 }
@@ -165,25 +174,32 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 	dw.bufferMu.Unlock()
 
 	if len(events) == 0 {
+		dw.logger.Debug("No events to process in batch")
 		return
 	}
 
 	dw.logger.Info("Processing batched file events", "count", len(events))
 
 	for _, event := range events {
-		if strings.Contains(event.Operation, "CREATE") || strings.Contains(event.Operation, "WRITE") {
+		dw.logger.Debug("Processing event", "path", event.Path, "operation", event.Operation, "timestamp", event.Timestamp)
+
+		if strings.Contains(event.Operation, "CREATE") || strings.Contains(event.Operation, "WRITE") || strings.Contains(event.Operation, "CHMOD") {
+			dw.logger.Debug("Handling as new/modified file", "path", event.Path, "operation", event.Operation)
 			if err := dw.processNewFile(event.Path); err != nil {
 				dw.logger.Error("Failed to process new file", "error", err, "path", event.Path)
 			}
 		} else if strings.Contains(event.Operation, "REMOVE") {
+			dw.logger.Debug("Handling as removed file", "path", event.Path, "operation", event.Operation)
 			if err := dw.processRemovedFile(event.Path); err != nil {
 				dw.logger.Error("Failed to process removed file", "error", err, "path", event.Path)
 			}
 		} else if strings.Contains(event.Operation, "RENAME") {
-			// Handle RENAME events - on macOS, file deletions often appear as RENAME
+			dw.logger.Debug("Handling as rename event", "path", event.Path, "operation", event.Operation)
 			if err := dw.processRenameEvent(event.Path); err != nil {
 				dw.logger.Error("Failed to process rename event", "error", err, "path", event.Path)
 			}
+		} else {
+			dw.logger.Warn("Unhandled file event operation", "path", event.Path, "operation", event.Operation)
 		}
 	}
 
@@ -203,11 +219,22 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 
 	dw.logger.Debug("Processing new file", "originalPath", filePath, "absolutePath", absPath)
 
+	// Check if file still exists
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		dw.logger.Warn("File no longer exists, skipping processing", "path", absPath)
+		return nil
+	} else if err != nil {
+		dw.logger.Error("Failed to check file existence", "error", err, "path", absPath)
+		return errors.Wrap(err, "failed to check file existence")
+	}
+
 	exists, err := dw.store.ActiveDataSourceExistsByPath(ctx, absPath)
 	if err != nil {
 		dw.logger.Error("Failed to check if active data source exists", "error", err, "path", absPath)
 		return errors.Wrap(err, "failed to check if active data source exists")
 	}
+
+	dw.logger.Debug("Active data source check result", "path", absPath, "exists", exists)
 
 	if exists {
 		dw.logger.Info("Active data source exists - marking as replaced and creating new version", "path", absPath)
@@ -220,16 +247,18 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 			dw.logger.Error("Failed to mark existing data source as replaced", "error", err, "path", absPath)
 			return errors.Wrap(err, "failed to mark existing data source as replaced")
 		}
+		dw.logger.Debug("Successfully marked existing data source as replaced", "path", absPath)
 	}
 
 	dataSourceName := dw.determineDataSourceType(filePath)
 	if dataSourceName == "" {
-		dw.logger.Warn("Unsupported file type", "path", filePath)
+		dw.logger.Warn("Unsupported file type, skipping processing", "path", filePath)
 		return nil
 	}
 
 	dw.logger.Debug("Determined data source type", "path", filePath, "type", dataSourceName)
 
+	dw.logger.Debug("Creating data source from file", "path", absPath, "type", dataSourceName)
 	dataSourceID, err := dw.store.CreateDataSourceFromFile(ctx, &db.CreateDataSourceFromFileInput{
 		Name: dataSourceName,
 		Path: absPath,
@@ -239,11 +268,13 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 		return errors.Wrap(err, "failed to create data source from file")
 	}
 
+	dw.logger.Debug("Successfully created data source", "path", absPath, "id", dataSourceID, "type", dataSourceName)
+
 	if err := dw.storeFileInMemory(ctx, absPath, dataSourceName, dataSourceID); err != nil {
 		dw.logger.Error("Failed to store file metadata in memory", "error", err, "path", absPath)
 	}
 
-	dw.logger.Info("Created data source for file", "path", absPath, "id", dataSourceID, "type", dataSourceName)
+	dw.logger.Info("Successfully processed new file", "path", absPath, "id", dataSourceID, "type", dataSourceName)
 	return nil
 }
 
@@ -258,10 +289,8 @@ func (dw *DirectoryWatcher) processRemovedFile(filePath string) error {
 
 	dw.logger.Debug("Processing removed file", "originalPath", filePath, "absolutePath", absPath)
 
-	// Remove file from memory first
 	if err := dw.removeFileFromMemory(ctx, absPath); err != nil {
 		dw.logger.Error("Failed to remove file from memory", "error", err, "path", absPath)
-		// Continue with database cleanup even if memory cleanup fails
 	}
 
 	if err := dw.store.MarkDataSourceAsDeleted(ctx, absPath); err != nil {
@@ -296,6 +325,8 @@ func (dw *DirectoryWatcher) triggerProcessingWorkflow() error {
 		TaskQueue: "default",
 	}
 
+	dw.logger.Debug("Starting processing workflow", "workflowID", workflowOptions.ID, "taskQueue", workflowOptions.TaskQueue)
+
 	_, err := dw.temporalClient.ExecuteWorkflow(
 		context.Background(),
 		workflowOptions,
@@ -303,6 +334,7 @@ func (dw *DirectoryWatcher) triggerProcessingWorkflow() error {
 		map[string]interface{}{},
 	)
 	if err != nil {
+		dw.logger.Error("Failed to start initialize workflow", "error", err, "workflowID", workflowOptions.ID)
 		return errors.Wrap(err, "failed to start initialize workflow")
 	}
 
@@ -367,7 +399,10 @@ func (dw *DirectoryWatcher) isSupportedFile(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	fileName := strings.ToLower(filepath.Base(filePath))
 
+	dw.logger.Debug("Checking if file is supported", "path", filePath, "ext", ext, "fileName", fileName)
+
 	if strings.HasPrefix(fileName, ".") || strings.HasSuffix(fileName, ".tmp") {
+		dw.logger.Debug("File rejected: hidden or temporary", "path", filePath)
 		return false
 	}
 
@@ -377,14 +412,17 @@ func (dw *DirectoryWatcher) isSupportedFile(filePath string) bool {
 
 	for _, supportedExt := range supportedExts {
 		if ext == supportedExt {
+			dw.logger.Debug("File accepted: supported extension", "path", filePath, "ext", ext)
 			return true
 		}
 	}
 
 	if strings.Contains(fileName, "whatsapp") && (ext == ".db" || ext == ".sqlite") {
+		dw.logger.Debug("File accepted: WhatsApp database", "path", filePath)
 		return true
 	}
 
+	dw.logger.Debug("File rejected: unsupported extension", "path", filePath, "ext", ext)
 	return false
 }
 
@@ -392,39 +430,53 @@ func (dw *DirectoryWatcher) determineDataSourceType(filePath string) string {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	fileName := strings.ToLower(filepath.Base(filePath))
 
+	dw.logger.Debug("Determining data source type", "path", filePath, "ext", ext, "fileName", fileName)
+
 	switch {
 	case strings.Contains(fileName, "whatsapp") && (ext == ".db" || ext == ".sqlite"):
+		dw.logger.Debug("Detected WhatsApp data source", "path", filePath)
 		return "WhatsApp"
 	case strings.Contains(fileName, "telegram") && ext == ".json":
+		dw.logger.Debug("Detected Telegram data source", "path", filePath)
 		return "Telegram"
 	case strings.Contains(fileName, "gmail") || ext == ".mbox":
+		dw.logger.Debug("Detected Gmail data source", "path", filePath)
 		return "Gmail"
 	case strings.Contains(fileName, "slack") && ext == ".zip":
+		dw.logger.Debug("Detected Slack data source", "path", filePath)
 		return "Slack"
 	case strings.Contains(fileName, "chatgpt") && (ext == ".json" || ext == ".zip"):
+		dw.logger.Debug("Detected ChatGPT data source", "path", filePath)
 		return "ChatGPT"
 	case (strings.Contains(fileName, "twitter") || strings.Contains(fileName, "x") || strings.Contains(fileName, "like") || strings.Contains(fileName, "tweet") || strings.Contains(fileName, "direct")) && (ext == ".zip" || ext == ".json" || ext == ".js"):
+		dw.logger.Debug("Detected X/Twitter data source", "path", filePath)
 		return "X"
 	case ext == ".txt":
+		dw.logger.Debug("Detected misc text data source", "path", filePath)
 		return "misc"
 	case ext == ".pdf":
+		dw.logger.Debug("Detected misc PDF data source", "path", filePath)
 		return "misc"
 	case ext == ".json":
-		return dw.detectJSONContentType(filePath)
+		dw.logger.Debug("Analyzing JSON file content", "path", filePath)
+		contentType := dw.detectJSONContentType(filePath)
+		dw.logger.Debug("JSON content type detected", "path", filePath, "type", contentType)
+		return contentType
 	case ext == ".zip":
+		dw.logger.Debug("Detected generic ZIP as X data source", "path", filePath)
 		return "X"
 	default:
+		dw.logger.Debug("Defaulting to misc data source", "path", filePath, "ext", ext)
 		return "misc"
 	}
 }
 
 // detectJSONContentType attempts to determine the data source type by examining JSON content structure.
 func (dw *DirectoryWatcher) detectJSONContentType(filePath string) string {
-	// Read a small portion of the file to examine structure
 	file, err := os.Open(filePath)
 	if err != nil {
 		dw.logger.Warn("Failed to open file for content detection", "path", filePath, "error", err)
-		return "" // Unknown type if we can't read it
+		return ""
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
@@ -432,7 +484,6 @@ func (dw *DirectoryWatcher) detectJSONContentType(filePath string) string {
 		}
 	}()
 
-	// Read first 1KB to examine structure
 	buffer := make([]byte, 1024)
 	n, err := file.Read(buffer)
 	if err != nil && err != io.EOF {
@@ -466,9 +517,7 @@ func (dw *DirectoryWatcher) detectJSONContentType(filePath string) string {
 	// Check if it's an array structure - could be X data or conversation documents
 	trimmedContent := strings.TrimSpace(content)
 	if strings.HasPrefix(trimmedContent, "[") {
-		// If it's an array and contains conversation/people fields, it might be processed conversation documents
 		if strings.Contains(contentLower, "\"conversation\"") && strings.Contains(contentLower, "\"people\"") {
-			// This looks like already processed conversation documents - let's try as X since Telegram expects TelegramData structure
 			return "X"
 		}
 		// Other arrays default to X since X can handle various array formats
@@ -488,27 +537,23 @@ func (dw *DirectoryWatcher) storeFileInMemory(ctx context.Context, filePath, dat
 		return nil
 	}
 
-	// Create a memory fact using structured fields for efficient querying
 	memoryFact := &memory.MemoryFact{
 		ID:        fmt.Sprintf("file-indexed-%s", dataSourceID),
 		Content:   fmt.Sprintf("Indexed file: %s as %s data source", filepath.Base(filePath), dataSourceType),
 		Timestamp: time.Now(),
 
-		// Use indexed structured fields for efficient querying
 		Category: "file-indexed", // Indexed: allows filtering by file indexing events
 
 		Source:   "file-indexing", // Indexed: filter by file indexing source
 		FilePath: filePath,        // NEW: Indexed file path field for super-fast queries!
 		Tags:     []string{"file-indexed", "data-source", dataSourceType},
 
-		// Keep some metadata for backward compatibility
 		Metadata: map[string]string{
 			"data_source_id": dataSourceID,
 			"indexed_at":     time.Now().Format(time.RFC3339),
 		},
 	}
 
-	// Create document from the memory fact
 	fileDoc := &memory.TextDocument{
 		FieldID:        memoryFact.ID,
 		FieldContent:   memoryFact.Content,
@@ -539,9 +584,8 @@ func (dw *DirectoryWatcher) removeFileFromMemory(ctx context.Context, filePath s
 		return nil
 	}
 
-	// Super efficient query using the new indexed file path field!
 	filter := &memory.Filter{
-		FactFilePath: &filePath, // Direct indexed field query - lightning fast!
+		FactFilePath: &filePath,
 		Limit:        &[]int{100}[0],
 	}
 
@@ -557,7 +601,6 @@ func (dw *DirectoryWatcher) removeFileFromMemory(ctx context.Context, filePath s
 
 	dw.logger.Info("Found memories to delete for file", "path", filePath, "count", len(result.Facts))
 
-	// All results will match our file path since we filtered by the indexed field
 	for _, fact := range result.Facts {
 		dw.logger.Info("Found memory for file deletion", "memory_id", fact.ID, "file_path", fact.FilePath)
 		// TODO: When DeleteByID is implemented in the memory interface, call it here
