@@ -31,6 +31,7 @@ type Storage interface {
 	GetChat(ctx context.Context, id string) (model.Chat, error)
 	GetChats(ctx context.Context) ([]*model.Chat, error)
 	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (model.Chat, error)
+	UpdateChatPrivacyDict(ctx context.Context, chatID string, privacyDictJson *string) error
 	DeleteChat(ctx context.Context, chatID string) error
 	GetMessagesByChatId(ctx context.Context, chatId string) ([]*model.Message, error)
 	AddMessageToChat(ctx context.Context, message repository.Message) (string, error)
@@ -371,6 +372,19 @@ func (s *Service) SendMessage(
 	_, err = s.storage.AddMessageToChat(ctx, userMsg)
 	if err != nil {
 		return nil, err
+	}
+
+	//@TODO: Call real anonymizer and update chat privacy dictionary
+	privacyDictJson, err := MockAnonymizer(ctx, chatID, message)
+	if err != nil {
+		s.logger.Error("failed to generate privacy dictionary", "error", err)
+	} else {
+		err = s.storage.UpdateChatPrivacyDict(ctx, chatID, privacyDictJson)
+		if err != nil {
+			s.logger.Error("failed to update chat privacy dictionary", "error", err)
+		} else {
+			s.logger.Info("updated chat privacy dictionary", "chat_id", chatID)
+		}
 	}
 
 	// Publish to NATS
@@ -1115,15 +1129,19 @@ func (s *Service) CreateChat(ctx context.Context, name string, category model.Ch
 	return s.storage.CreateChat(ctx, name, category, holonThreadID)
 }
 
+func (s *Service) UpdateChatPrivacyDict(ctx context.Context, chatID string, privacyDictJson *string) error {
+	return s.storage.UpdateChatPrivacyDict(ctx, chatID, privacyDictJson)
+}
+
+func (s *Service) DeleteChat(ctx context.Context, chatID string) error {
+	return s.storage.DeleteChat(ctx, chatID)
+}
+
 func (s *Service) GetMessagesByChatId(
 	ctx context.Context,
 	chatID string,
 ) ([]*model.Message, error) {
 	return s.storage.GetMessagesByChatId(ctx, chatID)
-}
-
-func (s *Service) DeleteChat(ctx context.Context, chatID string) error {
-	return s.storage.DeleteChat(ctx, chatID)
 }
 
 func (s *Service) GetChatSuggestions(

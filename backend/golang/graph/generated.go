@@ -81,13 +81,14 @@ type ComplexityRoot struct {
 	}
 
 	Chat struct {
-		Category       func(childComplexity int) int
-		CreatedAt      func(childComplexity int) int
-		HolonThreadID  func(childComplexity int) int
-		ID             func(childComplexity int) int
-		InitialMessage func(childComplexity int) int
-		Messages       func(childComplexity int) int
-		Name           func(childComplexity int) int
+		Category        func(childComplexity int) int
+		CreatedAt       func(childComplexity int) int
+		HolonThreadID   func(childComplexity int) int
+		ID              func(childComplexity int) int
+		InitialMessage  func(childComplexity int) int
+		Messages        func(childComplexity int) int
+		Name            func(childComplexity int) int
+		PrivacyDictJSON func(childComplexity int) int
 	}
 
 	ChatSuggestionsCategory struct {
@@ -565,6 +566,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Chat.Name(childComplexity), true
+
+	case "Chat.privacyDictJson":
+		if e.complexity.Chat.PrivacyDictJSON == nil {
+			break
+		}
+
+		return e.complexity.Chat.PrivacyDictJSON(childComplexity), true
 
 	case "ChatSuggestionsCategory.category":
 		if e.complexity.ChatSuggestionsCategory.Category == nil {
@@ -4143,6 +4151,47 @@ func (ec *executionContext) fieldContext_Chat_initialMessage(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Chat_privacyDictJson(ctx context.Context, field graphql.CollectedField, obj *model.Chat) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Chat_privacyDictJson(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PrivacyDictJSON, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOJSON2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Chat_privacyDictJson(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Chat",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ChatSuggestionsCategory_category(ctx context.Context, field graphql.CollectedField, obj *model.ChatSuggestionsCategory) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_ChatSuggestionsCategory_category(ctx, field)
 	if err != nil {
@@ -6427,6 +6476,8 @@ func (ec *executionContext) fieldContext_Mutation_createChat(ctx context.Context
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -6640,6 +6691,8 @@ func (ec *executionContext) fieldContext_Mutation_deleteChat(ctx context.Context
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -7711,6 +7764,8 @@ func (ec *executionContext) fieldContext_Query_getChats(ctx context.Context, fie
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -7782,6 +7837,8 @@ func (ec *executionContext) fieldContext_Query_getChat(ctx context.Context, fiel
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -13718,6 +13775,8 @@ func (ec *executionContext) _Chat(ctx context.Context, sel ast.SelectionSet, obj
 			out.Values[i] = ec._Chat_holonThreadId(ctx, field, obj)
 		case "initialMessage":
 			out.Values[i] = ec._Chat_initialMessage(ctx, field, obj)
+		case "privacyDictJson":
+			out.Values[i] = ec._Chat_privacyDictJson(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -17169,6 +17228,24 @@ func (ec *executionContext) marshalOInt2ᚖint32(ctx context.Context, sel ast.Se
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalInt32(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOJSON2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalString(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOJSON2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(*v)
 	return res
 }
 
