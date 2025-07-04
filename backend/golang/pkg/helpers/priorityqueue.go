@@ -133,10 +133,10 @@ func (wt WorkerType) String() string {
 type ResourceFactory func(workerID int, workerType WorkerType) interface{}
 
 type WorkerConfig struct {
-	UIWorkers           int
-	BackgroundWorkers   int
-	ResourceFactory     ResourceFactory
-	UIQueueBufferSize   int
+	UIWorkers            int
+	BackgroundWorkers    int
+	ResourceFactory      ResourceFactory
+	UIQueueBufferSize    int
 	LastEffortBufferSize int
 	BackgroundBufferSize int
 }
@@ -197,17 +197,17 @@ func NewTaskExecutor(processorCount int, logger *log.Logger) *TaskExecutor {
 	var config WorkerConfig
 	if processorCount == 1 {
 		config = WorkerConfig{
-			UIWorkers:           1,
-			BackgroundWorkers:   0,
-			UIQueueBufferSize:   100,
+			UIWorkers:            1,
+			BackgroundWorkers:    0,
+			UIQueueBufferSize:    100,
 			LastEffortBufferSize: 100,
 			BackgroundBufferSize: 100,
 		}
 	} else {
 		config = WorkerConfig{
-			UIWorkers:           1,
-			BackgroundWorkers:   processorCount - 1,
-			UIQueueBufferSize:   100,
+			UIWorkers:            1,
+			BackgroundWorkers:    processorCount - 1,
+			UIQueueBufferSize:    100,
 			LastEffortBufferSize: 100,
 			BackgroundBufferSize: 100,
 		}

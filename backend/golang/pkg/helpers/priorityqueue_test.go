@@ -1296,9 +1296,9 @@ func TestWorkerTypeStringMethod(t *testing.T) {
 
 func TestConfigurableBufferSizes(t *testing.T) {
 	config := WorkerConfig{
-		UIWorkers:           1,
-		BackgroundWorkers:   1,
-		UIQueueBufferSize:   50,
+		UIWorkers:            1,
+		BackgroundWorkers:    1,
+		UIQueueBufferSize:    50,
 		LastEffortBufferSize: 75,
 		BackgroundBufferSize: 25,
 	}
@@ -1396,8 +1396,8 @@ func TestBufferSizeValidation(t *testing.T) {
 		{
 			name: "Negative LastEffort buffer size",
 			config: WorkerConfig{
-				UIWorkers:           1,
-				BackgroundWorkers:   1,
+				UIWorkers:            1,
+				BackgroundWorkers:    1,
 				LastEffortBufferSize: -5,
 			},
 			expectErr: true,
@@ -1406,8 +1406,8 @@ func TestBufferSizeValidation(t *testing.T) {
 		{
 			name: "Negative Background buffer size",
 			config: WorkerConfig{
-				UIWorkers:         1,
-				BackgroundWorkers: 1,
+				UIWorkers:            1,
+				BackgroundWorkers:    1,
 				BackgroundBufferSize: -10,
 			},
 			expectErr: true,
@@ -1416,9 +1416,9 @@ func TestBufferSizeValidation(t *testing.T) {
 		{
 			name: "Zero buffer sizes are valid",
 			config: WorkerConfig{
-				UIWorkers:           1,
-				BackgroundWorkers:   1,
-				UIQueueBufferSize:   0,
+				UIWorkers:            1,
+				BackgroundWorkers:    1,
+				UIQueueBufferSize:    0,
 				LastEffortBufferSize: 0,
 				BackgroundBufferSize: 0,
 			},
