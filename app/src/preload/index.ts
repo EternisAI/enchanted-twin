@@ -122,7 +122,6 @@ const api = {
     set: (key: string, value: unknown) => screenpipeStore.set(key, value)
   },
   livekit: {
-    setup: () => ipcRenderer.invoke('livekit:setup'),
     start: (chatId: string, isOnboarding?: boolean, jwtToken?: string) =>
       ipcRenderer.invoke('livekit:start', chatId, isOnboarding, jwtToken),
     stop: () => ipcRenderer.invoke('livekit:stop'),

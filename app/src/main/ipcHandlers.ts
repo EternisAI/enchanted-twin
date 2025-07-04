@@ -9,7 +9,6 @@ import { keyboardShortcutsStore } from './stores'
 import { updateMenu } from './menuSetup'
 // import { getKokoroState } from './kokoroManager'
 import {
-  setupLiveKitAgent,
   startLiveKitAgent,
   stopLiveKitAgent,
   isLiveKitAgentRunning,
@@ -245,17 +244,6 @@ export function registerIpcHandlers() {
     } catch (error) {
       log.error('Failed to get current launch state:', error)
       return null
-    }
-  })
-
-  // LiveKit Agent IPC handlers
-  ipcMain.handle('livekit:setup', async () => {
-    try {
-      await setupLiveKitAgent()
-      return { success: true }
-    } catch (error) {
-      log.error('Failed to setup LiveKit agent:', error)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
 
