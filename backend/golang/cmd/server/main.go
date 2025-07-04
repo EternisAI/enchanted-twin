@@ -46,6 +46,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/directorywatcher"
 	"github.com/EternisAI/enchanted-twin/pkg/engagement"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
@@ -489,6 +490,47 @@ func main() {
 	go telegram.SubscribePoller(telegramService, logger)
 	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
+	// Initialize directory watcher
+	var directoryWatcher *directorywatcher.DirectoryWatcher
+	watchedPaths := []string{
+		"./content", // Default watched directory
+	}
+	
+	// Create content directory if it doesn't exist
+	if err := os.MkdirAll("./content", 0755); err != nil {
+		logger.Error("Failed to create content directory", "error", err)
+	} else {
+		logger.Info("Content directory ready", "path", "./content")
+	}
+
+	directoryWatcher, err = directorywatcher.NewDirectoryWatcher(directorywatcher.WatcherConfig{
+		Logger:        logger,
+		Storage:       storageInterface,
+		WatchedPaths:  watchedPaths,
+		MemoryService: mem,
+	})
+	if err != nil {
+		logger.Error("Failed to create directory watcher", "error", err)
+	} else {
+		logger.Info("Directory watcher created", "watched_paths", watchedPaths)
+		
+		// Start the directory watcher
+		go func() {
+			if err := directoryWatcher.Start(context.Background()); err != nil {
+				logger.Error("Failed to start directory watcher", "error", err)
+			}
+		}()
+		
+		// Process existing files
+		go func() {
+			if err := directoryWatcher.ProcessExistingFiles(context.Background()); err != nil {
+				logger.Error("Failed to process existing files", "error", err)
+			} else {
+				logger.Info("Existing files processed")
+			}
+		}()
+	}
+
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
 		temporalClient:    temporalClient,
@@ -518,6 +560,12 @@ func main() {
 
 	<-signalChan
 	logger.Info("Server shutting down...")
+	
+	// Clean up directory watcher
+	if directoryWatcher != nil {
+		directoryWatcher.Stop()
+		logger.Info("Directory watcher stopped")
+	}
 }
 
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
