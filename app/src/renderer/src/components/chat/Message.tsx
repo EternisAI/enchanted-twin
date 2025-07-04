@@ -26,7 +26,13 @@ const messageAnimation = {
   transition: { duration: 0.3, ease: 'easeOut' }
 }
 
-export function UserMessageBubble({ message }: { message: Message }) {
+export function UserMessageBubble({
+  message,
+  showAnonymize = false
+}: {
+  message: Message
+  showAnonymize?: boolean
+}) {
   const [isAnonymized, setIsAnonymized] = useState(false)
 
   const privacyDictJson = {
@@ -59,20 +65,22 @@ export function UserMessageBubble({ message }: { message: Message }) {
           )}
         </div>
         <div className="flex items-center gap-2 w-full">
-          <button
-            onClick={() => setIsAnonymized(!isAnonymized)}
-            className="p-1 rounded-md bg-accent cursor-pointer hover:bg-accent/50"
-            style={{ pointerEvents: 'auto' }}
-            tabIndex={-1}
-            aria-label={isAnonymized ? 'Show original message' : 'Anonymize message'}
-          >
-            {isAnonymized ? (
-              <EyeClosed className="h-4 w-4 text-primary" />
-            ) : (
-              <Eye className="h-4 w-4 text-primary" />
-            )}
-          </button>
-          <div className="text-xs text-muted-foreground">
+          {showAnonymize && (
+            <button
+              onClick={() => setIsAnonymized(!isAnonymized)}
+              className="p-1 rounded-md bg-accent cursor-pointer hover:bg-accent/50"
+              style={{ pointerEvents: 'auto' }}
+              tabIndex={-1}
+              aria-label={isAnonymized ? 'Show original message' : 'Anonymize message'}
+            >
+              {isAnonymized ? (
+                <EyeClosed className="h-4 w-4 text-primary" />
+              ) : (
+                <Eye className="h-4 w-4 text-primary" />
+              )}
+            </button>
+          )}
+          <div className="text-xs text-muted-foreground pl-1">
             {new Date(message.createdAt).toLocaleTimeString()}
           </div>
         </div>
