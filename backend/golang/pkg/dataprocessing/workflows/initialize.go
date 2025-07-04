@@ -78,7 +78,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	if len(fetchDataSourcesResponse.DataSources) == 0 {
 		indexingState = model.IndexingStateFailed
 		errMsg := "No data sources found"
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
+		w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 		return InitializeWorkflowResponse{Message: errMsg}, nil
 	}
 
