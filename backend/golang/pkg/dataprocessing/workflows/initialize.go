@@ -21,7 +21,9 @@ import (
 
 type InitializeWorkflowInput struct{}
 
-type InitializeWorkflowResponse struct{}
+type InitializeWorkflowResponse struct {
+	Message string `json:"message"`
+}
 
 type InitializeStateQuery struct {
 	State model.IndexingState
@@ -74,11 +76,10 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	}
 
 	if len(fetchDataSourcesResponse.DataSources) == 0 {
-		workflow.GetLogger(ctx).Info("No data sources found")
 		indexingState = model.IndexingStateFailed
 		errMsg := "No data sources found"
-		w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
-		return InitializeWorkflowResponse{}, errors.New(errMsg)
+		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
+		return InitializeWorkflowResponse{Message: errMsg}, nil
 	}
 
 	for _, dataSource := range fetchDataSourcesResponse.DataSources {
@@ -327,10 +328,36 @@ func (w *DataProcessingWorkflows) FetchDataSourcesActivity(
 	ctx context.Context,
 	input FetchDataSourcesActivityInput,
 ) (FetchDataSourcesActivityResponse, error) {
+	w.Logger.Debug("FetchDataSourcesActivity started")
+
 	dataSources, err := w.Store.GetUnindexedDataSources(ctx)
 	if err != nil {
+		w.Logger.Error("Failed to get unindexed data sources", "error", err)
 		return FetchDataSourcesActivityResponse{}, err
 	}
+
+	w.Logger.Info("FetchDataSourcesActivity completed", "count", len(dataSources))
+
+	for i, ds := range dataSources {
+		hasError := "NULL"
+		if ds.HasError != nil {
+			hasError = fmt.Sprintf("%v", *ds.HasError)
+		}
+		isIndexed := "NULL"
+		if ds.IsIndexed != nil {
+			isIndexed = fmt.Sprintf("%v", *ds.IsIndexed)
+		}
+		w.Logger.Info("Found data source",
+			"index", i,
+			"id", ds.ID,
+			"name", ds.Name,
+			"path", ds.Path,
+			"state", ds.State,
+			"hasError", hasError,
+			"isIndexed", isIndexed,
+		)
+	}
+
 	return FetchDataSourcesActivityResponse{DataSources: dataSources}, nil
 }
 
