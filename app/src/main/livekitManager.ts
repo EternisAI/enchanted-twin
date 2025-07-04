@@ -35,31 +35,11 @@ export async function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
 
   try {
     await livekitAgent.setup()
-    await startLiveKitAgent('FAKE_CHAT_ID', false, true, undefined)
   } catch (error) {
     log.error('Failed to setup LiveKit agent environment:', error)
   }
 
   return livekitAgent
-}
-
-export async function setupLiveKitAgent(): Promise<void> {
-  if (!livekitAgent) {
-    throw new Error('LiveKit agent not initialized')
-  }
-
-  const currentState = livekitAgent.getLatestProgress()
-  if (currentState.status === 'Ready' || currentState.progress === 100) {
-    log.info('LiveKit agent already setup, skipping')
-    return
-  }
-
-  try {
-    await livekitAgent.setup()
-  } catch (error) {
-    log.error('Failed to setup LiveKit agent:', error)
-    throw error
-  }
 }
 
 export async function startLiveKitAgent(
