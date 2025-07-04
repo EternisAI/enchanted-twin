@@ -12,7 +12,7 @@ export default function MessageList({ messages, isWaitingTwinResponse }: Message
     <div className="flex flex-col gap-10 w-full">
       {messages.map((msg) =>
         msg.role === Role.User ? (
-          <UserMessageBubble key={msg.id} message={msg} />
+          <UserMessageBubble key={msg.id} message={msg} showAnonymize={true} />
         ) : (
           <AssistantMessageBubble key={msg.id} message={msg} />
         )

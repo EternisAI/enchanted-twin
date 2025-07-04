@@ -59,6 +59,7 @@ export default function VoiceOnboardingContainer() {
 
   useEffect(() => {
     if (isCompleted) {
+      console.log('isCompleted and pushing', isCompleted)
       navigate({ to: '/' })
     }
   }, [isCompleted, navigate])
@@ -114,8 +115,6 @@ function VoiceOnboarding() {
   const [deleteChat] = useMutation(DeleteChatDocument)
   const { isLiveKitSessionReady } = useDependencyStatus()
   const { isAgentSpeaking } = useVoiceAgent()
-
-  console.log('isAgentSpeaking', isAgentSpeaking)
 
   useEffect(() => {
     const initiateVoiceOnboarding = async () => {
