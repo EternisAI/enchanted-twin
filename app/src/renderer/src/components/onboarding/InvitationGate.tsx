@@ -56,6 +56,13 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     const handleError = async () => {
       if (errorFetching) {
         console.error('Whitelist query failed:', errorFetching)
+
+        // Don't redirect if we're on the omnibar overlay route
+        const currentPath = window.location.hash.replace('#', '')
+        if (currentPath === '/omnibar-overlay') {
+          return
+        }
+
         await new Promise((resolve) => setTimeout(resolve, 3000))
         router.navigate({ to: '/settings/advanced' })
       }
