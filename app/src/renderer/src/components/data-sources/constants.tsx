@@ -82,7 +82,11 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     description: 'Import your files',
     selectType: 'files',
     fileRequirement: 'Select files in .txt, .pdf, .doc, .docx, .xls, .xlsx, .csv format',
-    icon: <FilesIcon className="h-10 w-10" />,
+    icon: (
+      <IconContainer className="bg-foreground">
+        <FilesIcon strokeWidth={1.5} className="h-7 w-7 text-primary-foreground" />
+      </IconContainer>
+    ),
     fileFilters: [
       { name: 'Files', extensions: ['txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv'] }
     ]
