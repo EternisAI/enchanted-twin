@@ -152,6 +152,8 @@ You have the following email:
   {{- range .EmailAccounts }}
   - {{ . }}
   {{- end }}
+{{- else }}
+You have no email accounts connected to your account.
 {{- end }}
 
 {{- if .ChatID }}
