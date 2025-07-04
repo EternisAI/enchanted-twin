@@ -710,7 +710,7 @@ func (dw *DirectoryWatcher) triggerProcessingWorkflow() error {
 	defer cancel()
 
 	workflowOptions := client.StartWorkflowOptions{
-		ID:        fmt.Sprintf("auto-initialize-%d", time.Now().Unix()),
+		ID:        fmt.Sprintf("sync-dataprocessing-%d", time.Now().Unix()),
 		TaskQueue: "default",
 	}
 
