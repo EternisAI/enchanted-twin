@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/log"
 )
 
 type Priority int
@@ -59,37 +61,39 @@ type TaskProcessor interface {
 type WorkerProcessor struct {
 	ID       int
 	Resource interface{}
+	logger   *log.Logger
 }
 
-func NewWorkerProcessor(id int, resource interface{}) *WorkerProcessor {
+func NewWorkerProcessor(id int, resource interface{}, logger *log.Logger) *WorkerProcessor {
 	return &WorkerProcessor{
 		ID:       id,
 		Resource: resource,
+		logger:   logger,
 	}
 }
 
 func (w *WorkerProcessor) Process(req TaskRequest) TaskResult {
 	select {
 	case <-req.Context.Done():
-		fmt.Printf("Processor %d skipping orphaned task: %s (context canceled)\n", w.ID, req.Task.Name)
+		w.logger.Debug("Skipping orphaned task", "processorID", w.ID, "taskName", req.Task.Name, "reason", "context canceled")
 		return TaskResult{Value: nil, Error: req.Context.Err()}
 	default:
 	}
 
-	fmt.Printf("Processor %d executing task: %s with priority: %s\n", w.ID, req.Task.Name, req.Task.Priority.String())
+	w.logger.Info("Executing task", "processorID", w.ID, "taskName", req.Task.Name, "priority", req.Task.Priority.String())
 
 	if req.Task.Duration > 0 {
 		select {
 		case <-time.After(req.Task.Duration):
 		case <-req.Context.Done():
-			fmt.Printf("Processor %d task canceled during execution: %s\n", w.ID, req.Task.Name)
+			w.logger.Debug("Task canceled during execution", "processorID", w.ID, "taskName", req.Task.Name)
 			return TaskResult{Value: nil, Error: req.Context.Err()}
 		}
 	}
 
 	select {
 	case <-req.Context.Done():
-		fmt.Printf("Processor %d task canceled before compute: %s\n", w.ID, req.Task.Name)
+		w.logger.Debug("Task canceled before compute", "processorID", w.ID, "taskName", req.Task.Name)
 		return TaskResult{Value: nil, Error: req.Context.Err()}
 	default:
 	}
@@ -129,9 +133,12 @@ func (wt WorkerType) String() string {
 type ResourceFactory func(workerID int, workerType WorkerType) interface{}
 
 type WorkerConfig struct {
-	UIWorkers         int
-	BackgroundWorkers int
-	ResourceFactory   ResourceFactory
+	UIWorkers           int
+	BackgroundWorkers   int
+	ResourceFactory     ResourceFactory
+	UIQueueBufferSize   int
+	LastEffortBufferSize int
+	BackgroundBufferSize int
 }
 
 func (c *WorkerConfig) validate() error {
@@ -145,15 +152,26 @@ func (c *WorkerConfig) validate() error {
 		if c.UIWorkers < 0 || c.BackgroundWorkers < 0 {
 			return fmt.Errorf("worker counts cannot be negative")
 		}
-		return nil
+	} else {
+		if c.UIWorkers <= 0 {
+			return fmt.Errorf("UIWorkers must be > 0 when total workers > 1, got %d", c.UIWorkers)
+		}
+
+		if c.BackgroundWorkers <= 0 {
+			return fmt.Errorf("BackgroundWorkers must be > 0 when total workers > 1, got %d", c.BackgroundWorkers)
+		}
 	}
 
-	if c.UIWorkers <= 0 {
-		return fmt.Errorf("UIWorkers must be > 0 when total workers > 1, got %d", c.UIWorkers)
+	if c.UIQueueBufferSize < 0 {
+		return fmt.Errorf("UIQueueBufferSize cannot be negative, got %d", c.UIQueueBufferSize)
 	}
 
-	if c.BackgroundWorkers <= 0 {
-		return fmt.Errorf("BackgroundWorkers must be > 0 when total workers > 1, got %d", c.BackgroundWorkers)
+	if c.LastEffortBufferSize < 0 {
+		return fmt.Errorf("LastEffortBufferSize cannot be negative, got %d", c.LastEffortBufferSize)
+	}
+
+	if c.BackgroundBufferSize < 0 {
+		return fmt.Errorf("BackgroundBufferSize cannot be negative, got %d", c.BackgroundBufferSize)
 	}
 
 	return nil
@@ -164,22 +182,35 @@ type TaskExecutor struct {
 	lastEffortQueue chan TaskRequest
 	backgroundQueue chan TaskRequest
 	config          WorkerConfig
+	logger          *log.Logger
 	mu              sync.RWMutex
 	once            sync.Once
 	shutdown        chan bool
 	isShutdown      bool
 }
 
-func NewTaskExecutor(processorCount int) *TaskExecutor {
+func NewTaskExecutor(processorCount int, logger *log.Logger) *TaskExecutor {
 	if processorCount < 1 {
 		processorCount = 1
 	}
 
 	var config WorkerConfig
 	if processorCount == 1 {
-		config = WorkerConfig{UIWorkers: 1, BackgroundWorkers: 0}
+		config = WorkerConfig{
+			UIWorkers:           1,
+			BackgroundWorkers:   0,
+			UIQueueBufferSize:   100,
+			LastEffortBufferSize: 100,
+			BackgroundBufferSize: 100,
+		}
 	} else {
-		config = WorkerConfig{UIWorkers: 1, BackgroundWorkers: processorCount - 1}
+		config = WorkerConfig{
+			UIWorkers:           1,
+			BackgroundWorkers:   processorCount - 1,
+			UIQueueBufferSize:   100,
+			LastEffortBufferSize: 100,
+			BackgroundBufferSize: 100,
+		}
 	}
 
 	// Default resource factory returns nil
@@ -188,10 +219,11 @@ func NewTaskExecutor(processorCount int) *TaskExecutor {
 	}
 
 	e := &TaskExecutor{
-		uiQueue:         make(chan TaskRequest, 100),
-		lastEffortQueue: make(chan TaskRequest, 100),
-		backgroundQueue: make(chan TaskRequest, 100),
+		uiQueue:         make(chan TaskRequest, config.UIQueueBufferSize),
+		lastEffortQueue: make(chan TaskRequest, config.LastEffortBufferSize),
+		backgroundQueue: make(chan TaskRequest, config.BackgroundBufferSize),
 		config:          config,
+		logger:          logger,
 		shutdown:        make(chan bool),
 	}
 
@@ -199,7 +231,18 @@ func NewTaskExecutor(processorCount int) *TaskExecutor {
 	return e
 }
 
-func NewTaskExecutorWithConfig(config WorkerConfig) (*TaskExecutor, error) {
+func NewTaskExecutorWithConfig(config WorkerConfig, logger *log.Logger) (*TaskExecutor, error) {
+	// Set default buffer sizes if not provided
+	if config.UIQueueBufferSize == 0 {
+		config.UIQueueBufferSize = 100
+	}
+	if config.LastEffortBufferSize == 0 {
+		config.LastEffortBufferSize = 100
+	}
+	if config.BackgroundBufferSize == 0 {
+		config.BackgroundBufferSize = 100
+	}
+
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
@@ -212,10 +255,11 @@ func NewTaskExecutorWithConfig(config WorkerConfig) (*TaskExecutor, error) {
 	}
 
 	e := &TaskExecutor{
-		uiQueue:         make(chan TaskRequest, 100),
-		lastEffortQueue: make(chan TaskRequest, 100),
-		backgroundQueue: make(chan TaskRequest, 100),
+		uiQueue:         make(chan TaskRequest, config.UIQueueBufferSize),
+		lastEffortQueue: make(chan TaskRequest, config.LastEffortBufferSize),
+		backgroundQueue: make(chan TaskRequest, config.BackgroundBufferSize),
 		config:          config,
+		logger:          logger,
 		shutdown:        make(chan bool),
 	}
 
@@ -240,7 +284,7 @@ func (e *TaskExecutor) startProcessors() {
 
 func (e *TaskExecutor) singleProcessor() {
 	// Single processor handles all priorities, consider it a UI worker
-	processor := NewWorkerProcessor(0, e.config.ResourceFactory(0, UIWorker))
+	processor := NewWorkerProcessor(0, e.config.ResourceFactory(0, UIWorker), e.logger)
 	for {
 		select {
 		case req := <-e.uiQueue:
@@ -264,7 +308,7 @@ func (e *TaskExecutor) singleProcessor() {
 }
 
 func (e *TaskExecutor) dedicatedUIProcessor(id int) {
-	processor := NewWorkerProcessor(id, e.config.ResourceFactory(id, UIWorker))
+	processor := NewWorkerProcessor(id, e.config.ResourceFactory(id, UIWorker), e.logger)
 	for {
 		select {
 		case req := <-e.uiQueue:
@@ -280,7 +324,7 @@ func (e *TaskExecutor) dedicatedUIProcessor(id int) {
 }
 
 func (e *TaskExecutor) backgroundProcessor(id int) {
-	processor := NewWorkerProcessor(id, e.config.ResourceFactory(id, BackgroundWorker))
+	processor := NewWorkerProcessor(id, e.config.ResourceFactory(id, BackgroundWorker), e.logger)
 	for {
 		select {
 		case req := <-e.backgroundQueue:

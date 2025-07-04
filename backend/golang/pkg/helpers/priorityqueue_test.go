@@ -3,14 +3,23 @@ package helpers
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/log"
 )
 
+func createTestLogger() *log.Logger {
+	return log.NewWithOptions(io.Discard, log.Options{
+		Level: log.ErrorLevel, // Only show errors to keep test output clean
+	})
+}
+
 func TestExecutorBlocking(t *testing.T) {
-	executor := NewTaskExecutor(2)
+	executor := NewTaskExecutor(2, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx := context.Background()
@@ -42,7 +51,7 @@ func TestExecutorBlocking(t *testing.T) {
 }
 
 func TestExecutorConcurrency(t *testing.T) {
-	executor := NewTaskExecutor(3)
+	executor := NewTaskExecutor(3, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx := context.Background()
@@ -107,7 +116,7 @@ func TestExecutorConcurrency(t *testing.T) {
 }
 
 func TestContextCancellation(t *testing.T) {
-	executor := NewTaskExecutor(2)
+	executor := NewTaskExecutor(2, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -150,7 +159,7 @@ func TestContextCancellation(t *testing.T) {
 }
 
 func TestOrphanedTaskDetection(t *testing.T) {
-	executor := NewTaskExecutor(1)
+	executor := NewTaskExecutor(1, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -213,7 +222,7 @@ func TestOrphanedTaskDetection(t *testing.T) {
 }
 
 func TestContextTimeout(t *testing.T) {
-	executor := NewTaskExecutor(1)
+	executor := NewTaskExecutor(1, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
@@ -250,7 +259,7 @@ func TestContextTimeout(t *testing.T) {
 }
 
 func TestExecutorThreadSafety(t *testing.T) {
-	executor := NewTaskExecutor(4)
+	executor := NewTaskExecutor(4, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx := context.Background()
@@ -303,7 +312,7 @@ func TestExecutorThreadSafety(t *testing.T) {
 }
 
 func TestExecutorShutdown(t *testing.T) {
-	executor := NewTaskExecutor(2)
+	executor := NewTaskExecutor(2, createTestLogger())
 
 	ctx := context.Background()
 
@@ -333,7 +342,7 @@ func TestExecutorShutdown(t *testing.T) {
 }
 
 func TestExecutorMultipleThreadsWithScheduling(t *testing.T) {
-	executor := NewTaskExecutor(3)
+	executor := NewTaskExecutor(3, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx := context.Background()
@@ -436,7 +445,7 @@ func TestExecutorMultipleThreadsWithScheduling(t *testing.T) {
 }
 
 func TestSingleProcessorPriority(t *testing.T) {
-	executor := NewTaskExecutor(1)
+	executor := NewTaskExecutor(1, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx := context.Background()
@@ -529,7 +538,7 @@ func TestSingleProcessorPriority(t *testing.T) {
 }
 
 func TestTaskResults(t *testing.T) {
-	executor := NewTaskExecutor(2)
+	executor := NewTaskExecutor(2, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx := context.Background()
@@ -614,7 +623,7 @@ func TestPriorityStringMethod(t *testing.T) {
 }
 
 func TestLastEffortPriority(t *testing.T) {
-	executor := NewTaskExecutor(1)
+	executor := NewTaskExecutor(1, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx := context.Background()
@@ -705,7 +714,7 @@ func TestLastEffortPriority(t *testing.T) {
 }
 
 func TestLastEffortInterleaving(t *testing.T) {
-	executor := NewTaskExecutor(2)
+	executor := NewTaskExecutor(2, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx := context.Background()
@@ -877,7 +886,7 @@ func TestWorkerConfigValidation(t *testing.T) {
 func TestNewTaskExecutorWithConfig(t *testing.T) {
 	t.Run("Valid config", func(t *testing.T) {
 		config := WorkerConfig{UIWorkers: 2, BackgroundWorkers: 3}
-		executor, err := NewTaskExecutorWithConfig(config)
+		executor, err := NewTaskExecutorWithConfig(config, createTestLogger())
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
 		}
@@ -891,7 +900,7 @@ func TestNewTaskExecutorWithConfig(t *testing.T) {
 
 	t.Run("Invalid config", func(t *testing.T) {
 		config := WorkerConfig{UIWorkers: 0, BackgroundWorkers: 0}
-		executor, err := NewTaskExecutorWithConfig(config)
+		executor, err := NewTaskExecutorWithConfig(config, createTestLogger())
 		if err == nil {
 			t.Error("Expected error for invalid config")
 		}
@@ -904,7 +913,7 @@ func TestNewTaskExecutorWithConfig(t *testing.T) {
 
 func TestWorkerConfiguration(t *testing.T) {
 	config := WorkerConfig{UIWorkers: 2, BackgroundWorkers: 2}
-	executor, err := NewTaskExecutorWithConfig(config)
+	executor, err := NewTaskExecutorWithConfig(config, createTestLogger())
 	if err != nil {
 		t.Fatalf("Failed to create executor: %v", err)
 	}
@@ -996,7 +1005,7 @@ func TestResourceAccess(t *testing.T) {
 		WorkerID int
 	}
 
-	executor := NewTaskExecutor(2)
+	executor := NewTaskExecutor(2, createTestLogger())
 	defer executor.Shutdown()
 
 	ctx := context.Background()
@@ -1184,7 +1193,7 @@ func TestWorkerTypeResourceDifferentiation(t *testing.T) {
 		},
 	}
 
-	executor, err := NewTaskExecutorWithConfig(config)
+	executor, err := NewTaskExecutorWithConfig(config, createTestLogger())
 	if err != nil {
 		t.Fatalf("Failed to create executor: %v", err)
 	}
@@ -1282,5 +1291,155 @@ func TestWorkerTypeStringMethod(t *testing.T) {
 	var unknownType WorkerType = 999
 	if unknownType.String() != "Unknown" {
 		t.Errorf("Expected 'Unknown', got %s", unknownType.String())
+	}
+}
+
+func TestConfigurableBufferSizes(t *testing.T) {
+	config := WorkerConfig{
+		UIWorkers:           1,
+		BackgroundWorkers:   1,
+		UIQueueBufferSize:   50,
+		LastEffortBufferSize: 75,
+		BackgroundBufferSize: 25,
+	}
+
+	executor, err := NewTaskExecutorWithConfig(config, createTestLogger())
+	if err != nil {
+		t.Fatalf("Failed to create executor: %v", err)
+	}
+	defer executor.Shutdown()
+
+	if cap(executor.uiQueue) != 50 {
+		t.Errorf("Expected UI queue buffer size 50, got %d", cap(executor.uiQueue))
+	}
+
+	if cap(executor.lastEffortQueue) != 75 {
+		t.Errorf("Expected LastEffort queue buffer size 75, got %d", cap(executor.lastEffortQueue))
+	}
+
+	if cap(executor.backgroundQueue) != 25 {
+		t.Errorf("Expected Background queue buffer size 25, got %d", cap(executor.backgroundQueue))
+	}
+}
+
+func TestDefaultBufferSizes(t *testing.T) {
+	config := WorkerConfig{
+		UIWorkers:         1,
+		BackgroundWorkers: 1,
+	}
+
+	executor, err := NewTaskExecutorWithConfig(config, createTestLogger())
+	if err != nil {
+		t.Fatalf("Failed to create executor: %v", err)
+	}
+	defer executor.Shutdown()
+
+	if cap(executor.uiQueue) != 100 {
+		t.Errorf("Expected default UI queue buffer size 100, got %d", cap(executor.uiQueue))
+	}
+
+	if cap(executor.lastEffortQueue) != 100 {
+		t.Errorf("Expected default LastEffort queue buffer size 100, got %d", cap(executor.lastEffortQueue))
+	}
+
+	if cap(executor.backgroundQueue) != 100 {
+		t.Errorf("Expected default Background queue buffer size 100, got %d", cap(executor.backgroundQueue))
+	}
+}
+
+func TestLoggingIntegration(t *testing.T) {
+	// Create a logger that outputs to test for verification
+	logger := log.NewWithOptions(io.Discard, log.Options{
+		Level: log.InfoLevel,
+	})
+
+	executor := NewTaskExecutor(1, logger)
+	defer executor.Shutdown()
+
+	ctx := context.Background()
+	task := Task{
+		Name:     "Test logging task",
+		Priority: UI,
+		Duration: 10 * time.Millisecond,
+		Compute: func(resource interface{}) (interface{}, error) {
+			return "logged result", nil
+		},
+	}
+
+	result, err := executor.Execute(ctx, task, UI)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	if result != "logged result" {
+		t.Errorf("Expected 'logged result', got %v", result)
+	}
+}
+
+func TestBufferSizeValidation(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    WorkerConfig
+		expectErr bool
+		errMsg    string
+	}{
+		{
+			name: "Negative UI buffer size",
+			config: WorkerConfig{
+				UIWorkers:         1,
+				BackgroundWorkers: 1,
+				UIQueueBufferSize: -1,
+			},
+			expectErr: true,
+			errMsg:    "UIQueueBufferSize cannot be negative, got -1",
+		},
+		{
+			name: "Negative LastEffort buffer size",
+			config: WorkerConfig{
+				UIWorkers:           1,
+				BackgroundWorkers:   1,
+				LastEffortBufferSize: -5,
+			},
+			expectErr: true,
+			errMsg:    "LastEffortBufferSize cannot be negative, got -5",
+		},
+		{
+			name: "Negative Background buffer size",
+			config: WorkerConfig{
+				UIWorkers:         1,
+				BackgroundWorkers: 1,
+				BackgroundBufferSize: -10,
+			},
+			expectErr: true,
+			errMsg:    "BackgroundBufferSize cannot be negative, got -10",
+		},
+		{
+			name: "Zero buffer sizes are valid",
+			config: WorkerConfig{
+				UIWorkers:           1,
+				BackgroundWorkers:   1,
+				UIQueueBufferSize:   0,
+				LastEffortBufferSize: 0,
+				BackgroundBufferSize: 0,
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewTaskExecutorWithConfig(tt.config, createTestLogger())
+			if tt.expectErr {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				} else if err.Error() != tt.errMsg {
+					t.Errorf("Expected error '%s', got '%s'", tt.errMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+			}
+		})
 	}
 }
