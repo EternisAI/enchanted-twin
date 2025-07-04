@@ -494,7 +494,7 @@ func main() {
 	go telegram.SubscribePoller(telegramService, logger)
 	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
-	directoryWatcher, err := directorywatcher.NewDirectoryWatcher(store, mem, logger, temporalClient, envs.WatchDirectoryPath)
+	directoryWatcher, err := directorywatcher.NewDirectoryWatcher(store, mem, logger, temporalClient)
 	if err != nil {
 		logger.Error("Failed to create directory watcher", "error", err)
 		panic(errors.Wrap(err, "Failed to create directory watcher"))
@@ -504,7 +504,7 @@ func main() {
 		logger.Error("Failed to start directory watcher", "error", err)
 		panic(errors.Wrap(err, "Failed to start directory watcher"))
 	}
-	logger.Info("Directory watcher started", "watchDir", envs.WatchDirectoryPath)
+	logger.Info("Directory watcher started")
 
 	defer func() {
 		if err := directoryWatcher.Stop(); err != nil {
@@ -525,6 +525,7 @@ func main() {
 		mcpService:        mcpService,
 		telegramService:   telegramService,
 		holonService:      holonService,
+		directoryWatcher:  directoryWatcher,
 		whatsAppQRCode:    currentWhatsAppQRCode,
 		whatsAppConnected: whatsAppConnected,
 	})
@@ -655,6 +656,7 @@ type graphqlServerInput struct {
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
 	holonService           *holon.Service
+	directoryWatcher       *directorywatcher.DirectoryWatcher
 	whatsAppQRCode         *string
 	whatsAppConnected      bool
 }
@@ -679,6 +681,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 		TelegramService:        input.telegramService,
 		HolonService:           input.holonService,
+		DirectoryWatcher:       input.directoryWatcher,
 		WhatsAppQRCode:         input.whatsAppQRCode,
 		WhatsAppConnected:      input.whatsAppConnected,
 	}

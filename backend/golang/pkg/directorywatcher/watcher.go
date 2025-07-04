@@ -26,7 +26,6 @@ type DirectoryWatcher struct {
 	memoryStorage  evolvingmemory.MemoryStorage
 	logger         *log.Logger
 	temporalClient client.Client
-	watchDir       string
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -55,7 +54,7 @@ const (
 	BufferTimeout  = 5 * time.Second
 )
 
-func NewDirectoryWatcher(store *db.Store, memoryStorage evolvingmemory.MemoryStorage, logger *log.Logger, temporalClient client.Client, watchDir string) (*DirectoryWatcher, error) {
+func NewDirectoryWatcher(store *db.Store, memoryStorage evolvingmemory.MemoryStorage, logger *log.Logger, temporalClient client.Client) (*DirectoryWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create file watcher")
@@ -67,7 +66,6 @@ func NewDirectoryWatcher(store *db.Store, memoryStorage evolvingmemory.MemorySto
 		memoryStorage:  memoryStorage,
 		logger:         logger,
 		temporalClient: temporalClient,
-		watchDir:       watchDir,
 		shutdownCh:     make(chan struct{}),
 		fileBuffer:     make(map[string]*FileEvent),
 		bufferDuration: BufferTimeout,
@@ -77,23 +75,39 @@ func NewDirectoryWatcher(store *db.Store, memoryStorage evolvingmemory.MemorySto
 }
 
 func (dw *DirectoryWatcher) Start(ctx context.Context) error {
-	dw.logger.Info("Starting directory watcher", "watchDir", dw.watchDir)
+	dw.logger.Info("Starting directory watcher")
 
 	dw.ctx, dw.cancel = context.WithCancel(ctx)
 
-	if err := os.MkdirAll(dw.watchDir, 0o755); err != nil {
-		return errors.Wrap(err, "failed to create watch directory")
+	// Load tracked folders from database
+	folders, err := dw.store.GetEnabledTrackedFolders(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to load tracked folders")
 	}
 
-	if err := dw.watcher.Add(dw.watchDir); err != nil {
-		return errors.Wrap(err, "failed to add directory to watcher")
+	successfullyAdded := 0
+	for _, folder := range folders {
+		if err := os.MkdirAll(folder.Path, 0o755); err != nil {
+			dw.logger.Warn("Failed to create watch directory", "dir", folder.Path, "error", err)
+			continue
+		}
+
+		if err := dw.watcher.Add(folder.Path); err != nil {
+			continue
+		}
+		dw.logger.Info("✅ Directory added to fsnotify watcher", "path", folder.Path)
+		successfullyAdded++
+	}
+
+	watchList := dw.watcher.WatchList()
+	for i, path := range watchList {
+		dw.logger.Info("📍 Watching", "index", i, "path", path)
 	}
 
 	dw.wg.Add(2)
 	go dw.eventLoop()
 	go dw.performInitialScan(ctx)
 
-	dw.logger.Info("Directory watcher started successfully")
 	return nil
 }
 
@@ -162,22 +176,17 @@ func (dw *DirectoryWatcher) eventLoop() {
 
 func (dw *DirectoryWatcher) handleFileEvent(event fsnotify.Event) {
 	if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
-		dw.logger.Debug("Ignoring directory event", "path", event.Name, "op", event.Op.String())
 		return
 	}
 
 	fileName := filepath.Base(event.Name)
 	if strings.HasPrefix(fileName, ".") || strings.HasSuffix(fileName, ".tmp") {
-		dw.logger.Debug("Ignoring hidden or temporary file", "path", event.Name, "op", event.Op.String())
 		return
 	}
 
 	if !dw.isSupportedFile(event.Name) {
-		dw.logger.Debug("Ignoring unsupported file type", "path", event.Name, "op", event.Op.String())
 		return
 	}
-
-	dw.logger.Debug("File event accepted for processing", "path", event.Name, "op", event.Op.String())
 
 	dw.bufferFileEvent(&FileEvent{
 		Path:      event.Name,
@@ -190,19 +199,13 @@ func (dw *DirectoryWatcher) bufferFileEvent(event *FileEvent) {
 	dw.bufferMu.Lock()
 	defer dw.bufferMu.Unlock()
 
-	dw.logger.Debug("Buffering file event", "path", event.Path, "operation", event.Operation)
-
 	dw.fileBuffer[event.Path] = event
-	dw.logger.Debug("File buffer status", "totalBuffered", len(dw.fileBuffer), "path", event.Path)
 
 	if dw.bufferTimer != nil {
-		dw.logger.Debug("Stopping existing buffer timer")
 		dw.bufferTimer.Stop()
 	}
 
-	dw.logger.Debug("Starting new buffer timer", "duration", dw.bufferDuration)
 	dw.bufferTimer = time.AfterFunc(dw.bufferDuration, func() {
-		dw.logger.Debug("Buffer timer expired, processing events")
 		dw.processBatchedEvents()
 	})
 }
@@ -217,7 +220,6 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 	dw.bufferMu.Unlock()
 
 	if len(events) == 0 {
-		dw.logger.Debug("No events to process in batch")
 		return
 	}
 
@@ -256,15 +258,11 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 			continue
 		}
 
-		dw.logger.Debug("Processing event", "path", event.Path, "operation", event.Operation, "timestamp", event.Timestamp)
-
 		if strings.Contains(event.Operation, "CREATE") || strings.Contains(event.Operation, "WRITE") || strings.Contains(event.Operation, "CHMOD") {
-			dw.logger.Debug("Handling as new/modified file", "path", event.Path, "operation", event.Operation)
 			if err := dw.processNewFile(event.Path); err != nil {
 				dw.logger.Error("Failed to process new file", "error", err, "path", event.Path)
 			}
 		} else if strings.Contains(event.Operation, "REMOVE") {
-			dw.logger.Debug("Handling as removed file", "path", event.Path, "operation", event.Operation)
 			if err := dw.processRemovedFile(event.Path); err != nil {
 				dw.logger.Error("Failed to process removed file", "error", err, "path", event.Path)
 			}
@@ -739,69 +737,92 @@ func (dw *DirectoryWatcher) performInitialScan(ctx context.Context) {
 	scanCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	dw.logger.Info("Starting initial scan of watch directory")
+	dw.logger.Info("🚀 Starting initial scan of watched directories")
 
-	err := filepath.Walk(dw.watchDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		select {
-		case <-scanCtx.Done():
-			return scanCtx.Err()
-		default:
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		fileName := filepath.Base(path)
-		if strings.HasPrefix(fileName, ".") || strings.HasSuffix(fileName, ".tmp") {
-			return nil
-		}
-
-		if !dw.isSupportedFile(path) {
-			return nil
-		}
-
-		absPath, err := filepath.Abs(path)
-		if err != nil {
-			dw.logger.Error("Failed to resolve absolute path during scan", "error", err, "path", path)
-			absPath = path
-		}
-
-		exists, err := dw.store.ActiveDataSourceExistsByPath(scanCtx, absPath)
-		if err != nil {
-			dw.logger.Error("Failed to check active data source existence", "error", err, "path", absPath)
-			return nil
-		}
-
-		if !exists {
-			if err := dw.processNewFile(path); err != nil {
-				dw.logger.Error("Failed to process file during initial scan", "error", err, "path", path)
-			} else {
-				dw.incrementProcessedFiles()
-			}
-		}
-
-		return nil
-	})
-
+	folders, err := dw.store.GetEnabledTrackedFolders(scanCtx)
 	if err != nil {
-		if err == context.Canceled {
-			dw.logger.Info("Initial scan canceled")
-		} else {
-			dw.logger.Error("Error during initial scan", "error", err)
-			dw.incrementErrorCount()
-		}
-	} else {
-		dw.logger.Info("Initial scan completed")
+		dw.logger.Error("❌ Failed to load tracked folders for initial scan", "error", err)
+		return
+	}
 
-		if err := dw.triggerProcessingWorkflow(); err != nil {
-			dw.logger.Error("Failed to trigger processing workflow after initial scan", "error", err)
+	if len(folders) == 0 {
+		dw.logger.Warn("⚠️ No folders to scan - initial scan complete")
+		return
+	}
+
+	totalProcessed := 0
+	for folderIndex, folder := range folders {
+		dw.logger.Info("🔍 Scanning directory", "folderIndex", folderIndex+1, "totalFolders", len(folders), "dir", folder.Path)
+
+		folderProcessed := 0
+		err := filepath.Walk(folder.Path, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			select {
+			case <-scanCtx.Done():
+				return scanCtx.Err()
+			default:
+			}
+
+			if info.IsDir() {
+				return nil
+			}
+
+			fileName := filepath.Base(path)
+			if strings.HasPrefix(fileName, ".") || strings.HasSuffix(fileName, ".tmp") {
+				return nil
+			}
+
+			if !dw.isSupportedFile(path) {
+				return nil
+			}
+
+			absPath, err := filepath.Abs(path)
+			if err != nil {
+				absPath = path
+			}
+
+			exists, err := dw.store.ActiveDataSourceExistsByPath(scanCtx, absPath)
+			if err != nil {
+				return nil
+			}
+
+			if !exists {
+				if err := dw.processNewFile(path); err != nil {
+					dw.logger.Error("Failed to process file during initial scan", "error", err, "path", path)
+				} else {
+					dw.incrementProcessedFiles()
+					folderProcessed++
+					totalProcessed++
+				}
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			if err == context.Canceled {
+				dw.logger.Info("Initial scan canceled", "dir", folder.Path)
+			} else {
+				dw.logger.Error("Error during initial scan", "error", err, "dir", folder.Path)
+				dw.incrementErrorCount()
+			}
+		} else {
+			dw.logger.Info("✅ Initial scan completed for directory", "dir", folder.Path, "filesProcessed", folderProcessed)
 		}
 	}
+
+	dw.logger.Info("All directories scanned")
+
+	if err := dw.triggerProcessingWorkflow(); err != nil {
+		dw.logger.Error("❌ Failed to trigger processing workflow after initial scan", "error", err)
+	} else {
+		dw.logger.Info("✅ Processing workflow triggered successfully")
+	}
+
+	dw.logger.Info("✅ performInitialScan goroutine completed")
 }
 
 func (dw *DirectoryWatcher) isSupportedFile(filePath string) bool {
@@ -1127,4 +1148,143 @@ func (dw *DirectoryWatcher) incrementErrorCount() {
 	dw.statsMu.Lock()
 	defer dw.statsMu.Unlock()
 	dw.errorCount++
+}
+
+// AddWatchedDirectory adds a new directory to watch.
+func (dw *DirectoryWatcher) AddWatchedDirectory(path string) error {
+	// Check if already watching
+	watchList := dw.watcher.WatchList()
+	for _, watchedPath := range watchList {
+		if watchedPath == path {
+			return fmt.Errorf("directory already being watched: %s", path)
+		}
+	}
+
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		return errors.Wrap(err, "failed to create directory")
+	}
+
+	// Add to watcher
+	if err := dw.watcher.Add(path); err != nil {
+		return errors.Wrap(err, "failed to add directory to watcher")
+	}
+
+	dw.logger.Info("Added directory to watcher", "path", path)
+	return nil
+}
+
+// RemoveWatchedDirectory removes a directory from watching.
+func (dw *DirectoryWatcher) RemoveWatchedDirectory(path string) error {
+	// Remove from watcher
+	if err := dw.watcher.Remove(path); err != nil {
+		dw.logger.Warn("Failed to remove directory from watcher", "path", path, "error", err)
+	}
+
+	dw.logger.Info("Removed directory from watcher", "path", path)
+	return nil
+}
+
+// ReloadTrackedFolders reloads the tracked folders from the database.
+func (dw *DirectoryWatcher) ReloadTrackedFolders(ctx context.Context) error {
+	dw.logger.Info("🔄 ReloadTrackedFolders called - syncing with database...")
+
+	// Get current enabled folders from database
+	folders, err := dw.store.GetEnabledTrackedFolders(ctx)
+	if err != nil {
+		dw.logger.Error("❌ Failed to load tracked folders from database", "error", err)
+		return err
+	}
+
+	dw.logger.Info("📊 Database query completed", "folders_found", len(folders))
+	for i, folder := range folders {
+		dw.logger.Info("📋 Folder from DB", "index", i, "path", folder.Path, "name", folder.Name, "enabled", folder.IsEnabled)
+	}
+
+	// Get currently watched directories
+	currentWatchList := dw.watcher.WatchList()
+	dw.logger.Info("👀 Current fsnotify watch list", "count", len(currentWatchList))
+	for i, path := range currentWatchList {
+		dw.logger.Info("📍 Currently watching", "index", i, "path", path)
+	}
+
+	currentWatched := make(map[string]bool)
+	for _, path := range currentWatchList {
+		currentWatched[path] = true
+	}
+
+	// Build map of desired directories
+	desiredDirs := make(map[string]bool)
+	for _, folder := range folders {
+		desiredDirs[folder.Path] = true
+	}
+
+	// Remove directories that are no longer tracked
+	removedCount := 0
+	for watchedPath := range currentWatched {
+		if !desiredDirs[watchedPath] {
+			dw.logger.Info("🗑️ Removing directory from watcher", "path", watchedPath)
+			if err := dw.RemoveWatchedDirectory(watchedPath); err != nil {
+				dw.logger.Error("❌ Failed to remove directory", "path", watchedPath, "error", err)
+			} else {
+				removedCount++
+			}
+		}
+	}
+
+	// Add new directories
+	addedCount := 0
+	for _, folder := range folders {
+		if !currentWatched[folder.Path] {
+			dw.logger.Info("➕ Adding new directory to watcher", "path", folder.Path)
+			if err := dw.AddWatchedDirectory(folder.Path); err != nil {
+				dw.logger.Error("❌ Failed to add directory", "path", folder.Path, "error", err)
+			} else {
+				addedCount++
+			}
+		}
+	}
+
+	// Final verification
+	finalWatchList := dw.watcher.WatchList()
+	dw.logger.Info("📈 Reload summary",
+		"total_folders", len(folders),
+		"removed_count", removedCount,
+		"added_count", addedCount,
+		"final_watch_count", len(finalWatchList))
+
+	dw.logger.Info("✅ ReloadTrackedFolders completed successfully")
+	return nil
+}
+
+// GetWatchedDirectories returns the list of directories currently being watched.
+func (dw *DirectoryWatcher) GetWatchedDirectories() []string {
+	if dw.watcher == nil {
+		dw.logger.Warn("⚠️ fsnotify watcher is nil")
+		return []string{}
+	}
+
+	watchList := dw.watcher.WatchList()
+	dw.logger.Info("📋 Current watched directories", "count", len(watchList))
+	for i, path := range watchList {
+		dw.logger.Info("📂 Watched directory", "index", i, "path", path)
+	}
+
+	return watchList
+}
+
+// GetTrackedFoldersFromDB returns the tracked folders from the database for debugging.
+func (dw *DirectoryWatcher) GetTrackedFoldersFromDB(ctx context.Context) error {
+	folders, err := dw.store.GetEnabledTrackedFolders(ctx)
+	if err != nil {
+		dw.logger.Error("❌ Failed to get tracked folders from DB", "error", err)
+		return err
+	}
+
+	dw.logger.Info("📊 Tracked folders from database", "count", len(folders))
+	for i, folder := range folders {
+		dw.logger.Info("📋 DB folder", "index", i, "id", folder.ID, "path", folder.Path, "name", folder.Name, "enabled", folder.IsEnabled)
+	}
+
+	return nil
 }

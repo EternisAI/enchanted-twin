@@ -63,7 +63,6 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EmbeddingsAPIKey:   getEnv("EMBEDDINGS_API_KEY", "", printEnv),
 		DBPath:             getEnv("DB_PATH", "./output/sqlite/store.db", printEnv),
 		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
-		WatchDirectoryPath: getEnv("WATCH_DIRECTORY_PATH", "./input_data", printEnv),
 		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
