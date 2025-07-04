@@ -150,7 +150,7 @@ func (dw *DirectoryWatcher) eventLoop() {
 			dw.incrementErrorCount()
 
 		case <-dw.ctx.Done():
-			dw.logger.Info("Event loop context cancelled")
+			dw.logger.Info("Event loop context canceled")
 			return
 
 		case <-dw.shutdownCh:
@@ -790,7 +790,7 @@ func (dw *DirectoryWatcher) performInitialScan(ctx context.Context) {
 
 	if err != nil {
 		if err == context.Canceled {
-			dw.logger.Info("Initial scan cancelled")
+			dw.logger.Info("Initial scan canceled")
 		} else {
 			dw.logger.Error("Error during initial scan", "error", err)
 			dw.incrementErrorCount()
@@ -1116,7 +1116,7 @@ func (dw *DirectoryWatcher) readFileContent(filePath string) (string, error) {
 	return string(content), nil
 }
 
-// Add helper methods for metrics
+// Add helper methods for metrics.
 func (dw *DirectoryWatcher) incrementProcessedFiles() {
 	dw.statsMu.Lock()
 	defer dw.statsMu.Unlock()
