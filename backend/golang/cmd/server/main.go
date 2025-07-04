@@ -184,6 +184,9 @@ func main() {
 		if err != nil {
 			return "", err
 		}
+		if firebaseToken == nil {
+			return "", errors.New("no firebase token found in database")
+		}
 		return firebaseToken.AccessToken, nil
 	}
 
