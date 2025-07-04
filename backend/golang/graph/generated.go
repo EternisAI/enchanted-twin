@@ -170,7 +170,6 @@ type ComplexityRoot struct {
 		DeleteChat                func(childComplexity int, chatID string) int
 		DeleteDataSource          func(childComplexity int, id string) int
 		JoinHolon                 func(childComplexity int, userID string, network *string) int
-		ProcessMessageHistory     func(childComplexity int, chatID string, messages []*model.MessageInput, isOnboarding bool) int
 		RefreshExpiredOAuthTokens func(childComplexity int) int
 		RemoveMCPServer           func(childComplexity int, id string) int
 		SendMessage               func(childComplexity int, chatID string, text string, reasoning bool, voice bool) int
@@ -318,7 +317,6 @@ type MutationResolver interface {
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
-	ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
@@ -1003,18 +1001,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.JoinHolon(childComplexity, args["userId"].(string), args["network"].(*string)), true
-
-	case "Mutation.processMessageHistory":
-		if e.complexity.Mutation.ProcessMessageHistory == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_processMessageHistory_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.ProcessMessageHistory(childComplexity, args["chatId"].(string), args["messages"].([]*model.MessageInput), args["isOnboarding"].(bool)), true
 
 	case "Mutation.refreshExpiredOAuthTokens":
 		if e.complexity.Mutation.RefreshExpiredOAuthTokens == nil {
@@ -2192,65 +2178,6 @@ func (ec *executionContext) field_Mutation_joinHolon_argsNetwork(
 	}
 
 	var zeroVal *string
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_processMessageHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := ec.field_Mutation_processMessageHistory_argsChatID(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["chatId"] = arg0
-	arg1, err := ec.field_Mutation_processMessageHistory_argsMessages(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["messages"] = arg1
-	arg2, err := ec.field_Mutation_processMessageHistory_argsIsOnboarding(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["isOnboarding"] = arg2
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_processMessageHistory_argsChatID(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
-	if tmp, ok := rawArgs["chatId"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
-	}
-
-	var zeroVal string
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_processMessageHistory_argsMessages(
-	ctx context.Context,
-	rawArgs map[string]any,
-) ([]*model.MessageInput, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("messages"))
-	if tmp, ok := rawArgs["messages"]; ok {
-		return ec.unmarshalNMessageInput2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessageInputᚄ(ctx, tmp)
-	}
-
-	var zeroVal []*model.MessageInput
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_processMessageHistory_argsIsOnboarding(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (bool, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("isOnboarding"))
-	if tmp, ok := rawArgs["isOnboarding"]; ok {
-		return ec.unmarshalNBoolean2bool(ctx, tmp)
-	}
-
-	var zeroVal bool
 	return zeroVal, nil
 }
 
@@ -6617,77 +6544,6 @@ func (ec *executionContext) fieldContext_Mutation_sendMessage(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_sendMessage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_processMessageHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_processMessageHistory(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ProcessMessageHistory(rctx, fc.Args["chatId"].(string), fc.Args["messages"].([]*model.MessageInput), fc.Args["isOnboarding"].(bool))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(*model.Message)
-	fc.Result = res
-	return ec.marshalNMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_processMessageHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Message_id(ctx, field)
-			case "text":
-				return ec.fieldContext_Message_text(ctx, field)
-			case "imageUrls":
-				return ec.fieldContext_Message_imageUrls(ctx, field)
-			case "role":
-				return ec.fieldContext_Message_role(ctx, field)
-			case "toolCalls":
-				return ec.fieldContext_Message_toolCalls(ctx, field)
-			case "toolResults":
-				return ec.fieldContext_Message_toolResults(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Message_createdAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_processMessageHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -14549,13 +14405,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "sendMessage":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_sendMessage(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "processMessageHistory":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_processMessageHistory(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
