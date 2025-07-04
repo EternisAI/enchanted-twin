@@ -579,6 +579,7 @@ func (dw *DirectoryWatcher) storeFileInMemory(ctx context.Context, filePath, dat
 
 // removeFileFromMemory efficiently removes memories by file path using the new indexed field.
 func (dw *DirectoryWatcher) removeFileFromMemory(ctx context.Context, filePath string) error {
+	dw.logger.Info("Removing file from memory", "path", filePath)
 	if dw.memoryStorage == nil {
 		dw.logger.Debug("Memory storage not available, skipping memory cleanup")
 		return nil
