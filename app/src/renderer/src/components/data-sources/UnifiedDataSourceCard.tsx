@@ -73,7 +73,7 @@ export const UnifiedDataSourceCard = ({
     <div className="p-4 w-full">
       <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-5">
         <div className="flex items-center gap-5">
-          <div className="w-10 h-10 flex items-center justify-center">{source.icon}</div>
+          {source.icon}
           <span className="font-semibold text-lg leading-none">{source.label}</span>
         </div>
         <div className="flex items-center gap-2">
