@@ -15,7 +15,6 @@ import {
 import {
   PYTHON_VERSION,
   UV_INSTALL_SCRIPT,
-  REQUIRED_ENV_VARS,
   PYTHON_REQUIREMENTS,
   PROGRESS_STEPS,
   SESSION_READY_INDICATORS,
@@ -327,14 +326,6 @@ export class LiveKitAgentBootstrap {
     }
 
     log.info('[LiveKit] Starting LiveKit agent', isOnboarding)
-
-    // Note: Room connection is handled by the LiveKit agent framework via ctx.connect()
-
-    // Check for required environment variables before starting
-    const missingEnvVars = REQUIRED_ENV_VARS.filter((envVar) => !process.env[envVar])
-    if (missingEnvVars.length > 0) {
-      throw new EnvironmentError(missingEnvVars)
-    }
 
     let greeting = ``
     if (isOnboarding) {
