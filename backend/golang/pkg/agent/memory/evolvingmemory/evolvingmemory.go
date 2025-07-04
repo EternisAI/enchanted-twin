@@ -489,6 +489,7 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 			"factValue":       fact.Value,
 			"factSensitivity": fact.Sensitivity,
 			"factImportance":  fact.Importance,
+			"factFilePath":    fact.FilePath,
 		}
 
 		// Add temporal context if present
