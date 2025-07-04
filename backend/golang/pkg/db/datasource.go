@@ -143,6 +143,31 @@ func (s *Store) MarkDataSourceAsReplaced(ctx context.Context, path string) error
 	return err
 }
 
+// UpdateDataSourcePath updates the path of an existing data source.
+func (s *Store) UpdateDataSourcePath(ctx context.Context, id string, newPath string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE data_sources 
+		SET path = ?, updated_at = CURRENT_TIMESTAMP 
+		WHERE id = ?
+	`, newPath, id)
+	return err
+}
+
+// FindOrphanedDataSources finds active data sources whose files no longer exist at their recorded paths.
+func (s *Store) FindOrphanedDataSources(ctx context.Context) ([]*DataSource, error) {
+	var dataSources []*DataSource
+	err := s.db.SelectContext(ctx, &dataSources, `
+		SELECT id, name, path, state, created_at, updated_at, is_indexed, has_error, processed_path
+		FROM data_sources 
+		WHERE state = 'active'
+		ORDER BY updated_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	return dataSources, nil
+}
+
 // GetDataSourceHistory retrieves the complete history of all data sources for a given path.
 func (s *Store) GetDataSourceHistory(ctx context.Context, path string) ([]*DataSource, error) {
 	var dataSources []*DataSource

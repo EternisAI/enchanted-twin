@@ -1,4 +1,3 @@
-// owner: slimane@eternis.ai
 package directorywatcher
 
 import (
@@ -17,13 +16,14 @@ import (
 	"go.temporal.io/sdk/client"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type DirectoryWatcher struct {
 	watcher        *fsnotify.Watcher
 	store          *db.Store
-	memoryStorage  memory.Storage
+	memoryStorage  evolvingmemory.MemoryStorage
 	logger         *log.Logger
 	temporalClient client.Client
 	watchDir       string
@@ -40,7 +40,11 @@ type FileEvent struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-func NewDirectoryWatcher(store *db.Store, memoryStorage memory.Storage, logger *log.Logger, temporalClient client.Client, watchDir string) (*DirectoryWatcher, error) {
+const (
+	MaxFileSize = 20 * 1024 * 1024
+)
+
+func NewDirectoryWatcher(store *db.Store, memoryStorage evolvingmemory.MemoryStorage, logger *log.Logger, temporalClient client.Client, watchDir string) (*DirectoryWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create file watcher")
@@ -180,7 +184,40 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 
 	dw.logger.Info("Processing batched file events", "count", len(events))
 
+	processedPaths := make(map[string]bool)
+	renamePairs := dw.identifyRenamePairs(events)
+
+	for oldPath, newPath := range renamePairs {
+
+		if err := dw.processRenameEventWithNewPath(oldPath, newPath); err != nil {
+			dw.logger.Error("Failed to process rename pair", "error", err, "oldPath", oldPath, "newPath", newPath)
+		}
+
+		processedPaths[oldPath] = true
+		processedPaths[newPath] = true
+	}
+
 	for _, event := range events {
+		if strings.Contains(event.Operation, "RENAME") && !processedPaths[event.Path] {
+			dw.logger.Debug("🟡 Processing standalone rename event", "path", event.Path, "operation", event.Operation, "timestamp", event.Timestamp)
+
+			if err := dw.processRenameEvent(event.Path); err != nil {
+				dw.logger.Error("Failed to process rename event", "error", err, "path", event.Path)
+			}
+
+			processedPaths[event.Path] = true
+			if err := dw.markRelatedEventsAsProcessed(events, event.Path, processedPaths); err != nil {
+				dw.logger.Error("Failed to mark related events as processed", "error", err, "renamePath", event.Path)
+			}
+		}
+	}
+
+	for _, event := range events {
+		if processedPaths[event.Path] {
+			dw.logger.Debug("Skipping already processed event", "path", event.Path, "operation", event.Operation)
+			continue
+		}
+
 		dw.logger.Debug("Processing event", "path", event.Path, "operation", event.Operation, "timestamp", event.Timestamp)
 
 		if strings.Contains(event.Operation, "CREATE") || strings.Contains(event.Operation, "WRITE") || strings.Contains(event.Operation, "CHMOD") {
@@ -193,11 +230,6 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 			if err := dw.processRemovedFile(event.Path); err != nil {
 				dw.logger.Error("Failed to process removed file", "error", err, "path", event.Path)
 			}
-		} else if strings.Contains(event.Operation, "RENAME") {
-			dw.logger.Debug("Handling as rename event", "path", event.Path, "operation", event.Operation)
-			if err := dw.processRenameEvent(event.Path); err != nil {
-				dw.logger.Error("Failed to process rename event", "error", err, "path", event.Path)
-			}
 		} else {
 			dw.logger.Warn("Unhandled file event operation", "path", event.Path, "operation", event.Operation)
 		}
@@ -206,6 +238,102 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 	if err := dw.triggerProcessingWorkflow(); err != nil {
 		dw.logger.Error("Failed to trigger processing workflow", "error", err)
 	}
+}
+
+func (dw *DirectoryWatcher) identifyRenamePairs(events []*FileEvent) map[string]string {
+	renamePairs := make(map[string]string)
+
+	var renameEvents []*FileEvent
+	for _, event := range events {
+		if strings.Contains(event.Operation, "RENAME") {
+			renameEvents = append(renameEvents, event)
+		}
+	}
+
+	for _, renameEvent := range renameEvents {
+		renameDir := filepath.Dir(renameEvent.Path)
+		renameBase := filepath.Base(renameEvent.Path)
+		renameExt := filepath.Ext(renameEvent.Path)
+
+		for _, event := range events {
+			if strings.Contains(event.Operation, "CREATE") || strings.Contains(event.Operation, "CHMOD") {
+				if dw.couldBeRelatedRenameEvent(event, renameDir, renameBase, renameExt) {
+					renamePairs[renameEvent.Path] = event.Path
+					break
+				}
+			}
+		}
+	}
+
+	return renamePairs
+}
+
+func (dw *DirectoryWatcher) markRelatedEventsAsProcessed(events []*FileEvent, renamePath string, processedPaths map[string]bool) error {
+	renameDir := filepath.Dir(renamePath)
+	renameBase := filepath.Base(renamePath)
+	renameExt := filepath.Ext(renamePath)
+
+	for _, event := range events {
+		if processedPaths[event.Path] {
+			continue
+		}
+
+		if dw.couldBeRelatedRenameEvent(event, renameDir, renameBase, renameExt) {
+			processedPaths[event.Path] = true
+		}
+	}
+
+	return nil
+}
+
+func (dw *DirectoryWatcher) couldBeRelatedRenameEvent(event *FileEvent, renameDir, renameBase, renameExt string) bool {
+	eventDir := filepath.Dir(event.Path)
+	eventBase := filepath.Base(event.Path)
+	eventExt := filepath.Ext(event.Path)
+
+	if eventDir != renameDir {
+		return false
+	}
+
+	if eventExt != renameExt {
+		return false
+	}
+
+	if !strings.Contains(event.Operation, "CREATE") && !strings.Contains(event.Operation, "CHMOD") {
+		return false
+	}
+
+	if dw.hasCommonPattern(renameBase, eventBase) {
+		return true
+	}
+
+	return false
+}
+
+func (dw *DirectoryWatcher) hasCommonPattern(name1, name2 string) bool {
+	base1 := strings.TrimSuffix(name1, filepath.Ext(name1))
+	base2 := strings.TrimSuffix(name2, filepath.Ext(name2))
+
+	if strings.HasPrefix(base1, base2) || strings.HasPrefix(base2, base1) {
+		return true
+	}
+
+	commonPrefix := 0
+	minLen := len(base1)
+	if len(base2) < minLen {
+		minLen = len(base2)
+	}
+
+	for i := 0; i < minLen; i++ {
+		if base1[i] == base2[i] {
+			commonPrefix++
+		} else {
+			break
+		}
+	}
+
+	isRelated := commonPrefix >= 5 || float64(commonPrefix)/float64(minLen) >= 0.7
+	return isRelated
 }
 
 func (dw *DirectoryWatcher) processNewFile(filePath string) error {
@@ -219,7 +347,6 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 
 	dw.logger.Debug("Processing new file", "originalPath", filePath, "absolutePath", absPath)
 
-	// Check if file still exists
 	if _, err := os.Stat(absPath); os.IsNotExist(err) {
 		dw.logger.Warn("File no longer exists, skipping processing", "path", absPath)
 		return nil
@@ -279,6 +406,7 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 }
 
 func (dw *DirectoryWatcher) processRemovedFile(filePath string) error {
+	dw.logger.Debug("🔴 Processing removed file", "path", filePath)
 	ctx := context.Background()
 
 	absPath, err := filepath.Abs(filePath)
@@ -302,24 +430,263 @@ func (dw *DirectoryWatcher) processRemovedFile(filePath string) error {
 	return nil
 }
 
+func (dw *DirectoryWatcher) findNewPathForRenameEvent(oldPath string) string {
+	oldDir := filepath.Dir(oldPath)
+	oldExt := filepath.Ext(oldPath)
+	oldBase := filepath.Base(oldPath)
+
+	entries, err := os.ReadDir(oldDir)
+	if err != nil {
+		dw.logger.Error("Failed to read directory for rename detection", "error", err, "dir", oldDir)
+		return ""
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		newPath := filepath.Join(oldDir, entry.Name())
+		newExt := filepath.Ext(entry.Name())
+		newBase := entry.Name()
+
+		if newExt != oldExt {
+			continue
+		}
+
+		if newPath == oldPath {
+			continue
+		}
+
+		if dw.hasCommonPattern(oldBase, newBase) {
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+
+			if time.Since(info.ModTime()) < 30*time.Second {
+				dw.logger.Debug("Found potential new path for renamed file", "oldPath", oldPath, "newPath", newPath)
+				return newPath
+			}
+		}
+	}
+
+	return ""
+}
+
 func (dw *DirectoryWatcher) processRenameEvent(filePath string) error {
-	// Check if the file still exists after the RENAME event
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		// File doesn't exist - treat as deletion
-		dw.logger.Debug("RENAME event for non-existent file - treating as deletion", "path", filePath)
-		return dw.processRemovedFile(filePath)
+	ctx := context.Background()
+
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		dw.logger.Error("Failed to resolve absolute path for rename event", "error", err, "path", filePath)
+		absPath = filePath
+	}
+
+	_, err = os.Stat(absPath)
+	if os.IsNotExist(err) {
+		dw.logger.Debug("🟡 RENAME event for non-existent file - looking for new path", "oldPath", absPath)
+
+		newPath := dw.findNewPathForRenameEvent(absPath)
+		if newPath != "" {
+			dw.logger.Debug("🟡 Found new path for renamed file", "oldPath", absPath, "newPath", newPath)
+			return dw.processFileRename(absPath, newPath)
+		}
+
+		dw.logger.Debug("Could not find new path for renamed file - treating as deletion", "oldPath", absPath)
+		return dw.processRemovedFile(absPath)
 	} else if err != nil {
 		// Some other error checking file existence
-		dw.logger.Error("Failed to check file existence for RENAME event", "error", err, "path", filePath)
+		dw.logger.Error("Failed to check file existence for RENAME event", "error", err, "path", absPath)
 		return err
 	}
 
-	// File still exists - treat as modification/new file
-	dw.logger.Debug("RENAME event for existing file - treating as modification", "path", filePath)
-	return dw.processNewFile(filePath)
+	dw.logger.Debug("🟡 RENAME event for existing file - checking for orphaned data sources", "path", absPath)
+
+	exists, err := dw.store.ActiveDataSourceExistsByPath(ctx, absPath)
+	if err != nil {
+		dw.logger.Error("Failed to check if data source exists for new path", "error", err, "path", absPath)
+	} else if exists {
+		dw.logger.Debug("Data source already exists for new path - treating as replacement", "path", absPath)
+		return dw.processNewFile(absPath)
+	}
+
+	orphanedSources, err := dw.store.FindOrphanedDataSources(ctx)
+	if err != nil {
+		dw.logger.Error("Failed to find orphaned data sources", "error", err)
+		return dw.processNewFile(absPath)
+	}
+
+	var matchingSource *db.DataSource
+	for _, source := range orphanedSources {
+		if _, err := os.Stat(source.Path); !os.IsNotExist(err) {
+			continue
+		}
+
+		if dw.couldBeRenamedFile(source.Path, absPath, source.Name) {
+			matchingSource = source
+			break
+		}
+	}
+
+	if matchingSource != nil {
+		dw.logger.Info("🟡 Found matching orphaned data source for renamed file",
+			"oldPath", matchingSource.Path, "newPath", absPath, "dataSourceID", matchingSource.ID)
+		return dw.processFileRename(matchingSource.Path, absPath)
+	}
+
+	dw.logger.Debug("No matching orphaned data source found - treating as new file", "path", absPath)
+	return dw.processNewFile(absPath)
+}
+
+// processRenameEventWithNewPath handles rename when we know both old and new paths
+func (dw *DirectoryWatcher) processRenameEventWithNewPath(oldPath, newPath string) error {
+	ctx := context.Background()
+
+	oldAbsPath, err := filepath.Abs(oldPath)
+	if err != nil {
+		dw.logger.Error("Failed to resolve absolute path for old file", "error", err, "path", oldPath)
+		oldAbsPath = oldPath
+	}
+
+	newAbsPath, err := filepath.Abs(newPath)
+	if err != nil {
+		dw.logger.Error("Failed to resolve absolute path for new file", "error", err, "path", newPath)
+		newAbsPath = newPath
+	}
+
+	dw.logger.Debug("🟡 Processing rename with known paths", "oldPath", oldAbsPath, "newPath", newAbsPath)
+
+	if _, err := os.Stat(newAbsPath); os.IsNotExist(err) {
+		dw.logger.Warn("New file path does not exist, treating as deletion", "newPath", newAbsPath)
+		return dw.processRemovedFile(oldAbsPath)
+	}
+
+	exists, err := dw.store.ActiveDataSourceExistsByPath(ctx, newAbsPath)
+	if err != nil {
+		dw.logger.Error("Failed to check if data source exists for new path", "error", err, "path", newAbsPath)
+	} else if exists {
+		dw.logger.Debug("Data source already exists for new path - treating as replacement", "path", newAbsPath)
+		if err := dw.processRemovedFile(oldAbsPath); err != nil {
+			dw.logger.Error("Failed to process old file as removed", "error", err, "oldPath", oldAbsPath)
+		}
+		return dw.processNewFile(newAbsPath)
+	}
+
+	orphanedSources, err := dw.store.FindOrphanedDataSources(ctx)
+	if err != nil {
+		dw.logger.Error("Failed to find orphaned data sources for rename", "error", err)
+		return dw.processNewFile(newAbsPath)
+	}
+
+	var matchingSource *db.DataSource
+	for _, source := range orphanedSources {
+		if source.Path == oldAbsPath {
+			matchingSource = source
+			break
+		}
+	}
+
+	if matchingSource == nil {
+		dw.logger.Debug("No data source found for old path, treating as new file", "oldPath", oldAbsPath)
+		return dw.processNewFile(newAbsPath)
+	}
+
+	// Verify the data source type matches
+	newDataSourceType := dw.determineDataSourceType(newAbsPath)
+	if newDataSourceType != matchingSource.Name {
+		dw.logger.Warn("Data source type mismatch, treating as replacement", "oldType", matchingSource.Name, "newType", newDataSourceType)
+		if err := dw.processRemovedFile(oldAbsPath); err != nil {
+			dw.logger.Error("Failed to process old file as removed", "error", err, "oldPath", oldAbsPath)
+		}
+		return dw.processNewFile(newAbsPath)
+	}
+
+	// Update the path in the database
+	if err := dw.store.UpdateDataSourcePath(ctx, matchingSource.ID, newAbsPath); err != nil {
+		dw.logger.Error("Failed to update data source path", "error", err, "dataSourceID", matchingSource.ID)
+		return dw.processNewFile(newAbsPath)
+	}
+
+	// Update the path in memory storage
+	if err := dw.updateFilePathInMemory(ctx, oldAbsPath, newAbsPath); err != nil {
+		dw.logger.Error("Failed to update file path in memory", "error", err, "oldPath", oldAbsPath, "newPath", newAbsPath)
+		// Continue anyway, database update succeeded
+	}
+
+	return nil
+}
+
+// processFileRename handles the actual rename operation by updating database and memory
+func (dw *DirectoryWatcher) processFileRename(oldPath, newPath string) error {
+	ctx := context.Background()
+
+	// Find the data source for the old path
+	orphanedSources, err := dw.store.FindOrphanedDataSources(ctx)
+	if err != nil {
+		dw.logger.Error("Failed to find data sources for rename", "error", err)
+		return err
+	}
+
+	var dataSourceID string
+	for _, source := range orphanedSources {
+		if source.Path == oldPath {
+			dataSourceID = source.ID
+			break
+		}
+	}
+
+	if dataSourceID == "" {
+		dw.logger.Error("Could not find data source for old path", "oldPath", oldPath)
+		return dw.processNewFile(newPath)
+	}
+
+	// Update the path in the database
+	if err := dw.store.UpdateDataSourcePath(ctx, dataSourceID, newPath); err != nil {
+		dw.logger.Error("Failed to update data source path", "error", err, "dataSourceID", dataSourceID)
+		return dw.processNewFile(newPath)
+	}
+
+	dw.logger.Debug("🟡 Updating data source path in database", "oldPath", oldPath, "newPath", newPath, "dataSourceID", dataSourceID)
+
+	// Update the path in memory storage
+	if err := dw.updateFilePathInMemory(ctx, oldPath, newPath); err != nil {
+		dw.logger.Error("Failed to update file path in memory", "error", err, "oldPath", oldPath, "newPath", newPath)
+		// Continue anyway, database update succeeded
+	}
+
+	dw.logger.Info("🟡 Successfully updated data source path for renamed file",
+		"oldPath", oldPath, "newPath", newPath, "dataSourceID", dataSourceID)
+	return nil
+}
+
+// couldBeRenamedFile checks if the new file could be a renamed version of the old file
+func (dw *DirectoryWatcher) couldBeRenamedFile(oldPath, newPath, dataSourceType string) bool {
+	// Check if both files have the same extension
+	oldExt := strings.ToLower(filepath.Ext(oldPath))
+	newExt := strings.ToLower(filepath.Ext(newPath))
+
+	// If extensions are different, it's likely not a simple rename
+	if oldExt != newExt {
+		return false
+	}
+
+	// Check if the data source type matches the new file
+	newDataSourceType := dw.determineDataSourceType(newPath)
+	if newDataSourceType != dataSourceType {
+		return false
+	}
+
+	// Additional checks could be added here (file size, modification time, etc.)
+	// For now, matching extension and data source type is sufficient
+
+	dw.logger.Debug("File could be renamed version", "oldPath", oldPath, "newPath", newPath, "dataSourceType", dataSourceType)
+	return true
 }
 
 func (dw *DirectoryWatcher) triggerProcessingWorkflow() error {
+	dw.logger.Debug("🟢 Triggering processing workflow")
+
 	workflowOptions := client.StartWorkflowOptions{
 		ID:        fmt.Sprintf("auto-initialize-%d", time.Now().Unix()),
 		TaskQueue: "default",
@@ -494,7 +861,6 @@ func (dw *DirectoryWatcher) detectJSONContentType(filePath string) string {
 	content := string(buffer[:n])
 	contentLower := strings.ToLower(content)
 
-	// Check for X/Twitter data patterns
 	if strings.Contains(contentLower, "\"like\"") && strings.Contains(contentLower, "\"tweetid\"") ||
 		strings.Contains(contentLower, "\"tweet\"") && strings.Contains(contentLower, "\"full_text\"") ||
 		strings.Contains(contentLower, "\"dmconversation\"") ||
@@ -502,30 +868,24 @@ func (dw *DirectoryWatcher) detectJSONContentType(filePath string) string {
 		return "X"
 	}
 
-	// Check for Telegram data patterns
 	if strings.Contains(contentLower, "\"personal_information\"") && strings.Contains(contentLower, "\"chats\"") ||
 		strings.Contains(contentLower, "\"date_unixtime\"") && strings.Contains(contentLower, "\"from_id\"") {
 		return "Telegram"
 	}
 
-	// Check for ChatGPT conversation patterns
 	if strings.Contains(contentLower, "\"conversations\"") && strings.Contains(contentLower, "\"mapping\"") ||
 		strings.Contains(contentLower, "\"message\"") && strings.Contains(contentLower, "\"author\"") && strings.Contains(contentLower, "\"role\"") {
 		return "ChatGPT"
 	}
 
-	// Check if it's an array structure - could be X data or conversation documents
 	trimmedContent := strings.TrimSpace(content)
 	if strings.HasPrefix(trimmedContent, "[") {
 		if strings.Contains(contentLower, "\"conversation\"") && strings.Contains(contentLower, "\"people\"") {
 			return "X"
 		}
-		// Other arrays default to X since X can handle various array formats
 		return "X"
 	}
 
-	// Default for unrecognized JSON - be conservative and return empty string
-	// This prevents incorrect processing and will require manual intervention
 	dw.logger.Warn("Could not determine data source type for JSON file", "path", filePath)
 	return ""
 }
@@ -537,20 +897,26 @@ func (dw *DirectoryWatcher) storeFileInMemory(ctx context.Context, filePath, dat
 		return nil
 	}
 
+	fileContent, err := dw.readFileContent(filePath)
+	if err != nil {
+		dw.logger.Error("Failed to read file content for memory storage", "error", err, "path", filePath)
+		return errors.Wrap(err, "failed to read file content")
+	}
+
 	memoryFact := &memory.MemoryFact{
 		ID:        fmt.Sprintf("file-indexed-%s", dataSourceID),
-		Content:   fmt.Sprintf("Indexed file: %s as %s data source", filepath.Base(filePath), dataSourceType),
+		Content:   fileContent,
 		Timestamp: time.Now(),
-
-		Category: "file-indexed", // Indexed: allows filtering by file indexing events
-
-		Source:   "file-indexing", // Indexed: filter by file indexing source
-		FilePath: filePath,        // NEW: Indexed file path field for super-fast queries!
-		Tags:     []string{"file-indexed", "data-source", dataSourceType},
+		Category:  "file-indexed",
+		Source:    "file-indexing",
+		FilePath:  filePath,
+		Tags:      []string{"file-indexed", "data-source", dataSourceType},
 
 		Metadata: map[string]string{
-			"data_source_id": dataSourceID,
-			"indexed_at":     time.Now().Format(time.RFC3339),
+			"data_source_id":   dataSourceID,
+			"indexed_at":       time.Now().Format(time.RFC3339),
+			"file_name":        filepath.Base(filePath),
+			"data_source_type": dataSourceType,
 		},
 	}
 
@@ -566,14 +932,14 @@ func (dw *DirectoryWatcher) storeFileInMemory(ctx context.Context, filePath, dat
 
 	documents := []memory.Document{fileDoc}
 
-	err := dw.memoryStorage.Store(ctx, documents, func(processed, total int) {
+	err = dw.memoryStorage.Store(ctx, documents, func(processed, total int) {
 		dw.logger.Debug("Storing file metadata in memory", "processed", processed, "total", total)
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to store file metadata in memory")
 	}
 
-	dw.logger.Info("Stored file metadata in memory using indexed FilePath field", "path", filePath, "category", memoryFact.Category, "file_path", memoryFact.FilePath)
+	dw.logger.Info("Stored file content in memory using indexed FilePath field", "path", filePath, "category", memoryFact.Category, "file_path", memoryFact.FilePath, "content_length", len(fileContent))
 	return nil
 }
 
@@ -603,11 +969,113 @@ func (dw *DirectoryWatcher) removeFileFromMemory(ctx context.Context, filePath s
 	dw.logger.Info("Found memories to delete for file", "path", filePath, "count", len(result.Facts))
 
 	for _, fact := range result.Facts {
-		dw.logger.Info("Found memory for file deletion", "memory_id", fact.ID, "file_path", fact.FilePath)
-		// TODO: When DeleteByID is implemented in the memory interface, call it here
-		// For now, we're just logging what would be deleted
+		dw.logger.Info("Deleting memory for removed file", "memory_id", fact.ID, "file_path", fact.FilePath)
+
+		if err := dw.memoryStorage.Delete(ctx, fact.ID); err != nil {
+			dw.logger.Error("Failed to delete memory", "error", err, "memory_id", fact.ID)
+			continue
+		}
+
+		dw.logger.Info("Successfully deleted memory", "memory_id", fact.ID)
 	}
 
 	dw.logger.Info("Completed memory cleanup for file", "path", filePath, "memories_to_delete", len(result.Facts))
 	return nil
+}
+
+// updateFilePathInMemory updates the file path in memory storage for a given data source.
+func (dw *DirectoryWatcher) updateFilePathInMemory(ctx context.Context, oldPath, newPath string) error {
+	dw.logger.Info("Updating file path in memory", "oldPath", oldPath, "newPath", newPath)
+	if dw.memoryStorage == nil {
+		dw.logger.Debug("Memory storage not available, skipping memory path update")
+		return nil
+	}
+
+	filter := &memory.Filter{
+		FactFilePath: &oldPath,
+		Limit:        &[]int{100}[0],
+	}
+
+	result, err := dw.memoryStorage.Query(ctx, "", filter)
+	if err != nil {
+		return errors.Wrap(err, "failed to query memories for path update")
+	}
+
+	if len(result.Facts) == 0 {
+		dw.logger.Debug("No memories found for old file path", "oldPath", oldPath)
+		return nil
+	}
+
+	dw.logger.Info("Found memories to update for file path change", "oldPath", oldPath, "newPath", newPath, "count", len(result.Facts))
+
+	for _, fact := range result.Facts {
+		dw.logger.Debug("Updating memory file path", "memory_id", fact.ID, "oldPath", oldPath, "newPath", newPath)
+
+		fact.FilePath = newPath
+		if fact.Metadata == nil {
+			fact.Metadata = make(map[string]string)
+		}
+		fact.Metadata["file_name"] = filepath.Base(newPath)
+
+		fileDoc := &memory.TextDocument{
+			FieldID:        fact.ID,
+			FieldContent:   fact.Content,
+			FieldTimestamp: &fact.Timestamp,
+			FieldSource:    fact.Source,
+			FieldTags:      fact.Tags,
+			FieldMetadata:  fact.Metadata,
+			FieldFilePath:  fact.FilePath,
+		}
+
+		documents := []memory.Document{fileDoc}
+
+		err = dw.memoryStorage.Store(ctx, documents, func(processed, total int) {
+			dw.logger.Debug("Updating file path in memory", "processed", processed, "total", total)
+		})
+		if err != nil {
+			dw.logger.Error("Failed to update memory file path", "error", err, "memory_id", fact.ID)
+			continue
+		}
+
+		dw.logger.Info("Successfully updated memory file path", "memory_id", fact.ID, "newPath", newPath)
+	}
+
+	dw.logger.Info("Completed memory path update", "oldPath", oldPath, "newPath", newPath, "memories_updated", len(result.Facts))
+	return nil
+}
+
+// readFileContent reads the content of a file and returns it as a string.
+// It handles different file types appropriately and limits the content size for large files.
+func (dw *DirectoryWatcher) readFileContent(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to open file")
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			dw.logger.Warn("Failed to close file during content reading", "path", filePath, "error", closeErr)
+		}
+	}()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get file info")
+	}
+
+	if fileInfo.Size() > MaxFileSize {
+		dw.logger.Warn("File too large, reading first %d bytes only", "path", filePath, "size", fileInfo.Size())
+		buffer := make([]byte, MaxFileSize)
+		n, err := file.Read(buffer)
+		if err != nil && err != io.EOF {
+			return "", errors.Wrap(err, "failed to read file content")
+		}
+		return string(buffer[:n]), nil
+	}
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to read file content")
+	}
+
+	return string(content), nil
 }
