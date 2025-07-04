@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <title>Digital Twin</title>
 
-    <!-- CSP that covers dev + prod assets, TTS WS on :8080, Vite WS on :5173, backend on :44999 -->
     <meta
       http-equiv="Content-Security-Policy"
       content="
@@ -14,13 +13,22 @@
           http://localhost:44999 ws://localhost:44999
           ws://localhost:5173
           https://www.gstatic.com
-          https://prod.spline.design;
+          https://prod.spline.design
+          https://identitytoolkit.googleapis.com
+          https://securetoken.googleapis.com
+          https://accounts.google.com
+          https://oauth2.googleapis.com;
         media-src  'self' blob:;
         img-src    'self' data: blob: https: http:;
-        script-src 'self' 'unsafe-eval' blob:;
+        script-src 'self' 'unsafe-eval' blob: 
+          https://apis.google.com
+          https://www.gstatic.com;
         style-src  'self' 'unsafe-inline' https://fonts.googleapis.com;
         font-src   'self' https://fonts.gstatic.com;
         worker-src 'self' blob:;
+        frame-src 'self' 
+          https://accounts.google.com
+          https://*.firebaseapp.com;
       "
     />
 

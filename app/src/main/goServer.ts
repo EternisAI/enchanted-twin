@@ -73,14 +73,17 @@ async function startGoServer(
         APP_DATA_PATH: userDataPath,
         DB_PATH: dbPath,
         COMPLETIONS_API_URL: process.env.COMPLETIONS_API_URL,
+        COMPLETIONS_API_KEY: process.env.COMPLETIONS_API_KEY,
         COMPLETIONS_MODEL: process.env.COMPLETIONS_MODEL,
         REASONING_MODEL: process.env.REASONING_MODEL,
         EMBEDDINGS_API_URL: process.env.EMBEDDINGS_API_URL,
+        EMBEDDINGS_API_KEY: process.env.EMBEDDINGS_API_KEY,
         EMBEDDINGS_MODEL: process.env.EMBEDDINGS_MODEL,
         TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
         TELEGRAM_CHAT_SERVER: process.env.TELEGRAM_CHAT_SERVER,
         ENCHANTED_MCP_URL: process.env.ENCHANTED_MCP_URL,
-        INVITE_SERVER_URL: process.env.INVITE_SERVER_URL
+        INVITE_SERVER_URL: process.env.INVITE_SERVER_URL,
+        PROXY_TEE_URL: process.env.PROXY_TEE_URL
       }
     })
 

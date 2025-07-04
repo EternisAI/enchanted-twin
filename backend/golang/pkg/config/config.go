@@ -26,7 +26,6 @@ type Config struct {
 	ContainerRuntime   string
 	WeaviatePort       string
 	EnchantedMcpURL    string
-	InviteServerURL    string
 	ProxyTeeURL        string
 }
 
@@ -70,7 +69,6 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
-		InviteServerURL:    getEnv("INVITE_SERVER_URL", "", printEnv),
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
 	}
 	return conf, nil

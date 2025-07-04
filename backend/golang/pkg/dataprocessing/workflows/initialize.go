@@ -48,7 +48,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 
 	indexingState := model.IndexingStateNotStarted
 	dataSources := []*model.DataSource{}
-	w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, nil)
+	w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
 	err := workflow.SetQueryHandler(
 		ctx,
@@ -69,7 +69,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		workflow.GetLogger(ctx).Error("Failed to fetch data sources", "error", err)
 		indexingState = model.IndexingStateFailed
 		errMsg := err.Error()
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
+		w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to fetch data sources")
 	}
 
@@ -77,7 +77,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		workflow.GetLogger(ctx).Info("No data sources found")
 		indexingState = model.IndexingStateFailed
 		errMsg := "No data sources found"
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
+		w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 		return InitializeWorkflowResponse{}, errors.New(errMsg)
 	}
 
@@ -93,10 +93,10 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	}
 
 	indexingState = model.IndexingStateProcessingData
-	w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, nil)
+	w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
 	for i, dataSource := range fetchDataSourcesResponse.DataSources {
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, nil)
+		w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
 		processDataActivityInput := ProcessDataActivityInput{
 			DataSourceName: dataSource.Name,
@@ -108,7 +108,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).
 			Get(ctx, &processDataResponse)
 
-		progress := int32((i + 1) * 100 / len(fetchDataSourcesResponse.DataSources))
 		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
 		if err != nil {
 			workflow.GetLogger(ctx).Error("Failed to process data source",
@@ -118,17 +117,17 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			dataSources[i].IsProcessed = false
 			dataSources[i].HasError = true
 			errMsg := err.Error()
-			w.publishIndexingStatus(ctx, indexingState, dataSources, progress, 0, &errMsg)
+			w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 		} else {
 			dataSources[i].IsProcessed = true
 			dataSources[i].HasError = false
 			dataSources[i].IsIndexed = false
-			w.publishIndexingStatus(ctx, indexingState, dataSources, progress, 0, nil)
+			w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 		}
 	}
 
 	indexingState = model.IndexingStateIndexingData
-	w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, nil)
+	w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
 	var fetchUnindexedResponse FetchDataSourcesActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.FetchDataSourcesActivity, FetchDataSourcesActivityInput{}).
@@ -137,7 +136,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		workflow.GetLogger(ctx).Error("Failed to fetch unindexed data sources", "error", err)
 		errMsg := err.Error()
 		indexingState = model.IndexingStateFailed
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, &errMsg)
+		w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to fetch unindexed data sources")
 	}
 
@@ -172,7 +171,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			workflow.GetLogger(ctx).Error("Failed to get batches", "error", err, "dataSource", dataSourceDB.Name)
 			dataSources[i].HasError = true
 			errMsg := err.Error()
-			w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, &errMsg)
+			w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 			continue
 		}
 
@@ -183,9 +182,12 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			continue
 		}
 
+		// Replace sequential processing with parallel batch processing
 		failedBatches := 0
 		successfulBatches := 0
 
+		// Start all batch activities in parallel
+		batchFutures := make([]workflow.Future, getBatchesResponse.TotalBatches)
 		for batchIndex := 0; batchIndex < getBatchesResponse.TotalBatches; batchIndex++ {
 			indexBatchInput := IndexBatchActivityInput{
 				DataSourceID:   dataSourceDB.ID,
@@ -196,9 +198,20 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				TotalBatches:   getBatchesResponse.TotalBatches,
 			}
 
+			// Start activity without blocking (no .Get())
+			batchFutures[batchIndex] = workflow.ExecuteActivity(ctx, w.IndexBatchActivity, indexBatchInput)
+
+			workflow.GetLogger(ctx).Info("Started batch processing",
+				"dataSource", dataSourceDB.Name,
+				"batch", batchIndex+1,
+				"total", getBatchesResponse.TotalBatches)
+		}
+
+		// Wait for all batch activities to complete and collect results
+		for batchIndex, future := range batchFutures {
 			var indexBatchResponse IndexBatchActivityResponse
-			err = workflow.ExecuteActivity(ctx, w.IndexBatchActivity, indexBatchInput).
-				Get(ctx, &indexBatchResponse)
+			err := future.Get(ctx, &indexBatchResponse)
+
 			if err != nil {
 				failedBatches++
 				workflow.GetLogger(ctx).Error("Failed to index batch",
@@ -216,7 +229,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 						"failedBatches", failedBatches)
 					dataSources[i].HasError = true
 					errMsg := fmt.Sprintf("High batch failure rate: %d/%d batches failed", failedBatches, batchIndex+1)
-					w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, &errMsg)
+					w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 					break
 				}
 			} else {
@@ -230,9 +243,10 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 					"failedBatches", failedBatches)
 			}
 
+			// Update progress as batches complete
 			batchProgress := float64(batchIndex+1) / float64(getBatchesResponse.TotalBatches) * 100
 			dataSources[i].IndexProgress = int32(batchProgress)
-			w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, nil)
+			w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 		}
 
 		finalFailureRate := float64(failedBatches) / float64(getBatchesResponse.TotalBatches)
@@ -250,7 +264,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			if finalFailureRate > 0.8 {
 				dataSources[i].HasError = true
 				errMsg := fmt.Sprintf("Too many batch failures: %d/%d batches failed", failedBatches, getBatchesResponse.TotalBatches)
-				w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, &errMsg)
+				w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 			} else {
 				dataSources[i].IsIndexed = true
 				dataSources[i].IndexProgress = 100
@@ -272,8 +286,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		ctx,
 		model.IndexingStateCompleted,
 		dataSources,
-		100,
-		100,
 		nil,
 	)
 
@@ -284,7 +296,6 @@ func (w *DataProcessingWorkflows) publishIndexingStatus(
 	ctx workflow.Context,
 	state model.IndexingState,
 	dataSources []*model.DataSource,
-	processingProgress, indexingProgress int32,
 	error *string,
 ) {
 	status := &model.IndexingStatus{

@@ -52,6 +52,7 @@
     "electron-log": "^5.3.3",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.3.9",
+    "firebase": "^11.10.0",
     "framer-motion": "^12.7.2",
     "glslify": "^7.1.1",
     "graphql": "^16.10.0",

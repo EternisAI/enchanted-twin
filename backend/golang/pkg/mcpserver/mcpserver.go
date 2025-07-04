@@ -4,18 +4,20 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/charmbracelet/log"
-	mcp "github.com/metoro-io/mcp-golang"
-	mcptransport "github.com/metoro-io/mcp-golang/transport"
-	mcphttp "github.com/metoro-io/mcp-golang/transport/http"
-	"github.com/metoro-io/mcp-golang/transport/stdio"
+	mcpclient "github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/client/transport"
+	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
@@ -118,20 +120,42 @@ func (s *service) ConnectMCPServer(
 				return nil, fmt.Errorf("failed to refresh oauth tokens: %w", err)
 			}
 
+			// Add OAuth support for the new client
 			oauth, err := s.store.GetOAuthTokens(ctx, "google")
 			if err != nil {
 				return nil, fmt.Errorf("failed to get oauth tokens: %w", err)
 			}
 
-			transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL, &oauth.AccessToken)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get transport: %w", err)
+			// Create client with OAuth authorization headers
+			options := []transport.StreamableHTTPCOption{}
+			if oauth != nil && oauth.AccessToken != "" {
+				options = append(options, transport.WithHTTPHeaders(map[string]string{
+					"Authorization": "Bearer " + oauth.AccessToken,
+				}))
 			}
-			mcpClient := mcp.NewClient(transport)
-			_, err = mcpClient.Initialize(ctx)
+
+			mcpClient, err := mcpclient.NewStreamableHttpClient(s.config.EnchantedMcpURL, options...)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create MCP client: %w", err)
+			}
+
+			err = mcpClient.Start(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to start MCP client: %w", err)
+			}
+
+			initRequest := mcp.InitializeRequest{}
+			initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+			initRequest.Params.ClientInfo = mcp.Implementation{
+				Name:    "enchanted-twin-mcp-client",
+				Version: "1.0.0",
+			}
+
+			_, err = mcpClient.Initialize(ctx, initRequest)
 			if err != nil {
 				return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
 			}
+
 			client = mcpClient
 		default:
 			return nil, fmt.Errorf("unsupported server type")
@@ -166,24 +190,112 @@ func (s *service) ConnectMCPServer(
 		}
 	}
 
-	transport, err := GetTransportWithIO(ctx, input.Command, input.Args, transportEnvs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get transport: %w", err)
+	command := input.Command
+	if command == "docker" {
+		command = getDockerCommand()
+	}
+	if command == "npx" {
+		command = getNpxCommand()
 	}
 
-	// Create the client using direct mcp.NewClient call to get Initialize method
-	mcpClient := mcp.NewClient(transport)
-	_, err = mcpClient.Initialize(ctx)
-	if err != nil {
-		log.Error("Error initializing mcp server", "error", err)
-		return nil, err
+	var mcpClient *mcpclient.Client
+
+	if command == "url" {
+		tokenStore := mcpclient.NewMemoryTokenStore()
+		oauthConfig := mcpclient.OAuthConfig{
+			// The client ID can be set if dynamic clients are not used or if
+			// the MCP server itself acts as the client like Freysa Video MCP
+			ClientID:     os.Getenv("MCP_CLIENT_ID"),
+			ClientSecret: os.Getenv("MCP_CLIENT_SECRET"),
+			RedirectURI:  "http://localhost:8085/oauth/callback",
+			Scopes:       []string{"mcp.read", "mcp.write"},
+			TokenStore:   tokenStore,
+			PKCEEnabled:  true,
+		}
+
+		mcpClient, err = mcpclient.NewOAuthStreamableHttpClient(input.Args[0], oauthConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create OAuth HTTP MCP client: %w", err)
+		}
+
+		// HTTP clients need manual start
+		err = mcpClient.Start(ctx)
+		if err != nil {
+			// If requires authorization, handle it
+			if mcpclient.IsOAuthAuthorizationRequiredError(err) {
+				err = s.handleOAuthAuthorization(ctx, err)
+				if err != nil {
+					return nil, fmt.Errorf("failed to complete OAuth authorization: %w", err)
+				}
+				err = mcpClient.Start(ctx)
+				if err != nil {
+					return nil, fmt.Errorf("failed to start HTTP MCP client after OAuth: %w", err)
+				}
+			} else {
+				return nil, fmt.Errorf("failed to start HTTP MCP client: %w", err)
+			}
+		}
+
+		// Initialize the client
+		initRequest := mcp.InitializeRequest{}
+		initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initRequest.Params.ClientInfo = mcp.Implementation{
+			Name:    "enchanted-twin-mcp-client",
+			Version: "1.0.0",
+		}
+		_, err = mcpClient.Initialize(ctx, initRequest)
+		if err != nil {
+			// If requires authorization, handle it, again
+			if mcpclient.IsOAuthAuthorizationRequiredError(err) {
+				err = s.handleOAuthAuthorization(ctx, err)
+				if err != nil {
+					return nil, fmt.Errorf("failed to complete OAuth authorization: %w", err)
+				}
+				_, err = mcpClient.Initialize(ctx, initRequest)
+				if err != nil {
+					return nil, fmt.Errorf("failed to initialize HTTP MCP client after OAuth: %w", err)
+				}
+			} else {
+				return nil, fmt.Errorf("failed to initialize HTTP MCP client: %w", err)
+			}
+		}
+	} else {
+		// Convert envs to string slice
+		envStrings := make([]string, len(transportEnvs))
+		for i, env := range transportEnvs {
+			envStrings[i] = fmt.Sprintf("%s=%s", env.Key, env.Value)
+		}
+		mcpClient, err = mcpclient.NewStdioMCPClient(command, envStrings, input.Args...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create stdio MCP client: %w", err)
+		}
+		// Initialize the client
+		initRequest := mcp.InitializeRequest{}
+		initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initRequest.Params.ClientInfo = mcp.Implementation{
+			Name:    "enchanted-twin-mcp-client",
+			Version: "1.0.0",
+		}
+		_, err = mcpClient.Initialize(ctx, initRequest)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
+		}
+	}
+
+	// Only start HTTP clients, stdio clients auto-start
+	if command == "url" {
+		err = mcpClient.Start(ctx)
+		if err != nil {
+			log.Error("Error starting mcp client", "error", err)
+			return nil, err
+		}
 	}
 
 	// Use the initialized client as an MCPClient interface
-	client := mcpClient
+	clientInterface := mcpClient
 
 	// Register tools with the registry
-	s.registerMCPTools(ctx, client)
+	s.registerMCPTools(ctx, clientInterface)
 
 	mcpServer, err = s.repo.AddMCPServer(ctx, &input, &enabled)
 	if err != nil {
@@ -192,7 +304,7 @@ func (s *service) ConnectMCPServer(
 
 	s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 		ID:     mcpServer.ID,
-		Client: client,
+		Client: clientInterface,
 	})
 
 	return mcpServer, nil
@@ -297,6 +409,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 				client = &twitter.TwitterClient{
 					Store: s.store,
 				}
+			// TODO: Re-enable after fixing compilation issues
 			case model.MCPServerTypeGoogle:
 				client = &google.GoogleClient{
 					Store: s.store,
@@ -318,21 +431,41 @@ func (s *service) LoadMCP(ctx context.Context) error {
 					log.Error("Error refreshing oauth tokens", "error", err)
 				}
 
+				// Add OAuth support
 				oauth, err := s.store.GetOAuthTokens(ctx, "google")
 				if err != nil {
 					log.Error("Error getting oauth tokens for MCP server", "server", server.Name, "error", err)
 					continue
 				}
 
-				transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL, &oauth.AccessToken)
+				// Create client with OAuth authorization headers
+				options := []transport.StreamableHTTPCOption{}
+				if oauth != nil && oauth.AccessToken != "" {
+					options = append(options, transport.WithHTTPHeaders(map[string]string{
+						"Authorization": "Bearer " + oauth.AccessToken,
+					}))
+				}
+
+				mcpClient, err := mcpclient.NewStreamableHttpClient(s.config.EnchantedMcpURL, options...)
 				if err != nil {
-					log.Error("Error getting transport for MCP server", "server", server.Name, "error", err)
+					log.Error("Error creating MCP client", "server", server.Name, "error", err)
 					continue
 				}
-				mcpClient := mcp.NewClient(transport)
-				_, err = mcpClient.Initialize(ctx)
+				err = mcpClient.Start(ctx)
 				if err != nil {
-					log.Error("Error initializing MCP server", "server", server.Name, "error", err)
+					log.Error("Error starting MCP server", "server", server.Name, "error", err)
+					continue
+				}
+				// Initialize the client
+				initRequest := mcp.InitializeRequest{}
+				initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+				initRequest.Params.ClientInfo = mcp.Implementation{
+					Name:    "enchanted-twin-mcp-client",
+					Version: "1.0.0",
+				}
+				_, err = mcpClient.Initialize(ctx, initRequest)
+				if err != nil {
+					log.Error("Error initializing MCP client", "server", server.Name, "error", err)
 					continue
 				}
 				client = mcpClient
@@ -360,18 +493,92 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			command = getNpxCommand()
 		}
 
-		transport, err := GetTransportWithIO(ctx, command, server.Args, server.Envs)
-		if err != nil {
-			log.Error("Error getting transport for MCP server", "server", server.Name, "error", err)
-			continue
-		}
+		var mcpClient *mcpclient.Client
+		if command == "url" {
+			tokenStore := mcpclient.NewMemoryTokenStore()
+			oauthConfig := mcpclient.OAuthConfig{
+				ClientID:     os.Getenv("MCP_CLIENT_ID"),
+				ClientSecret: os.Getenv("MCP_CLIENT_SECRET"),
+				RedirectURI:  "http://localhost:8085/oauth/callback",
+				Scopes:       []string{"mcp.read", "mcp.write"},
+				TokenStore:   tokenStore,
+				PKCEEnabled:  true,
+			}
 
-		// Create the client using direct mcp.NewClient call to get Initialize method
-		mcpClient := mcp.NewClient(transport)
-		_, err = mcpClient.Initialize(ctx)
-		if err != nil {
-			log.Error("Error initializing mcp server", "server", server.Name)
-			continue
+			mcpClient, err = mcpclient.NewOAuthStreamableHttpClient(server.Args[0], oauthConfig)
+			if err != nil {
+				log.Error("Error creating OAuth HTTP MCP client", "server", server.Name, "error", err)
+				continue
+			}
+
+			// Start HTTP client
+			err = mcpClient.Start(ctx)
+			if err != nil {
+				if mcpclient.IsOAuthAuthorizationRequiredError(err) {
+					err = s.handleOAuthAuthorization(ctx, err)
+					if err != nil {
+						log.Error("Failed to complete OAuth authorization", "server", server.Name, "error", err)
+						continue
+					}
+					err = mcpClient.Start(ctx)
+					if err != nil {
+						log.Error("Error starting HTTP MCP client after OAuth", "server", server.Name, "error", err)
+						continue
+					}
+				} else {
+					log.Error("Error starting HTTP MCP client", "server", server.Name, "error", err)
+					continue
+				}
+			}
+
+			// Initialize the client
+			initRequest := mcp.InitializeRequest{}
+			initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+			initRequest.Params.ClientInfo = mcp.Implementation{
+				Name:    "enchanted-twin-mcp-client",
+				Version: "1.0.0",
+			}
+			_, err = mcpClient.Initialize(ctx, initRequest)
+			if err != nil {
+				if mcpclient.IsOAuthAuthorizationRequiredError(err) {
+					err = s.handleOAuthAuthorization(ctx, err)
+					if err != nil {
+						log.Error("Failed to complete OAuth authorization", "server", server.Name, "error", err)
+						continue
+					}
+					_, err = mcpClient.Initialize(ctx, initRequest)
+					if err != nil {
+						log.Error("Error initializing HTTP MCP client after OAuth", "server", server.Name, "error", err)
+						continue
+					}
+				} else {
+					log.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
+					continue
+				}
+			}
+		} else {
+			// Convert envs to string slice
+			envStrings := make([]string, len(server.Envs))
+			for i, env := range server.Envs {
+				envStrings[i] = fmt.Sprintf("%s=%s", env.Key, env.Value)
+			}
+			mcpClient, err = mcpclient.NewStdioMCPClient(command, envStrings, server.Args...)
+			if err != nil {
+				log.Error("Error creating stdio MCP client", "server", server.Name, "error", err)
+				continue
+			}
+			// Initialize the client
+			initRequest := mcp.InitializeRequest{}
+			initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+			initRequest.Params.ClientInfo = mcp.Implementation{
+				Name:    "enchanted-twin-mcp-client",
+				Version: "1.0.0",
+			}
+			_, err = mcpClient.Initialize(ctx, initRequest)
+			if err != nil {
+				log.Error("Error initializing MCP client", "server", server.Name, "error", err)
+				continue
+			}
 		}
 
 		// Use the initialized client as an MCPClient interface
@@ -390,27 +597,21 @@ func (s *service) LoadMCP(ctx context.Context) error {
 }
 
 // GetTools retrieves all tools from the MCP servers.
-func (s *service) GetTools(ctx context.Context) ([]mcp.ToolRetType, error) {
-	var allTools []mcp.ToolRetType
-
+func (s *service) GetTools(ctx context.Context) ([]mcp.Tool, error) {
+	var allTools []mcp.Tool
 	for _, connectedServer := range s.connectedServers {
-		cursor := ""
-		for {
-			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
-			if err != nil {
-				log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
-				break
-			}
+		request := mcp.ListToolsRequest{}
+		// TODO: Handle pagination if needed
+		client_tools, err := connectedServer.Client.ListTools(ctx, request)
+		if err != nil {
+			log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
+			continue
+		}
 
-			if allTools == nil {
-				allTools = client_tools.Tools
-			} else {
-				allTools = append(allTools, client_tools.Tools...)
-			}
-			if client_tools.NextCursor == nil || *client_tools.NextCursor == "" {
-				break
-			}
-			cursor = *client_tools.NextCursor
+		if allTools == nil {
+			allTools = client_tools.Tools
+		} else {
+			allTools = append(allTools, client_tools.Tools...)
 		}
 	}
 	return allTools, nil
@@ -420,26 +621,20 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 	var allTools []tools.Tool
 
 	for _, connectedServer := range s.connectedServers {
-		cursor := ""
-		for {
-			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
-			if err != nil {
-				log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
-				break
-			}
+		request := mcp.ListToolsRequest{}
+		client_tools, err := connectedServer.Client.ListTools(ctx, request)
+		if err != nil {
+			log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
+			continue
+		}
 
-			if client_tools != nil && len(client_tools.Tools) > 0 {
-				for _, tool := range client_tools.Tools {
-					allTools = append(allTools, &MCPTool{
-						Client: connectedServer.Client,
-						Tool:   tool,
-					})
-				}
+		if client_tools != nil && len(client_tools.Tools) > 0 {
+			for _, tool := range client_tools.Tools {
+				allTools = append(allTools, &MCPTool{
+					Client: connectedServer.Client,
+					Tool:   tool,
+				})
 			}
-			if client_tools.NextCursor == nil || *client_tools.NextCursor == "" {
-				break
-			}
-			cursor = *client_tools.NextCursor
 		}
 	}
 	return allTools, nil
@@ -480,8 +675,8 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient) {
 	if s.registry == nil {
 		return
 	}
-	cursor := ""
-	tools, err := client.ListTools(ctx, &cursor)
+	request := mcp.ListToolsRequest{}
+	tools, err := client.ListTools(ctx, request)
 	if err != nil {
 		log.Warn("Error getting tools from MCP client", "error", err)
 		return
@@ -497,7 +692,7 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient) {
 			Tool:   tool,
 		}
 		if err := s.registry.Register(mcpTool); err != nil {
-			log.Warn("Error registering MCP tool", "tool", tool.Name, "error", err)
+			log.Warn("Error registering MCP tool", "tool", tool.GetName(), "error", err)
 		}
 	}
 }
@@ -506,8 +701,8 @@ func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
 	if s.registry == nil {
 		return
 	}
-	cursor := ""
-	tools, err := client.ListTools(ctx, &cursor)
+	request := mcp.ListToolsRequest{}
+	tools, err := client.ListTools(ctx, request)
 	if err != nil {
 		log.Warn("Error getting tools from MCP client", "error", err)
 		return
@@ -515,7 +710,7 @@ func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
 
 	toolNames := make([]string, 0, len(tools.Tools))
 	for _, tool := range tools.Tools {
-		toolNames = append(toolNames, tool.Name)
+		toolNames = append(toolNames, tool.GetName())
 	}
 	s.registry = s.registry.Excluding(toolNames...)
 }
@@ -523,57 +718,51 @@ func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
 // GetTransport creates a transport based on the server configuration.
 // It supports STDIN/STDOUT (stdio) and HTTPS protocols.
 // Assumes model.MCPServerTransportHTTPS and model.MCPServerTransportStdio constants exist in your model package.
-func GetTransportWithHTTP(
-	ctx context.Context,
-	serverURL *string,
-	accessToken *string,
-) (mcptransport.Transport, error) {
-	if serverURL == nil || *serverURL == "" {
-		return nil, fmt.Errorf("URL is required for HTTPS transport")
-	}
-	// mcphttp.NewHTTPClientTransport takes (baseURL string, client *stdhttp.Client)
-	// Using nil for the client will use http.DefaultClient.
-	transport := mcphttp.NewHTTPClientTransport(*serverURL)
-	if accessToken != nil {
-		transport.WithHeader("Authorization", "Bearer "+*accessToken)
-	}
-	return transport, nil
-}
+// Unused since #353.
+// func GetTransportWithHTTP(
+// 	ctx context.Context,
+// 	serverURL *string,
+// 	accessToken *string,
+// ) (transport.Interface, error) {
+// 	if serverURL == nil || *serverURL == "" {
+// 		return nil, fmt.Errorf("URL is required for HTTPS transport")
+// 	}
+//
+// 	var options []transport.StreamableHTTPCOption
+// 	if accessToken != nil {
+// 		options = append(options, transport.WithHTTPHeaders(map[string]string{
+// 			"Authorization": "Bearer " + *accessToken,
+// 		}))
+// 	}
+//
+// 	transport, err := transport.NewStreamableHTTP(*serverURL, options...)
+// 	return transport, err
+// }
 
-func GetTransportWithIO(
-	ctx context.Context,
-	command string,
-	args []string,
-	envs []*model.KeyValue,
-) (mcptransport.Transport, error) {
-	effectiveCommand := command
-	if command == "docker" {
-		effectiveCommand = getDockerCommand()
-	}
-
-	if command == "npx" {
-		effectiveCommand = getNpxCommand()
-	}
-
-	cmd := exec.Command(effectiveCommand, args...)
-	cmd.Env = os.Environ()
-	for _, env := range envs {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Key, env.Value))
-	}
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, fmt.Errorf("error creating stdin pipe: %w", err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("error creating stdout pipe: %w", err)
-	}
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("error starting command for stdio transport: %w", err)
-	}
-	return stdio.NewStdioServerTransportWithIO(stdout, stdin), nil
-}
+// Unused since #353.
+// func GetTransportWithIO(
+// 	ctx context.Context,
+// 	command string,
+// 	args []string,
+// 	envs []*model.KeyValue,
+// ) (transport.Interface, error) {
+// 	effectiveCommand := command
+// 	if command == "docker" {
+// 		effectiveCommand = getDockerCommand()
+// 	}
+//
+// 	if command == "npx" {
+// 		effectiveCommand = getNpxCommand()
+// 	}
+//
+// 	// Convert envs to string slice
+// 	envStrings := make([]string, len(envs))
+// 	for i, env := range envs {
+// 		envStrings[i] = fmt.Sprintf("%s=%s", env.Key, env.Value)
+// 	}
+//
+// 	return transport.NewStdio(effectiveCommand, envStrings, args...), nil
+// }
 
 func getDockerCommand() string {
 	var dockerCommand string
@@ -665,25 +854,164 @@ func CapitalizeFirst(s string) string {
 
 func getTools(ctx context.Context, connectedServer *ConnectedMCPServer) ([]*model.Tool, error) {
 	allTools := []*model.Tool{}
-	cursor := ""
-	for {
-		client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
-		if err != nil {
-			log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
-			break
-		}
-
-		for _, tool := range client_tools.Tools {
-			allTools = append(allTools, &model.Tool{
-				Name:        tool.Name,
-				Description: *tool.Description,
-			})
-		}
-
-		if client_tools.NextCursor == nil || *client_tools.NextCursor == "" {
-			break
-		}
-		cursor = *client_tools.NextCursor
+	request := mcp.ListToolsRequest{}
+	client_tools, err := connectedServer.Client.ListTools(ctx, request)
+	if err != nil {
+		log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
+		return allTools, err
 	}
+
+	for _, tool := range client_tools.Tools {
+		allTools = append(allTools, &model.Tool{
+			Name:        tool.GetName(),
+			Description: tool.Description,
+		})
+	}
+
 	return allTools, nil
+}
+
+// handleOAuthAuthorization handles the OAuth authorization flow.
+func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error) error {
+	log.Info("OAuth authorization required. Starting authorization flow...")
+
+	oauthHandler := mcpclient.GetOAuthHandler(authErr)
+
+	callbackChan := make(chan map[string]string, 1)
+	server := s.startCallbackServer(callbackChan)
+	defer server.Close() //nolint:errcheck
+
+	codeVerifier, err := mcpclient.GenerateCodeVerifier()
+	if err != nil {
+		return fmt.Errorf("failed to generate code verifier: %w", err)
+	}
+	codeChallenge := mcpclient.GenerateCodeChallenge(codeVerifier)
+
+	state, err := mcpclient.GenerateState()
+	if err != nil {
+		return fmt.Errorf("failed to generate state: %w", err)
+	}
+
+	err = oauthHandler.RegisterClient(ctx, "enchanted-twin-mcp-client")
+	if err != nil {
+		return fmt.Errorf("failed to register client: %w", err)
+	}
+
+	authURL, err := oauthHandler.GetAuthorizationURL(ctx, state, codeChallenge)
+	if err != nil {
+		return fmt.Errorf("failed to get authorization URL: %w", err)
+	}
+
+	log.Info("Opening browser to authorization URL", "url", authURL)
+	s.openBrowser(authURL)
+
+	log.Info("Waiting for authorization callback...")
+	select {
+	case params := <-callbackChan:
+		if params["state"] != state {
+			return fmt.Errorf("state mismatch: expected %s, got %s", state, params["state"])
+		}
+
+		code := params["code"]
+		if code == "" {
+			return fmt.Errorf("no authorization code received")
+		}
+
+		log.Info("Exchanging authorization code for token...")
+		err = oauthHandler.ProcessAuthorizationResponse(ctx, code, state, codeVerifier)
+		if err != nil {
+			return fmt.Errorf("failed to process authorization response: %w", err)
+		}
+
+		log.Info("Authorization successful!")
+		return nil
+
+	case <-time.After(5 * time.Minute):
+		return fmt.Errorf("OAuth authorization timed out")
+	}
+}
+
+// startCallbackServer starts a local HTTP server to handle the OAuth callback.
+func (s *service) startCallbackServer(callbackChan chan<- map[string]string) *http.Server {
+	mux := http.NewServeMux()
+	server := &http.Server{
+		Addr:    ":8085",
+		Handler: mux,
+	}
+
+	mux.HandleFunc("/oauth/callback", func(w http.ResponseWriter, r *http.Request) {
+		log.Info("Received OAuth callback", "url", r.URL.String())
+
+		params := make(map[string]string)
+		for key, values := range r.URL.Query() {
+			if len(values) > 0 {
+				params[key] = values[0]
+			}
+		}
+
+		select {
+		case callbackChan <- params:
+			log.Info("Sent OAuth parameters to channel")
+		default:
+			log.Warn("Channel full, dropping OAuth callback parameters")
+		}
+
+		// User-facing response
+		// Similar to the one in oauthHandler.ts
+		w.Header().Set("Content-Type", "text/html")
+		_, err := w.Write([]byte(`
+			<!DOCTYPE html>
+			<html>
+			  <head>
+			    <title>Authentication Successful</title>
+			    <style>
+			      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 40px; }
+			      h1 { color: #333; }
+			      p { color: #666; }
+			      .success { color: #4CAF50; font-weight: bold; }
+			    </style>
+			  </head>
+			  <body>
+			    <h1>Authentication Successful</h1>
+			    <p class="success">You have successfully authenticated!</p>
+			    <p>You can close this window and return to the application.</p>
+			    <script>window.close();</script>
+			  </body>
+			</html>
+        `))
+		if err != nil {
+			log.Error("Error writing OAuth callback response", "error", err)
+		}
+	})
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("OAuth callback server error", "error", err)
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	log.Info("OAuth callback server started on :8085")
+	return server
+}
+
+// openBrowser opens the default browser to the specified URL.
+func (s *service) openBrowser(url string) {
+	var err error
+
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+
+	if err != nil {
+		log.Error("Failed to open browser", "error", err)
+		log.Info("Please open the following URL in your browser", "url", url)
+	}
 }

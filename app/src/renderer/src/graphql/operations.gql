@@ -382,3 +382,7 @@ mutation JoinHolon($userId: String!, $network: String) {
 mutation StartWhatsAppConnection {
   startWhatsAppConnection
 }
+
+mutation StoreToken($input: StoreTokenInput!) {
+  storeToken(input: $input)
+}

@@ -454,6 +454,17 @@ func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network
 	return true, nil
 }
 
+func (r *mutationResolver) StoreToken(ctx context.Context, input model.StoreTokenInput) (bool, error) {
+	r.Logger.Info("StoreToken called")
+
+	err := auth.StoreToken(ctx, r.Logger, r.Store, input.Token, input.RefreshToken)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -541,7 +552,7 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 	for i, tool := range tools {
 		toolsDefinitions[i] = &model.Tool{
 			Name:        tool.Name,
-			Description: *tool.Description,
+			Description: tool.Description,
 		}
 	}
 	return toolsDefinitions, nil

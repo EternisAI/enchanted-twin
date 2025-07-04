@@ -123,8 +123,8 @@ const api = {
   },
   livekit: {
     setup: () => ipcRenderer.invoke('livekit:setup'),
-    start: (chatId: string, isOnboarding?: boolean) =>
-      ipcRenderer.invoke('livekit:start', chatId, isOnboarding),
+    start: (chatId: string, isOnboarding?: boolean, jwtToken?: string) =>
+      ipcRenderer.invoke('livekit:start', chatId, isOnboarding, jwtToken),
     stop: () => ipcRenderer.invoke('livekit:stop'),
     isRunning: () => ipcRenderer.invoke('livekit:is-running'),
     isSessionReady: () => ipcRenderer.invoke('livekit:is-session-ready'),
@@ -162,7 +162,8 @@ const api = {
   rendererReady: () => ipcRenderer.send('renderer-ready'),
   keyboardShortcuts: {
     get: () => ipcRenderer.invoke('keyboard-shortcuts:get'),
-    set: (action: string, keys: string) => ipcRenderer.invoke('keyboard-shortcuts:set', action, keys),
+    set: (action: string, keys: string) =>
+      ipcRenderer.invoke('keyboard-shortcuts:set', action, keys),
     reset: (action: string) => ipcRenderer.invoke('keyboard-shortcuts:reset', action),
     resetAll: () => ipcRenderer.invoke('keyboard-shortcuts:reset-all')
   }

@@ -312,7 +312,12 @@ export class LiveKitAgentBootstrap {
     }
   }
 
-  async startAgent(chatId: string, isOnboarding: boolean = false, isInitialising: boolean = false) {
+  async startAgent(
+    chatId: string,
+    isOnboarding: boolean = false,
+    isInitialising: boolean = false,
+    jwtToken?: string
+  ) {
     if (this.agentProc) {
       log.warn('[LiveKit] Agent is already running')
       return
@@ -347,10 +352,13 @@ export class LiveKitAgentBootstrap {
         ...process.env,
         CHAT_ID: chatId,
         FAKE_INIT: initialising,
-        TINFOIL_API_KEY: process.env.TINFOIL_API_KEY,
-        TINFOIL_AUDIO_URL: process.env.TINFOIL_AUDIO_URL,
-        TINFOIL_STT_MODEL: process.env.TINFOIL_STT_MODEL,
-        TINFOIL_TTS_MODEL: process.env.TINFOIL_TTS_MODEL,
+        FIREBASE_JWT_TOKEN: jwtToken || '', // Pass JWT token as environment variable
+        TTS_API_KEY: process.env.TTS_API_KEY,
+        TTS_URL: process.env.TTS_URL,
+        TTS_MODEL: process.env.TTS_MODEL,
+        STT_API_KEY: process.env.STT_API_KEY,
+        STT_URL: process.env.STT_URL,
+        STT_MODEL: process.env.STT_MODEL,
         SEND_MESSAGE_URL: `http://localhost:44999/query`,
         TERM: 'dumb', // Use dumb terminal to avoid TTY features
         PYTHONUNBUFFERED: '1', // Ensure immediate output
