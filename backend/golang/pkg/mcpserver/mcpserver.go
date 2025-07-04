@@ -201,7 +201,9 @@ func (s *service) ConnectMCPServer(
 	var mcpClient *mcpclient.Client
 
 	if command == "url" {
-		tokenStore := mcpclient.NewMemoryTokenStore()
+		// Store tokens in the database so that they are persisted across restarts.
+		// The URL is used as the username to identify the token.
+		tokenStore := NewDatabaseTokenStore(s.store, input.Args[0])
 		oauthConfig := mcpclient.OAuthConfig{
 			// The client ID can be set if dynamic clients are not used or if
 			// the MCP server itself acts as the client like Freysa Video MCP
@@ -243,7 +245,8 @@ func (s *service) ConnectMCPServer(
 			Name:    "enchanted-twin-mcp-client",
 			Version: "1.0.0",
 		}
-		_, err = mcpClient.Initialize(ctx, initRequest)
+		// Initialize the connection and get the server info (name, version)
+		r, err := mcpClient.Initialize(ctx, initRequest)
 		if err != nil {
 			// If requires authorization, handle it, again
 			if mcpclient.IsOAuthAuthorizationRequiredError(err) {
@@ -251,7 +254,7 @@ func (s *service) ConnectMCPServer(
 				if err != nil {
 					return nil, fmt.Errorf("failed to complete OAuth authorization: %w", err)
 				}
-				_, err = mcpClient.Initialize(ctx, initRequest)
+				r, err = mcpClient.Initialize(ctx, initRequest)
 				if err != nil {
 					return nil, fmt.Errorf("failed to initialize HTTP MCP client after OAuth: %w", err)
 				}
@@ -259,6 +262,9 @@ func (s *service) ConnectMCPServer(
 				return nil, fmt.Errorf("failed to initialize HTTP MCP client: %w", err)
 			}
 		}
+		// Get the actual name of the MCP server
+		// This shows up in the UI now
+		input.Name = r.ServerInfo.Name
 	} else {
 		// Convert envs to string slice
 		envStrings := make([]string, len(transportEnvs))
@@ -279,15 +285,6 @@ func (s *service) ConnectMCPServer(
 		_, err = mcpClient.Initialize(ctx, initRequest)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
-		}
-	}
-
-	// Only start HTTP clients, stdio clients auto-start
-	if command == "url" {
-		err = mcpClient.Start(ctx)
-		if err != nil {
-			log.Error("Error starting mcp client", "error", err)
-			return nil, err
 		}
 	}
 
@@ -495,7 +492,9 @@ func (s *service) LoadMCP(ctx context.Context) error {
 
 		var mcpClient *mcpclient.Client
 		if command == "url" {
-			tokenStore := mcpclient.NewMemoryTokenStore()
+			// Retrieve the token from the database if it exists.
+			// If not, get a token and save it to the database.
+			tokenStore := NewDatabaseTokenStore(s.store, server.Args[0])
 			oauthConfig := mcpclient.OAuthConfig{
 				ClientID:     os.Getenv("MCP_CLIENT_ID"),
 				ClientSecret: os.Getenv("MCP_CLIENT_SECRET"),

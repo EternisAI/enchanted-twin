@@ -198,6 +198,17 @@ var oauthConfig = map[string]OAuthConfig{
 		UserEndpoint:  "https://slack.com/api/users.identity",
 		DefaultScope:  "identity.basic identity.email identity.avatar identity.team users:read",
 	},
+	// mcp provider is unlike the other providers and
+	// is used to store tokens for external MCP servers.
+	"mcp": {
+		ClientID:      "",
+		RedirectURI:   "http://localhost:8085/oauth/callback",
+		ClientSecret:  "",
+		AuthEndpoint:  "",
+		TokenEndpoint: "",
+		UserEndpoint:  "",
+		DefaultScope:  "mcp.read mcp.write",
+	},
 }
 
 // OAuthTokens represents oauth tokens for various providers.
