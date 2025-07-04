@@ -9,6 +9,7 @@ interface ChatState {
   activeToolCalls: ToolCall[]
   historicToolCalls: ToolCall[]
   messages: Message[]
+  privacyDict: string
 }
 
 interface ChatActions {
@@ -22,6 +23,7 @@ interface ChatActions {
   setActiveToolCalls: (toolCalls: ToolCall[] | ((prev: ToolCall[]) => ToolCall[])) => void
   setHistoricToolCalls: (toolCalls: ToolCall[] | ((prev: ToolCall[]) => ToolCall[])) => void
   setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void
+  updatePrivacyDict: (privacyDict: string) => void
 }
 
 const ChatStateContext = createContext<ChatState | null>(null)
@@ -38,6 +40,7 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
   const [isReasonSelected, setIsReasonSelected] = useState(false)
   const [error, setError] = useState<string>('')
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]) // current message
+  const [privacyDict, setPrivacyDict] = useState<string>(chat.privacyDictJson)
   const [historicToolCalls, setHistoricToolCalls] = useState<ToolCall[]>(() => {
     return chat.messages
       .map((message) => message.toolCalls)
@@ -116,6 +119,10 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
     []
   )
 
+  const updatePrivacyDict = useCallback((privacyDict: string) => {
+    setPrivacyDict(privacyDict)
+  }, [])
+
   const state = useMemo<ChatState>(
     () => ({
       isWaitingTwinResponse,
@@ -123,9 +130,18 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
       error,
       activeToolCalls,
       historicToolCalls,
-      messages
+      messages,
+      privacyDict
     }),
-    [isWaitingTwinResponse, isReasonSelected, error, activeToolCalls, historicToolCalls, messages]
+    [
+      isWaitingTwinResponse,
+      isReasonSelected,
+      error,
+      activeToolCalls,
+      historicToolCalls,
+      messages,
+      privacyDict
+    ]
   )
 
   const handleSendMessage = useCallback(
@@ -159,7 +175,8 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
       setError,
       setActiveToolCalls,
       setHistoricToolCalls,
-      setMessages
+      setMessages,
+      updatePrivacyDict
     }),
     [
       sendMessageHook,
@@ -171,7 +188,8 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
       setError,
       setActiveToolCalls,
       setHistoricToolCalls,
-      setMessages
+      setMessages,
+      updatePrivacyDict
     ]
   )
 

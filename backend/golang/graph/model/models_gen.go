@@ -152,6 +152,11 @@ type OAuthStatus struct {
 	Error     bool     `json:"error"`
 }
 
+type PrivacyDictUpdate struct {
+	ChatID          string `json:"chatId"`
+	PrivacyDictJSON string `json:"privacyDictJson"`
+}
+
 type Query struct {
 }
 

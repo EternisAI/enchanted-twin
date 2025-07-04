@@ -384,6 +384,27 @@ func (s *Service) SendMessage(
 			s.logger.Error("failed to update chat privacy dictionary", "error", err)
 		} else {
 			s.logger.Info("updated chat privacy dictionary", "chat_id", chatID)
+
+			go func() {
+				privacyUpdate := model.PrivacyDictUpdate{
+					ChatID:          chatID,
+					PrivacyDictJSON: *privacyDictJson,
+				}
+
+				updateData, err := json.Marshal(privacyUpdate)
+				if err != nil {
+					s.logger.Error("failed to marshal privacy dict update", "error", err)
+					return
+				}
+
+				subject := fmt.Sprintf("chat.%s.privacy_dict", chatID)
+				err = s.nc.Publish(subject, updateData)
+				if err != nil {
+					s.logger.Error("failed to publish privacy dict update", "error", err)
+				} else {
+					s.logger.Debug("published privacy dict update", "chat_id", chatID)
+				}
+			}()
 		}
 	}
 

@@ -6,6 +6,7 @@ import { Chat, ChatCategory } from '@renderer/graphql/generated/graphql'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
+import { usePrivacyDictUpdate } from '@renderer/hooks/usePrivacyDictUpdate'
 import VoiceModeChatView from './voice/ChatVoiceModeView'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { useChat } from '@renderer/contexts/ChatContext'
@@ -25,6 +26,7 @@ export default function ChatView({ chat }: ChatViewProps) {
   const [mounted, setMounted] = useState(false)
 
   const {
+    privacyDict,
     messages,
     isWaitingTwinResponse,
     isReasonSelected,
@@ -36,7 +38,8 @@ export default function ChatView({ chat }: ChatViewProps) {
     updateToolCallInMessage,
     setIsWaitingTwinResponse,
     setIsReasonSelected,
-    setActiveToolCalls
+    setActiveToolCalls,
+    updatePrivacyDict
   } = useChat()
 
   useMessageSubscription(chat.id, (message) => {
@@ -96,6 +99,10 @@ export default function ChatView({ chat }: ChatViewProps) {
     })
   })
 
+  usePrivacyDictUpdate(chat.id, (privacyDict) => {
+    updatePrivacyDict(privacyDict)
+  })
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: mounted ? 'smooth' : 'instant' })
     if (!mounted) {
@@ -130,7 +137,7 @@ export default function ChatView({ chat }: ChatViewProps) {
               <MessageList
                 messages={messages}
                 isWaitingTwinResponse={isWaitingTwinResponse}
-                chatPrivacyDict={chat.privacyDictJson}
+                chatPrivacyDict={privacyDict}
               />
               {error && (
                 <div className="py-2 px-4 mt-2 rounded-md border border-red-500 bg-red-500/10 text-red-500">
