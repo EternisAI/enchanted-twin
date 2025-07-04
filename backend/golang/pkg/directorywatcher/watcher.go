@@ -1128,9 +1128,3 @@ func (dw *DirectoryWatcher) incrementErrorCount() {
 	defer dw.statsMu.Unlock()
 	dw.errorCount++
 }
-
-func (dw *DirectoryWatcher) GetStats() (processedFiles, errorCount int64) {
-	dw.statsMu.RLock()
-	defer dw.statsMu.RUnlock()
-	return dw.processedFiles, dw.errorCount
-}
