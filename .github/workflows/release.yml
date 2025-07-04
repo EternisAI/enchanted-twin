@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version number (e.g. v1.2.3)'
+        description: "Version number (e.g. v1.2.3)"
         required: true
-        default: 'v0.0.0'
+        default: "v0.0.0"
   release:
     types: [published]
 
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -38,7 +38,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.24.2'
+          go-version: "1.24.2"
 
       - name: Check secrets are injected
         env:
@@ -79,32 +79,32 @@ jobs:
 
       - name: Build & notarize macOS app
         env:
-          COMPLETIONS_API_URL: 'https://openrouter.ai/api/v1'
-          COMPLETIONS_MODEL: 'openai/gpt-4o-mini'
-          REASONING_MODEL: 'openai/gpt-4.1'
-          EMBEDDINGS_API_URL: 'https://api.openai.com/v1'
-          EMBEDDINGS_MODEL: 'text-embedding-3-small'
-          IS_PROD_BUILD: 'true'
+          COMPLETIONS_API_URL: "https://openrouter.ai/api/v1"
+          COMPLETIONS_MODEL: "openai/gpt-4o-mini"
+          REASONING_MODEL: "openai/gpt-4.1"
+          EMBEDDINGS_API_URL: "https://api.openai.com/v1"
+          EMBEDDINGS_MODEL: "text-embedding-3-small"
+          IS_PROD_BUILD: "true"
           NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
           NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
-          OLLAMA_BASE_URL: 'https://enchanted.ngrok.pro'
+          OLLAMA_BASE_URL: "https://enchanted.ngrok.pro"
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_SERVER: 'http://54.82.31.213:8080/query'
+          TELEGRAM_CHAT_SERVER: "http://54.82.31.213:8080/query"
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          ENCHANTED_MCP_URL: https://afb4264d05208988909faf4b50978b747a1eb019-8080.dstack-prod7.phala.network/mcp
+          ENCHANTED_MCP_URL: https://enchanted-mcp-dev.up.railway.app
           POSTHOG_API_KEY: phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8
           INVITE_SERVER_URL: http://52.90.4.74:8080
           TTS_MODEL: kokoro
           TTS_URL: https://audio-processing.model.tinfoil.sh/v1/
-          STT_API_KEY: ${{ secrets.TINFOIL_API_KEY }}
           STT_MODEL: whisper-large-v3-turbo
           STT_URL: https://audio-processing.model.tinfoil.sh/v1/
           PROXY_TEE_URL: https://enchanted-proxy-dev.up.railway.app
-          VITE_FIREBASE_API_KEY: AIzaSyDhO35DrFA8jCnrqhUSM0B6NpDbrUWXNq4
-          VITE_FIREBASE_AUTH_DOMAIN: enchanted-login-8fdb9.firebaseapp.com
-          VITE_FIREBASE_PROJECT_ID: enchanted-login-8fdb9
+          VITE_FIREBASE_API_KEY: AIzaSyBMQG7Kw8p1Ymm1j_A-x2Jxc-x4BakXz3k
+          VITE_FIREBASE_AUTH_DOMAIN: freysa-prod.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: freysa-prod
+          HOLON_API_URL: http://23.22.67.228:8123
 
         run: make build-mac-silicon
 

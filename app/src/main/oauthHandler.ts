@@ -148,9 +148,6 @@ const getLoginPageHTML = () => `
     const auth = getAuth(app)
     const provider = new GoogleAuthProvider()
     
-    // Add Gmail scope
-    provider.addScope('https://www.googleapis.com/auth/gmail.readonly')
-    
     document.getElementById('google-signin').addEventListener('click', async () => {
       const button = document.getElementById('google-signin')
       button.classList.add('loading')

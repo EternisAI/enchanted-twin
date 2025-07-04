@@ -175,11 +175,14 @@ if missing_vars:
     logger.error("Please create a .env file with the required API keys")
     sys.exit(1)
 
-TTS_API_KEY = os.getenv("TTS_API_KEY")
+# Get Firebase JWT token from environment variable
+fireBaseTOken = os.getenv("FIREBASE_JWT_TOKEN")
+
+TTS_API_KEY = fireBaseTOken or os.getenv("TTS_API_KEY")
 TTS_URL = os.getenv("PROXY_TEE_URL") or os.getenv("TTS_URL")
 TTS_MODEL = os.getenv("TTS_MODEL")
 
-STT_API_KEY = os.getenv("STT_API_KEY")
+STT_API_KEY = fireBaseTOken or  os.getenv("STT_API_KEY")
 STT_URL = os.getenv("PROXY_TEE_URL") or os.getenv("STT_URL")
 STT_MODEL = os.getenv("STT_MODEL")
 CHAT_ID = os.getenv("CHAT_ID")
