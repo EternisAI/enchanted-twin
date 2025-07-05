@@ -281,7 +281,7 @@ func processConsolidation(ctx context.Context, topic string, facts []*memory.Mem
 
 	logger.Debug("Sending consolidation request to LLM", "facts_count", len(facts))
 
-	result, err := deps.CompletionsService.Completions(ctx, llmMessages, consolidationTools, deps.CompletionsModel)
+	result, err := deps.CompletionsService.Completions(ctx, llmMessages, consolidationTools, deps.CompletionsModel, ai.Background)
 	if err != nil {
 		logger.Error("LLM consolidation failed", "error", err)
 		return nil, fmt.Errorf("LLM consolidation: %w", err)

@@ -125,7 +125,7 @@ Use the analyze_conversation_boundary tool to provide your assessment.`, message
 		openai.UserMessage(userPrompt),
 	}
 
-	result, err := ca.aiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{conversationAnalysisTool}, ca.model)
+	result, err := ca.aiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{conversationAnalysisTool}, ca.model, ai.Background)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AI assessment: %w", err)
 	}

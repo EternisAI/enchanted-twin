@@ -51,7 +51,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 	logger.Debug("Sending conversation to LLM", "system_prompt_length", len(FactExtractionPrompt), "json_length", len(content))
 
-	result, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
+	result, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel, ai.Background)
 	if err != nil {
 		logger.Error("LLM completion FAILED for conversation", "id", convDoc.ID(), "error", err)
 		return nil, fmt.Errorf("LLM completion error for conversation %s: %w", convDoc.ID(), err)
@@ -159,7 +159,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 
 	logger.Debug("Sending to LLM", "system_prompt_length", len(FactExtractionPrompt), "user_message_length", len(content))
 
-	result, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
+	result, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel, ai.Background)
 	if err != nil {
 		logger.Error("LLM completion FAILED for document", "id", textDoc.ID(), "error", err)
 		return nil, fmt.Errorf("LLM completion error for document %s: %w", textDoc.ID(), err)

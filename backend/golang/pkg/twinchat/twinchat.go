@@ -1179,6 +1179,7 @@ func (s *Service) GetChatSuggestions(
 		messages,
 		[]openai.ChatCompletionToolParam{tool},
 		s.completionsModel,
+		ai.UI,
 	)
 	if err != nil {
 		return nil, err

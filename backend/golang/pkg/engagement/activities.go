@@ -11,6 +11,7 @@ import (
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 )
 
@@ -150,7 +151,7 @@ func (s *FriendService) GeneratePokeMessage(ctx context.Context, input GenerateP
 		openai.SystemMessage(prompt),
 	}
 
-	result, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini")
+	result, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini", ai.Background)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate poke message: %w", err)
 	}
@@ -205,7 +206,7 @@ func (s *FriendService) GenerateMemoryPicture(ctx context.Context, input Generat
 		openai.UserMessage(prompt),
 	}
 
-	result, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini")
+	result, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini", ai.Background)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate picture description: %w", err)
 	}

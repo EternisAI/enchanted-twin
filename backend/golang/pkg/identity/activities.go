@@ -65,7 +65,7 @@ func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (s
 		openai.UserMessage(strings.Join(memoryDocuments, "\n")),
 	}
 
-	result, err := a.ai.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, a.completionsModel)
+	result, err := a.ai.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, a.completionsModel, ai.Background)
 	if err != nil {
 		return "", err
 	}

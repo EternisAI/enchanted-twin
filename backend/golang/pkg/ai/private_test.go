@@ -125,7 +125,7 @@ type mockCompletionsService struct {
 	err      error
 }
 
-func (m *mockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error) {
+func (m *mockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	if m.err != nil {
 		return PrivateCompletionResult{}, m.err
 	}
