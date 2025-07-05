@@ -1174,7 +1174,7 @@ func (s *Service) GetChatSuggestions(
 		},
 	}
 
-	choice, err := s.aiService.Completions(
+	result, err := s.aiService.Completions(
 		ctx,
 		messages,
 		[]openai.ChatCompletionToolParam{tool},
@@ -1185,7 +1185,7 @@ func (s *Service) GetChatSuggestions(
 	}
 
 	suggestionsList := make([]*model.ChatSuggestionsCategory, 0)
-	for _, choice := range choice.ToolCalls {
+	for _, choice := range result.Message.ToolCalls {
 		var suggestions struct {
 			Category    string   `json:"category"`
 			Suggestions []string `json:"suggestions"`

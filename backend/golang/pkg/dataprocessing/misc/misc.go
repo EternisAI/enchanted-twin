@@ -429,12 +429,12 @@ func (s *TextDocumentProcessor) ExtractContentTags(ctx context.Context, content 
 		openai.UserMessage(fmt.Sprintf("Extract 3-5 tags that describe this content. Reply with ONLY a comma-separated list of tags (no explanations, just the tags).\n\nText sample: %s", contentSample)),
 	}
 
-	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, s.completionsModel)
+	result, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, s.completionsModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract tags: %w", err)
 	}
 
-	responseText := strings.TrimSpace(response.Content)
+	responseText := strings.TrimSpace(result.Message.Content)
 
 	responseText = strings.ReplaceAll(responseText, "\n", " ")
 	responseText = strings.ReplaceAll(responseText, "  ", " ")

@@ -203,6 +203,36 @@ func main() {
 		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	}
 
+	// Initialize Private Completions Service
+	if envs.PrivateCompletionsEnabled {
+		// Parse anonymizer delay
+		delay, err := time.ParseDuration(envs.AnonymizerDelay)
+		if err != nil {
+			logger.Warn("Invalid anonymizer delay, using default", "delay", envs.AnonymizerDelay, "error", err)
+			delay = 100 * time.Millisecond
+		}
+		
+		// Create mock anonymizer
+		anonymizer := ai.NewMockAnonymizer(delay, logger)
+		
+		// Initialize private completions service
+		privateCompletions := ai.InitPrivateCompletions(ai.PrivateCompletionsConfig{
+			CompletionsService: aiCompletionsService,
+			Anonymizer:         anonymizer,
+			ExecutorWorkers:    envs.PrivateCompletionsWorkers,
+			Logger:             logger,
+		})
+		
+		// Enable private completions on the existing service
+		aiCompletionsService.EnablePrivateCompletions(privateCompletions, ai.Background)
+		
+		logger.Info("Private completions service initialized and enabled", 
+			"workers", envs.PrivateCompletionsWorkers, 
+			"anonymizerDelay", delay)
+	} else {
+		logger.Info("Private completions service disabled")
+	}
+
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	weaviatePath := filepath.Join(envs.AppDataPath, "db", "weaviate")

@@ -84,7 +84,7 @@ func (a *Agent) Execute(
 	}
 
 	for currentStep < MAX_STEPS {
-		completion, err := a.aiService.Completions(
+		result, err := a.aiService.Completions(
 			ctx,
 			messages,
 			apiToolDefinitions,
@@ -94,6 +94,7 @@ func (a *Agent) Execute(
 			a.logger.Error("Error completing", "error", err)
 			return AgentResponse{}, err
 		}
+		completion := result.Message
 
 		messages = append(messages, completion.ToParam())
 

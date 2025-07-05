@@ -51,11 +51,12 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 	logger.Debug("Sending conversation to LLM", "system_prompt_length", len(FactExtractionPrompt), "json_length", len(content))
 
-	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
+	result, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
 		logger.Error("LLM completion FAILED for conversation", "id", convDoc.ID(), "error", err)
 		return nil, fmt.Errorf("LLM completion error for conversation %s: %w", convDoc.ID(), err)
 	}
+	llmResponse := result.Message
 
 	logger.Debug("LLM Response for conversation", "id", convDoc.ID())
 	logger.Debug("Response Content", "content", llmResponse.Content)
@@ -158,11 +159,12 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 
 	logger.Debug("Sending to LLM", "system_prompt_length", len(FactExtractionPrompt), "user_message_length", len(content))
 
-	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
+	result, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
 		logger.Error("LLM completion FAILED for document", "id", textDoc.ID(), "error", err)
 		return nil, fmt.Errorf("LLM completion error for document %s: %w", textDoc.ID(), err)
 	}
+	llmResponse := result.Message
 
 	logger.Debug("LLM Response for document", "id", textDoc.ID(), "content", llmResponse.Content, "tool_calls_count", len(llmResponse.ToolCalls))
 

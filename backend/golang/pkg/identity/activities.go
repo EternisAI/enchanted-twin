@@ -65,12 +65,12 @@ func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (s
 		openai.UserMessage(strings.Join(memoryDocuments, "\n")),
 	}
 
-	response, err := a.ai.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, a.completionsModel)
+	result, err := a.ai.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, a.completionsModel)
 	if err != nil {
 		return "", err
 	}
 
-	cleanedContent := ai.StripThinkingTags(response.Content)
+	cleanedContent := ai.StripThinkingTags(result.Message.Content)
 
 	return cleanedContent, nil
 }

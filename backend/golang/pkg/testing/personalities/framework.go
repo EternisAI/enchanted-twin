@@ -914,7 +914,7 @@ func (ptf *PersonalityTestFramework) performAIEvaluation(ctx context.Context, sc
 	}
 
 	// Parse AI response to extract evaluation result
-	result, err := ptf.parseAIEvaluationResponse(response.Content)
+	result, err := ptf.parseAIEvaluationResponse(response.Message.Content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse AI evaluation response: %w", err)
 	}

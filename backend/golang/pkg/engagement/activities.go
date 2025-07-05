@@ -150,12 +150,12 @@ func (s *FriendService) GeneratePokeMessage(ctx context.Context, input GenerateP
 		openai.SystemMessage(prompt),
 	}
 
-	response, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini")
+	result, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini")
 	if err != nil {
 		return "", fmt.Errorf("failed to generate poke message: %w", err)
 	}
 
-	return response.Content, nil
+	return result.Message.Content, nil
 }
 
 func (s *FriendService) SendPokeMessage(ctx context.Context, message string) error {
@@ -205,12 +205,12 @@ func (s *FriendService) GenerateMemoryPicture(ctx context.Context, input Generat
 		openai.UserMessage(prompt),
 	}
 
-	response, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini")
+	result, err := s.aiService.Completions(ctx, openaiMessages, nil, "gpt-4o-mini")
 	if err != nil {
 		return "", fmt.Errorf("failed to generate picture description: %w", err)
 	}
 
-	return response.Content, nil
+	return result.Message.Content, nil
 }
 
 type SendMemoryPictureInput struct {
