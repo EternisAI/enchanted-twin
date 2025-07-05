@@ -43,7 +43,7 @@ type TaskResult struct {
 	Error error
 }
 
-// TaskState represents the execution state of a task
+// TaskState represents the execution state of a task.
 type TaskState interface {
 	// Save serializes the current state for later restoration
 	Save() ([]byte, error)
@@ -51,7 +51,7 @@ type TaskState interface {
 	Restore(data []byte) error
 }
 
-// NoOpTaskState is a no-operation state for stateless tasks
+// NoOpTaskState is a no-operation state for stateless tasks.
 type NoOpTaskState struct{}
 
 func (n *NoOpTaskState) Save() ([]byte, error) {
@@ -62,15 +62,15 @@ func (n *NoOpTaskState) Restore(data []byte) error {
 	return nil
 }
 
-// InterruptContext provides information about the interruption to the task
+// InterruptContext provides information about the interruption to the task.
 type InterruptContext struct {
-	Reason         string
-	SaveState      func(TaskState) error
-	IsInterrupted  func() bool
-	NoReschedule   func() // Call this to indicate the task should not be rescheduled
+	Reason        string
+	SaveState     func(TaskState) error
+	IsInterrupted func() bool
+	NoReschedule  func() // Call this to indicate the task should not be rescheduled
 }
 
-// TaskCompute is the unified compute function that handles all task types
+// TaskCompute is the unified compute function that handles all task types.
 type TaskCompute func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error)
 
 type Task struct {
@@ -115,10 +115,10 @@ func (w *WorkerProcessor) Interrupt() {
 
 type InterruptedTaskResult struct {
 	TaskResult
-	Interrupted   bool
-	SavedState    []byte // Serialized state if task was interrupted
-	StateSaved    bool
-	NoReschedule  bool   // True if task requested not to be rescheduled
+	Interrupted  bool
+	SavedState   []byte // Serialized state if task was interrupted
+	StateSaved   bool
+	NoReschedule bool // True if task requested not to be rescheduled
 }
 
 func (w *WorkerProcessor) ProcessWithInterruption(req TaskRequest) InterruptedTaskResult {
@@ -126,7 +126,7 @@ func (w *WorkerProcessor) ProcessWithInterruption(req TaskRequest) InterruptedTa
 	case <-req.Context.Done():
 		w.logger.Debug("Skipping orphaned task", "processorID", w.ID, "taskName", req.Task.Name, "reason", "context canceled")
 		return InterruptedTaskResult{
-			TaskResult: TaskResult{Value: nil, Error: req.Context.Err()},
+			TaskResult:  TaskResult{Value: nil, Error: req.Context.Err()},
 			Interrupted: false,
 		}
 	default:
@@ -147,13 +147,13 @@ func (w *WorkerProcessor) ProcessWithInterruption(req TaskRequest) InterruptedTa
 		case <-req.Context.Done():
 			w.logger.Debug("Task canceled during execution", "processorID", w.ID, "taskName", req.Task.Name)
 			return InterruptedTaskResult{
-				TaskResult: TaskResult{Value: nil, Error: req.Context.Err()},
+				TaskResult:  TaskResult{Value: nil, Error: req.Context.Err()},
 				Interrupted: false,
 			}
 		case <-w.interrupt:
 			w.logger.Debug("Task interrupted during execution", "processorID", w.ID, "taskName", req.Task.Name)
 			return InterruptedTaskResult{
-				TaskResult: TaskResult{Value: nil, Error: fmt.Errorf("task interrupted")},
+				TaskResult:  TaskResult{Value: nil, Error: fmt.Errorf("task interrupted")},
 				Interrupted: true,
 			}
 		}
@@ -164,13 +164,13 @@ func (w *WorkerProcessor) ProcessWithInterruption(req TaskRequest) InterruptedTa
 	case <-req.Context.Done():
 		w.logger.Debug("Task canceled before compute", "processorID", w.ID, "taskName", req.Task.Name)
 		return InterruptedTaskResult{
-			TaskResult: TaskResult{Value: nil, Error: req.Context.Err()},
+			TaskResult:  TaskResult{Value: nil, Error: req.Context.Err()},
 			Interrupted: false,
 		}
 	case <-w.interrupt:
 		w.logger.Debug("Task interrupted before compute", "processorID", w.ID, "taskName", req.Task.Name)
 		return InterruptedTaskResult{
-			TaskResult: TaskResult{Value: nil, Error: fmt.Errorf("task interrupted")},
+			TaskResult:  TaskResult{Value: nil, Error: fmt.Errorf("task interrupted")},
 			Interrupted: true,
 		}
 	default:
@@ -182,7 +182,7 @@ func (w *WorkerProcessor) ProcessWithInterruption(req TaskRequest) InterruptedTa
 	}
 
 	return InterruptedTaskResult{
-		TaskResult: TaskResult{Value: fmt.Sprintf("Task %s completed", req.Task.Name), Error: nil},
+		TaskResult:  TaskResult{Value: fmt.Sprintf("Task %s completed", req.Task.Name), Error: nil},
 		Interrupted: false,
 	}
 }
@@ -198,7 +198,7 @@ func (w *WorkerProcessor) processTask(req TaskRequest) InterruptedTaskResult {
 		if err != nil {
 			w.logger.Error("Failed to restore task state", "error", err, "taskName", req.Task.Name)
 			return InterruptedTaskResult{
-				TaskResult: TaskResult{Value: nil, Error: fmt.Errorf("failed to restore state: %w", err)},
+				TaskResult:  TaskResult{Value: nil, Error: fmt.Errorf("failed to restore state: %w", err)},
 				Interrupted: false,
 			}
 		}
@@ -212,7 +212,7 @@ func (w *WorkerProcessor) processTask(req TaskRequest) InterruptedTaskResult {
 	var savedState []byte
 	var stateSaved bool
 	var noReschedule bool
-	
+
 	saveStateFunc := func(state TaskState) error {
 		if state == nil {
 			return fmt.Errorf("cannot save nil state")
@@ -391,16 +391,16 @@ func (c *WorkerConfig) validate() error {
 }
 
 type TaskExecutor struct {
-	uiQueue               chan TaskRequest
-	lastEffortQueue       chan TaskRequest
-	backgroundQueue       chan TaskRequest
+	uiQueue                 chan TaskRequest
+	lastEffortQueue         chan TaskRequest
+	backgroundQueue         chan TaskRequest
 	backgroundPriorityQueue []TaskRequest // For rescheduled tasks
-	config                WorkerConfig
-	logger                *log.Logger
-	mu                    sync.RWMutex
-	once                  sync.Once
-	shutdown              chan bool
-	isShutdown            bool
+	config                  WorkerConfig
+	logger                  *log.Logger
+	mu                      sync.RWMutex
+	once                    sync.Once
+	shutdown                chan bool
+	isShutdown              bool
 }
 
 func NewTaskExecutor(processorCount int, logger *log.Logger) *TaskExecutor {
@@ -433,13 +433,13 @@ func NewTaskExecutor(processorCount int, logger *log.Logger) *TaskExecutor {
 	}
 
 	e := &TaskExecutor{
-		uiQueue:               make(chan TaskRequest, config.UIQueueBufferSize),
-		lastEffortQueue:       make(chan TaskRequest, config.LastEffortBufferSize),
-		backgroundQueue:       make(chan TaskRequest, config.BackgroundBufferSize),
+		uiQueue:                 make(chan TaskRequest, config.UIQueueBufferSize),
+		lastEffortQueue:         make(chan TaskRequest, config.LastEffortBufferSize),
+		backgroundQueue:         make(chan TaskRequest, config.BackgroundBufferSize),
 		backgroundPriorityQueue: make([]TaskRequest, 0),
-		config:                config,
-		logger:                logger,
-		shutdown:              make(chan bool),
+		config:                  config,
+		logger:                  logger,
+		shutdown:                make(chan bool),
 	}
 
 	e.startProcessors()
@@ -470,13 +470,13 @@ func NewTaskExecutorWithConfig(config WorkerConfig, logger *log.Logger) (*TaskEx
 	}
 
 	e := &TaskExecutor{
-		uiQueue:               make(chan TaskRequest, config.UIQueueBufferSize),
-		lastEffortQueue:       make(chan TaskRequest, config.LastEffortBufferSize),
-		backgroundQueue:       make(chan TaskRequest, config.BackgroundBufferSize),
+		uiQueue:                 make(chan TaskRequest, config.UIQueueBufferSize),
+		lastEffortQueue:         make(chan TaskRequest, config.LastEffortBufferSize),
+		backgroundQueue:         make(chan TaskRequest, config.BackgroundBufferSize),
 		backgroundPriorityQueue: make([]TaskRequest, 0),
-		config:                config,
-		logger:                logger,
-		shutdown:              make(chan bool),
+		config:                  config,
+		logger:                  logger,
+		shutdown:                make(chan bool),
 	}
 
 	e.startProcessors()
@@ -501,7 +501,7 @@ func (e *TaskExecutor) startProcessors() {
 func (e *TaskExecutor) singleProcessor() {
 	// Single processor handles all priorities, consider it a UI worker
 	processor := NewWorkerProcessor(0, e.config.ResourceFactory(0, UIWorker), e.logger)
-	
+
 	for {
 		select {
 		case req := <-e.uiQueue:
@@ -537,7 +537,7 @@ func (e *TaskExecutor) singleProcessor() {
 						result := processor.ProcessWithInterruption(req)
 						resultChan <- result
 					}()
-					
+
 					// Wait for either task completion or higher priority tasks
 					select {
 					case result := <-resultChan:
@@ -551,7 +551,7 @@ func (e *TaskExecutor) singleProcessor() {
 							} else if result.StateSaved {
 								// Reschedule with saved state
 								e.rescheduleTaskWithState(req, result.SavedState)
-								e.logger.Debug("Task interrupted and rescheduled with state", 
+								e.logger.Debug("Task interrupted and rescheduled with state",
 									"taskName", req.Task.Name, "stateSize", len(result.SavedState))
 							} else if req.Task.Priority == Background {
 								// Regular background task interrupted, reschedule without state
@@ -565,7 +565,7 @@ func (e *TaskExecutor) singleProcessor() {
 					case uiReq := <-e.uiQueue:
 						// UI task arrived while background was running - interrupt it
 						processor.Interrupt()
-						
+
 						// Wait for background task to finish being interrupted
 						result := <-resultChan
 						if result.Interrupted && !result.NoReschedule {
@@ -578,14 +578,14 @@ func (e *TaskExecutor) singleProcessor() {
 							e.logger.Debug("Task interrupted by UI task but requested no rescheduling", "taskName", req.Task.Name)
 							req.Done <- result.TaskResult
 						}
-						
+
 						// Process the UI task
 						uiResult := processor.Process(uiReq)
 						uiReq.Done <- uiResult
 					case lastEffortReq := <-e.lastEffortQueue:
 						// LastEffort task arrived while background was running - interrupt it
 						processor.Interrupt()
-						
+
 						// Wait for background task to finish being interrupted
 						result := <-resultChan
 						if result.Interrupted && !result.NoReschedule {
@@ -598,7 +598,7 @@ func (e *TaskExecutor) singleProcessor() {
 							e.logger.Debug("Task interrupted by LastEffort task but requested no rescheduling", "taskName", req.Task.Name)
 							req.Done <- result.TaskResult
 						}
-						
+
 						// Process the LastEffort task
 						lastEffortResult := processor.Process(lastEffortReq)
 						lastEffortReq.Done <- lastEffortResult
@@ -710,10 +710,10 @@ func (e *TaskExecutor) rescheduleTask(req TaskRequest) {
 func (e *TaskExecutor) rescheduleTaskWithState(req TaskRequest, savedState []byte) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	// Update the task with saved state for restoration
 	req.Task.SavedStateData = savedState
-	
+
 	// Add task to the beginning of the priority queue for immediate processing
 	e.backgroundPriorityQueue = append([]TaskRequest{req}, e.backgroundPriorityQueue...)
 	e.logger.Debug("Stateful task rescheduled", "taskName", req.Task.Name, "queueLength", len(e.backgroundPriorityQueue), "stateSize", len(savedState))
@@ -722,14 +722,14 @@ func (e *TaskExecutor) rescheduleTaskWithState(req TaskRequest, savedState []byt
 func (e *TaskExecutor) getNextBackgroundTask() (TaskRequest, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	// First check priority queue for rescheduled tasks
 	if len(e.backgroundPriorityQueue) > 0 {
 		task := e.backgroundPriorityQueue[0]
 		e.backgroundPriorityQueue = e.backgroundPriorityQueue[1:]
 		return task, true
 	}
-	
+
 	// Then check regular background queue
 	select {
 	case req := <-e.backgroundQueue:

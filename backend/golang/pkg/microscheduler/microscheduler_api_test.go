@@ -68,13 +68,18 @@ func TestSimplifiedAPI(t *testing.T) {
 		Priority:     Background,
 		InitialState: &SimpleTaskState{Counter: 0, Message: "initial"},
 		Compute: func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
-			simpleState := state.(*SimpleTaskState)
+			simpleState, ok := state.(*SimpleTaskState)
+			if !ok {
+				return nil, fmt.Errorf("expected SimpleTaskState, got %T", state)
+			}
 			for i := 0; i < 3; i++ {
 				select {
 				case <-interruptChan:
 					simpleState.Counter = i
 					simpleState.Message = fmt.Sprintf("interrupted at %d", i)
-					interrupt.SaveState(simpleState)
+					if err := interrupt.SaveState(simpleState); err != nil {
+						return nil, fmt.Errorf("failed to save state: %w", err)
+					}
 					return fmt.Sprintf("Stateful interrupted at %d", i), fmt.Errorf("interrupted")
 				default:
 					time.Sleep(20 * time.Millisecond)
@@ -92,60 +97,6 @@ func TestSimplifiedAPI(t *testing.T) {
 	expected := "Stateful completed: 3"
 	if result != expected {
 		t.Errorf("Expected '%s', got %v", expected, result)
-	}
-
-	t.Log("All simplified API tests passed!")
-}
-
-func TestSimplifiedAPIWorks(t *testing.T) {
-	logger := createTestLogger()
-	executor := NewTaskExecutor(1, logger)
-	defer executor.Shutdown()
-
-	ctx := context.Background()
-
-	// Test 1: Simple stateless task
-	simpleTask := Task{
-		Name:         "Simple task",
-		Priority:     Background,
-		InitialState: &NoOpTaskState{},
-		Compute: func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
-			return "Simple result", nil
-		},
-	}
-
-	result, err := executor.Execute(ctx, simpleTask, Background)
-	if err != nil {
-		t.Errorf("Simple task failed: %v", err)
-	}
-	if result != "Simple result" {
-		t.Errorf("Expected 'Simple result', got %v", result)
-	}
-
-	// Test 2: Interruptible task
-	interruptibleTask := Task{
-		Name:         "Interruptible task",
-		Priority:     Background,
-		InitialState: &NoOpTaskState{},
-		Compute: func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
-			for i := 0; i < 5; i++ {
-				select {
-				case <-interruptChan:
-					return fmt.Sprintf("Interrupted at %d", i), fmt.Errorf("interrupted")
-				default:
-					time.Sleep(20 * time.Millisecond)
-				}
-			}
-			return "Interruptible completed", nil
-		},
-	}
-
-	result, err = executor.Execute(ctx, interruptibleTask, Background)
-	if err != nil {
-		t.Errorf("Interruptible task failed: %v", err)
-	}
-	if result != "Interruptible completed" {
-		t.Errorf("Expected 'Interruptible completed', got %v", result)
 	}
 
 	t.Log("All simplified API tests passed!")
@@ -295,7 +246,10 @@ func TestHelperFunctions(t *testing.T) {
 	// Test createStatefulTask helper
 	initialState := &SimpleTaskState{Counter: 10, Message: "helper"}
 	statefulTask := createStatefulTask("Helper stateful", Background, initialState, func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
-		simpleState := state.(*SimpleTaskState)
+		simpleState, ok := state.(*SimpleTaskState)
+		if !ok {
+			return nil, fmt.Errorf("expected SimpleTaskState, got %T", state)
+		}
 		return fmt.Sprintf("Helper stateful result: %d", simpleState.Counter), nil
 	})
 

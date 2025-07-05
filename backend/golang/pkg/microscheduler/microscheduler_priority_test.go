@@ -40,22 +40,22 @@ func TestSingleProcessorPriority(t *testing.T) {
 		wg.Add(1)
 		go func(name string, priority Priority, delay time.Duration) {
 			defer wg.Done()
-			
+
 			// Add delay before submitting task
 			time.Sleep(delay)
-			
+
 			task := createStatelessTask(name, priority, 30*time.Millisecond, func(resource interface{}) (interface{}, error) {
 				return fmt.Sprintf("%s completed", name), nil
 			})
-			
+
 			start := time.Now()
 			result, err := executor.Execute(ctx, task, priority)
 			elapsed := time.Since(start)
-			
+
 			if err != nil {
 				t.Errorf("Task %s failed: %v", name, err)
 			}
-			
+
 			mu.Lock()
 			executionOrder = append(executionOrder, fmt.Sprintf("%s: %v after %v", name, result, elapsed))
 			mu.Unlock()
@@ -98,43 +98,57 @@ func TestLastEffortPriority(t *testing.T) {
 
 	ctx := context.Background()
 
-	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var executionOrder []string
 
-	// Submit tasks in this order: Background, LastEffort, UI
+	// Block the executor with a long task, then submit all priority tasks at once
+	blockingDone := make(chan struct{})
+	go func() {
+		blockingTask := createStatelessTask("Blocking", Background, 100*time.Millisecond, func(resource interface{}) (interface{}, error) {
+			return "Blocking completed", nil
+		})
+		_, _ = executor.Execute(ctx, blockingTask, Background)
+		close(blockingDone)
+	}()
+
+	// Wait for blocking task to start
+	time.Sleep(25 * time.Millisecond)
+
+	var wg sync.WaitGroup
+
+	// Submit all tasks while the executor is busy
 	tasks := []struct {
 		name     string
 		priority Priority
-		delay    time.Duration
 	}{
-		{"Background", Background, 0},
-		{"LastEffort", LastEffort, 50 * time.Millisecond},
-		{"UI", UI, 100 * time.Millisecond},
+		{"Background-Task", Background},
+		{"LastEffort-Task", LastEffort},
+		{"UI-Task", UI},
 	}
 
 	for _, taskInfo := range tasks {
 		wg.Add(1)
-		go func(name string, priority Priority, delay time.Duration) {
+		go func(name string, priority Priority) {
 			defer wg.Done()
-			
-			time.Sleep(delay)
-			
-			task := createStatelessTask(name, priority, 40*time.Millisecond, func(resource interface{}) (interface{}, error) {
+
+			task := createStatelessTask(name, priority, 30*time.Millisecond, func(resource interface{}) (interface{}, error) {
+				mu.Lock()
+				executionOrder = append(executionOrder, name)
+				mu.Unlock()
 				return fmt.Sprintf("%s completed", name), nil
 			})
-			
-			result, err := executor.Execute(ctx, task, priority)
+
+			_, err := executor.Execute(ctx, task, priority)
 			if err != nil {
 				t.Errorf("Task %s failed: %v", name, err)
 			}
-			
-			mu.Lock()
-			executionOrder = append(executionOrder, fmt.Sprintf("%s: %v", name, result))
-			mu.Unlock()
-		}(taskInfo.name, taskInfo.priority, taskInfo.delay)
+		}(taskInfo.name, taskInfo.priority)
 	}
 
+	// Wait for blocking task to complete
+	<-blockingDone
+
+	// Wait for all submitted tasks to complete
 	wg.Wait()
 
 	mu.Lock()
@@ -148,6 +162,43 @@ func TestLastEffortPriority(t *testing.T) {
 
 	// UI should be processed first (highest priority)
 	// LastEffort should be processed before Background but after UI
+
+	// Find positions of each task type in execution order
+	uiPos := -1
+	lastEffortPos := -1
+	backgroundPos := -1
+
+	for i, task := range executionOrder {
+		if strings.Contains(task, "UI-Task") {
+			uiPos = i
+		} else if strings.Contains(task, "LastEffort-Task") {
+			lastEffortPos = i
+		} else if strings.Contains(task, "Background-Task") {
+			backgroundPos = i
+		}
+	}
+
+	// Verify all tasks were found
+	if uiPos == -1 {
+		t.Error("UI task not found in execution order")
+	}
+	if lastEffortPos == -1 {
+		t.Error("LastEffort task not found in execution order")
+	}
+	if backgroundPos == -1 {
+		t.Error("Background task not found in execution order")
+	}
+
+	// Verify priority ordering: UI < LastEffort < Background (lower index = higher priority)
+	if uiPos >= lastEffortPos {
+		t.Errorf("UI task should be processed before LastEffort task, but UI was at position %d and LastEffort at position %d", uiPos, lastEffortPos)
+	}
+	if lastEffortPos >= backgroundPos {
+		t.Errorf("LastEffort task should be processed before Background task, but LastEffort was at position %d and Background at position %d", lastEffortPos, backgroundPos)
+	}
+	if uiPos >= backgroundPos {
+		t.Errorf("UI task should be processed before Background task, but UI was at position %d and Background at position %d", uiPos, backgroundPos)
+	}
 }
 
 func TestLastEffortInterleaving(t *testing.T) {
@@ -177,18 +228,18 @@ func TestLastEffortInterleaving(t *testing.T) {
 		wg.Add(1)
 		go func(name string, priority Priority, delay time.Duration) {
 			defer wg.Done()
-			
+
 			time.Sleep(delay)
-			
+
 			task := createStatelessTask(name, priority, 30*time.Millisecond, func(resource interface{}) (interface{}, error) {
 				return fmt.Sprintf("%s completed", name), nil
 			})
-			
+
 			result, err := executor.Execute(ctx, task, priority)
 			if err != nil {
 				t.Errorf("Task %s failed: %v", name, err)
 			}
-			
+
 			mu.Lock()
 			executionOrder = append(executionOrder, fmt.Sprintf("%s: %v", name, result))
 			mu.Unlock()
@@ -244,12 +295,12 @@ func TestPriorityPreemption(t *testing.T) {
 		task := createStatelessTask("Long BG Task", Background, 200*time.Millisecond, func(resource interface{}) (interface{}, error) {
 			return "Background task completed", nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, Background)
 		if err != nil {
 			t.Errorf("Background task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		executionOrder = append(executionOrder, fmt.Sprintf("Background: %v", result))
 		mu.Unlock()
@@ -265,12 +316,12 @@ func TestPriorityPreemption(t *testing.T) {
 		task := createStatelessTask("UI Task", UI, 50*time.Millisecond, func(resource interface{}) (interface{}, error) {
 			return "UI task completed", nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, UI)
 		if err != nil {
 			t.Errorf("UI task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		executionOrder = append(executionOrder, fmt.Sprintf("UI: %v", result))
 		mu.Unlock()

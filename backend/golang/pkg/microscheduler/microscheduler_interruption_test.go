@@ -31,15 +31,15 @@ func TestTaskInterruption(t *testing.T) {
 		task := createStatelessTask("Background task", Background, 500*time.Millisecond, func(resource interface{}) (interface{}, error) {
 			return "Background completed", nil
 		})
-		
+
 		start := time.Now()
 		result, err := executor.Execute(ctx, task, Background)
 		elapsed := time.Since(start)
-		
+
 		if err != nil {
 			t.Errorf("Background task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		executionOrder = append(executionOrder, fmt.Sprintf("Background: %v after %v", result, elapsed))
 		mu.Unlock()
@@ -55,15 +55,15 @@ func TestTaskInterruption(t *testing.T) {
 		task := createStatelessTask("UI task", UI, 50*time.Millisecond, func(resource interface{}) (interface{}, error) {
 			return "UI completed", nil
 		})
-		
+
 		start := time.Now()
 		result, err := executor.Execute(ctx, task, UI)
 		elapsed := time.Since(start)
-		
+
 		if err != nil {
 			t.Errorf("UI task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		executionOrder = append(executionOrder, fmt.Sprintf("UI: %v after %v", result, elapsed))
 		mu.Unlock()
@@ -127,18 +127,18 @@ func TestTaskRescheduling(t *testing.T) {
 		wg.Add(1)
 		go func(name string, priority Priority, delay time.Duration) {
 			defer wg.Done()
-			
+
 			time.Sleep(delay)
-			
+
 			task := createStatelessTask(name, priority, 30*time.Millisecond, func(resource interface{}) (interface{}, error) {
 				return fmt.Sprintf("%s completed", name), nil
 			})
-			
+
 			result, err := executor.Execute(ctx, task, priority)
 			if err != nil {
 				t.Errorf("Task %s failed: %v", name, err)
 			}
-			
+
 			mu.Lock()
 			results = append(results, fmt.Sprintf("%s: %v", name, result))
 			mu.Unlock()
@@ -188,12 +188,12 @@ func TestLastEffortInterruption(t *testing.T) {
 		task := createStatelessTask("Background task", Background, 200*time.Millisecond, func(resource interface{}) (interface{}, error) {
 			return "Background completed", nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, Background)
 		if err != nil {
 			t.Errorf("Background task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		executionOrder = append(executionOrder, fmt.Sprintf("Background: %v", result))
 		mu.Unlock()
@@ -209,12 +209,12 @@ func TestLastEffortInterruption(t *testing.T) {
 		task := createStatelessTask("LastEffort task", LastEffort, 100*time.Millisecond, func(resource interface{}) (interface{}, error) {
 			return "LastEffort completed", nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, LastEffort)
 		if err != nil {
 			t.Errorf("LastEffort task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		executionOrder = append(executionOrder, fmt.Sprintf("LastEffort: %v", result))
 		mu.Unlock()
@@ -329,12 +329,12 @@ func TestMixedInterruptibleAndLegacyTasks(t *testing.T) {
 		task := createStatelessTask("Legacy Task", Background, 50*time.Millisecond, func(resource interface{}) (interface{}, error) {
 			return "Legacy result", nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, Background)
 		if err != nil {
 			t.Errorf("Legacy task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		results = append(results, fmt.Sprintf("Legacy Task: %v", result))
 		mu.Unlock()
@@ -355,12 +355,12 @@ func TestMixedInterruptibleAndLegacyTasks(t *testing.T) {
 			}
 			return "Interruptible result", nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, Background)
 		if err != nil {
 			t.Errorf("Interruptible task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		results = append(results, fmt.Sprintf("Interruptible Task: %v", result))
 		mu.Unlock()
@@ -372,17 +372,20 @@ func TestMixedInterruptibleAndLegacyTasks(t *testing.T) {
 		defer wg.Done()
 		initialState := &SimpleTaskState{Counter: 0, Message: "initial"}
 		task := createStatefulTask("Legacy Stateful Task", Background, initialState, func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
-			simpleState := state.(*SimpleTaskState)
+			simpleState, ok := state.(*SimpleTaskState)
+			if !ok {
+				return nil, fmt.Errorf("expected SimpleTaskState, got %T", state)
+			}
 			simpleState.Counter = 3
 			simpleState.Message = "legacy stateful"
 			return fmt.Sprintf("Legacy stateful result: %d", simpleState.Counter), nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, Background)
 		if err != nil {
 			t.Errorf("Legacy stateful task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		results = append(results, fmt.Sprintf("Legacy Stateful Task: %v", result))
 		mu.Unlock()
@@ -398,18 +401,21 @@ func TestMixedInterruptibleAndLegacyTasks(t *testing.T) {
 			Priority:     Background,
 			InitialState: initialState,
 			Compute: func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
-				simpleState := state.(*SimpleTaskState)
+				simpleState, ok := state.(*SimpleTaskState)
+				if !ok {
+					return nil, fmt.Errorf("expected SimpleTaskState, got %T", state)
+				}
 				simpleState.Counter = 3
 				simpleState.Message = "interruptible stateful"
 				return fmt.Sprintf("Interruptible stateful result: %d", simpleState.Counter), nil
 			},
 		}
-		
+
 		result, err := executor.Execute(ctx, task, Background)
 		if err != nil {
 			t.Errorf("Interruptible stateful task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		results = append(results, fmt.Sprintf("Interruptible Stateful Task: %v", result))
 		mu.Unlock()
@@ -505,9 +511,9 @@ func TestInterruptChannelMechanismWithInterruption(t *testing.T) {
 			}
 			return "Background completed after 100 steps", nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, Background)
-		
+
 		mu.Lock()
 		if err != nil && strings.Contains(err.Error(), "interrupted") {
 			results = append(results, fmt.Sprintf("Background: %v", result))
@@ -527,12 +533,12 @@ func TestInterruptChannelMechanismWithInterruption(t *testing.T) {
 		task := createStatelessTask("UI task", UI, 50*time.Millisecond, func(resource interface{}) (interface{}, error) {
 			return "UI completed", nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, UI)
 		if err != nil {
 			t.Errorf("UI task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		results = append(results, fmt.Sprintf("UI: %v", result))
 		mu.Unlock()
