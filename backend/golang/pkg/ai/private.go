@@ -3,14 +3,15 @@ package ai
 import (
 	"context"
 
-	"github.com/EternisAI/enchanted-twin/pkg/microscheduler"
 	"github.com/openai/openai-go"
+
+	"github.com/EternisAI/enchanted-twin/pkg/microscheduler"
 )
 
 type Priority = microscheduler.Priority
 
 const (
-	UI = microscheduler.UI
+	UI         = microscheduler.UI
 	LastEffort = microscheduler.LastEffort
 	Background = microscheduler.Background
 )

@@ -211,10 +211,10 @@ func main() {
 			logger.Warn("Invalid anonymizer delay, using default", "delay", envs.AnonymizerDelay, "error", err)
 			delay = 100 * time.Millisecond
 		}
-		
+
 		// Initialize singleton anonymizer
 		anonymizer := ai.InitMockAnonymizer(delay, logger)
-		
+
 		// Create private completions service instance
 		privateCompletions := ai.NewPrivateCompletionsService(ai.PrivateCompletionsConfig{
 			CompletionsService: aiCompletionsService,
@@ -222,12 +222,12 @@ func main() {
 			ExecutorWorkers:    envs.PrivateCompletionsWorkers,
 			Logger:             logger,
 		})
-		
+
 		// Enable private completions on the existing service
 		aiCompletionsService.EnablePrivateCompletions(privateCompletions, ai.Background)
-		
-		logger.Info("Private completions service initialized and enabled", 
-			"workers", envs.PrivateCompletionsWorkers, 
+
+		logger.Info("Private completions service initialized and enabled",
+			"workers", envs.PrivateCompletionsWorkers,
 			"anonymizerDelay", delay)
 	} else {
 		logger.Info("Private completions service disabled")

@@ -689,4 +689,3 @@ func (e *TaskExecutor) Shutdown() {
 		close(e.shutdown)
 	})
 }
-
