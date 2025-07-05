@@ -19,21 +19,23 @@ const (
 	Background = microscheduler.Background
 )
 
-// PrivateResult contains the completion result along with anonymization mapping
-type PrivateResult struct {
+// PrivateCompletionResult contains the completion result along with anonymization mapping
+type PrivateCompletionResult struct {
 	Message          openai.ChatCompletionMessage `json:"message"`
 	ReplacementRules map[string]string            `json:"replacement_rules"`
 }
 
 // PrivateCompletions provides completions with privacy protection through anonymization
 type PrivateCompletions interface {
-	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateResult, error)
+	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error)
 }
 
 // Anonymizer handles the anonymization and de-anonymization of content
 type Anonymizer interface {
-	// Anonymize takes original content and returns anonymized content plus replacement rules
-	Anonymize(ctx context.Context, content string) (anonymized string, rules map[string]string, err error)
+	// AnonymizeMessages processes a batch of messages with anonymization
+	// It should either complete the full processing OR be interrupted by the interruptChan
+	// This includes any processing delays and handles all message-level logic
+	AnonymizeMessages(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, interruptChan <-chan struct{}) (anonymizedMessages []openai.ChatCompletionMessageParamUnion, rules map[string]string, err error)
 	
 	// DeAnonymize takes anonymized content and replacement rules and restores original content
 	DeAnonymize(anonymized string, rules map[string]string) string

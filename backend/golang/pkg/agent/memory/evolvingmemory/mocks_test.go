@@ -109,23 +109,23 @@ type MockCompletionsService struct {
 	mock.Mock
 }
 
-func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (ai.PrivateResult, error) {
+func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (ai.PrivateCompletionResult, error) {
 	args := m.Called(ctx, messages, tools, model)
 	if args.Get(0) == nil {
-		return ai.PrivateResult{}, args.Error(1)
+		return ai.PrivateCompletionResult{}, args.Error(1)
 	}
-	// Check if it's a PrivateResult or just a ChatCompletionMessage
-	if result, ok := args.Get(0).(ai.PrivateResult); ok {
+	// Check if it's a PrivateCompletionResult or just a ChatCompletionMessage
+	if result, ok := args.Get(0).(ai.PrivateCompletionResult); ok {
 		return result, args.Error(1)
 	}
-	// Fallback: wrap ChatCompletionMessage in PrivateResult
+	// Fallback: wrap ChatCompletionMessage in PrivateCompletionResult
 	if msg, ok := args.Get(0).(openai.ChatCompletionMessage); ok {
-		return ai.PrivateResult{
+		return ai.PrivateCompletionResult{
 			Message:          msg,
 			ReplacementRules: make(map[string]string),
 		}, args.Error(1)
 	}
-	return ai.PrivateResult{}, args.Error(1)
+	return ai.PrivateCompletionResult{}, args.Error(1)
 }
 
 func (m *MockCompletionsService) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {

@@ -8,7 +8,7 @@ import (
 )
 
 // HighlightReplacements creates a human-readable string showing what was anonymized
-func HighlightReplacements(result PrivateResult) string {
+func HighlightReplacements(result PrivateCompletionResult) string {
 	if len(result.ReplacementRules) == 0 {
 		return "No anonymization performed"
 	}
@@ -22,7 +22,7 @@ func HighlightReplacements(result PrivateResult) string {
 }
 
 // GetAnonymizedTokens returns all the anonymized tokens used in the completion
-func GetAnonymizedTokens(result PrivateResult) []string {
+func GetAnonymizedTokens(result PrivateCompletionResult) []string {
 	var tokens []string
 	for token := range result.ReplacementRules {
 		tokens = append(tokens, token)
@@ -31,7 +31,7 @@ func GetAnonymizedTokens(result PrivateResult) []string {
 }
 
 // GetOriginalValues returns all the original values that were anonymized
-func GetOriginalValues(result PrivateResult) []string {
+func GetOriginalValues(result PrivateCompletionResult) []string {
 	var values []string
 	for _, original := range result.ReplacementRules {
 		values = append(values, original)

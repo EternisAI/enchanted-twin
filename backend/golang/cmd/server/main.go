@@ -212,11 +212,11 @@ func main() {
 			delay = 100 * time.Millisecond
 		}
 		
-		// Create mock anonymizer
-		anonymizer := ai.NewMockAnonymizer(delay, logger)
+		// Initialize singleton anonymizer
+		anonymizer := ai.InitMockAnonymizer(delay, logger)
 		
-		// Initialize private completions service
-		privateCompletions := ai.InitPrivateCompletions(ai.PrivateCompletionsConfig{
+		// Create private completions service instance
+		privateCompletions := ai.NewPrivateCompletionsService(ai.PrivateCompletionsConfig{
 			CompletionsService: aiCompletionsService,
 			Anonymizer:         anonymizer,
 			ExecutorWorkers:    envs.PrivateCompletionsWorkers,
