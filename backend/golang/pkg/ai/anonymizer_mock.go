@@ -302,16 +302,3 @@ func (m *MockAnonymizer) anonymizePatterns(content string) (string, map[string]s
 	return result, rules
 }
 
-func (m *MockAnonymizer) GetDelay() time.Duration {
-	return m.Delay
-}
-
-func (m *MockAnonymizer) AddReplacement(original, replacement string) {
-	m.PredefinedReplacements[original] = replacement
-	m.logger.Debug("Added custom replacement", "original", original, "replacement", replacement)
-}
-
-func (m *MockAnonymizer) SetDelay(delay time.Duration) {
-	m.Delay = delay
-	m.logger.Debug("Updated anonymization delay", "delay", delay)
-}
