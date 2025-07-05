@@ -24,18 +24,18 @@ func NewServiceAdapter(privateCompletions PrivateCompletions, originalService *S
 }
 
 // Completions implements the Service interface by calling the new PrivateCompletions interface
-func (a *ServiceAdapter) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateResult, error) {
+func (a *ServiceAdapter) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error) {
 	return a.privateCompletions.Completions(ctx, messages, tools, model, a.defaultPriority)
 }
 
 // CompletionsWithPriority allows specifying custom priority while maintaining the old interface
-func (a *ServiceAdapter) CompletionsWithPriority(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateResult, error) {
+func (a *ServiceAdapter) CompletionsWithPriority(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	return a.privateCompletions.Completions(ctx, messages, tools, model, priority)
 }
 
 // GetReplacementRules provides access to anonymization rules from the last completion
 // This is useful for debugging or auditing purposes
-func (a *ServiceAdapter) GetReplacementRules(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateResult, error) {
+func (a *ServiceAdapter) GetReplacementRules(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	return a.privateCompletions.Completions(ctx, messages, tools, model, priority)
 }
 
@@ -74,11 +74,11 @@ func NewFallbackCompletionsService(completionsService CompletionsService) Privat
 }
 
 // Completions implements PrivateCompletions without anonymization (fallback mode)
-func (f *FallbackCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateResult, error) {
+func (f *FallbackCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	// Call the underlying service directly (no anonymization)
 	result, err := f.completionsService.Completions(ctx, messages, tools, model)
 	if err != nil {
-		return PrivateResult{}, err
+		return PrivateCompletionResult{}, err
 	}
 	
 	// Return the result directly (already contains Message and ReplacementRules)

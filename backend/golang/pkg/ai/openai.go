@@ -74,14 +74,14 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 	return completion.Choices[0].Message, nil
 }
 
-// Completions provides the main completion interface - now always returns PrivateResult
-func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateResult, error) {
+// Completions provides the main completion interface - now always returns PrivateCompletionResult
+func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error) {
 	// Always use private completions (with fallback for backward compatibility)
 	if s.privateCompletions != nil {
 		return s.privateCompletions.Completions(ctx, messages, tools, model, s.defaultPriority)
 	}
 	
-	// Fallback to regular completion and wrap in PrivateResult
+	// Fallback to regular completion and wrap in PrivateCompletionResult
 	message, err := s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
 		Messages:    messages,
 		Model:       model,
@@ -89,17 +89,17 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 		Temperature: param.Opt[float64]{Value: 1.0},
 	})
 	if err != nil {
-		return PrivateResult{}, err
+		return PrivateCompletionResult{}, err
 	}
 	
-	return PrivateResult{
+	return PrivateCompletionResult{
 		Message:          message,
 		ReplacementRules: make(map[string]string), // Empty rules when not using private completions
 	}, nil
 }
 
 // CompletionsWithPriority allows specifying custom priority
-func (s *Service) CompletionsWithPriority(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateResult, error) {
+func (s *Service) CompletionsWithPriority(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	if s.privateCompletions != nil {
 		return s.privateCompletions.Completions(ctx, messages, tools, model, priority)
 	}
