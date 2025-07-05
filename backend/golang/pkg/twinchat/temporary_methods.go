@@ -6,18 +6,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/openai/openai-go"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
-	"github.com/google/uuid"
-	"github.com/openai/openai-go"
 )
 
 // ProcessMessageHistoryStream processes a list of messages and returns a channel for streaming the response.
-// NOTE: Reconsider
+// NOTE: Reconsider.
 func (s *Service) ProcessMessageHistoryStream(
 	ctx context.Context,
 	chatID string,
