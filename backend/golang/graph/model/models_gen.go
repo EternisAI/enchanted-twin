@@ -39,13 +39,14 @@ type Author struct {
 }
 
 type Chat struct {
-	ID             string       `json:"id"`
-	Name           string       `json:"name"`
-	Messages       []*Message   `json:"messages"`
-	CreatedAt      string       `json:"createdAt"`
-	Category       ChatCategory `json:"category"`
-	HolonThreadID  *string      `json:"holonThreadId,omitempty"`
-	InitialMessage *string      `json:"initialMessage,omitempty"`
+	ID              string       `json:"id"`
+	Name            string       `json:"name"`
+	Messages        []*Message   `json:"messages"`
+	CreatedAt       string       `json:"createdAt"`
+	Category        ChatCategory `json:"category"`
+	HolonThreadID   *string      `json:"holonThreadId,omitempty"`
+	InitialMessage  *string      `json:"initialMessage,omitempty"`
+	PrivacyDictJSON *string      `json:"privacyDictJson,omitempty"`
 }
 
 type ChatSuggestionsCategory struct {
@@ -149,6 +150,11 @@ type OAuthStatus struct {
 	Scope     []string `json:"scope"`
 	Username  string   `json:"username"`
 	Error     bool     `json:"error"`
+}
+
+type PrivacyDictUpdate struct {
+	ChatID          string `json:"chatId"`
+	PrivacyDictJSON string `json:"privacyDictJson"`
 }
 
 type Query struct {
