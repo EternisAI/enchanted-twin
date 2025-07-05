@@ -32,7 +32,7 @@ func TestStatefulTaskExecution(t *testing.T) {
 			time.Sleep(5 * time.Millisecond)
 			simpleState.Counter++
 		}
-		
+
 		simpleState.Message = "completed"
 		return fmt.Sprintf("Task completed with counter: %d", simpleState.Counter), nil
 	})
@@ -142,12 +142,12 @@ func TestMixedStatefulAndStatelessTasks(t *testing.T) {
 		task := createStatelessTask("Stateless Task", Background, 30*time.Millisecond, func(resource interface{}) (interface{}, error) {
 			return "Stateless result", nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, Background)
 		if err != nil {
 			t.Errorf("Stateless task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		results = append(results, fmt.Sprintf("Stateless Task: %v", result))
 		mu.Unlock()
@@ -159,17 +159,20 @@ func TestMixedStatefulAndStatelessTasks(t *testing.T) {
 		defer wg.Done()
 		initialState := &SimpleTaskState{Counter: 0, Message: "initial"}
 		task := createStatefulTask("Stateful Task", Background, initialState, func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
-			simpleState := state.(*SimpleTaskState)
+			simpleState, ok := state.(*SimpleTaskState)
+			if !ok {
+				return nil, fmt.Errorf("expected SimpleTaskState, got %T", state)
+			}
 			simpleState.Counter = 3
 			simpleState.Message = "stateful"
 			return fmt.Sprintf("Stateful result: %d", simpleState.Counter), nil
 		})
-		
+
 		result, err := executor.Execute(ctx, task, Background)
 		if err != nil {
 			t.Errorf("Stateful task failed: %v", err)
 		}
-		
+
 		mu.Lock()
 		results = append(results, fmt.Sprintf("Stateful Task: %v", result))
 		mu.Unlock()

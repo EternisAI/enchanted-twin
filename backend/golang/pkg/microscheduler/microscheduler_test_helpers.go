@@ -10,14 +10,14 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-// createTestLogger creates a logger that only shows errors to keep test output clean
+// createTestLogger creates a logger that only shows errors to keep test output clean.
 func createTestLogger() *log.Logger {
 	return log.NewWithOptions(io.Discard, log.Options{
 		Level: log.ErrorLevel,
 	})
 }
 
-// Helper function to create a simple stateless task
+// Helper function to create a simple stateless task.
 func createStatelessTask(name string, priority Priority, duration time.Duration, compute func(resource interface{}) (interface{}, error)) Task {
 	return Task{
 		Name:         name,
@@ -30,7 +30,7 @@ func createStatelessTask(name string, priority Priority, duration time.Duration,
 	}
 }
 
-// Helper function to create an interruptible stateless task
+// Helper function to create an interruptible stateless task.
 func createInterruptibleTask(name string, priority Priority, compute func(resource interface{}, interrupt <-chan struct{}) (interface{}, error)) Task {
 	return Task{
 		Name:         name,
@@ -42,7 +42,7 @@ func createInterruptibleTask(name string, priority Priority, compute func(resour
 	}
 }
 
-// Helper function to create a stateful task
+// Helper function to create a stateful task.
 func createStatefulTask(name string, priority Priority, initialState TaskState, compute func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error)) Task {
 	return Task{
 		Name:         name,
@@ -52,7 +52,7 @@ func createStatefulTask(name string, priority Priority, initialState TaskState, 
 	}
 }
 
-// SimpleTaskState is a simple implementation of TaskState for testing
+// SimpleTaskState is a simple implementation of TaskState for testing.
 type SimpleTaskState struct {
 	Counter int    `json:"counter"`
 	Message string `json:"message"`
