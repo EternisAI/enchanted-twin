@@ -11,6 +11,7 @@ query GetChats($first: Int!, $offset: Int!) {
     createdAt
     category
     holonThreadId
+    privacyDictJson
     messages {
       id
       text
@@ -39,6 +40,7 @@ query GetChat($id: ID!) {
     createdAt
     category
     holonThreadId
+    privacyDictJson
     messages {
       id
       text
@@ -155,6 +157,7 @@ mutation CreateChat(
     createdAt
     category
     holonThreadId
+    privacyDictJson
   }
 }
 
@@ -272,6 +275,13 @@ subscription WhatsAppSyncStatus {
     statusMessage
   }
 }
+
+subscription PrivacyDictUpdated($chatId: ID!) {
+  privacyDictUpdated(chatId: $chatId) {
+    privacyDictJson
+  }
+}
+
 mutation AddDataSource($name: String!, $path: String!) {
   addDataSource(name: $name, path: $path)
 }

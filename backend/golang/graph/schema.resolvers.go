@@ -239,47 +239,6 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
 }
 
-// ProcessMessageHistory processes a list of messages and saves them to the database.
-func (r *mutationResolver) ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (*model.Message, error) {
-	// Convert input messages to the format expected by the service for logging purposes
-	historyJson, err := json.Marshal(map[string]interface{}{
-		"chatId":     chatID,
-		"messages":   messages,
-		"count":      len(messages),
-		"onboarding": isOnboarding,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	r.Logger.Info("Processing message history", "data", string(historyJson))
-
-	// Only publish the last user message to NATS
-	subject := fmt.Sprintf("chat.%s", chatID)
-	if len(messages) > 0 {
-		lastMsg := messages[len(messages)-1]
-		if lastMsg.Role == model.RoleUser {
-			text := lastMsg.Text
-			userMessageJson, err := json.Marshal(model.Message{
-				ID:        uuid.New().String(),
-				Text:      &text,
-				CreatedAt: time.Now().Format(time.RFC3339),
-				Role:      model.RoleUser,
-			})
-			if err != nil {
-				return nil, err
-			}
-			err = r.Nc.Publish(subject, userMessageJson)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// Process the messages and save them to the database
-	return r.TwinChatService.ProcessMessageHistory(ctx, chatID, messages, isOnboarding)
-}
-
 // DeleteChat is the resolver for the deleteChat field.
 func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*model.Chat, error) {
 	chat, err := r.TwinChatService.GetChat(ctx, chatID)
@@ -454,6 +413,7 @@ func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network
 	return true, nil
 }
 
+// StoreToken is the resolver for the storeToken field.
 func (r *mutationResolver) StoreToken(ctx context.Context, input model.StoreTokenInput) (bool, error) {
 	r.Logger.Info("StoreToken called")
 
@@ -1102,6 +1062,39 @@ func (r *subscriptionResolver) WhatsAppSyncStatus(ctx context.Context) (<-chan *
 	}()
 
 	return whatsappSyncStatus, nil
+}
+
+// PrivacyDictUpdated is the resolver for the privacyDictUpdated field.
+func (r *subscriptionResolver) PrivacyDictUpdated(ctx context.Context, chatID string) (<-chan *model.PrivacyDictUpdate, error) {
+	privacyUpdateChan := make(chan *model.PrivacyDictUpdate, 10)
+	subject := fmt.Sprintf("chat.%s.privacy_dict", chatID)
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		var update model.PrivacyDictUpdate
+		if err := json.Unmarshal(msg.Data, &update); err != nil {
+			r.Logger.Error("Failed to unmarshal privacy dict update", "error", err)
+			return
+		}
+
+		select {
+		case privacyUpdateChan <- &update:
+		case <-ctx.Done():
+			return
+		default:
+			r.Logger.Warn("Privacy update channel full, dropping update")
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+		close(privacyUpdateChan)
+	}()
+
+	return privacyUpdateChan, nil
 }
 
 // IndexingStatus is the resolver for the indexingStatus field.
