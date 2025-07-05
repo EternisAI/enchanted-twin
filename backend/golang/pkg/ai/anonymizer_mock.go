@@ -13,24 +13,18 @@ import (
 	"github.com/openai/openai-go"
 )
 
-// MockAnonymizer provides a configurable mock implementation for testing and development
 type MockAnonymizer struct {
-	// Delay simulates processing time
 	Delay time.Duration
-	
-	// PredefinedReplacements maps original terms to anonymized versions
 	PredefinedReplacements map[string]string
 	
 	logger *log.Logger
 }
 
-// Singleton instance for MockAnonymizer
 var (
 	mockAnonymizerInstance *MockAnonymizer
 	mockAnonymizerOnce     sync.Once
 )
 
-// GetMockAnonymizer returns the singleton instance of MockAnonymizer
 func GetMockAnonymizer() *MockAnonymizer {
 	if mockAnonymizerInstance == nil {
 		panic("MockAnonymizer not initialized. Call InitMockAnonymizer first.")
@@ -38,7 +32,6 @@ func GetMockAnonymizer() *MockAnonymizer {
 	return mockAnonymizerInstance
 }
 
-// InitMockAnonymizer initializes the singleton MockAnonymizer instance
 func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer {
 	mockAnonymizerOnce.Do(func() {
 		mockAnonymizerInstance = &MockAnonymizer{
@@ -87,7 +80,6 @@ func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer
 	return mockAnonymizerInstance
 }
 
-// NewMockAnonymizer creates a new mock anonymizer (non-singleton) for testing
 func NewMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer {
 	return &MockAnonymizer{
 		Delay: delay,
@@ -130,8 +122,6 @@ func NewMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer 
 	}
 }
 
-// AnonymizeMessages processes a batch of messages with anonymization
-// It applies the configured delay once per message and can be interrupted
 func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error) {
 	allRules := make(map[string]string)
 	anonymizedMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
@@ -178,7 +168,6 @@ func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, messages []opena
 	return anonymizedMessages, allRules, nil
 }
 
-// anonymizeMessage anonymizes a single message (internal helper method)
 func (m *MockAnonymizer) anonymizeMessage(ctx context.Context, message openai.ChatCompletionMessageParamUnion) (openai.ChatCompletionMessageParamUnion, map[string]string, error) {
 	// Check for context cancellation
 	select {
@@ -227,8 +216,6 @@ func (m *MockAnonymizer) anonymizeMessage(ctx context.Context, message openai.Ch
 	return message, make(map[string]string), nil
 }
 
-// anonymizeContent processes content and replaces sensitive information with anonymized tokens
-// This is a fast operation focused on the actual anonymization logic
 func (m *MockAnonymizer) anonymizeContent(ctx context.Context, content string) (string, map[string]string, error) {
 	// Check for context cancellation
 	select {
@@ -268,7 +255,6 @@ func (m *MockAnonymizer) anonymizeContent(ctx context.Context, content string) (
 	return anonymized, rules, nil
 }
 
-// DeAnonymize restores original content using replacement rules
 func (m *MockAnonymizer) DeAnonymize(anonymized string, rules map[string]string) string {
 	restored := anonymized
 	
@@ -282,7 +268,6 @@ func (m *MockAnonymizer) DeAnonymize(anonymized string, rules map[string]string)
 	return restored
 }
 
-// anonymizePatterns applies regex-based anonymization for common patterns
 func (m *MockAnonymizer) anonymizePatterns(content string) (string, map[string]string) {
 	result := content
 	rules := make(map[string]string)
@@ -317,18 +302,15 @@ func (m *MockAnonymizer) anonymizePatterns(content string) (string, map[string]s
 	return result, rules
 }
 
-// GetDelay returns the processing delay that should be applied per message
 func (m *MockAnonymizer) GetDelay() time.Duration {
 	return m.Delay
 }
 
-// AddReplacement allows adding custom replacements at runtime
 func (m *MockAnonymizer) AddReplacement(original, replacement string) {
 	m.PredefinedReplacements[original] = replacement
 	m.logger.Debug("Added custom replacement", "original", original, "replacement", replacement)
 }
 
-// SetDelay updates the processing delay
 func (m *MockAnonymizer) SetDelay(delay time.Duration) {
 	m.Delay = delay
 	m.logger.Debug("Updated anonymization delay", "delay", delay)
