@@ -1,5 +1,3 @@
-// microscheduler_test_helpers.go provides test helper functions and types for microscheduler testing.
-// This file contains common utilities used across all microscheduler test files.
 package microscheduler
 
 import (
@@ -10,14 +8,12 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-// createTestLogger creates a logger that only shows errors to keep test output clean.
 func createTestLogger() *log.Logger {
 	return log.NewWithOptions(io.Discard, log.Options{
 		Level: log.ErrorLevel,
 	})
 }
 
-// Helper function to create a simple stateless task.
 func createStatelessTask(name string, priority Priority, duration time.Duration, compute func(resource interface{}) (interface{}, error)) Task {
 	return Task{
 		Name:         name,
