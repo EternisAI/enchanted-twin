@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/microscheduler"
-	"github.com/openai/openai-go"
 	"github.com/charmbracelet/log"
+	"github.com/openai/openai-go"
+
+	"github.com/EternisAI/enchanted-twin/pkg/microscheduler"
 )
 
 type PrivateCompletionsService struct {
@@ -32,16 +33,16 @@ func NewPrivateCompletionsService(config PrivateCompletionsConfig) *PrivateCompl
 	if workers <= 0 {
 		workers = 1
 	}
-	
+
 	executor := microscheduler.NewTaskExecutor(workers, config.Logger)
-	
+
 	service := &PrivateCompletionsService{
 		completionsService: config.CompletionsService,
 		anonymizer:         config.Anonymizer,
 		executor:           executor,
 		logger:             config.Logger,
 	}
-	
+
 	config.Logger.Info("PrivateCompletionsService created", "workers", workers)
 	return service
 }
@@ -55,23 +56,23 @@ func (s *PrivateCompletionsService) Shutdown() {
 
 func (s *PrivateCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	s.logger.Debug("Starting private completion processing", "model", model, "messageCount", len(messages), "toolCount", len(tools))
-	
+
 	anonymizedMessages, allRules, err := s.scheduleAnonymization(ctx, messages, priority)
 	if err != nil {
 		return PrivateCompletionResult{}, fmt.Errorf("failed to anonymize messages: %w", err)
 	}
-	
+
 	s.logger.Debug("Calling underlying completions service with anonymized content")
 	result, err := s.completionsService.Completions(ctx, anonymizedMessages, tools, model)
 	if err != nil {
 		return PrivateCompletionResult{}, fmt.Errorf("underlying completions service failed: %w", err)
 	}
 	completionMessage := result.Message
-	
+
 	deAnonymizedMessage := s.deAnonymizeMessage(completionMessage, allRules)
-	
+
 	s.logger.Debug("Private completion processing complete", "originalRulesCount", len(allRules))
-	
+
 	return PrivateCompletionResult{
 		Message:          deAnonymizedMessage,
 		ReplacementRules: allRules,
@@ -94,17 +95,17 @@ func (s *PrivateCompletionsService) scheduleAnonymization(ctx context.Context, m
 			}, nil
 		},
 	}
-	
+
 	result, err := s.executor.Execute(ctx, task, priority)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to execute anonymization task: %w", err)
 	}
-	
+
 	anonymizationResult, ok := result.(AnonymizationResult)
 	if !ok {
 		return nil, nil, fmt.Errorf("unexpected anonymization result type: %T", result)
 	}
-	
+
 	return anonymizationResult.Messages, anonymizationResult.Rules, nil
 }
 
@@ -113,19 +114,18 @@ type AnonymizationResult struct {
 	Rules    map[string]string
 }
 
-
 func (s *PrivateCompletionsService) deAnonymizeMessage(message openai.ChatCompletionMessage, rules map[string]string) openai.ChatCompletionMessage {
 	result := message
-	
+
 	if message.Content != "" {
 		originalContent := s.anonymizer.DeAnonymize(message.Content, rules)
 		result.Content = originalContent
 	}
-	
+
 	if len(message.ToolCalls) > 0 {
 		result.ToolCalls = make([]openai.ChatCompletionMessageToolCall, len(message.ToolCalls))
 		copy(result.ToolCalls, message.ToolCalls)
-		
+
 		for i, toolCall := range message.ToolCalls {
 			if toolCall.Function.Arguments != "" {
 				originalArgs := s.anonymizer.DeAnonymize(toolCall.Function.Arguments, rules)
@@ -133,6 +133,6 @@ func (s *PrivateCompletionsService) deAnonymizeMessage(message openai.ChatComple
 			}
 		}
 	}
-	
+
 	return result
 }
