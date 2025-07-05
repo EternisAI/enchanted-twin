@@ -10,23 +10,31 @@ type JSONForSQLLite string
 
 // ChatDB is used for database operations with proper db field mapping.
 type ChatDB struct {
-	ID            string  `db:"id"`
-	Name          string  `db:"name"`
-	Category      string  `db:"category"`
-	HolonThreadID *string `db:"holon_thread_id"`
-	CreatedAt     string  `db:"created_at"`
-	LastMessageAt string  `db:"last_message_at"`
+	ID              string  `db:"id"`
+	Name            string  `db:"name"`
+	Category        string  `db:"category"`
+	HolonThreadID   *string `db:"holon_thread_id"`
+	CreatedAt       string  `db:"created_at"`
+	LastMessageAt   string  `db:"last_message_at"`
+	PrivacyDictJson *string `db:"privacy_dict_json"`
 }
 
 // ToModel converts a ChatDB to a model.Chat.
 func (c *ChatDB) ToModel() model.Chat {
-	return model.Chat{
+	chat := model.Chat{
 		ID:            c.ID,
 		Name:          c.Name,
 		Category:      model.ChatCategory(c.Category),
 		HolonThreadID: c.HolonThreadID,
 		CreatedAt:     c.CreatedAt,
 	}
+
+	// Handle privacy dict json
+	if c.PrivacyDictJson != nil {
+		chat.PrivacyDictJSON = c.PrivacyDictJson
+	}
+
+	return chat
 }
 
 // Message represents a message in the chat.
