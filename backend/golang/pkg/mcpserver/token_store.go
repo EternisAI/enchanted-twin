@@ -210,7 +210,10 @@ func (k *KeyringTokenStore) IsAvailable() bool {
 		return false
 	}
 
-	k.deleteWithTimeout(testService, testUser)
+	if err := k.deleteWithTimeout(testService, testUser); err != nil {
+		log.Debug("keyring delete operation failed during availability check", "error", err)
+	}
+
 	return true
 }
 
