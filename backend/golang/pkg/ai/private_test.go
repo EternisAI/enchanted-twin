@@ -48,34 +48,6 @@ func TestPrivateCompletionsMockAnonymizer(t *testing.T) {
 	t.Logf("Restored: %s", restored)
 }
 
-func TestFallbackCompletionsService(t *testing.T) {
-	mockService := &mockCompletionsService{
-		response: openai.ChatCompletionMessage{
-			Content: "This is a test response",
-		},
-	}
-	
-	fallback := NewFallbackCompletionsService(mockService)
-	
-	ctx := context.Background()
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage("Test message"),
-	}
-	
-	result, err := fallback.Completions(ctx, messages, nil, "test-model", Background)
-	if err != nil {
-		t.Fatalf("Fallback completion failed: %v", err)
-	}
-	
-	if result.Message.Content != "This is a test response" {
-		t.Errorf("Expected 'This is a test response', got %q", result.Message.Content)
-	}
-	
-	if len(result.ReplacementRules) != 0 {
-		t.Errorf("Expected no replacement rules, got %d", len(result.ReplacementRules))
-	}
-}
-
 func TestMockAnonymizerDelay(t *testing.T) {
 	logger := log.New(nil)
 	

@@ -690,16 +690,3 @@ func (e *TaskExecutor) Shutdown() {
 	})
 }
 
-type UIWorkerResource struct {
-	WorkerID    int
-	HTTPClient  string
-	UIRenderer  string
-	TaskCounter int
-}
-
-type BackgroundWorkerResource struct {
-	WorkerID      int
-	DBConnection  string
-	DataProcessor string
-	TaskCounter   int
-}
