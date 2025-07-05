@@ -17,10 +17,12 @@ type Config struct {
 }
 
 type Service struct {
-	client         *openai.Client
-	logger         *log.Logger
-	getAccessToken func() (string, error)
-	opts           []option.RequestOption
+	client            *openai.Client
+	logger            *log.Logger
+	getAccessToken    func() (string, error)
+	opts              []option.RequestOption
+	privateCompletions PrivateCompletions // Optional private completions service
+	defaultPriority   Priority            // Default priority for private completions
 }
 
 func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Service {
@@ -72,14 +74,46 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 	return completion.Choices[0].Message, nil
 }
 
-func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
-	return s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
+// Completions provides the main completion interface - now always returns PrivateResult
+func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateResult, error) {
+	// Always use private completions (with fallback for backward compatibility)
+	if s.privateCompletions != nil {
+		return s.privateCompletions.Completions(ctx, messages, tools, model, s.defaultPriority)
+	}
+	
+	// Fallback to regular completion and wrap in PrivateResult
+	message, err := s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
 		Messages:    messages,
 		Model:       model,
 		Tools:       tools,
 		Temperature: param.Opt[float64]{Value: 1.0},
 	})
+	if err != nil {
+		return PrivateResult{}, err
+	}
+	
+	return PrivateResult{
+		Message:          message,
+		ReplacementRules: make(map[string]string), // Empty rules when not using private completions
+	}, nil
 }
+
+// CompletionsWithPriority allows specifying custom priority
+func (s *Service) CompletionsWithPriority(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateResult, error) {
+	if s.privateCompletions != nil {
+		return s.privateCompletions.Completions(ctx, messages, tools, model, priority)
+	}
+	
+	// Fallback to regular completion
+	return s.Completions(ctx, messages, tools, model)
+}
+
+// EnablePrivateCompletions configures the service to use private completions
+func (s *Service) EnablePrivateCompletions(privateCompletions PrivateCompletions, defaultPriority Priority) {
+	s.privateCompletions = privateCompletions
+	s.defaultPriority = defaultPriority
+}
+
 
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
 	opts := s.opts

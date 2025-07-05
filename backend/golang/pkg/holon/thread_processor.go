@@ -102,7 +102,7 @@ func (tp *ThreadProcessor) EvaluateThread(ctx context.Context, thread *model.Thr
 	}
 
 	// Parse the response
-	result, err := tp.parseEvaluationResponse(response)
+	result, err := tp.parseEvaluationResponse(response.Message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse evaluation response: %w", err)
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // MockStorage mocks the storage interface to avoid Weaviate client issues.
@@ -108,13 +109,23 @@ type MockCompletionsService struct {
 	mock.Mock
 }
 
-func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
+func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (ai.PrivateResult, error) {
 	args := m.Called(ctx, messages, tools, model)
 	if args.Get(0) == nil {
-		return openai.ChatCompletionMessage{}, args.Error(1)
+		return ai.PrivateResult{}, args.Error(1)
 	}
-	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
+	// Check if it's a PrivateResult or just a ChatCompletionMessage
+	if result, ok := args.Get(0).(ai.PrivateResult); ok {
+		return result, args.Error(1)
+	}
+	// Fallback: wrap ChatCompletionMessage in PrivateResult
+	if msg, ok := args.Get(0).(openai.ChatCompletionMessage); ok {
+		return ai.PrivateResult{
+			Message:          msg,
+			ReplacementRules: make(map[string]string),
+		}, args.Error(1)
+	}
+	return ai.PrivateResult{}, args.Error(1)
 }
 
 func (m *MockCompletionsService) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
