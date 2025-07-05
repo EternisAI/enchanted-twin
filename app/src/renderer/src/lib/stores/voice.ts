@@ -19,10 +19,10 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
     setOpen(false)
     set({ isVoiceMode: true })
   },
-  stopVoiceMode: () => {
-    window.api.livekit.stop()
+  stopVoiceMode: async () => {
+    set({ isVoiceMode: false })
+    await window.api.livekit.stop()
     const { setOpen } = useSidebarStore.getState()
     setOpen(true)
-    set({ isVoiceMode: false })
   }
 }))
