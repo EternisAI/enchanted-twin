@@ -908,7 +908,7 @@ func (ptf *PersonalityTestFramework) performAIEvaluation(ctx context.Context, sc
 	openaiMessages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(prompt),
 	}
-	response, err := ptf.aiService.Completions(ctx, openaiMessages, nil, "gpt-4")
+	response, err := ptf.aiService.Completions(ctx, openaiMessages, nil, "gpt-4", ai.Background)
 	if err != nil {
 		return nil, fmt.Errorf("AI evaluation failed: %w", err)
 	}

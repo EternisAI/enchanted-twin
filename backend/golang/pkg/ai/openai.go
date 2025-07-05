@@ -75,10 +75,10 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 }
 
 // Completions provides the main completion interface - now always returns PrivateCompletionResult.
-func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error) {
+func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	// Always use private completions (with fallback for backward compatibility)
 	if s.privateCompletions != nil {
-		return s.privateCompletions.Completions(ctx, messages, tools, model, s.defaultPriority)
+		return s.privateCompletions.Completions(ctx, messages, tools, model, priority)
 	}
 
 	// Fallback to regular completion and wrap in PrivateCompletionResult
@@ -96,16 +96,6 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 		Message:          message,
 		ReplacementRules: make(map[string]string), // Empty rules when not using private completions
 	}, nil
-}
-
-// CompletionsWithPriority allows specifying custom priority.
-func (s *Service) CompletionsWithPriority(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
-	if s.privateCompletions != nil {
-		return s.privateCompletions.Completions(ctx, messages, tools, model, priority)
-	}
-
-	// Fallback to regular completion
-	return s.Completions(ctx, messages, tools, model)
 }
 
 // EnablePrivateCompletions configures the service to use private completions.

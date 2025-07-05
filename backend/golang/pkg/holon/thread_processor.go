@@ -96,7 +96,7 @@ func (tp *ThreadProcessor) EvaluateThread(ctx context.Context, thread *model.Thr
 	}
 
 	// Get LLM evaluation
-	response, err := tp.aiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{evaluationTool}, tp.completionsModel)
+	response, err := tp.aiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{evaluationTool}, tp.completionsModel, ai.Background)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM evaluation: %w", err)
 	}

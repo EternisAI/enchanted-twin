@@ -89,6 +89,7 @@ func (a *Agent) Execute(
 			messages,
 			apiToolDefinitions,
 			a.CompletionsModel,
+			ai.UI,
 		)
 		if err != nil {
 			a.logger.Error("Error completing", "error", err)

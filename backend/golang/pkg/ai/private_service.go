@@ -18,7 +18,7 @@ type PrivateCompletionsService struct {
 }
 
 type CompletionsService interface {
-	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error)
+	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error)
 }
 
 type PrivateCompletionsConfig struct {
@@ -63,7 +63,7 @@ func (s *PrivateCompletionsService) Completions(ctx context.Context, messages []
 	}
 
 	s.logger.Debug("Calling underlying completions service with anonymized content")
-	result, err := s.completionsService.Completions(ctx, anonymizedMessages, tools, model)
+	result, err := s.completionsService.Completions(ctx, anonymizedMessages, tools, model, priority)
 	if err != nil {
 		return PrivateCompletionResult{}, fmt.Errorf("underlying completions service failed: %w", err)
 	}
