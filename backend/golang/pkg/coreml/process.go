@@ -48,10 +48,10 @@ func (p *RealBinaryProcess) Start(ctx context.Context, binaryPath, modelPath str
 
 func (p *RealBinaryProcess) Stop() error {
 	if p.stdin != nil {
-		p.stdin.Close()
+		_ = p.stdin.Close()
 	}
 	if p.stdout != nil {
-		p.stdout.Close()
+		_ = p.stdout.Close()
 	}
 	if p.cmd != nil && p.cmd.Process != nil {
 		return p.cmd.Process.Kill()
@@ -82,7 +82,7 @@ func (p *RealBinaryProcess) IsRunning() bool {
 }
 
 func (p *RealBinaryProcess) Restart(ctx context.Context, binaryPath, modelPath string) error {
-	p.Stop()
+	_ = p.Stop()
 	return p.Start(ctx, binaryPath, modelPath)
 }
 

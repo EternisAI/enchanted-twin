@@ -46,8 +46,14 @@ func (m *MockSuccessfulProcess) ReadLine() (string, error) {
 			},
 		}
 	case OperationEmbedding:
-		embeddingReq := req.Data.(map[string]interface{})
-		inputs := embeddingReq["inputs"].([]interface{})
+		embeddingReq, ok := req.Data.(map[string]interface{})
+		if !ok {
+			return "", fmt.Errorf("invalid embedding request data")
+		}
+		inputs, ok := embeddingReq["inputs"].([]interface{})
+		if !ok {
+			return "", fmt.Errorf("invalid embedding inputs")
+		}
 		embeddings := make([][]float64, len(inputs))
 		for i := range inputs {
 			embeddings[i] = []float64{0.1, 0.2, 0.3, 0.4, 0.5}

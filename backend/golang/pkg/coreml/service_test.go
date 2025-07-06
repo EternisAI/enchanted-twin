@@ -46,7 +46,7 @@ func TestCoreMLInteractiveMode(t *testing.T) {
 	modelPath := "./test_coreml"
 	input := "Testing"
 	service := NewService(binaryPath, modelPath, true)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	start := time.Now()
 	_, err := service.Infer(input)
@@ -63,7 +63,7 @@ func TestCoreMLInteractiveMultipleInferences(t *testing.T) {
 	binaryPath := "./coreml-cli-v2"
 	modelPath := "./test_coreml"
 	service := NewService(binaryPath, modelPath, true)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	inputs := []string{"Testing1", "Testing2", "Testing3"}
 
@@ -84,7 +84,7 @@ func BenchmarkCoreMLInteractiveMode(b *testing.B) {
 	modelPath := "./test_coreml"
 	input := "test"
 	service := NewService(binaryPath, modelPath, true)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -99,7 +99,7 @@ func TestCoreMLCompletionsInteractive(t *testing.T) {
 	ctx := context.Background()
 	mockProcess := NewMockSuccessfulProcess()
 	service := NewServiceWithProcess("./mock-binary", "./mock-model", true, mockProcess)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage("Hello, how are you?"),
@@ -142,7 +142,7 @@ func TestCoreMLEmbeddingsInteractive(t *testing.T) {
 	ctx := context.Background()
 	mockProcess := NewMockSuccessfulProcess()
 	service := NewServiceWithProcess("./mock-binary", "./mock-model", true, mockProcess)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	inputs := []string{"hello world", "test input"}
 	embeddings, err := service.Embeddings(ctx, inputs, "test-model")
@@ -171,7 +171,7 @@ func TestCoreMLEmbeddingsSingle(t *testing.T) {
 	ctx := context.Background()
 	mockProcess := NewMockSuccessfulProcess()
 	service := NewServiceWithProcess("./mock-binary", "./mock-model", true, mockProcess)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	embedding, err := service.Embedding(ctx, "hello world", "test-model")
 	if err != nil {
@@ -194,7 +194,7 @@ func TestCoreMLCompletionsFailure(t *testing.T) {
 	ctx := context.Background()
 	mockProcess := NewMockFailingProcess("model failed to load")
 	service := NewServiceWithProcess("./mock-binary", "./mock-model", true, mockProcess)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage("Hello, how are you?"),
@@ -214,7 +214,7 @@ func TestCoreMLEmbeddingsFailure(t *testing.T) {
 	ctx := context.Background()
 	mockProcess := NewMockFailingProcess("embedding model unavailable")
 	service := NewServiceWithProcess("./mock-binary", "./mock-model", true, mockProcess)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	_, err := service.Embeddings(ctx, []string{"test"}, "test-model")
 	if err == nil {
@@ -230,7 +230,7 @@ func TestCoreMLProcessRestart(t *testing.T) {
 	ctx := context.Background()
 	mockProcess := NewMockUnresponsiveProcess()
 	service := NewServiceWithProcess("./mock-binary", "./mock-model", true, mockProcess)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage("Hello, how are you?"),
@@ -245,7 +245,7 @@ func TestCoreMLProcessRestart(t *testing.T) {
 func TestCoreMLServiceImplementsAIInterface(t *testing.T) {
 	mockProcess := NewMockSuccessfulProcess()
 	service := NewServiceWithProcess("./mock-binary", "./mock-model", true, mockProcess)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	var _ interface {
 		Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error)
@@ -264,7 +264,7 @@ func TestCoreMLServiceWithDifferentModels(t *testing.T) {
 		interactive:     true,
 		process:         mockProcess,
 	}
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	if err := service.startInteractiveProcess(); err != nil {
 		t.Fatalf("Failed to start interactive process: %v", err)
@@ -302,7 +302,7 @@ func TestCoreMLIntegrationCompletion(t *testing.T) {
 
 	ctx := context.Background()
 	service := NewService(binaryPath, modelPath, true)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage("Hello, how are you?"),
@@ -334,7 +334,7 @@ func TestCoreMLIntegrationEmbedding(t *testing.T) {
 
 	ctx := context.Background()
 	service := NewService(binaryPath, modelPath, true)
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	embeddings, err := service.Embeddings(ctx, []string{"test input"}, "jina-v2")
 	if err != nil {
