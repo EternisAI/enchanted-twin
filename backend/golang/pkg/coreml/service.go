@@ -118,7 +118,7 @@ func (s *Service) inferInteractive(inputValue string) (string, error) {
 
 			if err := s.process.Write(append(inputJSON, '\n')); err != nil {
 				if retries < 1 {
-					s.process.Restart(context.Background(), s.binaryPath, s.modelPath)
+					_ = s.process.Restart(context.Background(), s.binaryPath, s.modelPath)
 					continue
 				}
 				return "", fmt.Errorf("failed to write request: %w", err)
@@ -127,7 +127,7 @@ func (s *Service) inferInteractive(inputValue string) (string, error) {
 			response, err := s.process.ReadLine()
 			if err != nil {
 				if retries < 1 {
-					s.process.Restart(context.Background(), s.binaryPath, s.modelPath)
+					_ = s.process.Restart(context.Background(), s.binaryPath, s.modelPath)
 					continue
 				}
 				return "", fmt.Errorf("failed to read response: %w", err)
@@ -171,7 +171,7 @@ func (s *Service) inferInteractive(inputValue string) (string, error) {
 
 		if _, err := s.stdin.Write(append(inputJSON, '\n')); err != nil {
 			if retries < 1 {
-				s.restartInteractiveProcess()
+				_ = s.restartInteractiveProcess()
 				continue
 			}
 			return "", fmt.Errorf("failed to write to stdin: %w", err)
@@ -180,7 +180,7 @@ func (s *Service) inferInteractive(inputValue string) (string, error) {
 		if !s.scanner.Scan() {
 			if err := s.scanner.Err(); err != nil {
 				if retries < 1 {
-					s.restartInteractiveProcess()
+					_ = s.restartInteractiveProcess()
 					continue
 				}
 				return "", fmt.Errorf("failed to read from stdout: %w", err)
@@ -255,10 +255,10 @@ func (s *Service) stopInteractiveProcess() error {
 	}
 
 	if s.stdin != nil {
-		s.stdin.Close()
+		_ = s.stdin.Close()
 	}
 	if s.stdout != nil {
-		s.stdout.Close()
+		_ = s.stdout.Close()
 	}
 
 	if s.cmd.Process != nil {
@@ -276,7 +276,7 @@ func (s *Service) stopInteractiveProcess() error {
 }
 
 func (s *Service) restartInteractiveProcess() error {
-	s.stopInteractiveProcess()
+	_ = s.stopInteractiveProcess()
 	return s.startInteractiveProcess()
 }
 
@@ -339,7 +339,7 @@ func (s *Service) completionsInteractive(ctx context.Context, params openai.Chat
 
 		if err := s.process.Write(append(reqJSON, '\n')); err != nil {
 			if retries < 1 {
-				s.process.Restart(ctx, s.binaryPath, s.completionModel)
+				_ = s.process.Restart(ctx, s.binaryPath, s.completionModel)
 				continue
 			}
 			return openai.ChatCompletionMessage{}, fmt.Errorf("failed to write request: %w", err)
@@ -348,7 +348,7 @@ func (s *Service) completionsInteractive(ctx context.Context, params openai.Chat
 		respLine, err := s.process.ReadLine()
 		if err != nil {
 			if retries < 1 {
-				s.process.Restart(ctx, s.binaryPath, s.completionModel)
+				_ = s.process.Restart(ctx, s.binaryPath, s.completionModel)
 				continue
 			}
 			return openai.ChatCompletionMessage{}, fmt.Errorf("failed to read response: %w", err)
@@ -477,7 +477,7 @@ func (s *Service) embeddingsInteractive(ctx context.Context, inputs []string, mo
 
 		if err := s.process.Write(append(reqJSON, '\n')); err != nil {
 			if retries < 1 {
-				s.process.Restart(ctx, s.binaryPath, s.embeddingModel)
+				_ = s.process.Restart(ctx, s.binaryPath, s.embeddingModel)
 				continue
 			}
 			return nil, fmt.Errorf("failed to write request: %w", err)
@@ -486,7 +486,7 @@ func (s *Service) embeddingsInteractive(ctx context.Context, inputs []string, mo
 		respLine, err := s.process.ReadLine()
 		if err != nil {
 			if retries < 1 {
-				s.process.Restart(ctx, s.binaryPath, s.embeddingModel)
+				_ = s.process.Restart(ctx, s.binaryPath, s.embeddingModel)
 				continue
 			}
 			return nil, fmt.Errorf("failed to read response: %w", err)
