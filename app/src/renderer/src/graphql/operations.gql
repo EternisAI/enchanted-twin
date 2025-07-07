@@ -140,6 +140,33 @@ query GetWhitelistStatus {
   whitelistStatus
 }
 
+query GetTrackedFolders {
+  getTrackedFolders {
+    id
+    name
+    path
+    isEnabled
+    createdAt
+    updatedAt
+  }
+}
+
+query GetDirectoryWatcherStatus {
+  getDirectoryWatcherStatus {
+    isRunning
+    watchedDirectories
+    trackedFoldersFromDB {
+      id
+      name
+      path
+      isEnabled
+      createdAt
+      updatedAt
+    }
+    errorMessage
+  }
+}
+
 mutation CreateChat(
   $name: String!
   $category: ChatCategory! = TEXT
@@ -395,4 +422,23 @@ mutation StartWhatsAppConnection {
 
 mutation StoreToken($input: StoreTokenInput!) {
   storeToken(input: $input)
+}
+
+mutation AddTrackedFolder($input: AddTrackedFolderInput!) {
+  addTrackedFolder(input: $input) {
+    id
+    name
+    path
+    isEnabled
+    createdAt
+    updatedAt
+  }
+}
+
+mutation DeleteTrackedFolder($id: ID!) {
+  deleteTrackedFolder(id: $id)
+}
+
+mutation UpdateTrackedFolder($id: ID!, $input: UpdateTrackedFolderInput!) {
+  updateTrackedFolder(id: $id, input: $input)
 }
