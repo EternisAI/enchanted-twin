@@ -500,17 +500,29 @@ func TestInterruptChannelMechanismWithInterruption(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		task := createInterruptibleTask("Interruptible background task", Background, func(resource interface{}, interrupt <-chan struct{}) (interface{}, error) {
-			for i := 0; i < 100; i++ {
-				select {
-				case <-interrupt:
-					return fmt.Sprintf("Background interrupted at step %d", i), fmt.Errorf("interrupted")
-				default:
-					time.Sleep(30 * time.Millisecond)
+		task := Task{
+			Name:         "Interruptible background task", 
+			Priority:     Background,
+			InitialState: &NoOpTaskState{},
+			Compute: func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
+				for i := 0; i < 100; i++ {
+					// Check for scheduler interrupt using the new mechanism
+					if interrupt.CheckAndConsumeInterrupt() {
+						return fmt.Sprintf("Background interrupted at step %d", i), fmt.Errorf("interrupted")
+					}
+					
+					// Also check external interrupt channel for completeness
+					select {
+					case <-interruptChan:
+						return fmt.Sprintf("Background interrupted at step %d", i), fmt.Errorf("interrupted")
+					default:
+					}
+					
+					time.Sleep(1 * time.Millisecond)
 				}
-			}
-			return "Background completed after 100 steps", nil
-		})
+				return "Background completed after 100 steps", nil
+			},
+		}
 
 		result, err := executor.Execute(ctx, task, Background)
 
