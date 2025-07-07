@@ -17,7 +17,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// mockMemoryStorage is a simple mock implementation
+// mockMemoryStorage is a simple mock implementation.
 type mockMemoryStorage struct{}
 
 func (m *mockMemoryStorage) Store(ctx context.Context, documents []memory.Document, progressCallback memory.ProgressCallback) error {
@@ -72,7 +72,10 @@ func TestRecursiveDirectoryWatching(t *testing.T) {
 	// Create directory watcher
 	dw, err := NewDirectoryWatcher(mockStore, mockMemoryStorage, logger, mockTemporalClient)
 	require.NoError(t, err)
-	defer dw.Stop()
+	defer func() {
+		err := dw.Stop()
+		require.NoError(t, err)
+	}()
 
 	// Test addDirectoryRecursively
 	err = dw.addDirectoryRecursively(tempDir)
@@ -109,7 +112,10 @@ func TestDirectoryCreationDetection(t *testing.T) {
 	// Create directory watcher
 	dw, err := NewDirectoryWatcher(mockStore, mockMemoryStorage, logger, mockTemporalClient)
 	require.NoError(t, err)
-	defer dw.Stop()
+	defer func() {
+		err := dw.Stop()
+		require.NoError(t, err)
+	}()
 
 	// Add initial directory
 	err = dw.addDirectoryRecursively(tempDir)
