@@ -780,10 +780,6 @@ func (dw *DirectoryWatcher) isSupportedFile(filePath string) bool {
 		}
 	}
 
-	if strings.Contains(fileName, "whatsapp") && (ext == ".db" || ext == ".sqlite") {
-		return true
-	}
-
 	return false
 }
 
