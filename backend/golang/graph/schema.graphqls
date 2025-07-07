@@ -62,6 +62,7 @@ type Chat {
   category: ChatCategory!
   holonThreadId: String #include this in the system prompt so user does not have to excit. on twinchat.go
   initialMessage: String
+  privacyDictJson: JSON
 }
 
 type Message {
@@ -156,11 +157,6 @@ type Mutation {
     reasoning: Boolean! = False
     voice: Boolean! = False
   ): Message!
-  processMessageHistory(
-    chatId: ID!
-    messages: [MessageInput!]!
-    isOnboarding: Boolean! = False
-  ): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
@@ -192,6 +188,7 @@ type Subscription {
     isOnboarding: Boolean! = False
   ): MessageStreamPayload!
   whatsAppSyncStatus: WhatsAppSyncStatus!
+  privacyDictUpdated(chatId: ID!): PrivacyDictUpdate!
 }
 
 type WhatsAppSyncStatus {
@@ -328,6 +325,11 @@ type WhatsAppQRCodeUpdate {
   event: String!
   timestamp: DateTime!
   isConnected: Boolean!
+}
+
+type PrivacyDictUpdate {
+  chatId: ID!
+  privacyDictJson: JSON!
 }
 
 type AgentTask {

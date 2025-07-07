@@ -81,13 +81,14 @@ type ComplexityRoot struct {
 	}
 
 	Chat struct {
-		Category       func(childComplexity int) int
-		CreatedAt      func(childComplexity int) int
-		HolonThreadID  func(childComplexity int) int
-		ID             func(childComplexity int) int
-		InitialMessage func(childComplexity int) int
-		Messages       func(childComplexity int) int
-		Name           func(childComplexity int) int
+		Category        func(childComplexity int) int
+		CreatedAt       func(childComplexity int) int
+		HolonThreadID   func(childComplexity int) int
+		ID              func(childComplexity int) int
+		InitialMessage  func(childComplexity int) int
+		Messages        func(childComplexity int) int
+		Name            func(childComplexity int) int
+		PrivacyDictJSON func(childComplexity int) int
 	}
 
 	ChatSuggestionsCategory struct {
@@ -178,7 +179,6 @@ type ComplexityRoot struct {
 		DeleteDataSource          func(childComplexity int, id string) int
 		DeleteTrackedFolder       func(childComplexity int, id string) int
 		JoinHolon                 func(childComplexity int, userID string, network *string) int
-		ProcessMessageHistory     func(childComplexity int, chatID string, messages []*model.MessageInput, isOnboarding bool) int
 		RefreshExpiredOAuthTokens func(childComplexity int) int
 		RemoveMCPServer           func(childComplexity int, id string) int
 		SendMessage               func(childComplexity int, chatID string, text string, reasoning bool, voice bool) int
@@ -203,6 +203,11 @@ type ComplexityRoot struct {
 		Provider  func(childComplexity int) int
 		Scope     func(childComplexity int) int
 		Username  func(childComplexity int) int
+	}
+
+	PrivacyDictUpdate struct {
+		ChatID          func(childComplexity int) int
+		PrivacyDictJSON func(childComplexity int) int
 	}
 
 	Query struct {
@@ -237,6 +242,7 @@ type ComplexityRoot struct {
 		MessageAdded                func(childComplexity int, chatID string) int
 		MessageStream               func(childComplexity int, chatID string) int
 		NotificationAdded           func(childComplexity int) int
+		PrivacyDictUpdated          func(childComplexity int, chatID string) int
 		ProcessMessageHistoryStream func(childComplexity int, chatID string, messages []*model.MessageInput, isOnboarding bool) int
 		TelegramMessageAdded        func(childComplexity int, chatUUID string) int
 		ToolCallUpdated             func(childComplexity int, chatID string) int
@@ -332,7 +338,6 @@ type MutationResolver interface {
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
-	ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
@@ -378,6 +383,7 @@ type SubscriptionResolver interface {
 	MessageStream(ctx context.Context, chatID string) (<-chan *model.MessageStreamPayload, error)
 	ProcessMessageHistoryStream(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (<-chan *model.MessageStreamPayload, error)
 	WhatsAppSyncStatus(ctx context.Context) (<-chan *model.WhatsAppSyncStatus, error)
+	PrivacyDictUpdated(ctx context.Context, chatID string) (<-chan *model.PrivacyDictUpdate, error)
 }
 type UserProfileResolver interface {
 	IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error)
@@ -591,6 +597,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Chat.Name(childComplexity), true
+
+	case "Chat.privacyDictJson":
+		if e.complexity.Chat.PrivacyDictJSON == nil {
+			break
+		}
+
+		return e.complexity.Chat.PrivacyDictJSON(childComplexity), true
 
 	case "ChatSuggestionsCategory.category":
 		if e.complexity.ChatSuggestionsCategory.Category == nil {
@@ -1067,18 +1080,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.JoinHolon(childComplexity, args["userId"].(string), args["network"].(*string)), true
 
-	case "Mutation.processMessageHistory":
-		if e.complexity.Mutation.ProcessMessageHistory == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_processMessageHistory_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.ProcessMessageHistory(childComplexity, args["chatId"].(string), args["messages"].([]*model.MessageInput), args["isOnboarding"].(bool)), true
-
 	case "Mutation.refreshExpiredOAuthTokens":
 		if e.complexity.Mutation.RefreshExpiredOAuthTokens == nil {
 			break
@@ -1244,6 +1245,20 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OAuthStatus.Username(childComplexity), true
+
+	case "PrivacyDictUpdate.chatId":
+		if e.complexity.PrivacyDictUpdate.ChatID == nil {
+			break
+		}
+
+		return e.complexity.PrivacyDictUpdate.ChatID(childComplexity), true
+
+	case "PrivacyDictUpdate.privacyDictJson":
+		if e.complexity.PrivacyDictUpdate.PrivacyDictJSON == nil {
+			break
+		}
+
+		return e.complexity.PrivacyDictUpdate.PrivacyDictJSON(childComplexity), true
 
 	case "Query.getAgentTasks":
 		if e.complexity.Query.GetAgentTasks == nil {
@@ -1459,6 +1474,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Subscription.NotificationAdded(childComplexity), true
+
+	case "Subscription.privacyDictUpdated":
+		if e.complexity.Subscription.PrivacyDictUpdated == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_privacyDictUpdated_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.PrivacyDictUpdated(childComplexity, args["chatId"].(string)), true
 
 	case "Subscription.processMessageHistoryStream":
 		if e.complexity.Subscription.ProcessMessageHistoryStream == nil {
@@ -2348,65 +2375,6 @@ func (ec *executionContext) field_Mutation_joinHolon_argsNetwork(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Mutation_processMessageHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := ec.field_Mutation_processMessageHistory_argsChatID(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["chatId"] = arg0
-	arg1, err := ec.field_Mutation_processMessageHistory_argsMessages(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["messages"] = arg1
-	arg2, err := ec.field_Mutation_processMessageHistory_argsIsOnboarding(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["isOnboarding"] = arg2
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_processMessageHistory_argsChatID(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
-	if tmp, ok := rawArgs["chatId"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
-	}
-
-	var zeroVal string
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_processMessageHistory_argsMessages(
-	ctx context.Context,
-	rawArgs map[string]any,
-) ([]*model.MessageInput, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("messages"))
-	if tmp, ok := rawArgs["messages"]; ok {
-		return ec.unmarshalNMessageInput2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessageInputᚄ(ctx, tmp)
-	}
-
-	var zeroVal []*model.MessageInput
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_processMessageHistory_argsIsOnboarding(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (bool, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("isOnboarding"))
-	if tmp, ok := rawArgs["isOnboarding"]; ok {
-		return ec.unmarshalNBoolean2bool(ctx, tmp)
-	}
-
-	var zeroVal bool
-	return zeroVal, nil
-}
-
 func (ec *executionContext) field_Mutation_removeMCPServer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2984,6 +2952,29 @@ func (ec *executionContext) field_Subscription_messageStream_args(ctx context.Co
 	return args, nil
 }
 func (ec *executionContext) field_Subscription_messageStream_argsChatID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
+	if tmp, ok := rawArgs["chatId"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Subscription_privacyDictUpdated_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Subscription_privacyDictUpdated_argsChatID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["chatId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Subscription_privacyDictUpdated_argsChatID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
@@ -4373,6 +4364,47 @@ func (ec *executionContext) fieldContext_Chat_initialMessage(_ context.Context, 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Chat_privacyDictJson(ctx context.Context, field graphql.CollectedField, obj *model.Chat) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Chat_privacyDictJson(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PrivacyDictJSON, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOJSON2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Chat_privacyDictJson(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Chat",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6849,6 +6881,8 @@ func (ec *executionContext) fieldContext_Mutation_createChat(ctx context.Context
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -6938,77 +6972,6 @@ func (ec *executionContext) fieldContext_Mutation_sendMessage(ctx context.Contex
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_processMessageHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_processMessageHistory(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ProcessMessageHistory(rctx, fc.Args["chatId"].(string), fc.Args["messages"].([]*model.MessageInput), fc.Args["isOnboarding"].(bool))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(*model.Message)
-	fc.Result = res
-	return ec.marshalNMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_processMessageHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Message_id(ctx, field)
-			case "text":
-				return ec.fieldContext_Message_text(ctx, field)
-			case "imageUrls":
-				return ec.fieldContext_Message_imageUrls(ctx, field)
-			case "role":
-				return ec.fieldContext_Message_role(ctx, field)
-			case "toolCalls":
-				return ec.fieldContext_Message_toolCalls(ctx, field)
-			case "toolResults":
-				return ec.fieldContext_Message_toolResults(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Message_createdAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_processMessageHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Mutation_deleteChat(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_deleteChat(ctx, field)
 	if err != nil {
@@ -7062,6 +7025,8 @@ func (ec *executionContext) fieldContext_Mutation_deleteChat(ctx context.Context
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -8205,6 +8170,94 @@ func (ec *executionContext) fieldContext_OAuthStatus_error(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _PrivacyDictUpdate_chatId(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyDictUpdate) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PrivacyDictUpdate_chatId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ChatID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PrivacyDictUpdate_chatId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PrivacyDictUpdate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PrivacyDictUpdate_privacyDictJson(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyDictUpdate) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PrivacyDictUpdate_privacyDictJson(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PrivacyDictJSON, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNJSON2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PrivacyDictUpdate_privacyDictJson(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PrivacyDictUpdate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_profile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_profile(ctx, field)
 	if err != nil {
@@ -8312,6 +8365,8 @@ func (ec *executionContext) fieldContext_Query_getChats(ctx context.Context, fie
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -8383,6 +8438,8 @@ func (ec *executionContext) fieldContext_Query_getChat(ctx context.Context, fiel
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -10159,6 +10216,81 @@ func (ec *executionContext) fieldContext_Subscription_whatsAppSyncStatus(_ conte
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WhatsAppSyncStatus", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_privacyDictUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_privacyDictUpdated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().PrivacyDictUpdated(rctx, fc.Args["chatId"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.PrivacyDictUpdate):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNPrivacyDictUpdate2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐPrivacyDictUpdate(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_privacyDictUpdated(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "chatId":
+				return ec.fieldContext_PrivacyDictUpdate_chatId(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_PrivacyDictUpdate_privacyDictJson(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PrivacyDictUpdate", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_privacyDictUpdated_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -14760,6 +14892,8 @@ func (ec *executionContext) _Chat(ctx context.Context, sel ast.SelectionSet, obj
 			out.Values[i] = ec._Chat_holonThreadId(ctx, field, obj)
 		case "initialMessage":
 			out.Values[i] = ec._Chat_initialMessage(ctx, field, obj)
+		case "privacyDictJson":
+			out.Values[i] = ec._Chat_privacyDictJson(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -15368,13 +15502,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "processMessageHistory":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_processMessageHistory(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "deleteChat":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteChat(ctx, field)
@@ -15587,6 +15714,50 @@ func (ec *executionContext) _OAuthStatus(ctx context.Context, sel ast.SelectionS
 			}
 		case "error":
 			out.Values[i] = ec._OAuthStatus_error(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var privacyDictUpdateImplementors = []string{"PrivacyDictUpdate"}
+
+func (ec *executionContext) _PrivacyDictUpdate(ctx context.Context, sel ast.SelectionSet, obj *model.PrivacyDictUpdate) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, privacyDictUpdateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PrivacyDictUpdate")
+		case "chatId":
+			out.Values[i] = ec._PrivacyDictUpdate_chatId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "privacyDictJson":
+			out.Values[i] = ec._PrivacyDictUpdate_privacyDictJson(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -16114,6 +16285,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_processMessageHistoryStream(ctx, fields[0])
 	case "whatsAppSyncStatus":
 		return ec._Subscription_whatsAppSyncStatus(ctx, fields[0])
+	case "privacyDictUpdated":
+		return ec._Subscription_privacyDictUpdated(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -17463,6 +17636,22 @@ func (ec *executionContext) marshalNInt2int32(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNJSON2string(ctx context.Context, v any) (string, error) {
+	res, err := graphql.UnmarshalString(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNJSON2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) marshalNKeyValue2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐKeyValue(ctx context.Context, sel ast.SelectionSet, v *model.KeyValue) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -17700,6 +17889,20 @@ func (ec *executionContext) marshalNOAuthStatus2ᚖgithubᚗcomᚋEternisAIᚋen
 		return graphql.Null
 	}
 	return ec._OAuthStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPrivacyDictUpdate2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐPrivacyDictUpdate(ctx context.Context, sel ast.SelectionSet, v model.PrivacyDictUpdate) graphql.Marshaler {
+	return ec._PrivacyDictUpdate(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPrivacyDictUpdate2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐPrivacyDictUpdate(ctx context.Context, sel ast.SelectionSet, v *model.PrivacyDictUpdate) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PrivacyDictUpdate(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNRole2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐRole(ctx context.Context, v any) (model.Role, error) {
@@ -18470,6 +18673,24 @@ func (ec *executionContext) marshalOInt2ᚖint32(ctx context.Context, sel ast.Se
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalInt32(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOJSON2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalString(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOJSON2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(*v)
 	return res
 }
 
