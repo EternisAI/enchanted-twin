@@ -143,10 +143,10 @@ func (m *mockCompletionsService) Completions(ctx context.Context, messages []ope
 	}, nil
 }
 
-// Enhanced mock that captures what was sent to the LLM
+// Enhanced mock that captures what was sent to the LLM.
 type capturingMockCompletionsService struct {
-	response        openai.ChatCompletionMessage
-	err             error
+	response         openai.ChatCompletionMessage
+	err              error
 	capturedMessages []openai.ChatCompletionMessageParamUnion
 }
 
@@ -154,7 +154,7 @@ func (m *capturingMockCompletionsService) Completions(ctx context.Context, messa
 	// Capture what was sent to the LLM for verification
 	m.capturedMessages = make([]openai.ChatCompletionMessageParamUnion, len(messages))
 	copy(m.capturedMessages, messages)
-	
+
 	if m.err != nil {
 		return PrivateCompletionResult{}, m.err
 	}
@@ -245,7 +245,7 @@ func TestPrivateCompletionsE2EAnonymizationFlow(t *testing.T) {
 
 	// Original user message containing sensitive information
 	originalMessage := "Hello John! I heard you work at OpenAI in San Francisco. Can you tell me about your projects?"
-	
+
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(originalMessage),
 	}
@@ -336,7 +336,7 @@ func TestPrivateCompletionsE2EAnonymizationFlow(t *testing.T) {
 
 	expectedRules := map[string]string{
 		"PERSON_001":   "John",
-		"COMPANY_001":  "OpenAI", 
+		"COMPANY_001":  "OpenAI",
 		"LOCATION_006": "San Francisco",
 	}
 
@@ -353,7 +353,7 @@ func TestPrivateCompletionsE2EAnonymizationFlow(t *testing.T) {
 	// === VERIFICATION 4: End-to-end privacy guarantee ===
 	t.Log("E2E Privacy Verification PASSED:")
 	t.Log("  1. Sensitive data was anonymized before LLM")
-	t.Log("  2. LLM only saw anonymized tokens") 
+	t.Log("  2. LLM only saw anonymized tokens")
 	t.Log("  3. Response was de-anonymized before user")
 	t.Log("  4. Replacement rules preserved for full round-trip")
 	t.Log("  5. Full system integration through microscheduler worked")
