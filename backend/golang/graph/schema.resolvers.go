@@ -9,8 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -428,32 +431,60 @@ func (r *mutationResolver) StoreToken(ctx context.Context, input model.StoreToke
 
 // AddTrackedFolder is the resolver for the addTrackedFolder field.
 func (r *mutationResolver) AddTrackedFolder(ctx context.Context, input model.AddTrackedFolderInput) (*model.TrackedFolder, error) {
-	// Check if the folder already exists
-	exists, err := r.Store.TrackedFolderExistsByPath(ctx, input.Path)
+	absPath, err := filepath.Abs(input.Path)
 	if err != nil {
-		return nil, err
-	}
-	if exists {
-		return nil, fmt.Errorf("folder path already being tracked: %s", input.Path)
+		return nil, fmt.Errorf("invalid path: %w", err)
 	}
 
-	// Create the tracked folder
+	stat, err := os.Stat(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("path does not exist: %s", absPath)
+		}
+		return nil, fmt.Errorf("error accessing path: %w", err)
+	}
+
+	if !stat.IsDir() {
+		return nil, fmt.Errorf("path is not a directory: %s", absPath)
+	}
+
+	cleanPath := filepath.Clean(absPath)
+
+	existingFolders, err := r.Store.GetTrackedFolders(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting existing tracked folders: %w", err)
+	}
+
+	for _, existing := range existingFolders {
+		existingCleanPath := filepath.Clean(existing.Path)
+
+		if existingCleanPath == cleanPath {
+			return nil, fmt.Errorf("folder path already being tracked: %s", cleanPath)
+		}
+
+		if strings.HasPrefix(cleanPath+string(filepath.Separator), existingCleanPath+string(filepath.Separator)) {
+			return nil, fmt.Errorf("path %s is contained within already tracked folder: %s", cleanPath, existingCleanPath)
+		}
+
+		if strings.HasPrefix(existingCleanPath+string(filepath.Separator), cleanPath+string(filepath.Separator)) {
+			return nil, fmt.Errorf("path %s would contain already tracked folder: %s", cleanPath, existingCleanPath)
+		}
+	}
+
 	folder, err := r.Store.AddTrackedFolder(ctx, &db.CreateTrackedFolderInput{
-		Path: input.Path,
+		Path: cleanPath,
 		Name: input.Name,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Reload DirectoryWatcher to start watching the new folder
 	if r.DirectoryWatcher != nil {
 		if err := r.DirectoryWatcher.ReloadTrackedFolders(ctx); err != nil {
 			r.Logger.Warn("Failed to reload tracked folders in DirectoryWatcher", "error", err)
 		}
 	}
 
-	// Convert to GraphQL model
 	result := &model.TrackedFolder{
 		ID:        folder.ID,
 		Path:      folder.Path,
@@ -838,20 +869,13 @@ func (r *queryResolver) GetDirectoryWatcherStatus(ctx context.Context) (*model.D
 		})
 	}
 
-	// Get currently watched directories from fsnotify
 	watchedDirs := r.DirectoryWatcher.GetWatchedDirectories()
 	status.WatchedDirectories = watchedDirs
 	status.IsRunning = len(watchedDirs) > 0
 
-	// Trigger debug info logging
 	if err := r.DirectoryWatcher.GetTrackedFoldersFromDB(ctx); err != nil {
 		r.Logger.Error("❌ Failed to log tracked folders from DB", "error", err)
 	}
-
-	r.Logger.Info("✅ DirectoryWatcher status retrieved",
-		"isRunning", status.IsRunning,
-		"watchedCount", len(status.WatchedDirectories),
-		"dbFoldersCount", len(status.TrackedFoldersFromDb))
 
 	return status, nil
 }
