@@ -2,7 +2,6 @@
 import './assets/main.css'
 
 import { createRoot } from 'react-dom/client'
-import { useEffect } from 'react'
 import { Toaster } from 'sonner'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { createHashHistory } from '@tanstack/react-router'
@@ -15,6 +14,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { routeTree } from '@renderer/routeTree.gen'
 import InvitationGate from './components/onboarding/InvitationGate'
 import UpdateNotification from './components/UpdateNotification'
+import ModelDownloadedGate from './components/setup/ModelDownloadedGate'
 
 export const router = createRouter({
   routeTree,
@@ -41,18 +41,20 @@ function App() {
     <ThemeProvider defaultTheme={savedTheme}>
       <TTSProvider>
         <ApolloClientProvider>
-          <AuthProvider>
-            <GoLogsProvider>
-              <div className="flex flex-col h-full w-full">
-                <UpdateNotification />
+          <ModelDownloadedGate>
+            <AuthProvider>
+              <GoLogsProvider>
+                <div className="flex flex-col h-full w-full">
+                  <UpdateNotification />
 
-                <Toaster position="bottom-right" />
-                <InvitationGate>
-                  <RouterProvider router={router} />
-                </InvitationGate>
-              </div>
-            </GoLogsProvider>
-          </AuthProvider>
+                  <Toaster position="bottom-right" />
+                  <InvitationGate>
+                    <RouterProvider router={router} />
+                  </InvitationGate>
+                </div>
+              </GoLogsProvider>
+            </AuthProvider>
+          </ModelDownloadedGate>
         </ApolloClientProvider>
       </TTSProvider>
     </ThemeProvider>
