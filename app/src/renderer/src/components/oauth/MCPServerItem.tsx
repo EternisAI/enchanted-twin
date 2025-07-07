@@ -28,6 +28,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { Check, Trash2 } from 'lucide-react'
 import icon from '../../../../../resources/icon.png'
+import freysaIcon from '../../../../../resources/freysa.jpg'
 
 const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
   GOOGLE: {
@@ -46,7 +47,8 @@ const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> =
   },
   SCREENPIPE: { provider: 'screenpipe', scope: '' },
   OTHER: { provider: 'other', scope: '' },
-  ENCHANTED: { provider: 'enchanted', scope: '' }
+  ENCHANTED: { provider: 'enchanted', scope: '' },
+  FREYSA: { provider: 'freysa', scope: '' }
 }
 
 const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
@@ -55,7 +57,9 @@ const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
   TWITTER: <XformerlyTwitter />,
   SCREENPIPE: <></>,
   OTHER: <></>,
-  ENCHANTED: <img src={icon} alt="Enchanted" className="w-8 h-8" />
+  ENCHANTED: <img src={icon} alt="Enchanted" className="w-8 h-8" />,
+  // TODO: Add a proper icon for Freysa
+  FREYSA: <img src={freysaIcon} alt="Freysa" className="w-6 h-6 rounded" />
 }
 
 interface MCPServerItemProps {
@@ -132,14 +136,12 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   const handleEnableToolsToggle = async (enabled: boolean) => {
-    // Enchanted and Screenpipe are handled by the backend without OAuth
-    if (server.type === McpServerType.Enchanted || server.type === McpServerType.Screenpipe) {
+    if (server.type === McpServerType.Enchanted || server.type === McpServerType.Screenpipe || server.type === McpServerType.Freysa) {
       handleConnectMcpServer()
       return
     }
 
     if (server.type === McpServerType.Other) {
-      handleConnectMcpServer()
       setShowEnvInputs(enabled)
       return
     }
@@ -153,7 +155,8 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
     if (
       server.type === McpServerType.Other ||
       server.type === McpServerType.Enchanted ||
-      server.type === McpServerType.Screenpipe
+      server.type === McpServerType.Screenpipe ||
+      server.type === McpServerType.Freysa
     )
       return
 

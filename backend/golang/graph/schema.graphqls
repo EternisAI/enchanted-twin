@@ -234,6 +234,7 @@ enum MCPServerType {
   OTHER
   SCREENPIPE
   ENCHANTED
+  FREYSA
 }
 
 input ConnectMCPServerInput {
