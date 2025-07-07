@@ -567,7 +567,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 				"path": filePath,
 			},
 			Timestamp: timestamp,
-			Source:    "synced-documents",
+			Source:    "synced-document",
 		}
 		return []types.Record{emptyRecord}, nil
 	}
@@ -607,7 +607,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 				"tags":  tags,
 			},
 			Timestamp: timestamp,
-			Source:    s.Name(),
+			Source:    "synced-document",
 		}
 		records = append(records, record)
 
@@ -692,7 +692,7 @@ func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types
 			FieldID:        docID,
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,
-			FieldSource:    record.Source,
+			FieldSource:    "synced-document",
 			FieldMetadata:  metadata,
 			FieldTags:      tags,
 		}
