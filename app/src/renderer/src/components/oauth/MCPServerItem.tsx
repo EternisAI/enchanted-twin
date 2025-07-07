@@ -85,9 +85,9 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
       variables: {
         input: {
           name: server.name,
-          command: 'npx',
-          args: [],
-          envs: [],
+          command: server.command || 'npx',
+          args: server.args || [],
+          envs: server.envs || [],
           type: server.type
         }
       }
@@ -100,7 +100,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   async function handleOAuthFlow(
-    serverType: string,
+    serverType: McpServerType,
     startOAuthFlow: MutationFunction<StartOAuthFlowMutation, StartOAuthFlowMutationVariables>
   ) {
     try {
@@ -138,7 +138,8 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
       return
     }
 
-    if (server.type === 'OTHER') {
+    if (server.type === McpServerType.Other) {
+      handleConnectMcpServer()
       setShowEnvInputs(enabled)
       return
     }
@@ -150,7 +151,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
 
   useEffect(() => {
     if (
-      server.type === 'OTHER' ||
+      server.type === McpServerType.Other ||
       server.type === McpServerType.Enchanted ||
       server.type === McpServerType.Screenpipe
     )
@@ -212,7 +213,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
               Connect
             </Button>
           )}
-          {(server.type === 'OTHER' || server.connected) && onRemove && (
+          {(server.type === McpServerType.Other || server.connected) && onRemove && (
             <AlertDialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
               <AlertDialogTrigger asChild>
                 <TooltipProvider>
