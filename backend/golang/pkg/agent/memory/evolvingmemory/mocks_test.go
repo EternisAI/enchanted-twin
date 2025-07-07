@@ -101,5 +101,3 @@ func (m *MockStorage) GetFactsByIDs(ctx context.Context, factIDs []string) ([]*m
 
 // Ensure MockStorage implements the storage interface.
 var _ storage.Interface = (*MockStorage)(nil)
-
-
