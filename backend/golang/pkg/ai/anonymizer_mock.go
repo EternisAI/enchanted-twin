@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -70,14 +69,6 @@ func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer
 				"Paris":         "LOCATION_004",
 				"Berlin":        "LOCATION_005",
 				"San Francisco": "LOCATION_006",
-
-				// Email patterns (will be handled by regex)
-				"john@example.com":  "EMAIL_001",
-				"alice@company.com": "EMAIL_002",
-
-				// Phone patterns
-				"+1-555-123-4567": "PHONE_001",
-				"555-987-6543":    "PHONE_002",
 			},
 			requestChan: make(chan anonymizationRequest, 10), // Buffer for requests
 			done:        make(chan struct{}),
@@ -271,28 +262,15 @@ func (m *MockAnonymizer) anonymizeContent(ctx context.Context, content string) (
 	anonymized := content
 	rules := make(map[string]string)
 
-	// Apply predefined replacements (case-insensitive)
+	// Apply predefined replacements (exact match)
 	for original, replacement := range m.PredefinedReplacements {
-		// Use case-insensitive replacement
-		re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(original) + `\b`)
-		matches := re.FindAllString(anonymized, -1)
-
-		for _, match := range matches {
-			if match != replacement { // Don't replace if it's already anonymized
-				anonymized = strings.ReplaceAll(anonymized, match, replacement)
-				rules[replacement] = match // Store replacement -> original mapping
-				m.logger.Debug("Applied anonymization", "original", match, "replacement", replacement)
-			}
+		if strings.Contains(anonymized, original) {
+			anonymized = strings.ReplaceAll(anonymized, original, replacement)
+			rules[replacement] = original // Store replacement -> original mapping
+			m.logger.Debug("Applied anonymization", "original", original, "replacement", replacement)
 		}
 	}
 
-	// Apply regex patterns for common sensitive data
-	anonymized, additionalRules := m.anonymizePatterns(anonymized)
-
-	// Merge additional rules
-	for k, v := range additionalRules {
-		rules[k] = v
-	}
 
 	m.logger.Debug("Anonymization complete", "originalLength", len(content), "anonymizedLength", len(anonymized), "rulesCount", len(rules))
 
@@ -312,39 +290,6 @@ func (m *MockAnonymizer) DeAnonymize(anonymized string, rules map[string]string)
 	return restored
 }
 
-func (m *MockAnonymizer) anonymizePatterns(content string) (string, map[string]string) {
-	result := content
-	rules := make(map[string]string)
-
-	// Email pattern
-	emailRegex := regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`)
-	emailMatches := emailRegex.FindAllString(result, -1)
-	for i, email := range emailMatches {
-		token := fmt.Sprintf("EMAIL_%03d", i+100) // Start from 100 to avoid conflicts with predefined
-		result = strings.ReplaceAll(result, email, token)
-		rules[token] = email
-	}
-
-	// Phone number pattern (simple US format)
-	phoneRegex := regexp.MustCompile(`\b(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})\b`)
-	phoneMatches := phoneRegex.FindAllString(result, -1)
-	for i, phone := range phoneMatches {
-		token := fmt.Sprintf("PHONE_%03d", i+100)
-		result = strings.ReplaceAll(result, phone, token)
-		rules[token] = phone
-	}
-
-	// SSN pattern (XXX-XX-XXXX)
-	ssnRegex := regexp.MustCompile(`\b\d{3}-\d{2}-\d{4}\b`)
-	ssnMatches := ssnRegex.FindAllString(result, -1)
-	for i, ssn := range ssnMatches {
-		token := fmt.Sprintf("SSN_%03d", i+100)
-		result = strings.ReplaceAll(result, ssn, token)
-		rules[token] = ssn
-	}
-
-	return result, rules
-}
 
 func (m *MockAnonymizer) Shutdown() {
 	close(m.done)
