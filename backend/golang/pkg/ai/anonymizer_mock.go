@@ -25,12 +25,6 @@ var (
 	mockAnonymizerOnce     sync.Once
 )
 
-func GetMockAnonymizer() *MockAnonymizer {
-	if mockAnonymizerInstance == nil {
-		panic("MockAnonymizer not initialized. Call InitMockAnonymizer first.")
-	}
-	return mockAnonymizerInstance
-}
 
 func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer {
 	mockAnonymizerOnce.Do(func() {
@@ -80,47 +74,6 @@ func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer
 	return mockAnonymizerInstance
 }
 
-func NewMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer {
-	return &MockAnonymizer{
-		Delay: delay,
-		PredefinedReplacements: map[string]string{
-			// Common names
-			"John":    "PERSON_001",
-			"Jane":    "PERSON_002",
-			"Alice":   "PERSON_003",
-			"Bob":     "PERSON_004",
-			"Charlie": "PERSON_005",
-			"David":   "PERSON_006",
-			"Emma":    "PERSON_007",
-			"Frank":   "PERSON_008",
-
-			// Company names
-			"OpenAI":    "COMPANY_001",
-			"Microsoft": "COMPANY_002",
-			"Google":    "COMPANY_003",
-			"Apple":     "COMPANY_004",
-			"Tesla":     "COMPANY_005",
-			"Amazon":    "COMPANY_006",
-
-			// Locations
-			"New York":      "LOCATION_001",
-			"London":        "LOCATION_002",
-			"Tokyo":         "LOCATION_003",
-			"Paris":         "LOCATION_004",
-			"Berlin":        "LOCATION_005",
-			"San Francisco": "LOCATION_006",
-
-			// Email patterns (will be handled by regex)
-			"john@example.com":  "EMAIL_001",
-			"alice@company.com": "EMAIL_002",
-
-			// Phone patterns
-			"+1-555-123-4567": "PHONE_001",
-			"555-987-6543":    "PHONE_002",
-		},
-		logger: logger,
-	}
-}
 
 func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error) {
 	allRules := make(map[string]string)
