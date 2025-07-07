@@ -3,6 +3,7 @@ package microscheduler
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -271,9 +272,11 @@ func (w *WorkerProcessor) processTask(req TaskRequest) InterruptedTaskResult {
 
 	select {
 	case result := <-done:
+		// Check if the task was interrupted internally via CheckAndConsumeInterrupt
+		interrupted := result.err != nil && strings.Contains(result.err.Error(), "interrupted")
 		return InterruptedTaskResult{
 			TaskResult:   TaskResult{Value: result.value, Error: result.err},
-			Interrupted:  false,
+			Interrupted:  interrupted,
 			SavedState:   finalSavedState,
 			StateSaved:   finalStateSaved,
 			NoReschedule: noReschedule,
@@ -495,14 +498,30 @@ func (e *TaskExecutor) processBackgroundTaskWithInterruption(processor *WorkerPr
 		e.handleBackgroundTaskResult(req, result)
 	case uiReq := <-e.uiQueue:
 		processor.Interrupt()
-		result := <-resultChan
-		e.handleInterruptedTask(req, result)
+		// Add timeout to prevent deadlock if task doesn't respond to interrupt
+		select {
+		case result := <-resultChan:
+			e.handleInterruptedTask(req, result)
+		case <-time.After(100 * time.Millisecond):
+			e.logger.Warn("Background task did not respond to interrupt within timeout")
+			// Force reschedule the background task and send error back to original caller
+			e.rescheduleTask(req)
+			req.Done <- TaskResult{Value: nil, Error: fmt.Errorf("task interrupted and rescheduled due to timeout")}
+		}
 		uiResult := processor.Process(uiReq)
 		uiReq.Done <- uiResult
 	case lastEffortReq := <-e.lastEffortQueue:
 		processor.Interrupt()
-		result := <-resultChan
-		e.handleInterruptedTask(req, result)
+		// Add timeout to prevent deadlock if task doesn't respond to interrupt
+		select {
+		case result := <-resultChan:
+			e.handleInterruptedTask(req, result)
+		case <-time.After(100 * time.Millisecond):
+			e.logger.Warn("Background task did not respond to interrupt within timeout")
+			// Force reschedule the background task and send error back to original caller
+			e.rescheduleTask(req)
+			req.Done <- TaskResult{Value: nil, Error: fmt.Errorf("task interrupted and rescheduled due to timeout")}
+		}
 		lastEffortResult := processor.Process(lastEffortReq)
 		lastEffortReq.Done <- lastEffortResult
 	}
@@ -533,8 +552,13 @@ func (e *TaskExecutor) handleInterruptedTask(req TaskRequest, result Interrupted
 		} else {
 			e.rescheduleTask(req)
 		}
+		// Don't send result back - the rescheduled task will complete and send its result
 	} else if result.Interrupted && result.NoReschedule {
 		e.logger.Debug("Task interrupted but requested no rescheduling", "taskName", req.Task.Name)
+		req.Done <- result.TaskResult
+	} else {
+		// Task was not marked as interrupted, but still need to send result back
+		// This can happen when task completes normally or returns an error without setting Interrupted=true
 		req.Done <- result.TaskResult
 	}
 }
