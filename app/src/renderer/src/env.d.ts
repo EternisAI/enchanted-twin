@@ -19,7 +19,7 @@ interface IElectronAPI {
 }
 
 interface IApi {
-  getPathForFile: (file: string) => string
+  getPathForFile: (file: File) => string
   copyDroppedFiles: (paths: string[]) => Promise<string[]>
   selectDirectory: () => Promise<{ canceled: boolean; filePaths: string[] }>
   selectFiles: (options?: {
