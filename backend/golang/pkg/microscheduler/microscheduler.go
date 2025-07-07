@@ -327,41 +327,6 @@ type WorkerConfig struct {
 	BackgroundBufferSize int
 }
 
-func (c *WorkerConfig) validate() error {
-	totalWorkers := c.UIWorkers + c.BackgroundWorkers
-
-	if totalWorkers <= 0 {
-		return fmt.Errorf("total workers cannot be zero")
-	}
-
-	if totalWorkers == 1 {
-		if c.UIWorkers < 0 || c.BackgroundWorkers < 0 {
-			return fmt.Errorf("worker counts cannot be negative")
-		}
-	} else {
-		if c.UIWorkers <= 0 {
-			return fmt.Errorf("UIWorkers must be > 0 when total workers > 1, got %d", c.UIWorkers)
-		}
-
-		if c.BackgroundWorkers <= 0 {
-			return fmt.Errorf("BackgroundWorkers must be > 0 when total workers > 1, got %d", c.BackgroundWorkers)
-		}
-	}
-
-	if c.UIQueueBufferSize < 0 {
-		return fmt.Errorf("UIQueueBufferSize cannot be negative, got %d", c.UIQueueBufferSize)
-	}
-
-	if c.LastEffortBufferSize < 0 {
-		return fmt.Errorf("LastEffortBufferSize cannot be negative, got %d", c.LastEffortBufferSize)
-	}
-
-	if c.BackgroundBufferSize < 0 {
-		return fmt.Errorf("BackgroundBufferSize cannot be negative, got %d", c.BackgroundBufferSize)
-	}
-
-	return nil
-}
 
 type TaskExecutor struct {
 	uiQueue                 chan TaskRequest
@@ -418,40 +383,6 @@ func NewTaskExecutor(processorCount int, logger *log.Logger) *TaskExecutor {
 	return e
 }
 
-func NewTaskExecutorWithConfig(config WorkerConfig, logger *log.Logger) (*TaskExecutor, error) {
-	if config.UIQueueBufferSize == 0 {
-		config.UIQueueBufferSize = 100
-	}
-	if config.LastEffortBufferSize == 0 {
-		config.LastEffortBufferSize = 100
-	}
-	if config.BackgroundBufferSize == 0 {
-		config.BackgroundBufferSize = 100
-	}
-
-	if err := config.validate(); err != nil {
-		return nil, err
-	}
-
-	if config.ResourceFactory == nil {
-		config.ResourceFactory = func(workerID int, workerType WorkerType) interface{} {
-			return nil
-		}
-	}
-
-	e := &TaskExecutor{
-		uiQueue:                 make(chan TaskRequest, config.UIQueueBufferSize),
-		lastEffortQueue:         make(chan TaskRequest, config.LastEffortBufferSize),
-		backgroundQueue:         make(chan TaskRequest, config.BackgroundBufferSize),
-		backgroundPriorityQueue: make([]TaskRequest, 0),
-		config:                  config,
-		logger:                  logger,
-		shutdown:                make(chan bool),
-	}
-
-	e.startProcessors()
-	return e, nil
-}
 
 func (e *TaskExecutor) startProcessors() {
 	totalWorkers := e.config.UIWorkers + e.config.BackgroundWorkers

@@ -13,7 +13,7 @@ import (
 func TestPrivateCompletionsMockAnonymizer(t *testing.T) {
 	logger := log.New(nil)
 
-	anonymizer := NewMockAnonymizer(0, logger)
+	anonymizer := InitMockAnonymizer(0, logger)
 
 	ctx := context.Background()
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -51,7 +51,7 @@ func TestPrivateCompletionsMockAnonymizer(t *testing.T) {
 func TestMockAnonymizerDelay(t *testing.T) {
 	logger := log.New(nil)
 
-	anonymizer := NewMockAnonymizer(10*time.Millisecond, logger)
+	anonymizer := InitMockAnonymizer(10*time.Millisecond, logger)
 
 	ctx := context.Background()
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -79,7 +79,7 @@ func TestMockAnonymizerDelay(t *testing.T) {
 func TestPrivateCompletionsServiceMessageInterruption(t *testing.T) {
 	logger := log.New(nil)
 
-	anonymizer := NewMockAnonymizer(100*time.Millisecond, logger)
+	anonymizer := InitMockAnonymizer(100*time.Millisecond, logger)
 
 	mockService := &mockCompletionsService{
 		response: openai.ChatCompletionMessage{
