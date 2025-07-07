@@ -14,7 +14,7 @@ import (
 func TestPrivateCompletionsMockAnonymizer(t *testing.T) {
 	logger := log.New(nil)
 
-	anonymizer := InitMockAnonymizer(0, logger)
+	anonymizer := InitMockAnonymizer(0, true, logger)
 
 	ctx := context.Background()
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -54,7 +54,7 @@ func TestMockAnonymizerDelay(t *testing.T) {
 
 	// Reset singleton to ensure we get the correct delay configuration
 	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(10*time.Millisecond, logger)
+	anonymizer := InitMockAnonymizer(10*time.Millisecond, true, logger)
 
 	ctx := context.Background()
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -84,7 +84,7 @@ func TestPrivateCompletionsServiceMessageInterruption(t *testing.T) {
 
 	// Reset singleton to ensure we get the correct delay configuration
 	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(100*time.Millisecond, logger)
+	anonymizer := InitMockAnonymizer(100*time.Millisecond, true, logger)
 
 	mockService := &mockCompletionsService{
 		response: openai.ChatCompletionMessage{
@@ -170,7 +170,7 @@ func TestNewPrivateCompletionsServiceValidation(t *testing.T) {
 	// Test with nil CompletionsService
 	_, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: nil,
-		Anonymizer:         InitMockAnonymizer(0, logger),
+		Anonymizer:         InitMockAnonymizer(0, true, logger),
 		Logger:             logger,
 	})
 	if err == nil || !strings.Contains(err.Error(), "completionsService is required") {
@@ -190,7 +190,7 @@ func TestNewPrivateCompletionsServiceValidation(t *testing.T) {
 	// Test with nil Logger
 	_, err = NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: &mockCompletionsService{},
-		Anonymizer:         InitMockAnonymizer(0, logger),
+		Anonymizer:         InitMockAnonymizer(0, true, logger),
 		Logger:             nil,
 	})
 	if err == nil || !strings.Contains(err.Error(), "logger is required") {
@@ -200,7 +200,7 @@ func TestNewPrivateCompletionsServiceValidation(t *testing.T) {
 	// Test with valid config
 	service, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: &mockCompletionsService{},
-		Anonymizer:         InitMockAnonymizer(0, logger),
+		Anonymizer:         InitMockAnonymizer(0, true, logger),
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -220,7 +220,7 @@ func TestPrivateCompletionsE2EAnonymizationFlow(t *testing.T) {
 
 	// Reset singleton to ensure clean state
 	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(0, logger) // No delay for faster test
+	anonymizer := InitMockAnonymizer(0, true, logger) // No delay for faster test
 
 	// Create capturing mock that will record what the LLM sees
 	mockLLM := &capturingMockCompletionsService{

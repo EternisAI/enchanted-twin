@@ -217,7 +217,7 @@ func main() {
 		}
 
 		// Initialize singleton anonymizer
-		anonymizer := ai.InitMockAnonymizer(delay, logger)
+		anonymizer := ai.InitMockAnonymizer(delay, envs.EnableMockAnonymizer, logger)
 
 		// Create private completions service instance
 		privateCompletions, err := ai.NewPrivateCompletionsService(ai.PrivateCompletionsConfig{

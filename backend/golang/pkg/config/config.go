@@ -30,6 +30,7 @@ type Config struct {
 	ProxyTeeURL               string
 	PrivateCompletionsEnabled bool
 	PrivateCompletionsWorkers int
+	EnableMockAnonymizer      bool
 	MockAnonymizerDelay       string
 }
 
@@ -58,6 +59,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 
 	privateCompletionsEnabled, _ := strconv.ParseBool(getEnv("PRIVATE_COMPLETIONS_ENABLED", "true", printEnv))
 	privateCompletionsWorkers, _ := strconv.Atoi(getEnv("PRIVATE_COMPLETIONS_WORKERS", "1", printEnv))
+	enableMockAnonymizer, _ := strconv.ParseBool(getEnv("ENABLE_MOCK_ANONYMIZER", "false", printEnv))
 
 	conf := &Config{
 		CompletionsAPIURL:         getEnv("COMPLETIONS_API_URL", "https://api.openai.com/v1", printEnv),
@@ -78,6 +80,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		ProxyTeeURL:               getEnv("PROXY_TEE_URL", "", printEnv),
 		PrivateCompletionsEnabled: privateCompletionsEnabled,
 		PrivateCompletionsWorkers: privateCompletionsWorkers,
+		EnableMockAnonymizer:      enableMockAnonymizer,
 		MockAnonymizerDelay:       getEnv("MOCK_ANONYMIZER_DELAY", "10ms", printEnv),
 	}
 	return conf, nil
