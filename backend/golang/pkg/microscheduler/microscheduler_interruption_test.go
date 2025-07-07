@@ -501,7 +501,7 @@ func TestInterruptChannelMechanismWithInterruption(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		task := Task{
-			Name:         "Interruptible background task", 
+			Name:         "Interruptible background task",
 			Priority:     Background,
 			InitialState: &NoOpTaskState{},
 			Compute: func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
@@ -510,14 +510,14 @@ func TestInterruptChannelMechanismWithInterruption(t *testing.T) {
 					if interrupt.CheckAndConsumeInterrupt() {
 						return fmt.Sprintf("Background interrupted at step %d", i), fmt.Errorf("interrupted")
 					}
-					
+
 					// Also check external interrupt channel for completeness
 					select {
 					case <-interruptChan:
 						return fmt.Sprintf("Background interrupted at step %d", i), fmt.Errorf("interrupted")
 					default:
 					}
-					
+
 					time.Sleep(1 * time.Millisecond)
 				}
 				return "Background completed after 100 steps", nil
