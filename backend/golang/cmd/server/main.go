@@ -41,10 +41,10 @@ import (
 	schedulerTools "github.com/EternisAI/enchanted-twin/pkg/agent/scheduler/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/ai/coreml"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
-	"github.com/EternisAI/enchanted-twin/pkg/coreml"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/engagement"
@@ -191,45 +191,44 @@ func main() {
 		return firebaseToken.AccessToken, nil
 	}
 
-	var anonymizer ai.Anonymizer
-	if envs.EnableAnonymization && envs.CoreMLBinaryPath != "" && envs.CoreMLModelPath != "" {
-		logger.Info("Initializing CoreML anonymizer", "binary_path", envs.CoreMLBinaryPath, "model_path", envs.CoreMLModelPath)
-		coremlCompletionService := coreml.NewCompletionService(envs.CoreMLBinaryPath, envs.CoreMLModelPath, envs.CoreMLInteractive)
-
-		err := coremlCompletionService.Start(context.Background())
-		if err != nil {
-			logger.Warn("Failed to start CoreML completion service, anonymization will be disabled", "error", err)
-			anonymizer = nil
-		} else {
-			anonymizer = ai.NewCompletionAnonymizer(coremlCompletionService, logger, envs.CompletionsModel)
-			logger.Info("CoreML anonymizer initialized successfully")
-		}
-	} else {
-		logger.Info("Anonymization disabled", "enable_anonymization", envs.EnableAnonymization, "has_binary_path", envs.CoreMLBinaryPath != "", "has_model_path", envs.CoreMLModelPath != "")
-	}
-
 	var aiCompletionsService *ai.Service
 	if envs.ProxyTeeURL != "" {
 		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
-		if anonymizer != nil {
-			aiCompletionsService = ai.NewOpenAIServiceProxyWithAnonymizer(logger, getFirebaseToken, envs.ProxyTeeURL, envs.CompletionsAPIURL, anonymizer)
-		} else {
-			aiCompletionsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.CompletionsAPIURL)
-		}
+		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.CompletionsAPIURL)
 	} else {
-		if anonymizer != nil {
-			aiCompletionsService = ai.NewOpenAIServiceWithAnonymizer(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL, anonymizer)
-		} else {
-			aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
-		}
+		aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
 	}
 
-	var aiEmbeddingsService *ai.Service
-	if envs.ProxyTeeURL != "" {
-		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
-		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
+	var aiEmbeddingsService ai.Embeddings
+	if envs.CoreMLBinaryPath != "" && envs.CoreMLModelPath != "" {
+		logger.Info("Initializing CoreML embeddings service", "binary_path", envs.CoreMLBinaryPath, "model_path", envs.CoreMLModelPath)
+
+		var fallbackEmbeddings ai.Embeddings
+		if envs.ProxyTeeURL != "" {
+			logger.Info("Using proxy tee url for embeddings fallback", "url", envs.ProxyTeeURL)
+			fallbackEmbeddings = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
+		} else {
+			fallbackEmbeddings = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+		}
+
+		coremlEmbeddingsService := coreml.NewService(logger, envs.CoreMLBinaryPath, envs.CoreMLModelPath, envs.CoreMLInteractive, fallbackEmbeddings, nil)
+
+		err := coremlEmbeddingsService.Start(context.Background())
+		if err != nil {
+			logger.Warn("Failed to start CoreML embeddings service, using fallback only", "error", err)
+			aiEmbeddingsService = fallbackEmbeddings
+		} else {
+			aiEmbeddingsService = coremlEmbeddingsService
+			logger.Info("CoreML embeddings service initialized successfully")
+		}
 	} else {
-		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+		logger.Info("CoreML embeddings disabled, using OpenAI embeddings")
+		if envs.ProxyTeeURL != "" {
+			logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
+			aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
+		} else {
+			aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+		}
 	}
 
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
