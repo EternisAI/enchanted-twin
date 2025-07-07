@@ -21,6 +21,7 @@ type Service struct {
 	logger         *log.Logger
 	getAccessToken func() (string, error)
 	opts           []option.RequestOption
+	anonymizer     Anonymizer
 }
 
 func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Service {
@@ -31,6 +32,18 @@ func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Servic
 	return &Service{
 		client: &client,
 		logger: logger,
+	}
+}
+
+func NewOpenAIServiceWithAnonymizer(logger *log.Logger, apiKey string, baseUrl string, anonymizer Anonymizer) *Service {
+	client := openai.NewClient(
+		option.WithAPIKey(apiKey),
+		option.WithBaseURL(baseUrl),
+	)
+	return &Service{
+		client:     &client,
+		logger:     logger,
+		anonymizer: anonymizer,
 	}
 }
 
@@ -46,6 +59,22 @@ func NewOpenAIServiceProxy(logger *log.Logger, getFirebaseToken func() (string, 
 		logger:         logger,
 		getAccessToken: getFirebaseToken,
 		opts:           opts,
+	}
+}
+
+func NewOpenAIServiceProxyWithAnonymizer(logger *log.Logger, getFirebaseToken func() (string, error), proxyUrl string, baseUrl string, anonymizer Anonymizer) *Service {
+	opts := []option.RequestOption{
+		option.WithBaseURL(proxyUrl),
+		option.WithHeader("X-BASE-URL", baseUrl),
+	}
+
+	client := openai.NewClient(opts...)
+	return &Service{
+		client:         &client,
+		logger:         logger,
+		getAccessToken: getFirebaseToken,
+		opts:           opts,
+		anonymizer:     anonymizer,
 	}
 }
 
@@ -73,8 +102,22 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 }
 
 func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
+	processedMessages := messages
+
+	if s.anonymizer != nil {
+		s.logger.Info("Attempting to anonymize messages before sending to OpenAI")
+		result := s.anonymizer.Anonymize(ctx, messages)
+
+		if result.Success {
+			s.logger.Info("Successfully anonymized messages", "original_count", len(messages), "anonymized_count", len(result.Messages))
+			processedMessages = result.Messages
+		} else {
+			s.logger.Warn("Anonymization failed, proceeding with original messages", "error", result.Error)
+		}
+	}
+
 	return s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
-		Messages:    messages,
+		Messages:    processedMessages,
 		Model:       model,
 		Tools:       tools,
 		Temperature: param.Opt[float64]{Value: 1.0},

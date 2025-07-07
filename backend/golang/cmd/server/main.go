@@ -44,6 +44,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/coreml"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/engagement"
@@ -190,12 +191,37 @@ func main() {
 		return firebaseToken.AccessToken, nil
 	}
 
+	var anonymizer ai.Anonymizer
+	if envs.EnableAnonymization && envs.CoreMLBinaryPath != "" && envs.CoreMLModelPath != "" {
+		logger.Info("Initializing CoreML anonymizer", "binary_path", envs.CoreMLBinaryPath, "model_path", envs.CoreMLModelPath)
+		coremlCompletionService := coreml.NewCompletionService(envs.CoreMLBinaryPath, envs.CoreMLModelPath, envs.CoreMLInteractive)
+
+		err := coremlCompletionService.Start(context.Background())
+		if err != nil {
+			logger.Warn("Failed to start CoreML completion service, anonymization will be disabled", "error", err)
+			anonymizer = nil
+		} else {
+			anonymizer = ai.NewCompletionAnonymizer(coremlCompletionService, logger, envs.CompletionsModel)
+			logger.Info("CoreML anonymizer initialized successfully")
+		}
+	} else {
+		logger.Info("Anonymization disabled", "enable_anonymization", envs.EnableAnonymization, "has_binary_path", envs.CoreMLBinaryPath != "", "has_model_path", envs.CoreMLModelPath != "")
+	}
+
 	var aiCompletionsService *ai.Service
 	if envs.ProxyTeeURL != "" {
 		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
-		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.CompletionsAPIURL)
+		if anonymizer != nil {
+			aiCompletionsService = ai.NewOpenAIServiceProxyWithAnonymizer(logger, getFirebaseToken, envs.ProxyTeeURL, envs.CompletionsAPIURL, anonymizer)
+		} else {
+			aiCompletionsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.CompletionsAPIURL)
+		}
 	} else {
-		aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
+		if anonymizer != nil {
+			aiCompletionsService = ai.NewOpenAIServiceWithAnonymizer(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL, anonymizer)
+		} else {
+			aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
+		}
 	}
 
 	var aiEmbeddingsService *ai.Service
