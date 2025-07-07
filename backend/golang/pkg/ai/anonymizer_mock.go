@@ -25,7 +25,6 @@ var (
 	mockAnonymizerOnce     sync.Once
 )
 
-
 func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer {
 	mockAnonymizerOnce.Do(func() {
 		mockAnonymizerInstance = &MockAnonymizer{
@@ -73,7 +72,6 @@ func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer
 
 	return mockAnonymizerInstance
 }
-
 
 func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error) {
 	allRules := make(map[string]string)

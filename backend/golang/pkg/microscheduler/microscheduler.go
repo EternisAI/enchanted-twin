@@ -327,7 +327,6 @@ type WorkerConfig struct {
 	BackgroundBufferSize int
 }
 
-
 type TaskExecutor struct {
 	uiQueue                 chan TaskRequest
 	lastEffortQueue         chan TaskRequest
@@ -382,7 +381,6 @@ func NewTaskExecutor(processorCount int, logger *log.Logger) *TaskExecutor {
 	e.startProcessors()
 	return e
 }
-
 
 func (e *TaskExecutor) startProcessors() {
 	totalWorkers := e.config.UIWorkers + e.config.BackgroundWorkers
