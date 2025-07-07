@@ -10,12 +10,12 @@ import (
 // EmbeddingWrapper wraps the AI service to provide float32 embeddings for Weaviate.
 // It handles the conversion from float64 to float32 and stores the model configuration.
 type EmbeddingWrapper struct {
-	service *ai.Service
+	service ai.Embeddings
 	model   string
 }
 
 // NewEmbeddingWrapper creates a new embedding wrapper with the specified model.
-func NewEmbeddingWrapper(service *ai.Service, model string) (*EmbeddingWrapper, error) {
+func NewEmbeddingWrapper(service ai.Embeddings, model string) (*EmbeddingWrapper, error) {
 	if service == nil {
 		return nil, fmt.Errorf("ai service cannot be nil")
 	}
