@@ -4,10 +4,10 @@ install:
 	brew install golangci-lint
 
 run:
-	go run cmd/server/*.go
+	go run cmd/server/main.go
 
 build:
-	go build -o bin/enchanted-twin cmd/server/*.go
+	go build -o bin/enchanted-twin cmd/server/main.go
 
 fresh-db:
 	@echo "Removing all Weaviate and SQLite data to restart with fresh schema..."
@@ -37,7 +37,7 @@ run-telegram-chat:
 
 deadcode:
 	@echo "=== Checking for transitively dead functions ==="
-	@go run golang.org/x/tools/cmd/deadcode@latest ./...
+	@go run golang.org/x/tools/cmd/deadcode@latest -test ./...
 
 sqlc-generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc generate

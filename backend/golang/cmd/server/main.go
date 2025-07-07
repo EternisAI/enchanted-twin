@@ -1,75 +1,677 @@
+// Owner: august@eternis.ai
 package main
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
-	"go.uber.org/fx"
+	"github.com/99designs/gqlgen/graphql"
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/extension"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
+	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/charmbracelet/log"
+	"github.com/go-chi/chi"
+	"github.com/gorilla/websocket"
+	_ "github.com/lib/pq"
+	"github.com/nats-io/nats.go"
+	"github.com/pkg/errors"
+	"github.com/rs/cors"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
+
+	"github.com/EternisAI/enchanted-twin/graph"
+	"github.com/EternisAI/enchanted-twin/pkg/agent"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
+	schedulerTools "github.com/EternisAI/enchanted-twin/pkg/agent/scheduler/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/engagement"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/holon"
+	"github.com/EternisAI/enchanted-twin/pkg/identity"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
+	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/tts"
+	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
+	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
+	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
-var AppModule = fx.Module("server",
-	fx.Provide(
-		NewLogger,
-		LoadConfig,
-		NewContext,
-		NewNATSServer,
-		NewNATSClient,
-		NewStore,
-		NewDatabase,
-		NewAIServices,
-		NewCompletionsAIService,
-		NewChatStorage,
-		NewWeaviateClient,
-		NewEvolvingMemory,
-		NewTemporalClient,
-		NewTemporalWorker,
-		NewTTSService,
-		NewToolRegistry,
-		NewIdentityService,
-		NewTwinChatService,
-		NewMCPService,
-		NewTelegramService,
-		NewHolonService,
-		NewNotificationsService,
-		NewGraphQLRouter,
-	),
+// customLogWriter routes logs to stderr if they contain "err" or "error", otherwise to stdout.
+type customLogWriter struct{}
 
-	fx.Provide(NewWhatsAppService),
-	fx.Invoke(RegisterWhatsAppServiceLifecycle),
-
-	fx.Invoke(
-		RegisterPeriodicWorkflows,
-		StartGraphQLServer,
-		StartTelegramProcesses,
-		StartHolonProcesses,
-	),
-)
+func (w *customLogWriter) Write(p []byte) (n int, err error) {
+	logContent := strings.ToLower(string(p))
+	if strings.Contains(logContent, "err") || strings.Contains(logContent, "error") || strings.Contains(logContent, "failed") {
+		return os.Stderr.Write(p)
+	}
+	return os.Stdout.Write(p)
+}
 
 func main() {
-	app := fx.New(
-		AppModule,
-		fx.StartTimeout(30*time.Second),
-		fx.StopTimeout(15*time.Second),
+	logger := log.NewWithOptions(&customLogWriter{}, log.Options{
+		ReportCaller:    true,
+		ReportTimestamp: true,
+		Level:           log.DebugLevel,
+		TimeFormat:      time.Kitchen,
+	})
+
+	envs, _ := config.LoadConfig(false)
+	logger.Debug("Config loaded", "envs", envs)
+	logger.Info("Using database path", "path", envs.DBPath)
+
+	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to start nats server"))
+	}
+	defer natsServer.Shutdown()
+	logger.Info("NATS server started")
+
+	nc, err := bootstrap.NewNatsClient()
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to create nats client"))
+	}
+	logger.Info("NATS client started")
+
+	store, err := db.NewStore(context.Background(), envs.DBPath)
+	if err != nil {
+		logger.Error("Unable to create or initialize database", "error", err)
+		panic(errors.Wrap(err, "Unable to create or initialize database"))
+	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			logger.Error("Error closing store", "error", err)
+		}
+	}()
+
+	dbsqlc, err := db.New(store.DB().DB, logger)
+	if err != nil {
+		logger.Error("Error creating database", "error", err)
+		panic(errors.Wrap(err, "Error creating database"))
+	}
+
+	getFirebaseToken := func() (string, error) {
+		firebaseToken, err := store.GetOAuthTokens(context.Background(), "firebase")
+		if err != nil {
+			return "", err
+		}
+		if firebaseToken == nil {
+			return "", errors.New("no firebase token found in database")
+		}
+		return firebaseToken.AccessToken, nil
+	}
+
+	tokenFunc := func() string {
+		token, err := getFirebaseToken()
+		if err != nil {
+			logger.Error("Failed to get Firebase token", "error", err)
+			return "12345" // fallback token
+		}
+		return token
+	}
+
+	var aiCompletionsService *ai.Service
+	if envs.ProxyTeeURL != "" {
+		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
+		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, envs.ProxyTeeURL, tokenFunc, envs.CompletionsAPIURL)
+	} else {
+		aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
+	}
+
+	var aiEmbeddingsService *ai.Service
+	if envs.ProxyTeeURL != "" {
+		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
+		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, envs.ProxyTeeURL, tokenFunc, envs.EmbeddingsAPIURL)
+	} else {
+		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+	}
+
+	chatStorage := chatrepository.NewRepository(logger, store.DB())
+
+	weaviatePath := filepath.Join(envs.AppDataPath, "db", "weaviate")
+	logger.Info("Starting Weaviate bootstrap process", "path", weaviatePath, "port", envs.WeaviatePort)
+	weaviateBootstrapStart := time.Now()
+
+	if _, err := bootstrap.BootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
+		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
+	}
+	logger.Info("Weaviate server bootstrap completed", "elapsed", time.Since(weaviateBootstrapStart))
+
+	logger.Info("Creating Weaviate client")
+	clientCreateStart := time.Now()
+	weaviateClient, err := weaviate.NewClient(weaviate.Config{
+		Host:   fmt.Sprintf("localhost:%s", envs.WeaviatePort),
+		Scheme: "http",
+	})
+	if err != nil {
+		logger.Error("Failed to create Weaviate client", "error", err)
+		panic(errors.Wrap(err, "Failed to create Weaviate client"))
+	}
+	logger.Info("Weaviate client created", "elapsed", time.Since(clientCreateStart))
+
+	logger.Info("Initializing Weaviate schema")
+	schemaInitStart := time.Now()
+	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel); err != nil {
+		logger.Error("Failed to initialize Weaviate schema", "error", err)
+		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
+	}
+	logger.Info("Weaviate schema initialized", "elapsed", time.Since(schemaInitStart))
+
+	logger.Info("Creating evolving memory instance")
+	memoryCreateStart := time.Now()
+
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, envs.EmbeddingsModel)
+	if err != nil {
+		logger.Fatal("Failed to create embedding wrapper", "error", err)
+	}
+
+	storageInterface, err := storage.New(storage.NewStorageInput{
+		Client:            weaviateClient,
+		Logger:            logger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
+	if err != nil {
+		logger.Fatal("Failed to create storage interface", "error", err)
+	}
+
+	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
+		Logger:             logger,
+		Storage:            storageInterface,
+		CompletionsService: aiCompletionsService,
+		CompletionsModel:   envs.CompletionsModel,
+		EmbeddingsWrapper:  embeddingsWrapper,
+	})
+	if err != nil {
+		logger.Error("Failed to create evolving memory", "error", err)
+		panic(errors.Wrap(err, "Failed to create evolving memory"))
+	}
+	logger.Info("Evolving memory created", "elapsed", time.Since(memoryCreateStart))
+	logger.Info("Total Weaviate setup completed", "total_elapsed", time.Since(weaviateBootstrapStart))
+
+	ttsSvc, err := bootstrapTTS(logger)
+	if err != nil {
+		logger.Error("TTS bootstrap failed", "error", err)
+		panic(errors.Wrap(err, "TTS bootstrap failed"))
+	}
+	go func() {
+		if err := ttsSvc.Start(context.Background()); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("TTS service stopped unexpectedly", "error", err)
+			panic(errors.Wrap(err, "TTS service stopped unexpectedly"))
+		}
+	}()
+
+	temporalClient, err := bootstrapTemporalServer(logger, envs)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to start temporal server"))
+	}
+
+	// Tools
+	toolRegistry := tools.NewRegistry()
+
+	if err := toolRegistry.Register(memory.NewMemorySearchTool(logger, mem)); err != nil {
+		logger.Error("Failed to register memory search tool", "error", err)
+	}
+
+	if err := toolRegistry.Register(&schedulerTools.ScheduleTask{
+		Logger:         logger,
+		TemporalClient: temporalClient,
+	}); err != nil {
+		logger.Error("Failed to register schedule task tool", "error", err)
+		panic(errors.Wrap(err, "Failed to register schedule task tool"))
+	}
+
+	// Initialize WhatsApp service
+	whatsappService := whatsapp.NewService(whatsapp.ServiceConfig{
+		Logger:        logger,
+		NatsClient:    nc,
+		Database:      dbsqlc,
+		MemoryStorage: mem,
+		Config:        envs,
+		AIService:     aiCompletionsService,
+		ToolRegistry:  toolRegistry,
+	})
+
+	// Start WhatsApp service
+	if err := whatsappService.Start(context.Background()); err != nil {
+		logger.Error("Failed to start WhatsApp service", "error", err)
+		panic(errors.Wrap(err, "Failed to start WhatsApp service"))
+	}
+
+	// Trigger automatic connection on startup
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		whatsappService.TriggerConnect()
+		logger.Info("Sent automatic WhatsApp connect signal on startup")
+	}()
+
+	// Setup WhatsApp service cleanup on shutdown
+	defer func() {
+		if err := whatsappService.Stop(context.Background()); err != nil {
+			logger.Error("Failed to stop WhatsApp service", "error", err)
+		}
+	}()
+
+	telegramTool, err := telegram.NewTelegramSetupTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
+	if err != nil {
+		panic(errors.Wrap(err, "Failed to create telegram setup tool"))
+	}
+	err = toolRegistry.Register(telegramTool)
+	if err != nil {
+		panic(errors.Wrap(err, "Failed to register telegram tool"))
+	}
+
+	identitySvc := identity.NewIdentityService(temporalClient)
+
+	twinChatService := twinchat.NewService(
+		logger,
+		aiCompletionsService,
+		chatStorage,
+		nc,
+		mem,
+		toolRegistry,
+		store,
+		envs.CompletionsModel,
+		envs.ReasoningModel,
+		identitySvc,
 	)
 
-	startCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := app.Start(startCtx); err != nil {
-		panic(err)
+	sendToChatTool := twinchat.NewSendToChatTool(chatStorage, nc)
+	err = toolRegistry.Register(sendToChatTool)
+	if err != nil {
+		logger.Error("Failed to register send to chat tool", "error", err)
+		panic(errors.Wrap(err, "Failed to register send to chat tool"))
 	}
+
+	// Initialize MCP Service with tool registry
+	mcpService := mcpserver.NewService(context.Background(), logger, store, toolRegistry)
+
+	// MCP tools are automatically registered by the MCP service
+	mcpTools, err := mcpService.GetInternalTools(context.Background())
+	if err == nil {
+		logger.Info("MCP tools available", "count", len(mcpTools))
+	} else {
+		logger.Warn("Failed to get MCP tools", "error", err)
+	}
+
+	logger.Info(
+		"Tool registry initialized with all tools",
+		"count",
+		len(toolRegistry.List()),
+		"names",
+		toolRegistry.List(),
+	)
+
+	for _, toolName := range toolRegistry.List() {
+		logger.Info("Tool registered", "name", toolName)
+	}
+
+	notificationsSvc := notifications.NewService(nc)
+
+	// Initialize and start the temporal worker
+	temporalWorker, err := bootstrapTemporalWorker(
+		&bootstrapTemporalWorkerInput{
+			logger:               logger,
+			temporalClient:       temporalClient,
+			envs:                 envs,
+			store:                store,
+			nc:                   nc,
+			memory:               mem,
+			aiCompletionsService: aiCompletionsService,
+			toolsRegistry:        toolRegistry,
+			notifications:        notificationsSvc,
+			twinchatService:      twinChatService,
+		},
+	)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to start temporal worker"))
+	}
+	defer temporalWorker.Stop()
+
+	if err := bootstrapPeriodicWorkflows(logger, temporalClient); err != nil {
+		logger.Error("Failed to bootstrap periodic workflows", "error", err)
+		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
+	}
+
+	userProfile, err := identitySvc.GetUserProfile(context.Background())
+	if err != nil {
+		logger.Warn("Failed to get user profile during startup - continuing without it", "error", err)
+		// Don't panic here - the server can still function without the user profile
+	} else {
+		logger.Info("User profile", "profile", userProfile)
+	}
+
+	holonConfig := holon.DefaultManagerConfig()
+	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
+
+	// Initialize thread processor with AI and memory services for LLM-based filtering
+	logger.Info("Initializing thread processor with LLM-based evaluation")
+	holonService.InitializeThreadProcessor(aiCompletionsService, envs.CompletionsModel, mem)
+
+	// Initialize and start background processor for automatic thread processing
+	processingInterval := 30 * time.Second // Process received threads every 30 seconds
+	holonService.InitializeBackgroundProcessor(processingInterval)
+
+	// Create a cancellable context for background processing that will be canceled on shutdown
+	backgroundCtx, cancelBackgroundProcessing := context.WithCancel(context.Background())
+
+	// Start background processing (this method spawns its own goroutine, so no need for additional go func)
+	if err := holonService.StartBackgroundProcessing(backgroundCtx); err != nil {
+		logger.Error("Failed to start background thread processing", "error", err)
+		cancelBackgroundProcessing() // Clean up context if startup fails
+	} else {
+		logger.Info("Background thread processing started successfully")
+	}
+
+	// Ensure background processing context is always canceled and service stopped on shutdown
+	defer func() {
+		cancelBackgroundProcessing()            // Cancel the context to stop background goroutines
+		holonService.StopBackgroundProcessing() // Stop the service and wait for cleanup
+	}()
+
+	// Initialize HolonZero API fetcher service with the main logger
+	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
+	if err := holonManager.Start(); err != nil {
+		logger.Error("Failed to start HolonZero fetcher service", "error", err)
+	} else {
+		logger.Info("HolonZero API fetcher service started successfully")
+		defer func() {
+			if err := holonManager.Stop(); err != nil {
+				logger.Error("Failed to stop holon manager", "error", err)
+			}
+		}()
+	}
+
+	threadPreviewTool := holon.NewThreadPreviewTool(holonService)
+	if err := toolRegistry.Register(threadPreviewTool); err != nil {
+		logger.Error("Failed to register thread preview tool", "error", err)
+	}
+
+	sendToHolonTool := holon.NewSendToHolonTool(holonService)
+	if err := toolRegistry.Register(sendToHolonTool); err != nil {
+		logger.Error("Failed to register send to holon tool", "error", err)
+	}
+
+	sendMessageToHolonTool := holon.NewAddMessageToThreadTool(holonService)
+	if err := toolRegistry.Register(sendMessageToHolonTool); err != nil {
+		logger.Error("Failed to register send message to holon tool", "error", err)
+	}
+
+	telegramServiceInput := telegram.TelegramServiceInput{
+		Logger:           logger,
+		Token:            envs.TelegramToken,
+		Client:           &http.Client{},
+		Store:            store,
+		AiService:        aiCompletionsService,
+		CompletionsModel: envs.CompletionsModel,
+		Memory:           mem,
+		AuthStorage:      store,
+		NatsClient:       nc,
+		ChatServerUrl:    envs.TelegramChatServer,
+		ToolsRegistry:    toolRegistry,
+	}
+	telegramService := telegram.NewTelegramService(telegramServiceInput)
+
+	go telegram.SubscribePoller(telegramService, logger)
+	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
+
+	router := bootstrapGraphqlServer(graphqlServerInput{
+		logger:          logger,
+		temporalClient:  temporalClient,
+		port:            envs.GraphqlPort,
+		twinChatService: *twinChatService,
+		natsClient:      nc,
+		store:           store,
+		aiService:       aiCompletionsService,
+		mcpService:      mcpService,
+		telegramService: telegramService,
+		holonService:    holonService,
+		whatsAppService: whatsappService,
+	})
+
+	go func() {
+		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
+		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
+		if err != nil && err != http.ErrServerClosed {
+			logger.Error("HTTP server error", "error", err)
+			panic(errors.Wrap(err, "Unable to start server"))
+		}
+	}()
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
 	<-signalChan
+	logger.Info("Server shutting down...")
+}
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
+func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
+	ready := make(chan struct{})
+	go bootstrap.CreateTemporalServer(logger, ready, envs.DBPath)
+	<-ready
+	logger.Info("Temporal server started")
 
-	if err := app.Stop(stopCtx); err != nil {
-		panic(err)
+	temporalClient, err := bootstrap.NewTemporalClient(logger)
+	if err != nil {
+		return nil, errors.Wrap(err, "Unable to create temporal client")
 	}
+	logger.Info("Temporal client created")
+
+	return temporalClient, nil
+}
+
+type bootstrapTemporalWorkerInput struct {
+	logger               *log.Logger
+	temporalClient       client.Client
+	envs                 *config.Config
+	store                *db.Store
+	nc                   *nats.Conn
+	memory               memory.Storage
+	toolsRegistry        tools.ToolRegistry
+	aiCompletionsService *ai.Service
+	notifications        *notifications.Service
+	twinchatService      *twinchat.Service
+}
+
+func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
+	const (
+		kokoroPort = 45000
+		ttsWsPort  = 45001
+	)
+
+	engine := tts.Kokoro{
+		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroPort),
+		Model:    "kokoro",
+		Voice:    "af_bella+af_heart",
+	}
+	svc := tts.New(fmt.Sprintf(":%d", ttsWsPort), engine, *logger)
+	return svc, nil
+}
+
+func bootstrapTemporalWorker(
+	input *bootstrapTemporalWorkerInput,
+) (worker.Worker, error) {
+	w := worker.New(input.temporalClient, "default", worker.Options{
+		MaxConcurrentActivityExecutionSize: 3,
+	})
+
+	dataProcessingWorkflow := workflows.DataProcessingWorkflows{
+		Logger:        input.logger,
+		Config:        input.envs,
+		Store:         input.store,
+		Nc:            input.nc,
+		Memory:        input.memory,
+		OpenAIService: input.aiCompletionsService,
+	}
+	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
+
+	// Register auth activities
+	authActivities := auth.NewOAuthActivities(input.store)
+	authActivities.RegisterWorkflowsAndActivities(&w)
+
+	// Register the planned agent v2 workflow
+	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, input.envs.ReasoningModel, nil, nil)
+	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications)
+	schedulerActivities.RegisterWorkflowsAndActivities(w)
+
+	// Register identity activities
+	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
+	identityActivities.RegisterWorkflowsAndActivities(w)
+
+	friendService := engagement.NewFriendService(engagement.FriendServiceConfig{
+		Logger:          input.logger,
+		MemoryService:   input.memory,
+		IdentityService: identity.NewIdentityService(input.temporalClient),
+		TwinchatService: input.twinchatService,
+		AiService:       input.aiCompletionsService,
+		ToolRegistry:    input.toolsRegistry,
+		Store:           input.store,
+	})
+	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
+
+	// Register holon sync activities
+	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
+	holonSyncActivities := holon.NewHolonSyncActivities(input.logger, holonManager)
+	holonSyncActivities.RegisterWorkflowsAndActivities(w)
+
+	err := w.Start()
+	if err != nil {
+		input.logger.Error("Error starting worker", "error", err)
+		return nil, err
+	}
+
+	return w, nil
+}
+
+type graphqlServerInput struct {
+	logger                 *log.Logger
+	temporalClient         client.Client
+	port                   string
+	twinChatService        twinchat.Service
+	natsClient             *nats.Conn
+	store                  *db.Store
+	aiService              *ai.Service
+	mcpService             mcpserver.MCPService
+	dataProcessingWorkflow *workflows.DataProcessingWorkflows
+	telegramService        *telegram.TelegramService
+	holonService           *holon.Service
+	whatsAppService        *whatsapp.Service
+}
+
+func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
+	router := chi.NewRouter()
+	router.Use(cors.New(cors.Options{
+		AllowCredentials: true,
+		AllowedOrigins:   []string{"*"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "Accept"},
+		Debug:            false,
+	}).Handler)
+
+	resolver := &graph.Resolver{
+		Logger:                 input.logger,
+		TemporalClient:         input.temporalClient,
+		TwinChatService:        input.twinChatService,
+		Nc:                     input.natsClient,
+		Store:                  input.store,
+		AiService:              input.aiService,
+		MCPService:             input.mcpService,
+		DataProcessingWorkflow: input.dataProcessingWorkflow,
+		TelegramService:        input.telegramService,
+		HolonService:           input.holonService,
+		WhatsAppService:        input.whatsAppService,
+	}
+
+	srv := handler.New(gqlSchema(resolver))
+
+	srv.AddTransport(transport.SSE{})
+	srv.AddTransport(transport.POST{})
+	srv.AddTransport(transport.Options{})
+	srv.AddTransport(transport.GET{})
+
+	srv.AddTransport(transport.Websocket{
+		KeepAlivePingInterval: 10 * time.Second,
+		Upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		},
+	})
+
+	srv.Use(extension.Introspection{})
+	srv.AroundResponses(func(ctx context.Context, next graphql.ResponseHandler) *graphql.Response {
+		resp := next(ctx)
+
+		if resp != nil && resp.Errors != nil && len(resp.Errors) > 0 {
+			oc := graphql.GetOperationContext(ctx)
+			input.logger.Error(
+				"gql error",
+				"operation_name",
+				oc.OperationName,
+				"raw_query",
+				oc.RawQuery,
+				"variables",
+				oc.Variables,
+				"errors",
+				resp.Errors,
+			)
+		}
+
+		return resp
+	})
+
+	router.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	router.Handle("/query", srv)
+
+	return router
+}
+
+func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
+	config := graph.Config{
+		Resolvers: input,
+	}
+	return graph.NewExecutableSchema(config)
+}
+
+func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
+	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour*12, identity.DerivePersonalityWorkflow, nil)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create identity personality workflow")
+	}
+
+	// Create holon sync schedule with override flag to ensure it uses the updated 30-second interval
+	err = helpers.CreateOrUpdateSchedule(
+		logger,
+		temporalClient,
+		"holon-sync-schedule",
+		30*time.Second, // Use updated 30-second interval
+		holon.HolonSyncWorkflow,
+		[]any{holon.HolonSyncWorkflowInput{ForceSync: false}},
+		true, // Override if different settings
+	)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create holon sync schedule")
+	}
+
+	return nil
 }
