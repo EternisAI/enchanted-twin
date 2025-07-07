@@ -399,7 +399,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return false, err
 		}
 		return true, nil
-	case "misc":
+	case "synced-document":
 		source, err := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store, s.logger)
 		if err != nil {
 			return false, err
@@ -467,7 +467,7 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 		if err != nil {
 			return nil, err
 		}
-	case "misc":
+	case "synced-document":
 		miscProcessor, err := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store, s.logger)
 		if err != nil {
 			return nil, err

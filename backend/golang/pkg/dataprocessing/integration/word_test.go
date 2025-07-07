@@ -58,7 +58,7 @@ func TestWordDocumentProcessing(t *testing.T) {
 			processor, err := misc.NewTextDocumentProcessor(aiService, "gpt-4o-mini", store, logger)
 			require.NoError(t, err, "Failed to create text document processor")
 
-			testFilePath := filepath.Join("testdata", "misc", tt.filename)
+			testFilePath := filepath.Join("testdata", "synced-document", tt.filename)
 
 			_, err = os.Stat(testFilePath)
 			require.NoError(t, err, "Test file %s does not exist", testFilePath)
@@ -72,7 +72,7 @@ func TestWordDocumentProcessing(t *testing.T) {
 
 				firstRecord := records[0]
 
-				assert.Equal(t, "misc", firstRecord.Source, "Source should be 'misc'")
+				assert.Equal(t, "synced-document", firstRecord.Source, "Source should be 'misc'")
 
 				require.Contains(t, firstRecord.Data, "content", "Record should contain 'content' field")
 				require.Contains(t, firstRecord.Data, "filename", "Record should contain 'filename' field")
@@ -136,7 +136,7 @@ func TestWordDocumentTextExtraction(t *testing.T) {
 	processor, err := misc.NewTextDocumentProcessor(aiService, "gpt-4o-mini", store, logger)
 	require.NoError(t, err)
 
-	testFilePath := filepath.Join("testdata", "misc", "test_doc.docx")
+	testFilePath := filepath.Join("testdata", "synced-document", "test_doc.docx")
 
 	_, err = os.Stat(testFilePath)
 	require.NoError(t, err, "Test Word document does not exist")
@@ -204,10 +204,10 @@ func TestWordDocumentIntegration(t *testing.T) {
 	env := SetupTestEnvironment(t)
 	defer env.Cleanup(t)
 
-	wordTestPath := filepath.Join("testdata", "misc")
+	wordTestPath := filepath.Join("testdata", "synced-document")
 
 	t.Run("WordDocumentFullPipeline", func(t *testing.T) {
-		env.LoadDocuments(t, "misc", wordTestPath)
+		env.LoadDocuments(t, "synced-document", wordTestPath)
 
 		assert.NotEmpty(t, env.documents, "Should load documents including Word document")
 

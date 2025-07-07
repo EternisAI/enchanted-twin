@@ -67,7 +67,7 @@ func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string
 }
 
 func (s *TextDocumentProcessor) Name() string {
-	return "misc"
+	return "synced-document"
 }
 
 // IsHumanReadableContent determines if the content is human-readable text.

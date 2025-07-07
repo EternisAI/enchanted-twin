@@ -753,9 +753,9 @@ func (env *testEnvironment) StoreDocumentsWithTimeout(t *testing.T, timeout time
 func getTestConfig(t *testing.T) testConfig {
 	t.Helper()
 
-	source := getEnvOrDefault("TEST_SOURCE", "misc")
+	source := getEnvOrDefault("TEST_SOURCE", "synced-document")
 
-	defaultInputPath := filepath.Join("testdata", "misc")
+	defaultInputPath := filepath.Join("testdata", "synced-document")
 	inputPath := getEnvOrDefault("TEST_INPUT_PATH", defaultInputPath)
 
 	outputPath := getEnvOrDefault("TEST_OUTPUT_PATH", "")

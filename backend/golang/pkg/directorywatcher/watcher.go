@@ -399,7 +399,7 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 		return errors.Wrap(err, "failed to check file existence")
 	}
 
-	dataSourceName := "misc"
+	dataSourceName := "synced-document"
 	dataSourceID, err := dw.store.CreateDataSourceFromFile(ctx, &db.CreateDataSourceFromFileInput{
 		Name: dataSourceName,
 		Path: absPath,
@@ -582,8 +582,8 @@ func (dw *DirectoryWatcher) processRenameEventWithNewPath(oldPath, newPath strin
 		return dw.processNewFile(newAbsPath)
 	}
 
-	if matchingSource.Name != "misc" {
-		dw.logger.Warn("Data source type mismatch, treating as replacement", "oldType", matchingSource.Name, "newType", "misc")
+	if matchingSource.Name != "synced-document" {
+		dw.logger.Warn("Data source type mismatch, treating as replacement", "oldType", matchingSource.Name, "newType", "synced-document")
 		if err := dw.processRemovedFile(oldAbsPath); err != nil {
 			dw.logger.Error("Failed to process old file as removed", "error", err, "oldPath", oldAbsPath)
 		}
@@ -644,7 +644,7 @@ func (dw *DirectoryWatcher) couldBeRenamedFile(oldPath, newPath, dataSourceType 
 		return false
 	}
 
-	if dataSourceType != "misc" {
+	if dataSourceType != "synced-document" {
 		return false
 	}
 

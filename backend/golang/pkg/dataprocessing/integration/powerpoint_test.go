@@ -53,7 +53,7 @@ func TestPowerPointProcessing(t *testing.T) {
 			processor, err := misc.NewTextDocumentProcessor(createMockAIService(env.logger), "gpt-4o-mini", env.store, env.logger)
 			require.NoError(t, err)
 
-			testFilePath := filepath.Join("testdata", "misc", test.filename)
+			testFilePath := filepath.Join("testdata", "synced-document", test.filename)
 
 			if _, err := os.Stat(testFilePath); os.IsNotExist(err) {
 				t.Skip("Test PowerPoint file not found, skipping test")
@@ -68,7 +68,7 @@ func TestPowerPointProcessing(t *testing.T) {
 
 				firstRecord := records[0]
 
-				assert.Equal(t, "misc", firstRecord.Source)
+				assert.Equal(t, "synced-document", firstRecord.Source)
 				assert.Contains(t, firstRecord.Data, "content")
 				assert.Contains(t, firstRecord.Data, "filename")
 				assert.Contains(t, firstRecord.Data, "type")
@@ -119,7 +119,7 @@ func TestPowerPointTextExtraction(t *testing.T) {
 	require.True(t, ok)
 
 	t.Run("ExtractTextFromPPTX", func(t *testing.T) {
-		testFilePath := filepath.Join("testdata", "misc", "test_presentation.pptx")
+		testFilePath := filepath.Join("testdata", "synced-document", "test_presentation.pptx")
 
 		if _, err := os.Stat(testFilePath); os.IsNotExist(err) {
 			t.Skip("Test PPTX file not found, skipping extraction test")
@@ -140,7 +140,7 @@ func TestPowerPointTextExtraction(t *testing.T) {
 	})
 
 	t.Run("ExtractTextFromPPT", func(t *testing.T) {
-		testFilePath := filepath.Join("testdata", "misc", "test_presentation.ppt")
+		testFilePath := filepath.Join("testdata", "synced-document", "test_presentation.ppt")
 
 		if _, err := os.Stat(testFilePath); os.IsNotExist(err) {
 			t.Skip("Test PPT file not found, skipping extraction test")
@@ -211,7 +211,7 @@ func TestPowerPointIntegration(t *testing.T) {
 	processor, err := misc.NewTextDocumentProcessor(createMockAIService(env.logger), "gpt-4o-mini", env.store, env.logger)
 	require.NoError(t, err)
 
-	testFilePath := filepath.Join("testdata", "misc", "test_presentation.pptx")
+	testFilePath := filepath.Join("testdata", "synced-document", "test_presentation.pptx")
 
 	if _, err := os.Stat(testFilePath); os.IsNotExist(err) {
 		t.Skip("Test PowerPoint file not found, skipping integration test")
@@ -230,7 +230,7 @@ func TestPowerPointIntegration(t *testing.T) {
 	doc := documents[0]
 	assert.NotEmpty(t, doc.ID())
 	assert.NotEmpty(t, doc.Content())
-	assert.Equal(t, "misc", doc.Source())
+	assert.Equal(t, "synced-document", doc.Source())
 
 	t.Logf("Document ID: %s", doc.ID())
 	t.Logf("Document content length: %d", len(doc.Content()))
