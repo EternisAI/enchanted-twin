@@ -3,6 +3,7 @@ package coreml
 import (
 	"bufio"
 	"context"
+	"github.com/openai/openai-go/packages/param"
 	"io"
 	"os/exec"
 )
@@ -140,4 +141,19 @@ func (p *MockBinaryProcess) Restart(ctx context.Context, binaryPath, modelPath s
 
 func (p *MockBinaryProcess) GetWrittenData() [][]byte {
 	return p.writeData
+}
+
+func getFloatPointer(opt param.Opt[float64]) *float64 {
+	if opt.Value != 0 {
+		return &opt.Value
+	}
+	return nil
+}
+
+func getIntPointer(opt param.Opt[int64]) *int {
+	if opt.Value != 0 {
+		val := int(opt.Value)
+		return &val
+	}
+	return nil
 }
