@@ -978,7 +978,6 @@ type ConnectionManager struct {
 	reconnectMux2   sync.Mutex
 	failureCount    int
 	lastFailureTime time.Time
-	circuitBreaker  bool
 }
 
 type ConnectionManagerConfig struct {

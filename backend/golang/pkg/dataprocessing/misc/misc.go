@@ -567,7 +567,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 				"path": filePath,
 			},
 			Timestamp: timestamp,
-			Source:    s.Name(),
+			Source:    "synced-documents",
 		}
 		return []types.Record{emptyRecord}, nil
 	}

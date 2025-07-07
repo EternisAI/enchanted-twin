@@ -3,7 +3,6 @@ package directorywatcher
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -399,26 +398,6 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 		return errors.Wrap(err, "failed to check file existence")
 	}
 
-	exists, err := dw.store.ActiveDataSourceExistsByPath(ctx, absPath)
-	if err != nil {
-		dw.logger.Error("Failed to check if active data source exists", "error", err, "path", absPath)
-		return errors.Wrap(err, "failed to check if active data source exists")
-	}
-
-	if exists {
-		dw.logger.Info("Active data source exists - marking as replaced and creating new version", "path", absPath)
-
-		if err := dw.removeFileFromMemory(ctx, absPath); err != nil {
-			dw.logger.Error("Failed to remove old memories for replaced file", "error", err, "path", absPath)
-		}
-
-		if err := dw.store.MarkDataSourceAsReplaced(ctx, absPath); err != nil {
-			dw.logger.Error("Failed to mark existing data source as replaced", "error", err, "path", absPath)
-			return errors.Wrap(err, "failed to mark existing data source as replaced")
-		}
-		dw.logger.Info("Successfully marked existing data source as replaced", "path", absPath)
-	}
-
 	dataSourceName := dw.determineDataSourceType(filePath)
 	if dataSourceName == "" {
 		dw.logger.Warn("Unsupported file type, skipping processing", "path", filePath)
@@ -434,12 +413,6 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 		return errors.Wrap(err, "failed to create data source from file")
 	}
 
-	dw.logger.Info("Successfully created data source", "path", absPath, "id", dataSourceID, "type", dataSourceName)
-
-	if err := dw.storeFileInMemory(ctx, absPath, dataSourceName, dataSourceID); err != nil {
-		dw.logger.Error("Failed to store file metadata in memory", "error", err, "path", absPath)
-	}
-
 	dw.logger.Info("Successfully processed new file", "path", absPath, "id", dataSourceID, "type", dataSourceName)
 	return nil
 }
@@ -451,12 +424,6 @@ func (dw *DirectoryWatcher) processRemovedFile(filePath string) error {
 	if err != nil {
 		dw.logger.Error("Failed to resolve absolute path for removal", "error", err, "path", filePath)
 		absPath = filePath
-	}
-
-	dw.logger.Info("Processing removed file", "originalPath", filePath, "absolutePath", absPath)
-
-	if err := dw.removeFileFromMemory(ctx, absPath); err != nil {
-		dw.logger.Error("Failed to remove file from memory", "error", err, "path", absPath)
 	}
 
 	if err := dw.store.MarkDataSourceAsDeleted(ctx, absPath); err != nil {
@@ -848,152 +815,11 @@ func (dw *DirectoryWatcher) determineDataSourceType(filePath string) string {
 		return "misc"
 	case ext == ".pdf":
 		return "misc"
-	case ext == ".json":
-		contentType := dw.detectJSONContentType(filePath)
-		return contentType
 	case ext == ".zip":
 		return "X"
 	default:
 		return "misc"
 	}
-}
-
-func (dw *DirectoryWatcher) detectJSONContentType(filePath string) string {
-	file, err := os.Open(filePath)
-	if err != nil {
-		dw.logger.Warn("Failed to open file for content detection", "path", filePath, "error", err)
-		return ""
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			dw.logger.Warn("Failed to close file during content detection", "path", filePath, "error", closeErr)
-		}
-	}()
-
-	buffer := make([]byte, 1024)
-	n, err := file.Read(buffer)
-	if err != nil && err != io.EOF {
-		dw.logger.Warn("Failed to read file for content detection", "path", filePath, "error", err)
-		return ""
-	}
-
-	content := string(buffer[:n])
-	contentLower := strings.ToLower(content)
-
-	if strings.Contains(contentLower, "\"like\"") && strings.Contains(contentLower, "\"tweetid\"") ||
-		strings.Contains(contentLower, "\"tweet\"") && strings.Contains(contentLower, "\"full_text\"") ||
-		strings.Contains(contentLower, "\"dmconversation\"") ||
-		strings.Contains(contentLower, "\"conversationid\"") && strings.Contains(contentLower, "\"senderid\"") {
-		return "X"
-	}
-
-	if strings.Contains(contentLower, "\"personal_information\"") && strings.Contains(contentLower, "\"chats\"") ||
-		strings.Contains(contentLower, "\"date_unixtime\"") && strings.Contains(contentLower, "\"from_id\"") {
-		return "Telegram"
-	}
-
-	if strings.Contains(contentLower, "\"conversations\"") && strings.Contains(contentLower, "\"mapping\"") ||
-		strings.Contains(contentLower, "\"message\"") && strings.Contains(contentLower, "\"author\"") && strings.Contains(contentLower, "\"role\"") {
-		return "ChatGPT"
-	}
-
-	trimmedContent := strings.TrimSpace(content)
-	if strings.HasPrefix(trimmedContent, "[") {
-		if strings.Contains(contentLower, "\"conversation\"") && strings.Contains(contentLower, "\"people\"") {
-			return "X"
-		}
-		return "X"
-	}
-
-	dw.logger.Warn("Could not determine data source type for JSON file", "path", filePath)
-	return ""
-}
-
-func (dw *DirectoryWatcher) storeFileInMemory(ctx context.Context, filePath, dataSourceType string, dataSourceID string) error {
-	if dw.memoryStorage == nil {
-		return nil
-	}
-
-	fileContent, err := dw.readFileContent(filePath)
-	if err != nil {
-		dw.logger.Error("Failed to read file content for memory storage", "error", err, "path", filePath)
-		return errors.Wrap(err, "failed to read file content")
-	}
-
-	memoryFact := &memory.MemoryFact{
-		ID:        fmt.Sprintf("file-indexed-%s", dataSourceID),
-		Content:   fileContent,
-		Timestamp: time.Now(),
-		Category:  "file-indexed",
-		Source:    "file-indexing",
-		FilePath:  filePath,
-		Tags:      []string{"file-indexed", "data-source", dataSourceType},
-
-		Metadata: map[string]string{
-			"data_source_id":   dataSourceID,
-			"indexed_at":       time.Now().Format(time.RFC3339),
-			"file_name":        filepath.Base(filePath),
-			"data_source_type": dataSourceType,
-		},
-	}
-
-	fileDoc := &memory.TextDocument{
-		FieldID:        memoryFact.ID,
-		FieldContent:   memoryFact.Content,
-		FieldTimestamp: &memoryFact.Timestamp,
-		FieldSource:    memoryFact.Source,
-		FieldTags:      memoryFact.Tags,
-		FieldMetadata:  memoryFact.Metadata,
-		FieldFilePath:  memoryFact.FilePath,
-	}
-
-	documents := []memory.Document{fileDoc}
-
-	err = dw.memoryStorage.Store(ctx, documents, func(processed, total int) {
-	})
-	if err != nil {
-		return errors.Wrap(err, "failed to store file metadata in memory")
-	}
-
-	dw.logger.Info("Stored file content in memory using indexed FilePath field", "path", filePath, "category", memoryFact.Category, "file_path", memoryFact.FilePath, "content_length", len(fileContent))
-	return nil
-}
-
-func (dw *DirectoryWatcher) removeFileFromMemory(ctx context.Context, filePath string) error {
-	dw.logger.Info("Removing file from memory", "path", filePath)
-	if dw.memoryStorage == nil {
-		return nil
-	}
-
-	filter := &memory.Filter{
-		FactFilePath: &filePath,
-		Limit:        &[]int{100}[0],
-	}
-
-	result, err := dw.memoryStorage.Query(ctx, "", filter)
-	if err != nil {
-		return errors.Wrap(err, "failed to query memories for file cleanup")
-	}
-
-	if len(result.Facts) == 0 {
-		return nil
-	}
-
-	dw.logger.Info("Found memories to delete for file", "path", filePath, "count", len(result.Facts))
-
-	for _, fact := range result.Facts {
-		dw.logger.Info("Deleting memory for removed file", "memory_id", fact.ID, "file_path", fact.FilePath)
-
-		if err := dw.memoryStorage.Delete(ctx, fact.ID); err != nil {
-			dw.logger.Error("Failed to delete memory", "error", err, "memory_id", fact.ID)
-			continue
-		}
-
-		dw.logger.Info("Successfully deleted memory", "memory_id", fact.ID)
-	}
-
-	dw.logger.Info("Completed memory cleanup for file", "path", filePath, "memories_to_delete", len(result.Facts))
-	return nil
 }
 
 func (dw *DirectoryWatcher) updateFilePathInMemory(ctx context.Context, oldPath, newPath string) error {
@@ -1055,41 +881,6 @@ func (dw *DirectoryWatcher) updateFilePathInMemory(ctx context.Context, oldPath,
 	return nil
 }
 
-func (dw *DirectoryWatcher) readFileContent(filePath string) (string, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to open file")
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			dw.logger.Warn("Failed to close file during content reading", "path", filePath, "error", closeErr)
-		}
-	}()
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return "", errors.Wrap(err, "failed to get file info")
-	}
-
-	if fileInfo.Size() > MaxFileSize {
-		dw.logger.Warn("File too large, reading first portion only", "path", filePath, "size", fileInfo.Size(), "maxSize", MaxFileSize)
-		buffer := make([]byte, MaxFileSize)
-		n, err := file.Read(buffer)
-		if err != nil && err != io.EOF {
-			return "", errors.Wrap(err, "failed to read file content")
-		}
-		return string(buffer[:n]), nil
-	}
-
-	content, err := io.ReadAll(file)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to read file content")
-	}
-
-	return string(content), nil
-}
-
-// Add helper methods for metrics.
 func (dw *DirectoryWatcher) incrementProcessedFiles() {
 	dw.statsMu.Lock()
 	defer dw.statsMu.Unlock()
