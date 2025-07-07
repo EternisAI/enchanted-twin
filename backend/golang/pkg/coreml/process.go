@@ -3,9 +3,10 @@ package coreml
 import (
 	"bufio"
 	"context"
-	"github.com/openai/openai-go/packages/param"
 	"io"
 	"os/exec"
+
+	"github.com/openai/openai-go/packages/param"
 )
 
 type BinaryProcess interface {
