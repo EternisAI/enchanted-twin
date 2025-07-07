@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
+
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 func TestCompletionServiceInteractive(t *testing.T) {
