@@ -13,11 +13,26 @@ import (
 	"github.com/openai/openai-go"
 )
 
+type anonymizationRequest struct {
+	ctx          context.Context
+	messages     []openai.ChatCompletionMessageParamUnion
+	interruptChan <-chan struct{}
+	responseChan chan anonymizationResponse
+}
+
+type anonymizationResponse struct {
+	messages []openai.ChatCompletionMessageParamUnion
+	rules    map[string]string
+	err      error
+}
+
 type MockAnonymizer struct {
 	Delay                  time.Duration
 	PredefinedReplacements map[string]string
-
-	logger *log.Logger
+	
+	requestChan chan anonymizationRequest
+	done        chan struct{}
+	logger      *log.Logger
 }
 
 var (
@@ -64,8 +79,13 @@ func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer
 				"+1-555-123-4567": "PHONE_001",
 				"555-987-6543":    "PHONE_002",
 			},
-			logger: logger,
+			requestChan: make(chan anonymizationRequest, 10), // Buffer for requests
+			done:        make(chan struct{}),
+			logger:      logger,
 		}
+
+		// Start single-threaded processor goroutine
+		go mockAnonymizerInstance.processRequests()
 
 		logger.Info("MockAnonymizer singleton initialized", "delay", delay)
 	})
@@ -74,14 +94,71 @@ func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer
 }
 
 func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error) {
-	allRules := make(map[string]string)
-	anonymizedMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
+	responseChan := make(chan anonymizationResponse, 1)
+	
+	request := anonymizationRequest{
+		ctx:          ctx,
+		messages:     messages,
+		interruptChan: interruptChan,
+		responseChan: responseChan,
+	}
 
-	for i, message := range messages {
+	// Send request to single-threaded processor
+	select {
+	case m.requestChan <- request:
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	case <-interruptChan:
+		return nil, nil, fmt.Errorf("anonymization interrupted before processing")
+	}
+
+	// Wait for response
+	select {
+	case response := <-responseChan:
+		return response.messages, response.rules, response.err
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	case <-interruptChan:
+		return nil, nil, fmt.Errorf("anonymization interrupted while waiting for response")
+	}
+}
+
+func (m *MockAnonymizer) processRequests() {
+	for {
+		select {
+		case <-m.done:
+			return
+		case request := <-m.requestChan:
+			response := m.processAnonymizationRequest(request)
+			
+			// Send response back, handling potential channel closure
+			select {
+			case request.responseChan <- response:
+			case <-request.ctx.Done():
+				// Request context was canceled, don't block
+			case <-request.interruptChan:
+				// Request was interrupted, don't block  
+			case <-m.done:
+				// Anonymizer is shutting down
+				return
+			}
+		}
+	}
+}
+
+func (m *MockAnonymizer) processAnonymizationRequest(request anonymizationRequest) anonymizationResponse {
+	allRules := make(map[string]string)
+	anonymizedMessages := make([]openai.ChatCompletionMessageParamUnion, len(request.messages))
+
+	for i, message := range request.messages {
 		// Check for interruption during processing
 		select {
-		case <-interruptChan:
-			return nil, nil, fmt.Errorf("anonymization interrupted by scheduler")
+		case <-request.interruptChan:
+			return anonymizationResponse{
+				messages: nil,
+				rules:    nil,
+				err:      fmt.Errorf("anonymization interrupted by scheduler"),
+			}
 		default:
 		}
 
@@ -91,18 +168,30 @@ func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, messages []opena
 			select {
 			case <-time.After(m.Delay):
 				// Full delay completed
-			case <-interruptChan:
+			case <-request.interruptChan:
 				// Interrupted by scheduler
-				return nil, nil, fmt.Errorf("message anonymization interrupted by scheduler")
-			case <-ctx.Done():
+				return anonymizationResponse{
+					messages: nil,
+					rules:    nil,
+					err:      fmt.Errorf("message anonymization interrupted by scheduler"),
+				}
+			case <-request.ctx.Done():
 				// Context canceled
-				return nil, nil, ctx.Err()
+				return anonymizationResponse{
+					messages: nil,
+					rules:    nil,
+					err:      request.ctx.Err(),
+				}
 			}
 		}
 
-		anonymizedMsg, rules, err := m.anonymizeMessage(ctx, message)
+		anonymizedMsg, rules, err := m.anonymizeMessage(request.ctx, message)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to anonymize message %d: %w", i, err)
+			return anonymizationResponse{
+				messages: nil,
+				rules:    nil,
+				err:      fmt.Errorf("failed to anonymize message %d: %w", i, err),
+			}
 		}
 
 		anonymizedMessages[i] = anonymizedMsg
@@ -116,7 +205,11 @@ func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, messages []opena
 		}
 	}
 
-	return anonymizedMessages, allRules, nil
+	return anonymizationResponse{
+		messages: anonymizedMessages,
+		rules:    allRules,
+		err:      nil,
+	}
 }
 
 func (m *MockAnonymizer) anonymizeMessage(ctx context.Context, message openai.ChatCompletionMessageParamUnion) (openai.ChatCompletionMessageParamUnion, map[string]string, error) {
@@ -251,4 +344,18 @@ func (m *MockAnonymizer) anonymizePatterns(content string) (string, map[string]s
 	}
 
 	return result, rules
+}
+
+func (m *MockAnonymizer) Shutdown() {
+	close(m.done)
+}
+
+// ResetMockAnonymizerForTesting resets the singleton instance for testing purposes.
+// This should only be used in tests.
+func ResetMockAnonymizerForTesting() {
+	if mockAnonymizerInstance != nil {
+		mockAnonymizerInstance.Shutdown()
+	}
+	mockAnonymizerInstance = nil
+	mockAnonymizerOnce = sync.Once{}
 }
