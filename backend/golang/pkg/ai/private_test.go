@@ -51,6 +51,8 @@ func TestPrivateCompletionsMockAnonymizer(t *testing.T) {
 func TestMockAnonymizerDelay(t *testing.T) {
 	logger := log.New(nil)
 
+	// Reset singleton to ensure we get the correct delay configuration
+	ResetMockAnonymizerForTesting()
 	anonymizer := InitMockAnonymizer(10*time.Millisecond, logger)
 
 	ctx := context.Background()
@@ -79,6 +81,8 @@ func TestMockAnonymizerDelay(t *testing.T) {
 func TestPrivateCompletionsServiceMessageInterruption(t *testing.T) {
 	logger := log.New(nil)
 
+	// Reset singleton to ensure we get the correct delay configuration
+	ResetMockAnonymizerForTesting()
 	anonymizer := InitMockAnonymizer(100*time.Millisecond, logger)
 
 	mockService := &mockCompletionsService{
