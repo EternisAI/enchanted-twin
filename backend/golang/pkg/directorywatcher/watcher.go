@@ -92,16 +92,19 @@ func (dw *DirectoryWatcher) Start(ctx context.Context) error {
 			continue
 		}
 
-		if err := dw.watcher.Add(folder.Path); err != nil {
+		// Add directory recursively instead of just the top level
+		if err := dw.addDirectoryRecursively(folder.Path); err != nil {
+			dw.logger.Error("Failed to add directory recursively", "dir", folder.Path, "error", err)
 			continue
 		}
-		dw.logger.Info("✅ Directory added to fsnotify watcher", "path", folder.Path)
+		dw.logger.Info("✅ Directory added recursively to fsnotify watcher", "path", folder.Path)
 		successfullyAdded++
 	}
 
 	watchList := dw.watcher.WatchList()
+	dw.logger.Info("📍 Total directories being watched", "count", len(watchList))
 	for i, path := range watchList {
-		dw.logger.Info("📍 Watching", "index", i, "path", path)
+		dw.logger.Debug("📂 Watching", "index", i, "path", path)
 	}
 
 	dw.wg.Add(2)
@@ -175,7 +178,14 @@ func (dw *DirectoryWatcher) eventLoop() {
 }
 
 func (dw *DirectoryWatcher) handleFileEvent(event fsnotify.Event) {
+	// Handle directory creation - add new directories to watcher
 	if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
+		if strings.Contains(event.Op.String(), "CREATE") {
+			dw.logger.Info("New directory created, adding to watcher", "path", event.Name)
+			if err := dw.watcher.Add(event.Name); err != nil {
+				dw.logger.Error("Failed to add new directory to watcher", "error", err, "path", event.Name)
+			}
+		}
 		return
 	}
 
@@ -1152,7 +1162,36 @@ func (dw *DirectoryWatcher) incrementErrorCount() {
 	dw.errorCount++
 }
 
-// AddWatchedDirectory adds a new directory to watch.
+// addDirectoryRecursively adds a directory and all its subdirectories to the watcher
+func (dw *DirectoryWatcher) addDirectoryRecursively(rootPath string) error {
+	dirsAdded := 0
+	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			dw.logger.Warn("Failed to access path during recursive watch setup", "path", path, "error", err)
+			return nil // Continue walking, don't fail the entire operation
+		}
+
+		// Only add directories
+		if info.IsDir() {
+			if err := dw.watcher.Add(path); err != nil {
+				dw.logger.Warn("Failed to add subdirectory to watcher", "path", path, "error", err)
+				return nil // Continue walking, don't fail the entire operation
+			}
+			dw.logger.Debug("Added subdirectory to watcher", "path", path)
+			dirsAdded++
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	dw.logger.Info("Recursively added directories to watcher", "rootPath", rootPath, "totalDirsAdded", dirsAdded)
+	return nil
+}
+
+// AddWatchedDirectory adds a new directory to watch recursively.
 func (dw *DirectoryWatcher) AddWatchedDirectory(path string) error {
 	// Check if already watching
 	watchList := dw.watcher.WatchList()
@@ -1167,12 +1206,12 @@ func (dw *DirectoryWatcher) AddWatchedDirectory(path string) error {
 		return errors.Wrap(err, "failed to create directory")
 	}
 
-	// Add to watcher
-	if err := dw.watcher.Add(path); err != nil {
-		return errors.Wrap(err, "failed to add directory to watcher")
+	// Add the main directory and all subdirectories recursively
+	if err := dw.addDirectoryRecursively(path); err != nil {
+		return errors.Wrap(err, "failed to add directory recursively")
 	}
 
-	dw.logger.Info("Added directory to watcher", "path", path)
+	dw.logger.Info("Added directory to watcher recursively", "path", path)
 
 	// Perform initial scan of the newly added directory
 	go dw.performInitialScanForDirectory(path)
