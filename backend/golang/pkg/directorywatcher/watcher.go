@@ -72,7 +72,7 @@ func NewDirectoryWatcher(store *db.Store, memoryStorage evolvingmemory.MemorySto
 		fileBuffer:     make(map[string]*FileEvent),
 		bufferDuration: BufferTimeout,
 		supportedExts: []string{
-			".json", ".mbox", ".zip", ".sqlite", ".db", ".tar", ".tar.gz", ".txt", ".pdf",
+			".json", ".mbox", ".zip", ".sqlite", ".db", ".tar", ".tar.gz", ".txt", ".pdf", ".docx",
 		},
 	}
 
