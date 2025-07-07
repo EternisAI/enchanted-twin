@@ -13,10 +13,10 @@ import (
 )
 
 type anonymizationRequest struct {
-	ctx          context.Context
-	messages     []openai.ChatCompletionMessageParamUnion
+	ctx           context.Context
+	messages      []openai.ChatCompletionMessageParamUnion
 	interruptChan <-chan struct{}
-	responseChan chan anonymizationResponse
+	responseChan  chan anonymizationResponse
 }
 
 type anonymizationResponse struct {
@@ -28,7 +28,7 @@ type anonymizationResponse struct {
 type MockAnonymizer struct {
 	Delay                  time.Duration
 	PredefinedReplacements map[string]string
-	
+
 	requestChan chan anonymizationRequest
 	done        chan struct{}
 	logger      *log.Logger
@@ -88,12 +88,12 @@ func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer
 
 func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error) {
 	responseChan := make(chan anonymizationResponse, 1)
-	
+
 	request := anonymizationRequest{
-		ctx:          ctx,
-		messages:     messages,
+		ctx:           ctx,
+		messages:      messages,
 		interruptChan: interruptChan,
-		responseChan: responseChan,
+		responseChan:  responseChan,
 	}
 
 	// Send request to single-threaded processor
@@ -123,14 +123,14 @@ func (m *MockAnonymizer) processRequests() {
 			return
 		case request := <-m.requestChan:
 			response := m.processAnonymizationRequest(request)
-			
+
 			// Send response back, handling potential channel closure
 			select {
 			case request.responseChan <- response:
 			case <-request.ctx.Done():
 				// Request context was canceled, don't block
 			case <-request.interruptChan:
-				// Request was interrupted, don't block  
+				// Request was interrupted, don't block
 			case <-m.done:
 				// Anonymizer is shutting down
 				return
@@ -273,7 +273,6 @@ func (m *MockAnonymizer) anonymizeContent(ctx context.Context, content string) (
 		}
 	}
 
-
 	m.logger.Debug("Anonymization complete", "originalLength", len(content), "anonymizedLength", len(anonymized), "rulesCount", len(rules))
 
 	return anonymized, rules, nil
@@ -291,7 +290,6 @@ func (m *MockAnonymizer) DeAnonymize(anonymized string, rules map[string]string)
 
 	return restored
 }
-
 
 func (m *MockAnonymizer) Shutdown() {
 	close(m.done)
