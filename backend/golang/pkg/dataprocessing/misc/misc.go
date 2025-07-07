@@ -36,6 +36,10 @@ type TextDocumentProcessor struct {
 	logger           *log.Logger
 }
 
+const (
+	MemorySourceName = "synced-document"
+)
+
 func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger) (processor.Processor, error) {
 	if openAiService == nil {
 		return nil, fmt.Errorf("openAiService is nil")
@@ -567,7 +571,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 				"path": filePath,
 			},
 			Timestamp: timestamp,
-			Source:    "synced-document",
+			Source:    MemorySourceName,
 		}
 		return []types.Record{emptyRecord}, nil
 	}
@@ -607,7 +611,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 				"tags":  tags,
 			},
 			Timestamp: timestamp,
-			Source:    "synced-document",
+			Source:    MemorySourceName,
 		}
 		records = append(records, record)
 
@@ -692,7 +696,7 @@ func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types
 			FieldID:        docID,
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,
-			FieldSource:    "synced-document",
+			FieldSource:    MemorySourceName,
 			FieldMetadata:  metadata,
 			FieldTags:      tags,
 		}
