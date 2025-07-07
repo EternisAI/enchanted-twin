@@ -30,7 +30,7 @@ type Config struct {
 	ProxyTeeURL               string
 	PrivateCompletionsEnabled bool
 	PrivateCompletionsWorkers int
-	AnonymizerDelay           string
+	MockAnonymizerDelay       string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -78,7 +78,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		ProxyTeeURL:               getEnv("PROXY_TEE_URL", "", printEnv),
 		PrivateCompletionsEnabled: privateCompletionsEnabled,
 		PrivateCompletionsWorkers: privateCompletionsWorkers,
-		AnonymizerDelay:           getEnv("ANONYMIZER_DELAY", "100ms", printEnv),
+		MockAnonymizerDelay:       getEnv("MOCK_ANONYMIZER_DELAY", "10ms", printEnv),
 	}
 	return conf, nil
 }

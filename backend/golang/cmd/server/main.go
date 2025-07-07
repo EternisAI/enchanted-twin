@@ -210,10 +210,10 @@ func main() {
 	// Initialize Private Completions Service
 	if envs.PrivateCompletionsEnabled {
 		// Parse anonymizer delay
-		delay, err := time.ParseDuration(envs.AnonymizerDelay)
+		delay, err := time.ParseDuration(envs.MockAnonymizerDelay)
 		if err != nil {
-			logger.Warn("Invalid anonymizer delay, using default", "delay", envs.AnonymizerDelay, "error", err)
-			delay = 100 * time.Millisecond
+			logger.Warn("Invalid anonymizer delay, using default", "delay", envs.MockAnonymizerDelay, "error", err)
+			delay = 10 * time.Millisecond
 		}
 
 		// Initialize singleton anonymizer
@@ -235,7 +235,7 @@ func main() {
 
 		logger.Info("Private completions service initialized and enabled",
 			"workers", envs.PrivateCompletionsWorkers,
-			"anonymizerDelay", delay)
+			"mockAnonymizerDelay", delay)
 	} else {
 		logger.Info("Private completions service disabled")
 	}
