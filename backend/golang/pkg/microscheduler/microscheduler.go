@@ -239,24 +239,6 @@ func (w *WorkerProcessor) processTask(req TaskRequest) InterruptedTaskResult {
 		taskState = &NoOpTaskState{}
 	}
 
-	finalSavedState := savedState
-	finalStateSaved := stateSaved
-
-	originalSaveState := interruptCtx.SaveState
-	interruptCtx.SaveState = func(state TaskState) error {
-		if err := originalSaveState(state); err != nil {
-			return err
-		}
-		data, err := state.Save()
-		if err != nil {
-			return err
-		}
-		finalSavedState = data
-		finalStateSaved = true
-		w.logger.Debug("Task state saved during interruption", "taskName", req.Task.Name, "processorID", w.ID, "stateSize", len(data))
-		return nil
-	}
-
 	done := make(chan struct {
 		value interface{}
 		err   error
@@ -277,8 +259,8 @@ func (w *WorkerProcessor) processTask(req TaskRequest) InterruptedTaskResult {
 		return InterruptedTaskResult{
 			TaskResult:   TaskResult{Value: result.value, Error: result.err},
 			Interrupted:  interrupted,
-			SavedState:   finalSavedState,
-			StateSaved:   finalStateSaved,
+			SavedState:   savedState,
+			StateSaved:   stateSaved,
 			NoReschedule: noReschedule,
 		}
 	case <-req.Context.Done():
@@ -288,8 +270,8 @@ func (w *WorkerProcessor) processTask(req TaskRequest) InterruptedTaskResult {
 		return InterruptedTaskResult{
 			TaskResult:   TaskResult{Value: result.value, Error: result.err},
 			Interrupted:  true,
-			SavedState:   finalSavedState,
-			StateSaved:   finalStateSaved,
+			SavedState:   savedState,
+			StateSaved:   stateSaved,
 			NoReschedule: noReschedule,
 		}
 	}
@@ -486,6 +468,24 @@ func (e *TaskExecutor) handleBackgroundTasks(processor *WorkerProcessor) bool {
 	}
 }
 
+func (e *TaskExecutor) handleInterruptRequest(processor *WorkerProcessor, backgroundReq TaskRequest, resultChan <-chan InterruptedTaskResult, interruptReq TaskRequest) {
+	processor.Interrupt()
+	// Add timeout to prevent deadlock if task doesn't respond to interrupt
+	select {
+	case result := <-resultChan:
+		e.handleInterruptedTask(backgroundReq, result)
+	case <-time.After(100 * time.Millisecond):
+		e.logger.Warn("Background task did not respond to interrupt within timeout")
+		// Force reschedule the background task and send error back to original caller
+		e.rescheduleTask(backgroundReq)
+		backgroundReq.Done <- TaskResult{Value: nil, Error: fmt.Errorf("task interrupted and rescheduled due to timeout")}
+	}
+
+	// Process the interrupting request
+	interruptResult := processor.Process(interruptReq)
+	interruptReq.Done <- interruptResult
+}
+
 func (e *TaskExecutor) processBackgroundTaskWithInterruption(processor *WorkerProcessor, req TaskRequest) {
 	resultChan := make(chan InterruptedTaskResult, 1)
 	go func() {
@@ -497,33 +497,9 @@ func (e *TaskExecutor) processBackgroundTaskWithInterruption(processor *WorkerPr
 	case result := <-resultChan:
 		e.handleBackgroundTaskResult(req, result)
 	case uiReq := <-e.uiQueue:
-		processor.Interrupt()
-		// Add timeout to prevent deadlock if task doesn't respond to interrupt
-		select {
-		case result := <-resultChan:
-			e.handleInterruptedTask(req, result)
-		case <-time.After(100 * time.Millisecond):
-			e.logger.Warn("Background task did not respond to interrupt within timeout")
-			// Force reschedule the background task and send error back to original caller
-			e.rescheduleTask(req)
-			req.Done <- TaskResult{Value: nil, Error: fmt.Errorf("task interrupted and rescheduled due to timeout")}
-		}
-		uiResult := processor.Process(uiReq)
-		uiReq.Done <- uiResult
+		e.handleInterruptRequest(processor, req, resultChan, uiReq)
 	case lastEffortReq := <-e.lastEffortQueue:
-		processor.Interrupt()
-		// Add timeout to prevent deadlock if task doesn't respond to interrupt
-		select {
-		case result := <-resultChan:
-			e.handleInterruptedTask(req, result)
-		case <-time.After(100 * time.Millisecond):
-			e.logger.Warn("Background task did not respond to interrupt within timeout")
-			// Force reschedule the background task and send error back to original caller
-			e.rescheduleTask(req)
-			req.Done <- TaskResult{Value: nil, Error: fmt.Errorf("task interrupted and rescheduled due to timeout")}
-		}
-		lastEffortResult := processor.Process(lastEffortReq)
-		lastEffortReq.Done <- lastEffortResult
+		e.handleInterruptRequest(processor, req, resultChan, lastEffortReq)
 	}
 }
 
