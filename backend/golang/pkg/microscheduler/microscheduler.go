@@ -3,6 +3,7 @@ package microscheduler
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -540,7 +541,8 @@ func (e *TaskExecutor) handleInterruptedTask(req TaskRequest, result Interrupted
 }
 
 func (e *TaskExecutor) waitForTasks() {
-	time.Sleep(1 * time.Millisecond)
+	// Yield to other goroutines to avoid busy-waiting
+	runtime.Gosched()
 }
 
 func (e *TaskExecutor) dedicatedUIProcessor(id int) {
