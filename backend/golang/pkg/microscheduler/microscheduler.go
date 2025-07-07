@@ -3,7 +3,6 @@ package microscheduler
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -412,17 +411,30 @@ func (e *TaskExecutor) singleProcessor() {
 	processor := NewWorkerProcessor(0, e.config.ResourceFactory(0, UIWorker), e.logger)
 
 	for {
+		// First, handle any pending high-priority tasks without blocking
+		for e.handleHighPriorityTasks(processor) {
+			// Keep processing high-priority tasks until none are left
+		}
+
+		// Then handle background tasks with preemption support
+		req, hasBackground := e.getNextBackgroundTask()
+		if hasBackground {
+			e.processBackgroundTaskWithInterruption(processor, req)
+			continue
+		}
+
+		// No tasks available, block until one arrives
 		select {
 		case <-e.shutdown:
 			return
-		default:
-			if handled := e.handleHighPriorityTasks(processor); handled {
-				continue
-			}
-			if handled := e.handleBackgroundTasks(processor); handled {
-				continue
-			}
-			e.waitForTasks()
+		case req := <-e.uiQueue:
+			result := processor.Process(req)
+			req.Done <- result
+		case req := <-e.lastEffortQueue:
+			result := processor.Process(req)
+			req.Done <- result
+		case req := <-e.backgroundQueue:
+			e.processBackgroundTaskWithInterruption(processor, req)
 		}
 	}
 }
@@ -439,33 +451,6 @@ func (e *TaskExecutor) handleHighPriorityTasks(processor *WorkerProcessor) bool 
 		return true
 	default:
 		return false
-	}
-}
-
-func (e *TaskExecutor) handleBackgroundTasks(processor *WorkerProcessor) bool {
-	req, ok := e.getNextBackgroundTask()
-	if !ok {
-		return false
-	}
-
-	// Check for immediate preemption by high-priority tasks
-	select {
-	case uiReq := <-e.uiQueue:
-		processor.Interrupt()
-		e.rescheduleTask(req)
-		result := processor.Process(uiReq)
-		uiReq.Done <- result
-		return true
-	case lastEffortReq := <-e.lastEffortQueue:
-		processor.Interrupt()
-		e.rescheduleTask(req)
-		result := processor.Process(lastEffortReq)
-		lastEffortReq.Done <- result
-		return true
-	default:
-		// Process background task with interruption support
-		e.processBackgroundTaskWithInterruption(processor, req)
-		return true
 	}
 }
 
@@ -538,11 +523,6 @@ func (e *TaskExecutor) handleInterruptedTask(req TaskRequest, result Interrupted
 		// This can happen when task completes normally or returns an error without setting Interrupted=true
 		req.Done <- result.TaskResult
 	}
-}
-
-func (e *TaskExecutor) waitForTasks() {
-	// Yield to other goroutines to avoid busy-waiting
-	runtime.Gosched()
 }
 
 func (e *TaskExecutor) dedicatedUIProcessor(id int) {
