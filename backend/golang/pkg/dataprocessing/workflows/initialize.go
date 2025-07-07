@@ -72,7 +72,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		},
 	})
 
-	// Get workflow ID for claiming data sources
 	workflowID := workflow.GetInfo(ctx).WorkflowExecution.ID
 
 	indexingState := model.IndexingStateNotStarted
@@ -92,14 +91,12 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to set query handler")
 	}
 
-	// Cleanup stale processing data sources at the start
 	var cleanupResponse CleanupStaleProcessingResponse
 	err = workflow.ExecuteActivity(ctx, w.CleanupStaleProcessingActivity, CleanupStaleProcessingInput{
-		StaleAfterMinutes: 60, // Consider stale after 1 hour
+		StaleAfterMinutes: 60,
 	}).Get(ctx, &cleanupResponse)
 	if err != nil {
 		workflow.GetLogger(ctx).Warn("Failed to cleanup stale processing data sources", "error", err)
-		// Continue execution even if cleanup fails
 	} else if cleanupResponse.CleanedCount > 0 {
 		workflow.GetLogger(ctx).Info("Cleaned up stale processing data sources", "count", cleanupResponse.CleanedCount)
 	}
@@ -141,7 +138,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			HasError:    *dataSource.HasError,
 		})
 
-		// Initialize result tracking
 		dataSourceResults[dataSource.ID] = &DataSourceResult{
 			ID:               dataSource.ID,
 			Name:             dataSource.Name,
@@ -161,7 +157,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	for i, dataSource := range fetchDataSourcesResponse.DataSources {
 		w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
-		// Try to claim this data source for processing
 		var claimResponse ClaimDataSourceResponse
 		err = workflow.ExecuteActivity(ctx, w.ClaimDataSourceForProcessingActivity, ClaimDataSourceInput{
 			DataSourceID: dataSource.ID,
@@ -173,7 +168,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				"dataSource", dataSource.Name)
 			dataSources[i].HasError = true
 			errMsg := err.Error()
-			// Update result tracking
+
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "failed"
 				result.HasError = true
@@ -186,16 +181,15 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		if !claimResponse.Claimed {
 			workflow.GetLogger(ctx).Info("Data source already claimed by another workflow",
 				"dataSource", dataSource.Name)
-			// Update result tracking
+
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "skipped"
 				result.ProcessingSkipped = true
 			}
-			// Skip this data source - it's being processed by another workflow
+
 			continue
 		}
 
-		// Process the data source
 		processDataActivityInput := ProcessDataActivityInput{
 			DataSourceName: dataSource.Name,
 			SourcePath:     dataSource.Path,
@@ -206,7 +200,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).
 			Get(ctx, &processDataResponse)
 
-		// RELEASE IMMEDIATELY after processing (success or failure)
 		releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
 			DataSourceID: dataSource.ID,
 			WorkflowID:   workflowID,
@@ -226,7 +219,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			dataSources[i].IsProcessed = false
 			dataSources[i].HasError = true
 			errMsg := err.Error()
-			// Update result tracking
+
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "failed"
 				result.IsProcessed = false
@@ -238,7 +231,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			dataSources[i].IsProcessed = true
 			dataSources[i].HasError = false
 			dataSources[i].IsIndexed = false
-			// Update result tracking
+
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "completed"
 				result.IsProcessed = true
@@ -349,7 +342,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			workflow.GetLogger(ctx).Warn("No batches found for data source", "dataSource", dataSourceDB.Name)
 			dataSources[i].IsIndexed = true
 			dataSources[i].IndexProgress = 100
-			// Update result tracking
+
 			if result, exists := dataSourceResults[dataSourceDB.ID]; exists {
 				result.IndexingStatus = "completed"
 				result.IsIndexed = true
@@ -358,12 +351,18 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			continue
 		}
 
-		// Replace sequential processing with parallel batch processing
 		failedBatches := 0
 		successfulBatches := 0
 		totalDocumentsStored := 0
 
-		// Start all batch activities in parallel
+		indexBatchCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			StartToCloseTimeout:    30 * time.Minute,
+			ScheduleToStartTimeout: 10 * time.Minute,
+			RetryPolicy: &temporal.RetryPolicy{
+				MaximumAttempts: 1,
+			},
+		})
+
 		batchFutures := make([]workflow.Future, getBatchesResponse.TotalBatches)
 		for batchIndex := 0; batchIndex < getBatchesResponse.TotalBatches; batchIndex++ {
 			indexBatchInput := IndexBatchActivityInput{
@@ -375,8 +374,8 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				TotalBatches:   getBatchesResponse.TotalBatches,
 			}
 
-			// Start activity without blocking (no .Get())
-			batchFutures[batchIndex] = workflow.ExecuteActivity(ctx, w.IndexBatchActivity, indexBatchInput)
+			// Start activity without blocking (no .Get()) using the specific context
+			batchFutures[batchIndex] = workflow.ExecuteActivity(indexBatchCtx, w.IndexBatchActivity, indexBatchInput)
 
 			workflow.GetLogger(ctx).Info("Started batch processing",
 				"dataSource", dataSourceDB.Name,
