@@ -659,6 +659,12 @@ func EventHandler(memoryStorage memory.Storage, database *db.DB, logger *log.Log
 	}
 
 	return func(evt interface{}) {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("Recovered from panic in WhatsApp event handler", "panic", r, "event_type", fmt.Sprintf("%T", evt))
+			}
+		}()
+
 		switch v := evt.(type) {
 		case *events.HistorySync:
 
@@ -970,6 +976,9 @@ type ConnectionManager struct {
 	baseDelay       time.Duration
 	reconnectCancel context.CancelFunc
 	reconnectMux2   sync.Mutex
+	failureCount    int
+	lastFailureTime time.Time
+	circuitBreaker  bool
 }
 
 type ConnectionManagerConfig struct {
@@ -1038,6 +1047,7 @@ func (cm *ConnectionManager) connectWithRetry() error {
 		err := cm.attemptConnection()
 		if err == nil {
 			cm.isConnected = true
+			cm.resetFailures()
 			cm.logger.Info("WhatsApp connection established successfully")
 
 			go cm.monitorConnection()
@@ -1045,9 +1055,11 @@ func (cm *ConnectionManager) connectWithRetry() error {
 		}
 
 		lastErr = err
+		cm.recordFailure()
 		cm.logger.Error("WhatsApp connection attempt failed",
 			"attempt", attempt+1,
-			"error", err)
+			"error", err,
+			"failure_count", cm.failureCount)
 	}
 
 	return fmt.Errorf("failed to connect after %d attempts, last error: %w", cm.maxRetries, lastErr)
@@ -1095,6 +1107,12 @@ func (cm *ConnectionManager) calculateBackoff(attempt int) time.Duration {
 }
 
 func (cm *ConnectionManager) handleConnectionEvents(evt interface{}) {
+	defer func() {
+		if r := recover(); r != nil {
+			cm.logger.Error("Recovered from panic in connection event handler", "panic", r, "event_type", fmt.Sprintf("%T", evt))
+		}
+	}()
+
 	switch evt.(type) {
 	case *events.Disconnected:
 		cm.logger.Warn("WhatsApp client disconnected")
@@ -1105,6 +1123,11 @@ func (cm *ConnectionManager) handleConnectionEvents(evt interface{}) {
 		case <-cm.ctx.Done():
 			return
 		default:
+		}
+
+		if !cm.shouldAttemptReconnection() {
+			cm.logger.Info("Skipping reconnection attempt due to circuit breaker")
+			return
 		}
 
 		// Prevent multiple concurrent reconnection attempts
@@ -1125,9 +1148,14 @@ func (cm *ConnectionManager) handleConnectionEvents(evt interface{}) {
 		reconnectCtx, cancel := context.WithCancel(cm.ctx)
 		cm.reconnectCancel = cancel
 
+		time.Sleep(2 * time.Second)
+
 		// Attempt reconnection
 		go func() {
 			defer func() {
+				if r := recover(); r != nil {
+					cm.logger.Error("Recovered from panic in reconnection goroutine", "panic", r)
+				}
 				cm.reconnectMux2.Lock()
 				cm.isReconnecting = false
 				cm.reconnectMux2.Unlock()
@@ -1177,14 +1205,17 @@ func (cm *ConnectionManager) connectWithRetryContext(ctx context.Context) error 
 		err := cm.attemptConnectionContext(ctx)
 		if err == nil {
 			cm.isConnected = true
+			cm.resetFailures()
 			cm.logger.Info("WhatsApp connection established successfully")
 			return nil
 		}
 
 		lastErr = err
+		cm.recordFailure()
 		cm.logger.Error("WhatsApp connection attempt failed",
 			"attempt", attempt+1,
-			"error", err)
+			"error", err,
+			"failure_count", cm.failureCount)
 	}
 
 	return fmt.Errorf("failed to connect after %d attempts, last error: %w", cm.maxRetries, lastErr)
@@ -1217,6 +1248,12 @@ func (cm *ConnectionManager) attemptConnectionContext(ctx context.Context) error
 }
 
 func (cm *ConnectionManager) monitorConnection() {
+	defer func() {
+		if r := recover(); r != nil {
+			cm.logger.Error("Recovered from panic in connection monitoring", "panic", r)
+		}
+	}()
+
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
@@ -1229,47 +1266,107 @@ func (cm *ConnectionManager) monitorConnection() {
 			}
 			return
 		case <-ticker.C:
-			if !cm.client.IsConnected() && cm.isConnected {
-				cm.logger.Warn("WhatsApp connection lost, attempting reconnection")
-				cm.isConnected = false
-
-				// Prevent multiple concurrent reconnection attempts
-				cm.reconnectMux2.Lock()
-				if cm.isReconnecting {
-					cm.reconnectMux2.Unlock()
-					continue
-				}
-				cm.isReconnecting = true
-				cm.reconnectMux2.Unlock()
-
-				// Cancel any existing reconnection attempt
-				if cm.reconnectCancel != nil {
-					cm.reconnectCancel()
-				}
-
-				// Create new context for reconnection
-				reconnectCtx, cancel := context.WithCancel(cm.ctx)
-				cm.reconnectCancel = cancel
-
-				go func() {
-					defer func() {
-						cm.reconnectMux2.Lock()
-						cm.isReconnecting = false
-						cm.reconnectMux2.Unlock()
-					}()
-
-					if err := cm.connectWithRetryContext(reconnectCtx); err != nil {
-						select {
-						case <-reconnectCtx.Done():
-							cm.logger.Info("Reconnection canceled during monitoring")
-						default:
-							cm.logger.Error("Failed to reconnect during monitoring", "error", err)
-						}
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						cm.logger.Error("Recovered from panic in connection monitoring cycle", "panic", r)
 					}
 				}()
-			}
+
+				isConnected := false
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							cm.logger.Error("Recovered from panic while checking connection status", "panic", r)
+							isConnected = false
+						}
+					}()
+					isConnected = cm.client.IsConnected()
+				}()
+
+				if !isConnected && cm.isConnected {
+					cm.logger.Warn("WhatsApp connection lost, attempting reconnection")
+					cm.isConnected = false
+
+					if !cm.shouldAttemptReconnection() {
+						cm.logger.Info("Skipping monitoring reconnection attempt due to circuit breaker")
+						return
+					}
+
+					// Prevent multiple concurrent reconnection attempts
+					cm.reconnectMux2.Lock()
+					if cm.isReconnecting {
+						cm.reconnectMux2.Unlock()
+						return
+					}
+					cm.isReconnecting = true
+					cm.reconnectMux2.Unlock()
+
+					// Cancel any existing reconnection attempt
+					if cm.reconnectCancel != nil {
+						cm.reconnectCancel()
+					}
+
+					// Create new context for reconnection
+					reconnectCtx, cancel := context.WithCancel(cm.ctx)
+					cm.reconnectCancel = cancel
+
+					go func() {
+						defer func() {
+							if r := recover(); r != nil {
+								cm.logger.Error("Recovered from panic in monitoring reconnection goroutine", "panic", r)
+							}
+							cm.reconnectMux2.Lock()
+							cm.isReconnecting = false
+							cm.reconnectMux2.Unlock()
+						}()
+
+						if err := cm.connectWithRetryContext(reconnectCtx); err != nil {
+							select {
+							case <-reconnectCtx.Done():
+								cm.logger.Info("Reconnection canceled during monitoring")
+							default:
+								cm.logger.Error("Failed to reconnect during monitoring", "error", err)
+							}
+						}
+					}()
+				}
+			}()
 		}
 	}
+}
+
+func (cm *ConnectionManager) IsConnected() bool {
+	defer func() {
+		if r := recover(); r != nil {
+			cm.logger.Error("Recovered from panic while checking connection status", "panic", r)
+		}
+	}()
+
+	return cm.client.IsConnected()
+}
+
+func (cm *ConnectionManager) shouldAttemptReconnection() bool {
+	if cm.failureCount >= 5 {
+		if time.Since(cm.lastFailureTime) < 5*time.Minute {
+			cm.logger.Warn("Circuit breaker active - too many connection failures",
+				"failure_count", cm.failureCount,
+				"last_failure", cm.lastFailureTime)
+			return false
+		}
+		cm.failureCount = 0
+	}
+	return true
+}
+
+func (cm *ConnectionManager) recordFailure() {
+	cm.failureCount++
+	cm.lastFailureTime = time.Now()
+}
+
+func (cm *ConnectionManager) resetFailures() {
+	cm.failureCount = 0
+	cm.lastFailureTime = time.Time{}
 }
 
 func (cm *ConnectionManager) Disconnect() {
@@ -1283,9 +1380,18 @@ func (cm *ConnectionManager) Disconnect() {
 	cm.reconnectMux.Lock()
 	defer cm.reconnectMux.Unlock()
 
-	if cm.client.IsConnected() {
-		cm.client.Disconnect()
-	}
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				cm.logger.Error("Recovered from panic while disconnecting", "panic", r)
+			}
+		}()
+
+		if cm.client.IsConnected() {
+			cm.client.Disconnect()
+		}
+	}()
+
 	cm.isConnected = false
 }
 
@@ -1344,30 +1450,82 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logg
 			}
 		}()
 
-		// Handle QR code events
-		for evt := range qrChan {
-			switch evt.Event {
-			case "code":
-				qrEvent := QRCodeEvent{
-					Event: evt.Event,
-					Code:  evt.Code,
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("Recovered from panic in QR code handling", "panic", r)
 				}
-				SetLatestQREvent(qrEvent)
-				whatsappQRChan := GetQRChannel()
-				select {
-				case whatsappQRChan <- qrEvent:
-				default:
-					logger.Warn("Warning: QR channel buffer full, dropping event")
+			}()
+
+			for evt := range qrChan {
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							logger.Error("Recovered from panic in QR event processing", "panic", r)
+						}
+					}()
+
+					switch evt.Event {
+					case "code":
+						qrEvent := QRCodeEvent{
+							Event: evt.Event,
+							Code:  evt.Code,
+						}
+						SetLatestQREvent(qrEvent)
+						whatsappQRChan := GetQRChannel()
+						select {
+						case whatsappQRChan <- qrEvent:
+						default:
+							logger.Warn("Warning: QR channel buffer full, dropping event")
+						}
+						logger.Info("Received new WhatsApp QR code", "qr_code", evt.Code)
+					case "success":
+						qrEvent := QRCodeEvent{
+							Event: "success",
+							Code:  "",
+						}
+						SetLatestQREvent(qrEvent)
+						GetQRChannel() <- qrEvent
+						logger.Info("WhatsApp connection successful")
+
+						StartSync()
+						UpdateSyncStatus(SyncStatus{
+							IsSyncing:      true,
+							IsCompleted:    false,
+							ProcessedItems: 0,
+							TotalItems:     0,
+							StatusMessage:  "Waiting for history sync to begin",
+						})
+						err = PublishSyncStatus(nc, logger)
+						if err != nil {
+							logger.Error("Error publishing sync status", "error", err)
+						}
+
+					default:
+						logger.Info("Login event", "event", evt.Event)
+					}
+				}()
+			}
+		}()
+	} else {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("Recovered from panic during existing session connection", "panic", r)
 				}
-				logger.Info("Received new WhatsApp QR code", "qr_code", evt.Code)
-			case "success":
+			}()
+
+			err = connManager.Connect()
+			if err != nil {
+				logger.Error("Error connecting to WhatsApp with existing session", "error", err)
+			} else {
 				qrEvent := QRCodeEvent{
 					Event: "success",
 					Code:  "",
 				}
 				SetLatestQREvent(qrEvent)
 				GetQRChannel() <- qrEvent
-				logger.Info("WhatsApp connection successful")
+				logger.Info("Already logged in, reusing session")
 
 				StartSync()
 				UpdateSyncStatus(SyncStatus{
@@ -1381,38 +1539,8 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logg
 				if err != nil {
 					logger.Error("Error publishing sync status", "error", err)
 				}
-
-			default:
-				logger.Info("Login event", "event", evt.Event)
 			}
-		}
-	} else {
-		// Existing session - connect directly
-		err = connManager.Connect()
-		if err != nil {
-			logger.Error("Error connecting to WhatsApp with existing session", "error", err)
-		} else {
-			qrEvent := QRCodeEvent{
-				Event: "success",
-				Code:  "",
-			}
-			SetLatestQREvent(qrEvent)
-			GetQRChannel() <- qrEvent
-			logger.Info("Already logged in, reusing session")
-
-			StartSync()
-			UpdateSyncStatus(SyncStatus{
-				IsSyncing:      true,
-				IsCompleted:    false,
-				ProcessedItems: 0,
-				TotalItems:     0,
-				StatusMessage:  "Waiting for history sync to begin",
-			})
-			err = PublishSyncStatus(nc, logger)
-			if err != nil {
-				logger.Error("Error publishing sync status", "error", err)
-			}
-		}
+		}()
 	}
 
 	// Set up graceful shutdown
