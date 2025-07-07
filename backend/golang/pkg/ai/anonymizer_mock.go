@@ -39,40 +39,42 @@ var (
 	mockAnonymizerOnce     sync.Once
 )
 
+var defaultReplacements = map[string]string{
+	// Common names
+	"John":    "PERSON_001",
+	"Jane":    "PERSON_002",
+	"Alice":   "PERSON_003",
+	"Bob":     "PERSON_004",
+	"Charlie": "PERSON_005",
+	"David":   "PERSON_006",
+	"Emma":    "PERSON_007",
+	"Frank":   "PERSON_008",
+
+	// Company names
+	"OpenAI":    "COMPANY_001",
+	"Microsoft": "COMPANY_002",
+	"Google":    "COMPANY_003",
+	"Apple":     "COMPANY_004",
+	"Tesla":     "COMPANY_005",
+	"Amazon":    "COMPANY_006",
+
+	// Locations
+	"New York":      "LOCATION_001",
+	"London":        "LOCATION_002",
+	"Tokyo":         "LOCATION_003",
+	"Paris":         "LOCATION_004",
+	"Berlin":        "LOCATION_005",
+	"San Francisco": "LOCATION_006",
+}
+
 func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer {
 	mockAnonymizerOnce.Do(func() {
 		mockAnonymizerInstance = &MockAnonymizer{
-			Delay: delay,
-			PredefinedReplacements: map[string]string{
-				// Common names
-				"John":    "PERSON_001",
-				"Jane":    "PERSON_002",
-				"Alice":   "PERSON_003",
-				"Bob":     "PERSON_004",
-				"Charlie": "PERSON_005",
-				"David":   "PERSON_006",
-				"Emma":    "PERSON_007",
-				"Frank":   "PERSON_008",
-
-				// Company names
-				"OpenAI":    "COMPANY_001",
-				"Microsoft": "COMPANY_002",
-				"Google":    "COMPANY_003",
-				"Apple":     "COMPANY_004",
-				"Tesla":     "COMPANY_005",
-				"Amazon":    "COMPANY_006",
-
-				// Locations
-				"New York":      "LOCATION_001",
-				"London":        "LOCATION_002",
-				"Tokyo":         "LOCATION_003",
-				"Paris":         "LOCATION_004",
-				"Berlin":        "LOCATION_005",
-				"San Francisco": "LOCATION_006",
-			},
-			requestChan: make(chan anonymizationRequest, 10), // Buffer for requests
-			done:        make(chan struct{}),
-			logger:      logger,
+			Delay:                  delay,
+			PredefinedReplacements: defaultReplacements,
+			requestChan:            make(chan anonymizationRequest, 10), // Buffer for requests
+			done:                   make(chan struct{}),
+			logger:                 logger,
 		}
 
 		// Start single-threaded processor goroutine
