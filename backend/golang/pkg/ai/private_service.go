@@ -28,7 +28,18 @@ type PrivateCompletionsConfig struct {
 	Logger             *log.Logger
 }
 
-func NewPrivateCompletionsService(config PrivateCompletionsConfig) *PrivateCompletionsService {
+func NewPrivateCompletionsService(config PrivateCompletionsConfig) (*PrivateCompletionsService, error) {
+	// Validate required dependencies
+	if config.CompletionsService == nil {
+		return nil, fmt.Errorf("completionsService is required but was nil")
+	}
+	if config.Anonymizer == nil {
+		return nil, fmt.Errorf("anonymizer is required but was nil")
+	}
+	if config.Logger == nil {
+		return nil, fmt.Errorf("logger is required but was nil")
+	}
+
 	workers := config.ExecutorWorkers
 	if workers <= 0 {
 		workers = 1
@@ -44,7 +55,7 @@ func NewPrivateCompletionsService(config PrivateCompletionsConfig) *PrivateCompl
 	}
 
 	config.Logger.Info("PrivateCompletionsService created", "workers", workers)
-	return service
+	return service, nil
 }
 
 func (s *PrivateCompletionsService) Shutdown() {
@@ -85,10 +96,39 @@ func (s *PrivateCompletionsService) scheduleAnonymization(ctx context.Context, m
 		Priority:     priority,
 		InitialState: &microscheduler.NoOpTaskState{},
 		Compute: func(resource interface{}, state microscheduler.TaskState, interrupt *microscheduler.InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
-			anonymizedMessages, rules, err := s.anonymizer.AnonymizeMessages(ctx, messages, interruptChan)
-			if err != nil {
-				return nil, err
+			// Check for context cancellation before starting
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("anonymization canceled before starting: %w", ctx.Err())
+			default:
 			}
+
+			// Check for task interruption before starting
+			if interrupt.CheckAndConsumeInterrupt() {
+				return nil, fmt.Errorf("anonymization task interrupted before starting")
+			}
+
+			anonymizedMessages, rules, err := s.anonymizer.AnonymizeMessages(ctx, messages, interruptChan)
+
+			// Check for context cancellation after anonymization
+			select {
+			case <-ctx.Done():
+				if err != nil {
+					return nil, fmt.Errorf("anonymization failed and context canceled: %w (original error: %v)", ctx.Err(), err)
+				}
+				return nil, fmt.Errorf("anonymization canceled after completion: %w", ctx.Err())
+			default:
+			}
+
+			// Handle anonymization errors with context information
+			if err != nil {
+				// Check if the error was due to interruption
+				if interrupt.CheckAndConsumeInterrupt() {
+					return nil, fmt.Errorf("anonymization failed due to task interruption: %w", err)
+				}
+				return nil, fmt.Errorf("anonymization failed: %w", err)
+			}
+
 			return AnonymizationResult{
 				Messages: anonymizedMessages,
 				Rules:    rules,

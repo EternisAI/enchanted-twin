@@ -8,6 +8,7 @@ package microscheduler
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -275,7 +276,7 @@ func TestTaskResults(t *testing.T) {
 				}
 			}
 
-			if fmt.Sprintf("%v", result) != fmt.Sprintf("%v", test.expectedResult) {
+			if !reflect.DeepEqual(result, test.expectedResult) {
 				t.Errorf("Expected result %v, got %v", test.expectedResult, result)
 			}
 		})

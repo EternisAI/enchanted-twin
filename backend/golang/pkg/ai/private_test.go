@@ -87,12 +87,15 @@ func TestPrivateCompletionsServiceMessageInterruption(t *testing.T) {
 		},
 	}
 
-	privateService := NewPrivateCompletionsService(PrivateCompletionsConfig{
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: mockService,
 		Anonymizer:         anonymizer,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
+	if err != nil {
+		t.Fatalf("Failed to create private service: %v", err)
+	}
 
 	ctx := context.Background()
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -100,7 +103,7 @@ func TestPrivateCompletionsServiceMessageInterruption(t *testing.T) {
 	}
 
 	start := time.Now()
-	_, err := privateService.Completions(ctx, messages, nil, "test-model", Background)
+	_, err = privateService.Completions(ctx, messages, nil, "test-model", Background)
 	elapsed := time.Since(start)
 
 	t.Logf("Private completion took %v", elapsed)
@@ -133,4 +136,55 @@ func (m *mockCompletionsService) Completions(ctx context.Context, messages []ope
 		Message:          m.response,
 		ReplacementRules: make(map[string]string),
 	}, nil
+}
+
+func TestNewPrivateCompletionsServiceValidation(t *testing.T) {
+	logger := log.New(nil)
+
+	// Test with nil CompletionsService
+	_, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: nil,
+		Anonymizer:         InitMockAnonymizer(0, logger),
+		Logger:             logger,
+	})
+	if err == nil || !strings.Contains(err.Error(), "completionsService is required") {
+		t.Errorf("Expected CompletionsService validation error, got: %v", err)
+	}
+
+	// Test with nil Anonymizer
+	_, err = NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: &mockCompletionsService{},
+		Anonymizer:         nil,
+		Logger:             logger,
+	})
+	if err == nil || !strings.Contains(err.Error(), "anonymizer is required") {
+		t.Errorf("Expected Anonymizer validation error, got: %v", err)
+	}
+
+	// Test with nil Logger
+	_, err = NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: &mockCompletionsService{},
+		Anonymizer:         InitMockAnonymizer(0, logger),
+		Logger:             nil,
+	})
+	if err == nil || !strings.Contains(err.Error(), "logger is required") {
+		t.Errorf("Expected Logger validation error, got: %v", err)
+	}
+
+	// Test with valid config
+	service, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: &mockCompletionsService{},
+		Anonymizer:         InitMockAnonymizer(0, logger),
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Errorf("Expected valid config to succeed, got error: %v", err)
+	}
+	if service == nil {
+		t.Error("Expected service to be created")
+	}
+	if service != nil {
+		service.Shutdown()
+	}
 }

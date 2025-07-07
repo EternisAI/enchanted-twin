@@ -8,6 +8,7 @@ package microscheduler
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -295,4 +296,57 @@ func TestNoRescheduleRequest(t *testing.T) {
 	if task.Compute == nil {
 		t.Error("Task should have a Compute function")
 	}
+}
+
+func TestSafeDefaultResource(t *testing.T) {
+	executor := NewTaskExecutor(1, createTestLogger())
+	defer executor.Shutdown()
+
+	ctx := context.Background()
+
+	// Test that default ResourceFactory provides SafeDefaultResource
+	task := Task{
+		Name:         "Resource Test Task",
+		Priority:     Background,
+		InitialState: &NoOpTaskState{},
+		Compute: func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error) {
+			// Verify we get a SafeDefaultResource, not nil
+			if resource == nil {
+				return nil, fmt.Errorf("received nil resource")
+			}
+
+			if !IsDefaultResource(resource) {
+				return nil, fmt.Errorf("expected SafeDefaultResource, got %T", resource)
+			}
+
+			// Test SafeDefaultResource fields
+			defaultRes, ok := resource.(SafeDefaultResource)
+			if !ok {
+				return nil, fmt.Errorf("could not cast to SafeDefaultResource")
+			}
+
+			if defaultRes.WorkerID < 0 {
+				return nil, fmt.Errorf("invalid WorkerID: %d", defaultRes.WorkerID)
+			}
+
+			return fmt.Sprintf("Resource test passed - WorkerID: %d, WorkerType: %s",
+				defaultRes.WorkerID, defaultRes.WorkerType), nil
+		},
+	}
+
+	result, err := executor.Execute(ctx, task, Background)
+	if err != nil {
+		t.Errorf("Resource test task failed: %v", err)
+	}
+
+	resultStr, ok := result.(string)
+	if !ok {
+		t.Errorf("Expected string result, got %T", result)
+	}
+
+	if !strings.Contains(resultStr, "Resource test passed") {
+		t.Errorf("Expected success message, got: %s", resultStr)
+	}
+
+	t.Logf("Resource test result: %s", resultStr)
 }

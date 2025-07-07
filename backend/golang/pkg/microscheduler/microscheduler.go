@@ -52,12 +52,15 @@ func (n *NoOpTaskState) Restore(data []byte) error {
 }
 
 type InterruptContext struct {
-	Reason        string
-	SaveState     func(TaskState) error
-	IsInterrupted func() bool
-	NoReschedule  func()
+	Reason                   string
+	SaveState                func(TaskState) error
+	CheckAndConsumeInterrupt func() bool // Consumes interrupt signal if present
+	NoReschedule             func()
 }
 
+// TaskCompute defines the function signature for task execution.
+// The resource parameter may be nil or SafeDefaultResource if no custom ResourceFactory is provided.
+// Task implementations should handle these cases gracefully.
 type TaskCompute func(resource interface{}, state TaskState, interrupt *InterruptContext, interruptChan <-chan struct{}) (interface{}, error)
 
 type Task struct {
@@ -208,7 +211,9 @@ func (w *WorkerProcessor) processTask(req TaskRequest) InterruptedTaskResult {
 		return nil
 	}
 
-	isInterruptedFunc := func() bool {
+	// CheckAndConsumeInterrupt function consumes interrupt signal if present
+	// IMPORTANT: This has side effects - calling it drains the interrupt channel
+	checkAndConsumeInterruptFunc := func() bool {
 		select {
 		case <-w.interrupt:
 			return true
@@ -223,10 +228,10 @@ func (w *WorkerProcessor) processTask(req TaskRequest) InterruptedTaskResult {
 	}
 
 	interruptCtx := &InterruptContext{
-		Reason:        "priority preemption",
-		SaveState:     saveStateFunc,
-		IsInterrupted: isInterruptedFunc,
-		NoReschedule:  noRescheduleFunc,
+		Reason:                   "priority preemption",
+		SaveState:                saveStateFunc,
+		CheckAndConsumeInterrupt: checkAndConsumeInterruptFunc,
+		NoReschedule:             noRescheduleFunc,
 	}
 
 	if taskState == nil {
@@ -316,6 +321,23 @@ func (wt WorkerType) String() string {
 	}
 }
 
+// SafeDefaultResource provides a safe default resource for tasks that don't need specific resources.
+// Task compute functions should handle the possibility of receiving this type or nil resources.
+type SafeDefaultResource struct {
+	WorkerID   int
+	WorkerType WorkerType
+}
+
+// IsDefaultResource checks if the provided resource is a SafeDefaultResource.
+// This helper function allows task implementations to safely identify default resources.
+func IsDefaultResource(resource interface{}) bool {
+	_, ok := resource.(SafeDefaultResource)
+	return ok
+}
+
+// ResourceFactory creates resources for workers. If no custom factory is provided,
+// a default factory returns SafeDefaultResource. Task compute functions should
+// handle the possibility of receiving nil or SafeDefaultResource values.
 type ResourceFactory func(workerID int, workerType WorkerType) interface{}
 
 type WorkerConfig struct {
@@ -365,7 +387,10 @@ func NewTaskExecutor(processorCount int, logger *log.Logger) *TaskExecutor {
 	}
 
 	config.ResourceFactory = func(workerID int, workerType WorkerType) interface{} {
-		return nil
+		return SafeDefaultResource{
+			WorkerID:   workerID,
+			WorkerType: workerType,
+		}
 	}
 
 	e := &TaskExecutor{
