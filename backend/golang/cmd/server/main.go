@@ -220,12 +220,15 @@ func main() {
 		anonymizer := ai.InitMockAnonymizer(delay, logger)
 
 		// Create private completions service instance
-		privateCompletions := ai.NewPrivateCompletionsService(ai.PrivateCompletionsConfig{
+		privateCompletions, err := ai.NewPrivateCompletionsService(ai.PrivateCompletionsConfig{
 			CompletionsService: aiCompletionsService,
 			Anonymizer:         anonymizer,
 			ExecutorWorkers:    envs.PrivateCompletionsWorkers,
 			Logger:             logger,
 		})
+		if err != nil {
+			log.Fatalf("Failed to create private completions service: %v", err)
+		}
 
 		// Enable private completions on the existing service
 		aiCompletionsService.EnablePrivateCompletions(privateCompletions, ai.Background)
