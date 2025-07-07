@@ -72,6 +72,7 @@ func NewDirectoryWatcher(store *db.Store, memoryStorage evolvingmemory.MemorySto
 		bufferDuration: BufferTimeout,
 		supportedExts: []string{
 			".json", ".zip", ".tar", ".tar.gz", ".txt", ".pdf", ".docx", ".pptx", ".ppt",
+			".docm", ".xlsx", ".xlsm", ".xls", ".csv", ".rtf", ".odt", ".ods", ".odp",
 		},
 	}
 
