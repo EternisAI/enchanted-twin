@@ -379,7 +379,7 @@ func (dw *DirectoryWatcher) hasCommonPattern(name1, name2 string) bool {
 }
 
 func (dw *DirectoryWatcher) processNewFile(filePath string) error {
-	ctx := context.Background()
+	ctx := dw.ctx
 
 	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
@@ -413,7 +413,7 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 }
 
 func (dw *DirectoryWatcher) processRemovedFile(filePath string) error {
-	ctx := context.Background()
+	ctx := dw.ctx
 
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
@@ -475,7 +475,7 @@ func (dw *DirectoryWatcher) findNewPathForRenameEvent(oldPath string) string {
 }
 
 func (dw *DirectoryWatcher) processRenameEvent(filePath string) error {
-	ctx := context.Background()
+	ctx := dw.ctx
 
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
@@ -532,7 +532,7 @@ func (dw *DirectoryWatcher) processRenameEvent(filePath string) error {
 }
 
 func (dw *DirectoryWatcher) processRenameEventWithNewPath(oldPath, newPath string) error {
-	ctx := context.Background()
+	ctx := dw.ctx
 
 	oldAbsPath, err := filepath.Abs(oldPath)
 	if err != nil {
@@ -602,7 +602,7 @@ func (dw *DirectoryWatcher) processRenameEventWithNewPath(oldPath, newPath strin
 }
 
 func (dw *DirectoryWatcher) processFileRename(oldPath, newPath string) error {
-	ctx := context.Background()
+	ctx := dw.ctx
 
 	orphanedSources, err := dw.store.FindOrphanedDataSources(ctx)
 	if err != nil {
@@ -912,7 +912,7 @@ func (dw *DirectoryWatcher) AddWatchedDirectory(path string) error {
 
 // performInitialScanForDirectory scans a specific directory for existing files.
 func (dw *DirectoryWatcher) performInitialScanForDirectory(dirPath string) {
-	ctx := context.Background()
+	ctx := dw.ctx
 	scanCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
