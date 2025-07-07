@@ -8,15 +8,18 @@ import (
 )
 
 type DataSource struct {
-	ID            string  `db:"id"`
-	Name          string  `db:"name"`
-	UpdatedAt     string  `db:"updated_at"`
-	CreatedAt     string  `db:"created_at"`
-	Path          string  `db:"path"`
-	ProcessedPath *string `db:"processed_path"`
-	IsIndexed     *bool   `db:"is_indexed"`
-	HasError      *bool   `db:"has_error"`
-	State         string  `db:"state"`
+	ID                   string  `db:"id"`
+	Name                 string  `db:"name"`
+	UpdatedAt            string  `db:"updated_at"`
+	CreatedAt            string  `db:"created_at"`
+	Path                 string  `db:"path"`
+	ProcessedPath        *string `db:"processed_path"`
+	IsIndexed            *bool   `db:"is_indexed"`
+	HasError             *bool   `db:"has_error"`
+	State                string  `db:"state"`
+	ProcessingStatus     string  `db:"processing_status"`
+	ProcessingStartedAt  *string `db:"processing_started_at"`
+	ProcessingWorkflowID *string `db:"processing_workflow_id"`
 }
 
 type CreateDataSourceFromFileInput struct {
@@ -27,20 +30,20 @@ type CreateDataSourceFromFileInput struct {
 // GetDataSources retrieves all data sources.
 func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources ORDER BY created_at DESC`)
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
 	return dataSources, nil
 }
 
-// GetUnindexedDataSources retrieves all active data sources that are not indexed.
+// GetUnindexedDataSources retrieves all active data sources that are not indexed and not currently being processed.
 func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	query := `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE AND state = 'active' ORDER BY created_at DESC`
+	query := `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE AND state = 'active' AND processing_status = 'idle' ORDER BY created_at DESC`
 
 	var allDataSources []*DataSource
-	err := s.db.SelectContext(ctx, &allDataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state FROM data_sources ORDER BY created_at DESC`)
+	err := s.db.SelectContext(ctx, &allDataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -178,4 +181,102 @@ func (s *Store) CreateDataSourceFromFile(ctx context.Context, input *CreateDataS
 	}
 
 	return id, nil
+}
+
+// ClaimDataSourceForProcessing atomically claims a data source for processing.
+// Returns true if successfully claimed, false if already claimed by another workflow.
+func (s *Store) ClaimDataSourceForProcessing(ctx context.Context, dataSourceID string, workflowID string) (bool, error) {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE data_sources 
+		SET processing_status = 'processing', 
+			processing_started_at = CURRENT_TIMESTAMP,
+			processing_workflow_id = ?,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = ? AND processing_status = 'idle'
+	`, workflowID, dataSourceID)
+	if err != nil {
+		return false, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return rowsAffected > 0, nil
+}
+
+// ClaimDataSourceForIndexing atomically claims a data source for indexing.
+// Returns true if successfully claimed, false if already claimed by another workflow.
+func (s *Store) ClaimDataSourceForIndexing(ctx context.Context, dataSourceID string, workflowID string) (bool, error) {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE data_sources 
+		SET processing_status = 'indexing', 
+			processing_started_at = CURRENT_TIMESTAMP,
+			processing_workflow_id = ?,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = ? AND processing_status = 'idle'
+	`, workflowID, dataSourceID)
+	if err != nil {
+		return false, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return rowsAffected > 0, nil
+}
+
+// ReleaseDataSourceFromProcessing releases a data source from processing status.
+func (s *Store) ReleaseDataSourceFromProcessing(ctx context.Context, dataSourceID string, workflowID string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE data_sources 
+		SET processing_status = 'idle', 
+			processing_started_at = NULL,
+			processing_workflow_id = NULL,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = ? AND processing_workflow_id = ?
+	`, dataSourceID, workflowID)
+	return err
+}
+
+// GetStaleProcessingDataSources finds data sources that have been in processing status for too long.
+func (s *Store) GetStaleProcessingDataSources(ctx context.Context, staleAfterMinutes int) ([]*DataSource, error) {
+	var dataSources []*DataSource
+	err := s.db.SelectContext(ctx, &dataSources, `
+		SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id
+		FROM data_sources 
+		WHERE processing_status IN ('processing', 'indexing') 
+		AND processing_started_at < datetime('now', '-' || ? || ' minutes')
+		ORDER BY processing_started_at ASC
+	`, staleAfterMinutes)
+	if err != nil {
+		return nil, err
+	}
+	return dataSources, nil
+}
+
+// CleanupStaleProcessingDataSources resets stale processing data sources to idle status.
+func (s *Store) CleanupStaleProcessingDataSources(ctx context.Context, staleAfterMinutes int) (int, error) {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE data_sources 
+		SET processing_status = 'idle', 
+			processing_started_at = NULL,
+			processing_workflow_id = NULL,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE processing_status IN ('processing', 'indexing') 
+		AND processing_started_at < datetime('now', '-' || ? || ' minutes')
+	`, staleAfterMinutes)
+	if err != nil {
+		return 0, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	return int(rowsAffected), nil
 }

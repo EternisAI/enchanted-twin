@@ -49,7 +49,7 @@ type FileEvent struct {
 }
 
 const (
-	MaxFileSize    = 20 * 1024 * 1024
+	MaxFileSize    = 50 * 1024 * 1024
 	DefaultTimeout = 30 * time.Second
 	BufferTimeout  = 5 * time.Second
 )
@@ -185,6 +185,7 @@ func (dw *DirectoryWatcher) handleFileEvent(event fsnotify.Event) {
 	}
 
 	if !dw.isSupportedFile(event.Name) {
+		dw.logger.Debug("🟡 Skipping unsupported file", "path", event.Name)
 		return
 	}
 
@@ -709,6 +710,7 @@ func (dw *DirectoryWatcher) triggerProcessingWorkflow() error {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
 
+	dw.logger.Info("🟢Triggering processing workflow")
 	workflowOptions := client.StartWorkflowOptions{
 		ID:        fmt.Sprintf("sync-dataprocessing-%d", time.Now().Unix()),
 		TaskQueue: "default",
