@@ -108,7 +108,7 @@ export default function LocalFolderSync() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -156,49 +156,46 @@ export default function LocalFolderSync() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Connected</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {data?.getTrackedFolders && data.getTrackedFolders.length > 0 ? (
-            <div className="space-y-3">
-              {data.getTrackedFolders.map((folder) => (
-                <div
-                  key={folder.id}
-                  className="flex items-center gap-4 justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex items-center bg-gray-200 rounded-mg p-2.25">
-                    <FolderOpen className="h-6 w-6 text-muted-foreground flex-shrink-0" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-medium truncate">
-                        {folder.name || folder.path.split('/').pop() || 'Untitled Folder'}
-                      </h3>
-                      {/* <Badge variant={folder.isEnabled ? 'default' : 'secondary'}>
+      <div className="flex flex-col gap-4">
+        <h2 className="text-lg font-bold">Connected</h2>
+        {data?.getTrackedFolders && data.getTrackedFolders.length > 0 ? (
+          <div className="space-y-3">
+            {data.getTrackedFolders.map((folder) => (
+              <div
+                key={folder.id}
+                className="flex items-center gap-4 justify-between p-4 rounded-lg bg-card hover:bg-accent/80 transition-colors"
+              >
+                <div className="flex items-center bg-gray-200 rounded-mg p-2.25">
+                  <FolderOpen className="h-6 w-6 text-muted-foreground flex-shrink-0" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="font-medium truncate">
+                      {folder.name || folder.path.split('/').pop() || 'Untitled Folder'}
+                    </h3>
+                    {/* <Badge variant={folder.isEnabled ? 'default' : 'secondary'}>
                         {folder.isEnabled ? 'Active' : 'Inactive'}
                       </Badge> */}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm text-muted-foreground mb-2">
-                        /{truncatePath(folder.path)}
-                      </p>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="2"
-                        height="2"
-                        viewBox="0 0 2 2"
-                        fill="none"
-                      >
-                        <circle cx="1" cy="1" r="1" fill="#71717A" />
-                      </svg>
-                      <span className="text-xs text-muted-foreground">
-                        Connected: {formatDate(folder.createdAt)}
-                      </span>
-                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      /{truncatePath(folder.path)}
+                    </p>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="2"
+                      height="2"
+                      viewBox="0 0 2 2"
+                      fill="none"
+                    >
+                      <circle cx="1" cy="1" r="1" fill="#71717A" />
+                    </svg>
+                    <span className="text-xs text-muted-foreground">
+                      Connected: {formatDate(folder.createdAt)}
+                    </span>
+                  </div>
 
-                    {/* <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  {/* <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                       </div>
@@ -207,28 +204,27 @@ export default function LocalFolderSync() {
                         <span>Updated: {formatDate(folder.updatedAt)}</span>
                       </div>
                     </div> */}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDeleteFolder(folder.id)}
-                    className="ml-4 flex-shrink-0"
-                  >
-                    <Unplug className="h-4 w-4" />
-                    Disconnect
-                  </Button>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No folders connected yet</p>
-              <p className="text-sm">Drag and drop folders above to get started</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDeleteFolder(folder.id)}
+                  className="ml-4 flex-shrink-0"
+                >
+                  <Unplug className="h-4 w-4" />
+                  Disconnect
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No folders connected yet</p>
+            <p className="text-sm">Drag and drop folders above to get started</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
