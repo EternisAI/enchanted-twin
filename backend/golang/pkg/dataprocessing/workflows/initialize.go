@@ -168,7 +168,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				"dataSource", dataSource.Name)
 			dataSources[i].HasError = true
 			errMsg := err.Error()
-
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "failed"
 				result.HasError = true
@@ -181,7 +180,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		if !claimResponse.Claimed {
 			workflow.GetLogger(ctx).Info("Data source already claimed by another workflow",
 				"dataSource", dataSource.Name)
-
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "skipped"
 				result.ProcessingSkipped = true
@@ -219,7 +217,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			dataSources[i].IsProcessed = false
 			dataSources[i].HasError = true
 			errMsg := err.Error()
-
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "failed"
 				result.IsProcessed = false
@@ -231,7 +228,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			dataSources[i].IsProcessed = true
 			dataSources[i].HasError = false
 			dataSources[i].IsIndexed = false
-
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "completed"
 				result.IsProcessed = true
@@ -342,7 +338,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			workflow.GetLogger(ctx).Warn("No batches found for data source", "dataSource", dataSourceDB.Name)
 			dataSources[i].IsIndexed = true
 			dataSources[i].IndexProgress = 100
-
 			if result, exists := dataSourceResults[dataSourceDB.ID]; exists {
 				result.IndexingStatus = "completed"
 				result.IsIndexed = true
