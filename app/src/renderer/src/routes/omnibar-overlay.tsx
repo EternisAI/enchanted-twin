@@ -27,7 +27,8 @@ function OmnibarOverlay() {
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 },
     errorPolicy: 'ignore', // Don't throw on backend errors
-    fetchPolicy: 'cache-first' // Use cache if available
+    fetchPolicy: 'cache-first', // Use cache if available
+    skip: false // Always try to fetch, even if not authenticated
   })
 
   console.log('chatsData', chatsData)
@@ -54,66 +55,48 @@ function OmnibarOverlay() {
 
   const adjustTextareaHeight = () => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      const scrollHeight = textareaRef.current.scrollHeight
-      const maxHeight = 240
-      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`
+      // Always maintain fixed height
+      textareaRef.current.style.height = '40px'
     }
   }
 
   const resizeWindowToContent = useCallback(() => {
-    // Get the content container dimensions
-    const contentContainer = document.querySelector('[data-omnibar-content]') as HTMLElement
-    if (contentContainer && window.api?.resizeOmnibarWindow) {
-      const rect = contentContainer.getBoundingClientRect()
-      const padding = 16 // 8px padding on each side from the wrapper
+    // Fixed height based on content state
+    const windowWidth = 500
+    let windowHeight = 80 // Default height
 
-      // Only resize height, keep width fixed to prevent expansion
-      const validHeight = rect.height > 0 ? rect.height : 80
-
-      const windowWidth = 500 // Fixed width
-      const windowHeight = Math.max(80, Math.min(500, validHeight + padding))
-
-      if (
-        window.api?.resizeOmnibarWindow &&
-        typeof windowWidth === 'number' &&
-        typeof windowHeight === 'number' &&
-        !isNaN(windowWidth) &&
-        !isNaN(windowHeight) &&
-        isFinite(windowWidth) &&
-        isFinite(windowHeight)
-      ) {
-        ;(
-          window.api.resizeOmnibarWindow as unknown as (
-            width: number,
-            height: number
-          ) => Promise<{ success: boolean; error?: string }>
-        )(windowWidth, windowHeight).catch(() => {
-          // Silently handle resize errors (window might not be resizable)
-        })
+    // Only expand if we have search results
+    if (debouncedQuery.trim() && filteredChats.length > 0) {
+      const contentContainer = document.querySelector('[data-omnibar-content]') as HTMLElement
+      if (contentContainer) {
+        const rect = contentContainer.getBoundingClientRect()
+        windowHeight = Math.min(500, rect.height + 16) // 16px for window chrome
       }
     }
-  }, [])
+
+    if (window.api?.resizeOmnibarWindow) {
+      ;(
+        window.api.resizeOmnibarWindow as unknown as (
+          width: number,
+          height: number
+        ) => Promise<{ success: boolean; error?: string }>
+      )(windowWidth, windowHeight).catch(() => {
+        // Silently handle resize errors
+      })
+    }
+  }, [debouncedQuery, filteredChats.length])
 
   useEffect(() => {
     adjustTextareaHeight()
-    // Resize window after a short delay to allow for layout changes
-    const timeoutId = setTimeout(resizeWindowToContent, 100)
-    return () => clearTimeout(timeoutId)
-  }, [query, resizeWindowToContent])
-
-  useEffect(() => {
-    // Resize window when search results change
-    const timeoutId = setTimeout(resizeWindowToContent, 100)
-    return () => clearTimeout(timeoutId)
-  }, [filteredChats.length, debouncedQuery, resizeWindowToContent])
+    resizeWindowToContent()
+  }, [query, filteredChats.length, debouncedQuery, resizeWindowToContent])
 
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.focus()
     }
     // Initial resize after component mounts
-    setTimeout(resizeWindowToContent, 200)
+    resizeWindowToContent()
 
     // Set up ResizeObserver for responsive resizing
     const contentContainer = document.querySelector('[data-omnibar-content]') as HTMLElement
@@ -207,11 +190,11 @@ function OmnibarOverlay() {
         initial={{ scale: 0.95, opacity: 0, y: -5 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 280 }}
-        className="w-full h-full"
+        className="w-full h-full "
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
-        <motion.form onSubmit={handleSubmit}>
-          <motion.div data-omnibar-content className={cn('flex flex-col gap-3 p-4 min-w-[500px]')}>
+        <motion.form onSubmit={handleSubmit} className="w-full">
+          <motion.div data-omnibar-content className={cn('flex flex-col gap-3 p-4 w-[500px]')}>
             <div className="flex items-center gap-3">
               <Textarea
                 ref={textareaRef}
@@ -227,7 +210,7 @@ function OmnibarOverlay() {
                   }
                 }}
                 placeholder="What would you like to discuss?"
-                className="flex-1 flex justify-center items-center h-full min-h-10 !text-base !rounded-none transparent text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-hidden  border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+                className="flex-1 !h-full !min-h-full flex justify-center items-center !text-base !rounded-none transparent text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 rows={1}
               />
@@ -251,7 +234,7 @@ function OmnibarOverlay() {
               </AnimatePresence>
             </div>
 
-            <AnimatePresence mode="wait" onExitComplete={resizeWindowToContent}>
+            <AnimatePresence>
               {debouncedQuery && filteredChats.length > 0 && (
                 <motion.div
                   key="results"
@@ -259,10 +242,9 @@ function OmnibarOverlay() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{
-                    duration: 0.2,
+                    duration: 0.15,
                     ease: 'easeInOut'
                   }}
-                  onAnimationComplete={resizeWindowToContent}
                   className="rounded-lg overflow-hidden"
                   style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 >

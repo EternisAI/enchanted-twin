@@ -31,6 +31,7 @@ type Storage interface {
 	GetChat(ctx context.Context, id string) (model.Chat, error)
 	GetChats(ctx context.Context) ([]*model.Chat, error)
 	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (model.Chat, error)
+	UpdateChatPrivacyDict(ctx context.Context, chatID string, privacyDictJson *string) error
 	DeleteChat(ctx context.Context, chatID string) error
 	GetMessagesByChatId(ctx context.Context, chatId string) ([]*model.Message, error)
 	AddMessageToChat(ctx context.Context, message repository.Message) (string, error)
@@ -78,7 +79,6 @@ func NewService(
 
 func (s *Service) Execute(
 	ctx context.Context,
-	origin map[string]any,
 	messageHistory []openai.ChatCompletionMessageParamUnion,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
 	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
@@ -98,7 +98,6 @@ func (s *Service) Execute(
 	// Get the tool list from the registry
 	toolsList := s.toolRegistry.Excluding("send_to_chat").GetAll()
 
-	// TODO(cosmic): pass origin to agent
 	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta, reasoning)
 	if err != nil {
 		return nil, err
@@ -186,43 +185,7 @@ func (s *Service) SendMessage(
 	if err != nil {
 		return nil, err
 	}
-
 	s.logger.Info("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
-	// if userProfile.Name != nil {
-	// 	systemPrompt += fmt.Sprintf("Name of your human: %s. ", *userProfile.Name)
-	// }
-	// if userProfile.Bio != nil {
-	// 	systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
-	// }
-
-	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
-	if err != nil {
-		return nil, err
-	}
-	if len(oauthTokens) > 0 {
-		systemPrompt += "You have following email accounts connected to your account: "
-		for _, token := range oauthTokens {
-			systemPrompt += fmt.Sprintf("%s, ", token.Username)
-		}
-	} else {
-		systemPrompt += "You have no email accounts connected to your account."
-	}
-
-	oauthTokens, err = s.userStorage.GetOAuthTokensArray(ctx, "twitter")
-	if err != nil {
-		return nil, err
-	}
-	if len(oauthTokens) > 0 {
-		systemPrompt += "When a request references the user's *feed* or *timeline*, the assistant " +
-			"MUST first call `list_feed_tweets`, paginate as needed, and may then " +
-			"client-side-filter the results. It MUST NOT call `search_tweets` in this " +
-			"scenario."
-	}
-
-	systemPrompt += fmt.Sprintf("Current date and time: %s.", time.Now().Format(time.RFC3339))
-	systemPrompt += fmt.Sprintf("Current Chat ID is %s.", chatID)
-
-	s.logger.Info("System prompt", "prompt", systemPrompt)
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
@@ -236,11 +199,9 @@ func (s *Service) SendMessage(
 		}
 		messageHistory = append(messageHistory, openaiMessage)
 	}
-
 	messageHistory = append(messageHistory, openai.UserMessage(message))
 
 	assistantMessageId := uuid.New().String()
-
 	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:          toolCall.ID,
@@ -302,13 +263,8 @@ func (s *Service) SendMessage(
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 	}
 
-	origin := map[string]any{
-		"chat_id":    chatID,
-		"message_id": userMsgID,
-	}
-
 	s.logger.Info("Executing agent", "reasoning", isReasoning)
-	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta, isReasoning)
+	response, err := s.Execute(ctx, messageHistory, preToolCallback, postToolCallback, onDelta, isReasoning)
 	if err != nil {
 		return nil, err
 	}
@@ -371,6 +327,40 @@ func (s *Service) SendMessage(
 	_, err = s.storage.AddMessageToChat(ctx, userMsg)
 	if err != nil {
 		return nil, err
+	}
+
+	//@TODO: Call real anonymizer and update chat privacy dictionary
+	privacyDictJson, err := MockAnonymizer(ctx, chatID, message)
+	if err != nil {
+		s.logger.Error("failed to generate privacy dictionary", "error", err)
+	} else {
+		err = s.storage.UpdateChatPrivacyDict(ctx, chatID, privacyDictJson)
+		if err != nil {
+			s.logger.Error("failed to update chat privacy dictionary", "error", err)
+		} else {
+			s.logger.Info("updated chat privacy dictionary", "chat_id", chatID)
+
+			go func() {
+				privacyUpdate := model.PrivacyDictUpdate{
+					ChatID:          chatID,
+					PrivacyDictJSON: *privacyDictJson,
+				}
+
+				updateData, err := json.Marshal(privacyUpdate)
+				if err != nil {
+					s.logger.Error("failed to marshal privacy dict update", "error", err)
+					return
+				}
+
+				subject := fmt.Sprintf("chat.%s.privacy_dict", chatID)
+				err = s.nc.Publish(subject, updateData)
+				if err != nil {
+					s.logger.Error("failed to publish privacy dict update", "error", err)
+				} else {
+					s.logger.Debug("published privacy dict update", "chat_id", chatID)
+				}
+			}()
+		}
 	}
 
 	// Publish to NATS
@@ -464,645 +454,6 @@ func (s *Service) SendMessage(
 	}, nil
 }
 
-// ProcessMessageHistory processes a list of messages by deleting all existing messages and saving all provided messages.
-func (s *Service) ProcessMessageHistory(
-	ctx context.Context,
-	chatID string,
-	messages []*model.MessageInput,
-	isOnboarding bool,
-) (*model.Message, error) {
-	now := time.Now()
-
-	// Create chat if it doesn't exist
-	if chatID == "" {
-		category := model.ChatCategoryText
-		chat, err := s.storage.CreateChat(ctx, "New chat", category, nil)
-		if err != nil {
-			return nil, err
-		}
-		s.logger.Info("Created new chat for message history", "chat_id", chat.ID)
-		chatID = chat.ID
-	}
-
-	// Prepare messages for database storage
-	dbMessages := make([]repository.Message, 0, len(messages))
-	for i, msg := range messages {
-		msgID := uuid.New().String()
-		// Ensure each message has a unique timestamp by adding microseconds based on index
-		createdAt := now.Add(time.Microsecond * time.Duration(i)).Format(time.RFC3339Nano)
-		dbMessage := repository.Message{
-			ID:           msgID,
-			ChatID:       chatID,
-			Text:         msg.Text,
-			Role:         msg.Role.String(),
-			CreatedAtStr: createdAt,
-		}
-		dbMessages = append(dbMessages, dbMessage)
-	}
-
-	// Efficiently replace all messages in a single transaction
-	err := s.storage.ReplaceMessagesByChatId(ctx, chatID, dbMessages)
-	if err != nil {
-		return nil, fmt.Errorf("failed to replace messages: %w", err)
-	}
-
-	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
-	if err != nil {
-		s.logger.Error("failed to get user memory profile", "error", err)
-		userMemoryProfile = ""
-	}
-
-	var systemPrompt string
-	if isOnboarding {
-		systemPrompt = `You are an onboarding agent. Your job is to welcome new users and gather some basic information about them.
-
-You need to ask exactly 3 questions in a friendly and conversational manner:
-1. What is your name?
-2. What is your favorite color?
-3. What is your favorite animal?
-
-After the user has answered all three questions, you should call the finalize_onboarding tool with:
-- name: the user's name (required)
-- context: a summary of their other answers (e.g., "favorite color: blue, favorite animal: cat")
-
-Be warm, welcoming, and conversational. Ask one question at a time and wait for the user's response before moving to the next question.`
-	} else {
-		systemPrompt, err = s.buildSystemPrompt(ctx, chatID, true, userMemoryProfile)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	s.logger.Info("System prompt for history processing", "prompt", systemPrompt, "isOnboarding", isOnboarding)
-
-	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
-	messageHistory = append(
-		messageHistory,
-		openai.SystemMessage(systemPrompt),
-	)
-
-	// Publish messages to NATS and build message history for AI
-	for i, msg := range messages {
-		dbMsg := dbMessages[i]
-		natsMsg := model.Message{
-			ID:        dbMsg.ID,
-			Text:      &msg.Text,
-			ImageUrls: []string{},
-			CreatedAt: time.Now().Format(time.RFC3339),
-			Role:      msg.Role,
-		}
-		natsMsgJSON, err := json.Marshal(natsMsg)
-		if err != nil {
-			s.logger.Error("failed to marshal message for NATS", "error", err)
-		} else {
-			subject := fmt.Sprintf("chat.%s", chatID)
-			if err := s.nc.Publish(subject, natsMsgJSON); err != nil {
-				s.logger.Error("failed to publish message to NATS", "error", err)
-			}
-		}
-		switch msg.Role {
-		case model.RoleUser:
-			messageHistory = append(messageHistory, openai.UserMessage(msg.Text))
-		case model.RoleAssistant:
-			messageHistory = append(messageHistory, openai.AssistantMessage(msg.Text))
-		}
-	}
-
-	if len(messages) == 0 {
-		return nil, fmt.Errorf("no messages provided in history")
-	}
-
-	assistantMessageId := uuid.New().String()
-
-	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
-		tcJson, err := json.Marshal(model.ToolCall{
-			ID:          toolCall.ID,
-			Name:        toolCall.Function.Name,
-			MessageID:   assistantMessageId,
-			IsCompleted: false,
-		})
-		if err != nil {
-			s.logger.Error("failed to marshal tool call", "error", err)
-			return
-		}
-		subject := fmt.Sprintf("chat.%s.tool_call", chatID)
-		err = s.nc.Publish(subject, tcJson)
-		if err != nil {
-			s.logger.Error("failed to publish tool call", "error", err)
-		}
-	}
-
-	toolCallResultsMap := make(map[string]model.ToolCallResult)
-	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
-		tcJson, err := json.Marshal(model.ToolCall{
-			ID:        toolCall.ID,
-			Name:      toolCall.Function.Name,
-			MessageID: assistantMessageId,
-			Result: &model.ToolCallResult{
-				Content:   helpers.Ptr(toolResult.Content()),
-				ImageUrls: toolResult.ImageURLs(),
-			},
-			IsCompleted: true,
-		})
-		toolCallResultsMap[toolCall.ID] = model.ToolCallResult{
-			Content:   helpers.Ptr(toolResult.Content()),
-			ImageUrls: toolResult.ImageURLs(),
-		}
-		if err != nil {
-			s.logger.Error("failed to marshal tool call", "error", err)
-			return
-		}
-		subject := fmt.Sprintf("chat.%s.tool_call", chatID)
-		err = s.nc.Publish(subject, tcJson)
-		if err != nil {
-			s.logger.Error("failed to publish tool call", "error", err)
-		}
-	}
-
-	createdAt := time.Now().Format(time.RFC3339)
-
-	onDelta := func(delta agent.StreamDelta) {
-		payload := model.MessageStreamPayload{
-			MessageID:  assistantMessageId,
-			ImageUrls:  delta.ImageURLs,
-			Chunk:      delta.ContentDelta,
-			Role:       model.RoleAssistant,
-			IsComplete: delta.IsCompleted,
-			CreatedAt:  &createdAt,
-		}
-		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
-	}
-
-	agent := agent.NewAgent(
-		s.logger,
-		s.nc,
-		s.aiService,
-		s.completionsModel,
-		s.reasoningModel,
-		preToolCallback,
-		postToolCallback,
-	)
-
-	var toolsList []tools.Tool
-	if isOnboarding {
-		// For onboarding, only provide the finalize_onboarding tool
-		toolsList = []tools.Tool{NewFinalizeOnboardingTool()}
-	} else {
-		// For normal conversations, use the full tool registry excluding send_to_chat
-		toolsList = s.toolRegistry.Excluding("send_to_chat").GetAll()
-	}
-
-	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta, false)
-	if err != nil {
-		return nil, err
-	}
-
-	s.logger.Debug(
-		"Agent response for message history",
-		"content",
-		response.Content,
-	)
-
-	subject := fmt.Sprintf("chat.%s", chatID)
-	toolResults := make([]string, len(response.ToolResults))
-	for i, v := range response.ToolResults {
-		toolResultsJson, err := json.Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-		toolResults[i] = string(toolResultsJson)
-	}
-
-	toolCalls := make([]*model.ToolCall, len(response.ToolCalls))
-	for i, v := range response.ToolCalls {
-		toolCalls[i] = &model.ToolCall{
-			ID:          v.ID,
-			Name:        v.Function.Name,
-			IsCompleted: true,
-		}
-	}
-
-	assistantMessageDb := repository.Message{
-		ID:           assistantMessageId,
-		ChatID:       chatID,
-		Text:         response.Content,
-		Role:         model.RoleAssistant.String(),
-		CreatedAtStr: time.Now().Format(time.RFC3339Nano),
-	}
-
-	if len(response.ToolCalls) > 0 {
-		toolCalls := make([]model.ToolCall, 0)
-		for _, toolCall := range response.ToolCalls {
-			toolCall := model.ToolCall{
-				ID:          toolCall.ID,
-				Name:        toolCall.Function.Name,
-				MessageID:   assistantMessageId,
-				IsCompleted: true,
-			}
-			result, ok := toolCallResultsMap[toolCall.ID]
-			if ok {
-				toolCall.Result = &result
-			}
-			toolCalls = append(toolCalls, toolCall)
-		}
-		toolCallsJson, err := json.Marshal(toolCalls)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to marshal tool calls")
-		}
-		assistantMessageDb.ToolCallsStr = helpers.Ptr(string(toolCallsJson))
-	}
-	if len(response.ToolResults) > 0 {
-		toolResultsJson, err := json.Marshal(response.ToolResults)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to marshal tool results")
-		}
-		assistantMessageDb.ToolResultsStr = helpers.Ptr(string(toolResultsJson))
-	}
-	if len(response.ImageURLs) > 0 {
-		imageURLsJson, err := json.Marshal(response.ImageURLs)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to marshal image URLs")
-		}
-		assistantMessageDb.ImageURLsStr = helpers.Ptr(string(imageURLsJson))
-	}
-
-	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
-	if err != nil {
-		return nil, err
-	}
-
-	assistantMessage := &model.Message{
-		ID:          idAssistant,
-		Text:        &response.Content,
-		ImageUrls:   response.ImageURLs,
-		CreatedAt:   now.Format(time.RFC3339),
-		Role:        model.RoleAssistant,
-		ToolCalls:   assistantMessageDb.ToModel().ToolCalls,
-		ToolResults: assistantMessageDb.ToModel().ToolResults,
-	}
-
-	assistantMessageJson, err := json.Marshal(assistantMessage)
-	if err != nil {
-		return nil, err
-	}
-	err = s.nc.Publish(subject, assistantMessageJson)
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		err := s.IndexConversation(context.Background(), chatID)
-		if err != nil {
-			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
-		}
-	}()
-
-	return assistantMessage, nil
-}
-
-// ProcessMessageHistoryStream processes a list of messages and returns a channel for streaming the response.
-func (s *Service) ProcessMessageHistoryStream(
-	ctx context.Context,
-	chatID string,
-	messages []*model.MessageInput,
-	isOnboarding bool,
-) (<-chan model.MessageStreamPayload, error) {
-	now := time.Now()
-
-	// Create chat if it doesn't exist
-	if chatID == "" {
-		category := model.ChatCategoryText
-		chat, err := s.storage.CreateChat(ctx, "New chat", category, nil)
-		if err != nil {
-			return nil, err
-		}
-		s.logger.Info("Created new chat for message history stream", "chat_id", chat.ID)
-		chatID = chat.ID
-	}
-
-	// Prepare messages for database storage
-	dbMessages := make([]repository.Message, 0, len(messages))
-	for i, msg := range messages {
-		msgID := uuid.New().String()
-		// Ensure each message has a unique timestamp by adding microseconds based on index
-		createdAt := now.Add(time.Microsecond * time.Duration(i)).Format(time.RFC3339Nano)
-		dbMessage := repository.Message{
-			ID:           msgID,
-			ChatID:       chatID,
-			Text:         msg.Text,
-			Role:         msg.Role.String(),
-			CreatedAtStr: createdAt,
-		}
-		dbMessages = append(dbMessages, dbMessage)
-	}
-
-	// Efficiently replace all messages in a single transaction
-	err := s.storage.ReplaceMessagesByChatId(ctx, chatID, dbMessages)
-	if err != nil {
-		return nil, fmt.Errorf("failed to replace messages: %w", err)
-	}
-
-	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
-	if err != nil {
-		s.logger.Error("failed to get user memory profile", "error", err)
-		userMemoryProfile = ""
-	}
-
-	var systemPrompt string
-	if isOnboarding {
-		systemPrompt = `You are an onboarding agent. Your job is to welcome new users and gather some basic information about them.
-
-You need to ask exactly 3 questions in a friendly and conversational manner:
-1. What is your name?
-2. What is your favorite color?
-3. What is your favorite animal?
-
-After the user has answered all three questions, you should call the finalize_onboarding tool with:
-- name: the user's name (required)
-- context: a summary of their other answers (e.g., "favorite color: blue, favorite animal: cat")
-
-Be warm, welcoming, and conversational. Ask one question at a time and wait for the user's response before moving to the next question.`
-	} else {
-		systemPrompt, err = s.buildSystemPrompt(ctx, chatID, true, userMemoryProfile)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
-	messageHistory = append(
-		messageHistory,
-		openai.SystemMessage(systemPrompt),
-	)
-
-	// Publish messages to NATS and build message history for AI
-	for i, msg := range messages {
-		dbMsg := dbMessages[i]
-		natsMsg := model.Message{
-			ID:        dbMsg.ID,
-			Text:      &msg.Text,
-			ImageUrls: []string{},
-			CreatedAt: time.Now().Format(time.RFC3339),
-			Role:      msg.Role,
-		}
-		natsMsgJSON, err := json.Marshal(natsMsg)
-		if err != nil {
-			s.logger.Error("failed to marshal message for NATS", "error", err)
-		} else {
-			subject := fmt.Sprintf("chat.%s", chatID)
-			if err := s.nc.Publish(subject, natsMsgJSON); err != nil {
-				s.logger.Error("failed to publish message to NATS", "error", err)
-			}
-		}
-		switch msg.Role {
-		case model.RoleUser:
-			messageHistory = append(messageHistory, openai.UserMessage(msg.Text))
-		case model.RoleAssistant:
-			messageHistory = append(messageHistory, openai.AssistantMessage(msg.Text))
-		}
-	}
-
-	if len(messages) == 0 {
-		return nil, fmt.Errorf("no messages provided in history")
-	}
-
-	assistantMessageId := uuid.New().String()
-
-	// Create streaming channel
-	streamChan := make(chan model.MessageStreamPayload, 10)
-
-	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
-		tcJson, err := json.Marshal(model.ToolCall{
-			ID:          toolCall.ID,
-			Name:        toolCall.Function.Name,
-			MessageID:   assistantMessageId,
-			IsCompleted: false,
-		})
-		if err != nil {
-			s.logger.Error("failed to marshal tool call", "error", err)
-			return
-		}
-		subject := fmt.Sprintf("chat.%s.tool_call", chatID)
-		err = s.nc.Publish(subject, tcJson)
-		if err != nil {
-			s.logger.Error("failed to publish tool call", "error", err)
-		}
-	}
-
-	toolCallResultsMap := make(map[string]model.ToolCallResult)
-	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
-		tcJson, err := json.Marshal(model.ToolCall{
-			ID:        toolCall.ID,
-			Name:      toolCall.Function.Name,
-			MessageID: assistantMessageId,
-			Result: &model.ToolCallResult{
-				Content:   helpers.Ptr(toolResult.Content()),
-				ImageUrls: toolResult.ImageURLs(),
-			},
-			IsCompleted: true,
-		})
-		toolCallResultsMap[toolCall.ID] = model.ToolCallResult{
-			Content:   helpers.Ptr(toolResult.Content()),
-			ImageUrls: toolResult.ImageURLs(),
-		}
-		if err != nil {
-			s.logger.Error("failed to marshal tool call", "error", err)
-			return
-		}
-		subject := fmt.Sprintf("chat.%s.tool_call", chatID)
-		err = s.nc.Publish(subject, tcJson)
-		if err != nil {
-			s.logger.Error("failed to publish tool call", "error", err)
-		}
-	}
-
-	createdAt := time.Now().Format(time.RFC3339)
-
-	// Custom onDelta that sends to our stream channel
-	onDelta := func(delta agent.StreamDelta) {
-		payload := model.MessageStreamPayload{
-			MessageID:  assistantMessageId,
-			ImageUrls:  delta.ImageURLs,
-			Chunk:      delta.ContentDelta,
-			Role:       model.RoleAssistant,
-			IsComplete: false,
-			CreatedAt:  &createdAt,
-		}
-
-		// Send to our stream channel
-		select {
-		case streamChan <- payload:
-		case <-ctx.Done():
-			s.logger.Debug("Context canceled in onDelta callback", "error", ctx.Err(), "message_id", assistantMessageId)
-			return
-		default:
-			s.logger.Warn("Stream channel full, dropping chunk")
-		}
-
-		// Also publish to NATS for other subscribers
-		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
-	}
-
-	// Start processing in a goroutine
-	go func() {
-		defer close(streamChan)
-		s.logger.Debug("ProcessMessageHistoryStream goroutine started", "context_err", ctx.Err(), "chat_id", chatID)
-
-		// Create custom agent for onboarding with specific tools
-		agent := agent.NewAgent(
-			s.logger,
-			s.nc,
-			s.aiService,
-			s.completionsModel,
-			s.reasoningModel,
-			preToolCallback,
-			postToolCallback,
-		)
-
-		var toolsList []tools.Tool
-		if isOnboarding {
-			// For onboarding, only provide the finalize_onboarding tool
-			toolsList = []tools.Tool{NewFinalizeOnboardingTool()}
-		} else {
-			// For normal conversations, use the full tool registry excluding send_to_chat
-			toolsList = s.toolRegistry.Excluding("send_to_chat").GetAll()
-		}
-
-		response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta, false)
-		if err != nil {
-			s.logger.Error("Agent execution failed in stream", "error", err)
-			return
-		}
-
-		s.logger.Info("Agent response", "content", response.Content)
-
-		// Save the final assistant message to database
-		subject := fmt.Sprintf("chat.%s", chatID)
-		toolResults := make([]string, len(response.ToolResults))
-		for i, v := range response.ToolResults {
-			toolResultsJson, err := json.Marshal(v)
-			if err != nil {
-				s.logger.Error("failed to marshal tool results", "error", err)
-				continue
-			}
-			toolResults[i] = string(toolResultsJson)
-		}
-
-		toolCalls := make([]*model.ToolCall, len(response.ToolCalls))
-		for i, v := range response.ToolCalls {
-			toolCalls[i] = &model.ToolCall{
-				ID:          v.ID,
-				Name:        v.Function.Name,
-				IsCompleted: true,
-			}
-		}
-
-		assistantMessageDb := repository.Message{
-			ID:           assistantMessageId,
-			ChatID:       chatID,
-			Text:         response.Content,
-			Role:         model.RoleAssistant.String(),
-			CreatedAtStr: time.Now().Format(time.RFC3339Nano),
-		}
-
-		if len(response.ToolCalls) > 0 {
-			toolCalls := make([]model.ToolCall, 0)
-			for _, toolCall := range response.ToolCalls {
-				toolCall := model.ToolCall{
-					ID:          toolCall.ID,
-					Name:        toolCall.Function.Name,
-					MessageID:   assistantMessageId,
-					IsCompleted: true,
-				}
-				result, ok := toolCallResultsMap[toolCall.ID]
-				if ok {
-					toolCall.Result = &result
-				}
-				toolCalls = append(toolCalls, toolCall)
-			}
-			toolCallsJson, err := json.Marshal(toolCalls)
-			if err != nil {
-				s.logger.Error("failed to marshal tool calls", "error", err)
-			} else {
-				assistantMessageDb.ToolCallsStr = helpers.Ptr(string(toolCallsJson))
-			}
-		}
-		if len(response.ToolResults) > 0 {
-			toolResultsJson, err := json.Marshal(response.ToolResults)
-			if err != nil {
-				s.logger.Error("failed to marshal tool results", "error", err)
-			} else {
-				assistantMessageDb.ToolResultsStr = helpers.Ptr(string(toolResultsJson))
-			}
-		}
-		if len(response.ImageURLs) > 0 {
-			imageURLsJson, err := json.Marshal(response.ImageURLs)
-			if err != nil {
-				s.logger.Error("failed to marshal image URLs", "error", err)
-			} else {
-				assistantMessageDb.ImageURLsStr = helpers.Ptr(string(imageURLsJson))
-			}
-		}
-
-		idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
-		if err != nil {
-			s.logger.Error("failed to save assistant message", "error", err)
-			return
-		}
-
-		assistantMessage := &model.Message{
-			ID:          idAssistant,
-			Text:        &response.Content,
-			ImageUrls:   response.ImageURLs,
-			CreatedAt:   now.Format(time.RFC3339),
-			Role:        model.RoleAssistant,
-			ToolCalls:   assistantMessageDb.ToModel().ToolCalls,
-			ToolResults: assistantMessageDb.ToModel().ToolResults,
-		}
-
-		assistantMessageJson, err := json.Marshal(assistantMessage)
-		if err != nil {
-			s.logger.Error("failed to marshal assistant message for NATS", "error", err)
-		} else {
-			s.logger.Info("Publishing to NATS", "subject", subject)
-			err = s.nc.Publish(subject, assistantMessageJson)
-			if err != nil {
-				s.logger.Error("Failed to publish to NATS", "error", err)
-			}
-		}
-
-		// Index conversation asynchronously
-		go func() {
-			err := s.IndexConversation(context.Background(), chatID)
-			if err != nil {
-				s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
-			}
-		}()
-
-		finalPayload := model.MessageStreamPayload{
-			MessageID:  assistantMessageId,
-			ImageUrls:  []string{},
-			Chunk:      "",
-			Role:       model.RoleAssistant,
-			IsComplete: true,
-			CreatedAt:  &createdAt,
-		}
-
-		select {
-		case streamChan <- finalPayload:
-			s.logger.Debug("Sent final completion signal", "message_id", assistantMessageId)
-		case <-ctx.Done():
-			s.logger.Debug("Context canceled before sending final completion", "error", ctx.Err())
-		default:
-			s.logger.Warn("Stream channel full, dropping final completion signal")
-		}
-
-		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), finalPayload)
-	}()
-
-	return streamChan, nil
-}
-
 func (s *Service) GetChats(ctx context.Context) ([]*model.Chat, error) {
 	return s.storage.GetChats(ctx)
 }
@@ -1115,15 +466,19 @@ func (s *Service) CreateChat(ctx context.Context, name string, category model.Ch
 	return s.storage.CreateChat(ctx, name, category, holonThreadID)
 }
 
+func (s *Service) UpdateChatPrivacyDict(ctx context.Context, chatID string, privacyDictJson *string) error {
+	return s.storage.UpdateChatPrivacyDict(ctx, chatID, privacyDictJson)
+}
+
+func (s *Service) DeleteChat(ctx context.Context, chatID string) error {
+	return s.storage.DeleteChat(ctx, chatID)
+}
+
 func (s *Service) GetMessagesByChatId(
 	ctx context.Context,
 	chatID string,
 ) ([]*model.Message, error) {
 	return s.storage.GetMessagesByChatId(ctx, chatID)
-}
-
-func (s *Service) DeleteChat(ctx context.Context, chatID string) error {
-	return s.storage.DeleteChat(ctx, chatID)
 }
 
 func (s *Service) GetChatSuggestions(
@@ -1268,70 +623,4 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	s.logger.Info("Indexing conversation", "chat_id", chatID, "messages_count", len(conversationMessages))
 
 	return s.memoryService.Store(ctx, []memory.Document{&doc}, nil)
-}
-
-func (s *Service) SendAssistantMessage(
-	ctx context.Context,
-	chatID string,
-	message string,
-) (*model.Message, error) {
-	now := time.Now()
-
-	if chatID == "" {
-		chat, err := s.storage.CreateChat(ctx, "New chat", model.ChatCategoryText, nil)
-		if err != nil {
-			return nil, err
-		}
-		s.logger.Info("Created new chat", "chat_id", chat.ID)
-		chatID = chat.ID
-	}
-
-	assistantMessageId := uuid.New().String()
-	createdAt := time.Now().Format(time.RFC3339)
-
-	assistantMessageDb := repository.Message{
-		ID:           assistantMessageId,
-		ChatID:       chatID,
-		Text:         message,
-		Role:         model.RoleAssistant.String(),
-		CreatedAtStr: now.Format(time.RFC3339Nano),
-	}
-
-	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
-	if err != nil {
-		return nil, err
-	}
-
-	assistantNatsMsg := model.Message{
-		ID:        assistantMessageId,
-		Text:      &message,
-		ImageUrls: []string{},
-		CreatedAt: createdAt,
-		Role:      model.RoleAssistant,
-	}
-
-	assistantNatsMsgJSON, err := json.Marshal(assistantNatsMsg)
-	if err != nil {
-		s.logger.Error("failed to marshal assistant NATS message", "error", err)
-	} else {
-		subject := fmt.Sprintf("chat.%s", chatID)
-		if err := s.nc.Publish(subject, assistantNatsMsgJSON); err != nil {
-			s.logger.Error("failed to publish assistant message to NATS", "error", err)
-		}
-	}
-
-	go func() {
-		err := s.IndexConversation(context.Background(), chatID)
-		if err != nil {
-			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
-		}
-	}()
-
-	return &model.Message{
-		ID:        idAssistant,
-		Text:      &message,
-		Role:      model.RoleAssistant,
-		ImageUrls: []string{},
-		CreatedAt: createdAt,
-	}, nil
 }

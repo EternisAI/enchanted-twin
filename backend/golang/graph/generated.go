@@ -81,13 +81,14 @@ type ComplexityRoot struct {
 	}
 
 	Chat struct {
-		Category       func(childComplexity int) int
-		CreatedAt      func(childComplexity int) int
-		HolonThreadID  func(childComplexity int) int
-		ID             func(childComplexity int) int
-		InitialMessage func(childComplexity int) int
-		Messages       func(childComplexity int) int
-		Name           func(childComplexity int) int
+		Category        func(childComplexity int) int
+		CreatedAt       func(childComplexity int) int
+		HolonThreadID   func(childComplexity int) int
+		ID              func(childComplexity int) int
+		InitialMessage  func(childComplexity int) int
+		Messages        func(childComplexity int) int
+		Name            func(childComplexity int) int
+		PrivacyDictJSON func(childComplexity int) int
 	}
 
 	ChatSuggestionsCategory struct {
@@ -104,6 +105,13 @@ type ComplexityRoot struct {
 		Name          func(childComplexity int) int
 		Path          func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
+	}
+
+	DirectoryWatcherStatus struct {
+		ErrorMessage         func(childComplexity int) int
+		IsRunning            func(childComplexity int) int
+		TrackedFoldersFromDb func(childComplexity int) int
+		WatchedDirectories   func(childComplexity int) int
 	}
 
 	IndexingStatus struct {
@@ -162,14 +170,15 @@ type ComplexityRoot struct {
 	Mutation struct {
 		Activate                  func(childComplexity int, inviteCode string) int
 		AddDataSource             func(childComplexity int, name string, path string) int
+		AddTrackedFolder          func(childComplexity int, input model.AddTrackedFolderInput) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
 		ConnectMCPServer          func(childComplexity int, input model.ConnectMCPServerInput) int
 		CreateChat                func(childComplexity int, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) int
 		DeleteAgentTask           func(childComplexity int, id string) int
 		DeleteChat                func(childComplexity int, chatID string) int
 		DeleteDataSource          func(childComplexity int, id string) int
+		DeleteTrackedFolder       func(childComplexity int, id string) int
 		JoinHolon                 func(childComplexity int, userID string, network *string) int
-		ProcessMessageHistory     func(childComplexity int, chatID string, messages []*model.MessageInput, isOnboarding bool) int
 		RefreshExpiredOAuthTokens func(childComplexity int) int
 		RemoveMCPServer           func(childComplexity int, id string) int
 		SendMessage               func(childComplexity int, chatID string, text string, reasoning bool, voice bool) int
@@ -180,6 +189,7 @@ type ComplexityRoot struct {
 		StoreToken                func(childComplexity int, input model.StoreTokenInput) int
 		UpdateAgentTask           func(childComplexity int, id string, notify bool) int
 		UpdateProfile             func(childComplexity int, input model.UpdateProfileInput) int
+		UpdateTrackedFolder       func(childComplexity int, id string, input model.UpdateTrackedFolderInput) int
 	}
 
 	OAuthFlow struct {
@@ -195,22 +205,29 @@ type ComplexityRoot struct {
 		Username  func(childComplexity int) int
 	}
 
+	PrivacyDictUpdate struct {
+		ChatID          func(childComplexity int) int
+		PrivacyDictJSON func(childComplexity int) int
+	}
+
 	Query struct {
-		GetAgentTasks      func(childComplexity int) int
-		GetChat            func(childComplexity int, id string) int
-		GetChatSuggestions func(childComplexity int, chatID string) int
-		GetChats           func(childComplexity int, first int32, offset int32) int
-		GetDataSources     func(childComplexity int) int
-		GetHolons          func(childComplexity int, userID string) int
-		GetMCPServers      func(childComplexity int) int
-		GetOAuthStatus     func(childComplexity int) int
-		GetSetupProgress   func(childComplexity int) int
-		GetThread          func(childComplexity int, network *string, id string) int
-		GetThreads         func(childComplexity int, network *string, first int32, offset int32) int
-		GetTools           func(childComplexity int) int
-		GetWhatsAppStatus  func(childComplexity int) int
-		Profile            func(childComplexity int) int
-		WhitelistStatus    func(childComplexity int) int
+		GetAgentTasks             func(childComplexity int) int
+		GetChat                   func(childComplexity int, id string) int
+		GetChatSuggestions        func(childComplexity int, chatID string) int
+		GetChats                  func(childComplexity int, first int32, offset int32) int
+		GetDataSources            func(childComplexity int) int
+		GetDirectoryWatcherStatus func(childComplexity int) int
+		GetHolons                 func(childComplexity int, userID string) int
+		GetMCPServers             func(childComplexity int) int
+		GetOAuthStatus            func(childComplexity int) int
+		GetSetupProgress          func(childComplexity int) int
+		GetThread                 func(childComplexity int, network *string, id string) int
+		GetThreads                func(childComplexity int, network *string, first int32, offset int32) int
+		GetTools                  func(childComplexity int) int
+		GetTrackedFolders         func(childComplexity int) int
+		GetWhatsAppStatus         func(childComplexity int) int
+		Profile                   func(childComplexity int) int
+		WhitelistStatus           func(childComplexity int) int
 	}
 
 	SetupProgress struct {
@@ -225,6 +242,7 @@ type ComplexityRoot struct {
 		MessageAdded                func(childComplexity int, chatID string) int
 		MessageStream               func(childComplexity int, chatID string) int
 		NotificationAdded           func(childComplexity int) int
+		PrivacyDictUpdated          func(childComplexity int, chatID string) int
 		ProcessMessageHistoryStream func(childComplexity int, chatID string, messages []*model.MessageInput, isOnboarding bool) int
 		TelegramMessageAdded        func(childComplexity int, chatUUID string) int
 		ToolCallUpdated             func(childComplexity int, chatID string) int
@@ -273,6 +291,15 @@ type ComplexityRoot struct {
 		ImageUrls func(childComplexity int) int
 	}
 
+	TrackedFolder struct {
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		IsEnabled func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Path      func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+	}
+
 	UserProfile struct {
 		Bio                  func(childComplexity int) int
 		ConnectedDataSources func(childComplexity int) int
@@ -311,7 +338,6 @@ type MutationResolver interface {
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
-	ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
@@ -325,6 +351,9 @@ type MutationResolver interface {
 	Activate(ctx context.Context, inviteCode string) (bool, error)
 	JoinHolon(ctx context.Context, userID string, network *string) (bool, error)
 	StoreToken(ctx context.Context, input model.StoreTokenInput) (bool, error)
+	AddTrackedFolder(ctx context.Context, input model.AddTrackedFolderInput) (*model.TrackedFolder, error)
+	DeleteTrackedFolder(ctx context.Context, id string) (bool, error)
+	UpdateTrackedFolder(ctx context.Context, id string, input model.UpdateTrackedFolderInput) (bool, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -342,6 +371,8 @@ type QueryResolver interface {
 	GetHolons(ctx context.Context, userID string) ([]string, error)
 	GetThreads(ctx context.Context, network *string, first int32, offset int32) ([]*model.Thread, error)
 	GetThread(ctx context.Context, network *string, id string) (*model.Thread, error)
+	GetTrackedFolders(ctx context.Context) ([]*model.TrackedFolder, error)
+	GetDirectoryWatcherStatus(ctx context.Context) (*model.DirectoryWatcherStatus, error)
 }
 type SubscriptionResolver interface {
 	MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error)
@@ -352,6 +383,7 @@ type SubscriptionResolver interface {
 	MessageStream(ctx context.Context, chatID string) (<-chan *model.MessageStreamPayload, error)
 	ProcessMessageHistoryStream(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (<-chan *model.MessageStreamPayload, error)
 	WhatsAppSyncStatus(ctx context.Context) (<-chan *model.WhatsAppSyncStatus, error)
+	PrivacyDictUpdated(ctx context.Context, chatID string) (<-chan *model.PrivacyDictUpdate, error)
 }
 type UserProfileResolver interface {
 	IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error)
@@ -566,6 +598,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Chat.Name(childComplexity), true
 
+	case "Chat.privacyDictJson":
+		if e.complexity.Chat.PrivacyDictJSON == nil {
+			break
+		}
+
+		return e.complexity.Chat.PrivacyDictJSON(childComplexity), true
+
 	case "ChatSuggestionsCategory.category":
 		if e.complexity.ChatSuggestionsCategory.Category == nil {
 			break
@@ -635,6 +674,34 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.DataSource.UpdatedAt(childComplexity), true
+
+	case "DirectoryWatcherStatus.errorMessage":
+		if e.complexity.DirectoryWatcherStatus.ErrorMessage == nil {
+			break
+		}
+
+		return e.complexity.DirectoryWatcherStatus.ErrorMessage(childComplexity), true
+
+	case "DirectoryWatcherStatus.isRunning":
+		if e.complexity.DirectoryWatcherStatus.IsRunning == nil {
+			break
+		}
+
+		return e.complexity.DirectoryWatcherStatus.IsRunning(childComplexity), true
+
+	case "DirectoryWatcherStatus.trackedFoldersFromDB":
+		if e.complexity.DirectoryWatcherStatus.TrackedFoldersFromDb == nil {
+			break
+		}
+
+		return e.complexity.DirectoryWatcherStatus.TrackedFoldersFromDb(childComplexity), true
+
+	case "DirectoryWatcherStatus.watchedDirectories":
+		if e.complexity.DirectoryWatcherStatus.WatchedDirectories == nil {
+			break
+		}
+
+		return e.complexity.DirectoryWatcherStatus.WatchedDirectories(childComplexity), true
 
 	case "IndexingStatus.dataSources":
 		if e.complexity.IndexingStatus.DataSources == nil {
@@ -905,6 +972,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.AddDataSource(childComplexity, args["name"].(string), args["path"].(string)), true
 
+	case "Mutation.addTrackedFolder":
+		if e.complexity.Mutation.AddTrackedFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addTrackedFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.AddTrackedFolder(childComplexity, args["input"].(model.AddTrackedFolderInput)), true
+
 	case "Mutation.completeOAuthFlow":
 		if e.complexity.Mutation.CompleteOAuthFlow == nil {
 			break
@@ -977,6 +1056,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.DeleteDataSource(childComplexity, args["id"].(string)), true
 
+	case "Mutation.deleteTrackedFolder":
+		if e.complexity.Mutation.DeleteTrackedFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteTrackedFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteTrackedFolder(childComplexity, args["id"].(string)), true
+
 	case "Mutation.joinHolon":
 		if e.complexity.Mutation.JoinHolon == nil {
 			break
@@ -988,18 +1079,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.JoinHolon(childComplexity, args["userId"].(string), args["network"].(*string)), true
-
-	case "Mutation.processMessageHistory":
-		if e.complexity.Mutation.ProcessMessageHistory == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_processMessageHistory_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.ProcessMessageHistory(childComplexity, args["chatId"].(string), args["messages"].([]*model.MessageInput), args["isOnboarding"].(bool)), true
 
 	case "Mutation.refreshExpiredOAuthTokens":
 		if e.complexity.Mutation.RefreshExpiredOAuthTokens == nil {
@@ -1106,6 +1185,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.UpdateProfile(childComplexity, args["input"].(model.UpdateProfileInput)), true
 
+	case "Mutation.updateTrackedFolder":
+		if e.complexity.Mutation.UpdateTrackedFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTrackedFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateTrackedFolder(childComplexity, args["id"].(string), args["input"].(model.UpdateTrackedFolderInput)), true
+
 	case "OAuthFlow.authURL":
 		if e.complexity.OAuthFlow.AuthURL == nil {
 			break
@@ -1154,6 +1245,20 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OAuthStatus.Username(childComplexity), true
+
+	case "PrivacyDictUpdate.chatId":
+		if e.complexity.PrivacyDictUpdate.ChatID == nil {
+			break
+		}
+
+		return e.complexity.PrivacyDictUpdate.ChatID(childComplexity), true
+
+	case "PrivacyDictUpdate.privacyDictJson":
+		if e.complexity.PrivacyDictUpdate.PrivacyDictJSON == nil {
+			break
+		}
+
+		return e.complexity.PrivacyDictUpdate.PrivacyDictJSON(childComplexity), true
 
 	case "Query.getAgentTasks":
 		if e.complexity.Query.GetAgentTasks == nil {
@@ -1204,6 +1309,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.GetDataSources(childComplexity), true
+
+	case "Query.getDirectoryWatcherStatus":
+		if e.complexity.Query.GetDirectoryWatcherStatus == nil {
+			break
+		}
+
+		return e.complexity.Query.GetDirectoryWatcherStatus(childComplexity), true
 
 	case "Query.getHolons":
 		if e.complexity.Query.GetHolons == nil {
@@ -1268,6 +1380,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.GetTools(childComplexity), true
+
+	case "Query.getTrackedFolders":
+		if e.complexity.Query.GetTrackedFolders == nil {
+			break
+		}
+
+		return e.complexity.Query.GetTrackedFolders(childComplexity), true
 
 	case "Query.getWhatsAppStatus":
 		if e.complexity.Query.GetWhatsAppStatus == nil {
@@ -1355,6 +1474,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Subscription.NotificationAdded(childComplexity), true
+
+	case "Subscription.privacyDictUpdated":
+		if e.complexity.Subscription.PrivacyDictUpdated == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_privacyDictUpdated_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.PrivacyDictUpdated(childComplexity, args["chatId"].(string)), true
 
 	case "Subscription.processMessageHistoryStream":
 		if e.complexity.Subscription.ProcessMessageHistoryStream == nil {
@@ -1588,6 +1719,48 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.ToolCallResult.ImageUrls(childComplexity), true
 
+	case "TrackedFolder.createdAt":
+		if e.complexity.TrackedFolder.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.TrackedFolder.CreatedAt(childComplexity), true
+
+	case "TrackedFolder.id":
+		if e.complexity.TrackedFolder.ID == nil {
+			break
+		}
+
+		return e.complexity.TrackedFolder.ID(childComplexity), true
+
+	case "TrackedFolder.isEnabled":
+		if e.complexity.TrackedFolder.IsEnabled == nil {
+			break
+		}
+
+		return e.complexity.TrackedFolder.IsEnabled(childComplexity), true
+
+	case "TrackedFolder.name":
+		if e.complexity.TrackedFolder.Name == nil {
+			break
+		}
+
+		return e.complexity.TrackedFolder.Name(childComplexity), true
+
+	case "TrackedFolder.path":
+		if e.complexity.TrackedFolder.Path == nil {
+			break
+		}
+
+		return e.complexity.TrackedFolder.Path(childComplexity), true
+
+	case "TrackedFolder.updatedAt":
+		if e.complexity.TrackedFolder.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.TrackedFolder.UpdatedAt(childComplexity), true
+
 	case "UserProfile.bio":
 		if e.complexity.UserProfile.Bio == nil {
 			break
@@ -1701,11 +1874,13 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputAddTrackedFolderInput,
 		ec.unmarshalInputConnectMCPServerInput,
 		ec.unmarshalInputKeyValueInput,
 		ec.unmarshalInputMessageInput,
 		ec.unmarshalInputStoreTokenInput,
 		ec.unmarshalInputUpdateProfileInput,
+		ec.unmarshalInputUpdateTrackedFolderInput,
 	)
 	first := true
 
@@ -1900,6 +2075,29 @@ func (ec *executionContext) field_Mutation_addDataSource_argsPath(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_addTrackedFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_addTrackedFolder_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_addTrackedFolder_argsInput(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.AddTrackedFolderInput, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNAddTrackedFolderInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐAddTrackedFolderInput(ctx, tmp)
+	}
+
+	var zeroVal model.AddTrackedFolderInput
 	return zeroVal, nil
 }
 
@@ -2113,6 +2311,29 @@ func (ec *executionContext) field_Mutation_deleteDataSource_argsID(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteTrackedFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_deleteTrackedFolder_argsID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_deleteTrackedFolder_argsID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+	if tmp, ok := rawArgs["id"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_joinHolon_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2151,65 +2372,6 @@ func (ec *executionContext) field_Mutation_joinHolon_argsNetwork(
 	}
 
 	var zeroVal *string
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_processMessageHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := ec.field_Mutation_processMessageHistory_argsChatID(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["chatId"] = arg0
-	arg1, err := ec.field_Mutation_processMessageHistory_argsMessages(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["messages"] = arg1
-	arg2, err := ec.field_Mutation_processMessageHistory_argsIsOnboarding(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["isOnboarding"] = arg2
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_processMessageHistory_argsChatID(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
-	if tmp, ok := rawArgs["chatId"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
-	}
-
-	var zeroVal string
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_processMessageHistory_argsMessages(
-	ctx context.Context,
-	rawArgs map[string]any,
-) ([]*model.MessageInput, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("messages"))
-	if tmp, ok := rawArgs["messages"]; ok {
-		return ec.unmarshalNMessageInput2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessageInputᚄ(ctx, tmp)
-	}
-
-	var zeroVal []*model.MessageInput
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_processMessageHistory_argsIsOnboarding(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (bool, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("isOnboarding"))
-	if tmp, ok := rawArgs["isOnboarding"]; ok {
-		return ec.unmarshalNBoolean2bool(ctx, tmp)
-	}
-
-	var zeroVal bool
 	return zeroVal, nil
 }
 
@@ -2482,6 +2644,47 @@ func (ec *executionContext) field_Mutation_updateProfile_argsInput(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_updateTrackedFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_updateTrackedFolder_argsID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := ec.field_Mutation_updateTrackedFolder_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_updateTrackedFolder_argsID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+	if tmp, ok := rawArgs["id"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_updateTrackedFolder_argsInput(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.UpdateTrackedFolderInput, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNUpdateTrackedFolderInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUpdateTrackedFolderInput(ctx, tmp)
+	}
+
+	var zeroVal model.UpdateTrackedFolderInput
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2749,6 +2952,29 @@ func (ec *executionContext) field_Subscription_messageStream_args(ctx context.Co
 	return args, nil
 }
 func (ec *executionContext) field_Subscription_messageStream_argsChatID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
+	if tmp, ok := rawArgs["chatId"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Subscription_privacyDictUpdated_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Subscription_privacyDictUpdated_argsChatID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["chatId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Subscription_privacyDictUpdated_argsChatID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
@@ -4143,6 +4369,47 @@ func (ec *executionContext) fieldContext_Chat_initialMessage(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Chat_privacyDictJson(ctx context.Context, field graphql.CollectedField, obj *model.Chat) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Chat_privacyDictJson(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PrivacyDictJSON, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOJSON2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Chat_privacyDictJson(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Chat",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ChatSuggestionsCategory_category(ctx context.Context, field graphql.CollectedField, obj *model.ChatSuggestionsCategory) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_ChatSuggestionsCategory_category(ctx, field)
 	if err != nil {
@@ -4578,6 +4845,193 @@ func (ec *executionContext) fieldContext_DataSource_hasError(_ context.Context, 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DirectoryWatcherStatus_isRunning(ctx context.Context, field graphql.CollectedField, obj *model.DirectoryWatcherStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_DirectoryWatcherStatus_isRunning(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsRunning, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_DirectoryWatcherStatus_isRunning(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DirectoryWatcherStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DirectoryWatcherStatus_watchedDirectories(ctx context.Context, field graphql.CollectedField, obj *model.DirectoryWatcherStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_DirectoryWatcherStatus_watchedDirectories(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.WatchedDirectories, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_DirectoryWatcherStatus_watchedDirectories(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DirectoryWatcherStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DirectoryWatcherStatus_trackedFoldersFromDB(ctx context.Context, field graphql.CollectedField, obj *model.DirectoryWatcherStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_DirectoryWatcherStatus_trackedFoldersFromDB(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TrackedFoldersFromDb, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.TrackedFolder)
+	fc.Result = res
+	return ec.marshalNTrackedFolder2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐTrackedFolderᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_DirectoryWatcherStatus_trackedFoldersFromDB(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DirectoryWatcherStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_TrackedFolder_id(ctx, field)
+			case "path":
+				return ec.fieldContext_TrackedFolder_path(ctx, field)
+			case "name":
+				return ec.fieldContext_TrackedFolder_name(ctx, field)
+			case "isEnabled":
+				return ec.fieldContext_TrackedFolder_isEnabled(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_TrackedFolder_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_TrackedFolder_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TrackedFolder", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DirectoryWatcherStatus_errorMessage(ctx context.Context, field graphql.CollectedField, obj *model.DirectoryWatcherStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_DirectoryWatcherStatus_errorMessage(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ErrorMessage, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_DirectoryWatcherStatus_errorMessage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DirectoryWatcherStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6427,6 +6881,8 @@ func (ec *executionContext) fieldContext_Mutation_createChat(ctx context.Context
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -6516,77 +6972,6 @@ func (ec *executionContext) fieldContext_Mutation_sendMessage(ctx context.Contex
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_processMessageHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_processMessageHistory(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ProcessMessageHistory(rctx, fc.Args["chatId"].(string), fc.Args["messages"].([]*model.MessageInput), fc.Args["isOnboarding"].(bool))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(*model.Message)
-	fc.Result = res
-	return ec.marshalNMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_processMessageHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Message_id(ctx, field)
-			case "text":
-				return ec.fieldContext_Message_text(ctx, field)
-			case "imageUrls":
-				return ec.fieldContext_Message_imageUrls(ctx, field)
-			case "role":
-				return ec.fieldContext_Message_role(ctx, field)
-			case "toolCalls":
-				return ec.fieldContext_Message_toolCalls(ctx, field)
-			case "toolResults":
-				return ec.fieldContext_Message_toolResults(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Message_createdAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_processMessageHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Mutation_deleteChat(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_deleteChat(ctx, field)
 	if err != nil {
@@ -6640,6 +7025,8 @@ func (ec *executionContext) fieldContext_Mutation_deleteChat(ctx context.Context
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -7296,6 +7683,185 @@ func (ec *executionContext) fieldContext_Mutation_storeToken(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_addTrackedFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_addTrackedFolder(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().AddTrackedFolder(rctx, fc.Args["input"].(model.AddTrackedFolderInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.TrackedFolder)
+	fc.Result = res
+	return ec.marshalNTrackedFolder2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐTrackedFolder(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_addTrackedFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_TrackedFolder_id(ctx, field)
+			case "path":
+				return ec.fieldContext_TrackedFolder_path(ctx, field)
+			case "name":
+				return ec.fieldContext_TrackedFolder_name(ctx, field)
+			case "isEnabled":
+				return ec.fieldContext_TrackedFolder_isEnabled(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_TrackedFolder_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_TrackedFolder_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TrackedFolder", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addTrackedFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteTrackedFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_deleteTrackedFolder(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteTrackedFolder(rctx, fc.Args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteTrackedFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteTrackedFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateTrackedFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_updateTrackedFolder(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpdateTrackedFolder(rctx, fc.Args["id"].(string), fc.Args["input"].(model.UpdateTrackedFolderInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateTrackedFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTrackedFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _OAuthFlow_authURL(ctx context.Context, field graphql.CollectedField, obj *model.OAuthFlow) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_OAuthFlow_authURL(ctx, field)
 	if err != nil {
@@ -7604,6 +8170,94 @@ func (ec *executionContext) fieldContext_OAuthStatus_error(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _PrivacyDictUpdate_chatId(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyDictUpdate) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PrivacyDictUpdate_chatId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ChatID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PrivacyDictUpdate_chatId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PrivacyDictUpdate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PrivacyDictUpdate_privacyDictJson(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyDictUpdate) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PrivacyDictUpdate_privacyDictJson(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PrivacyDictJSON, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNJSON2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PrivacyDictUpdate_privacyDictJson(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PrivacyDictUpdate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_profile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_profile(ctx, field)
 	if err != nil {
@@ -7711,6 +8365,8 @@ func (ec *executionContext) fieldContext_Query_getChats(ctx context.Context, fie
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -7782,6 +8438,8 @@ func (ec *executionContext) fieldContext_Query_getChat(ctx context.Context, fiel
 				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			case "initialMessage":
 				return ec.fieldContext_Chat_initialMessage(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_Chat_privacyDictJson(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -8516,6 +9174,118 @@ func (ec *executionContext) fieldContext_Query_getThread(ctx context.Context, fi
 	if fc.Args, err = ec.field_Query_getThread_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getTrackedFolders(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getTrackedFolders(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetTrackedFolders(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.TrackedFolder)
+	fc.Result = res
+	return ec.marshalNTrackedFolder2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐTrackedFolderᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_getTrackedFolders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_TrackedFolder_id(ctx, field)
+			case "path":
+				return ec.fieldContext_TrackedFolder_path(ctx, field)
+			case "name":
+				return ec.fieldContext_TrackedFolder_name(ctx, field)
+			case "isEnabled":
+				return ec.fieldContext_TrackedFolder_isEnabled(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_TrackedFolder_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_TrackedFolder_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TrackedFolder", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getDirectoryWatcherStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getDirectoryWatcherStatus(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetDirectoryWatcherStatus(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.DirectoryWatcherStatus)
+	fc.Result = res
+	return ec.marshalNDirectoryWatcherStatus2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐDirectoryWatcherStatus(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_getDirectoryWatcherStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "isRunning":
+				return ec.fieldContext_DirectoryWatcherStatus_isRunning(ctx, field)
+			case "watchedDirectories":
+				return ec.fieldContext_DirectoryWatcherStatus_watchedDirectories(ctx, field)
+			case "trackedFoldersFromDB":
+				return ec.fieldContext_DirectoryWatcherStatus_trackedFoldersFromDB(ctx, field)
+			case "errorMessage":
+				return ec.fieldContext_DirectoryWatcherStatus_errorMessage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DirectoryWatcherStatus", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -9446,6 +10216,81 @@ func (ec *executionContext) fieldContext_Subscription_whatsAppSyncStatus(_ conte
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WhatsAppSyncStatus", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_privacyDictUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_privacyDictUpdated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().PrivacyDictUpdated(rctx, fc.Args["chatId"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.PrivacyDictUpdate):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNPrivacyDictUpdate2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐPrivacyDictUpdate(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_privacyDictUpdated(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "chatId":
+				return ec.fieldContext_PrivacyDictUpdate_chatId(ctx, field)
+			case "privacyDictJson":
+				return ec.fieldContext_PrivacyDictUpdate_privacyDictJson(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PrivacyDictUpdate", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_privacyDictUpdated_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -10646,6 +11491,267 @@ func (ec *executionContext) fieldContext_ToolCallResult_imageUrls(_ context.Cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TrackedFolder_id(ctx context.Context, field graphql.CollectedField, obj *model.TrackedFolder) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrackedFolder_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_TrackedFolder_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TrackedFolder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TrackedFolder_path(ctx context.Context, field graphql.CollectedField, obj *model.TrackedFolder) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrackedFolder_path(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Path, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_TrackedFolder_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TrackedFolder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TrackedFolder_name(ctx context.Context, field graphql.CollectedField, obj *model.TrackedFolder) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrackedFolder_name(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Name, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_TrackedFolder_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TrackedFolder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TrackedFolder_isEnabled(ctx context.Context, field graphql.CollectedField, obj *model.TrackedFolder) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrackedFolder_isEnabled(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsEnabled, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_TrackedFolder_isEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TrackedFolder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TrackedFolder_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.TrackedFolder) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrackedFolder_createdAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNDateTime2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_TrackedFolder_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TrackedFolder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TrackedFolder_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.TrackedFolder) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrackedFolder_updatedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UpdatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNDateTime2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_TrackedFolder_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TrackedFolder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
 		},
 	}
 	return fc, nil
@@ -13267,6 +14373,40 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputAddTrackedFolderInput(ctx context.Context, obj any) (model.AddTrackedFolderInput, error) {
+	var it model.AddTrackedFolderInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"path", "name"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "path":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("path"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Path = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputConnectMCPServerInput(ctx context.Context, obj any) (model.ConnectMCPServerInput, error) {
 	var it model.ConnectMCPServerInput
 	asMap := map[string]any{}
@@ -13452,6 +14592,40 @@ func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context
 				return it, err
 			}
 			it.Bio = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateTrackedFolderInput(ctx context.Context, obj any) (model.UpdateTrackedFolderInput, error) {
+	var it model.UpdateTrackedFolderInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "isEnabled"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "isEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsEnabled = data
 		}
 	}
 
@@ -13718,6 +14892,8 @@ func (ec *executionContext) _Chat(ctx context.Context, sel ast.SelectionSet, obj
 			out.Values[i] = ec._Chat_holonThreadId(ctx, field, obj)
 		case "initialMessage":
 			out.Values[i] = ec._Chat_initialMessage(ctx, field, obj)
+		case "privacyDictJson":
+			out.Values[i] = ec._Chat_privacyDictJson(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -13836,6 +15012,57 @@ func (ec *executionContext) _DataSource(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var directoryWatcherStatusImplementors = []string{"DirectoryWatcherStatus"}
+
+func (ec *executionContext) _DirectoryWatcherStatus(ctx context.Context, sel ast.SelectionSet, obj *model.DirectoryWatcherStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, directoryWatcherStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DirectoryWatcherStatus")
+		case "isRunning":
+			out.Values[i] = ec._DirectoryWatcherStatus_isRunning(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "watchedDirectories":
+			out.Values[i] = ec._DirectoryWatcherStatus_watchedDirectories(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "trackedFoldersFromDB":
+			out.Values[i] = ec._DirectoryWatcherStatus_trackedFoldersFromDB(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errorMessage":
+			out.Values[i] = ec._DirectoryWatcherStatus_errorMessage(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -14275,13 +15502,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "processMessageHistory":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_processMessageHistory(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "deleteChat":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteChat(ctx, field)
@@ -14369,6 +15589,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "storeToken":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_storeToken(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addTrackedFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addTrackedFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteTrackedFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteTrackedFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateTrackedFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTrackedFolder(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -14473,6 +15714,50 @@ func (ec *executionContext) _OAuthStatus(ctx context.Context, sel ast.SelectionS
 			}
 		case "error":
 			out.Values[i] = ec._OAuthStatus_error(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var privacyDictUpdateImplementors = []string{"PrivacyDictUpdate"}
+
+func (ec *executionContext) _PrivacyDictUpdate(ctx context.Context, sel ast.SelectionSet, obj *model.PrivacyDictUpdate) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, privacyDictUpdateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PrivacyDictUpdate")
+		case "chatId":
+			out.Values[i] = ec._PrivacyDictUpdate_chatId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "privacyDictJson":
+			out.Values[i] = ec._PrivacyDictUpdate_privacyDictJson(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -14842,6 +16127,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getTrackedFolders":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getTrackedFolders(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getDirectoryWatcherStatus":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getDirectoryWatcherStatus(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -14956,6 +16285,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_processMessageHistoryStream(ctx, fields[0])
 	case "whatsAppSyncStatus":
 		return ec._Subscription_whatsAppSyncStatus(ctx, fields[0])
+	case "privacyDictUpdated":
+		return ec._Subscription_privacyDictUpdated(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -15219,6 +16550,67 @@ func (ec *executionContext) _ToolCallResult(ctx context.Context, sel ast.Selecti
 			out.Values[i] = ec._ToolCallResult_content(ctx, field, obj)
 		case "imageUrls":
 			out.Values[i] = ec._ToolCallResult_imageUrls(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var trackedFolderImplementors = []string{"TrackedFolder"}
+
+func (ec *executionContext) _TrackedFolder(ctx context.Context, sel ast.SelectionSet, obj *model.TrackedFolder) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, trackedFolderImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TrackedFolder")
+		case "id":
+			out.Values[i] = ec._TrackedFolder_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "path":
+			out.Values[i] = ec._TrackedFolder_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._TrackedFolder_name(ctx, field, obj)
+		case "isEnabled":
+			out.Values[i] = ec._TrackedFolder_isEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._TrackedFolder_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._TrackedFolder_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -15832,6 +17224,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) unmarshalNAddTrackedFolderInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐAddTrackedFolderInput(ctx context.Context, v any) (model.AddTrackedFolderInput, error) {
+	res, err := ec.unmarshalInputAddTrackedFolderInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNAgentTask2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐAgentTaskᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AgentTask) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -16153,6 +17550,20 @@ func (ec *executionContext) marshalNDateTime2ᚕstringᚄ(ctx context.Context, s
 	return ret
 }
 
+func (ec *executionContext) marshalNDirectoryWatcherStatus2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐDirectoryWatcherStatus(ctx context.Context, sel ast.SelectionSet, v model.DirectoryWatcherStatus) graphql.Marshaler {
+	return ec._DirectoryWatcherStatus(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNDirectoryWatcherStatus2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐDirectoryWatcherStatus(ctx context.Context, sel ast.SelectionSet, v *model.DirectoryWatcherStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DirectoryWatcherStatus(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
 	res, err := graphql.UnmarshalFloatContext(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -16217,6 +17628,22 @@ func (ec *executionContext) unmarshalNInt2int32(ctx context.Context, v any) (int
 func (ec *executionContext) marshalNInt2int32(ctx context.Context, sel ast.SelectionSet, v int32) graphql.Marshaler {
 	_ = sel
 	res := graphql.MarshalInt32(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNJSON2string(ctx context.Context, v any) (string, error) {
+	res, err := graphql.UnmarshalString(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNJSON2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(v)
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -16462,6 +17889,20 @@ func (ec *executionContext) marshalNOAuthStatus2ᚖgithubᚗcomᚋEternisAIᚋen
 		return graphql.Null
 	}
 	return ec._OAuthStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPrivacyDictUpdate2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐPrivacyDictUpdate(ctx context.Context, sel ast.SelectionSet, v model.PrivacyDictUpdate) graphql.Marshaler {
+	return ec._PrivacyDictUpdate(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPrivacyDictUpdate2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐPrivacyDictUpdate(ctx context.Context, sel ast.SelectionSet, v *model.PrivacyDictUpdate) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PrivacyDictUpdate(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNRole2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐRole(ctx context.Context, v any) (model.Role, error) {
@@ -16799,8 +18240,71 @@ func (ec *executionContext) marshalNToolCall2ᚖgithubᚗcomᚋEternisAIᚋencha
 	return ec._ToolCall(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNTrackedFolder2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐTrackedFolder(ctx context.Context, sel ast.SelectionSet, v model.TrackedFolder) graphql.Marshaler {
+	return ec._TrackedFolder(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTrackedFolder2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐTrackedFolderᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.TrackedFolder) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNTrackedFolder2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐTrackedFolder(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTrackedFolder2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐTrackedFolder(ctx context.Context, sel ast.SelectionSet, v *model.TrackedFolder) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TrackedFolder(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNUpdateProfileInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {
 	res, err := ec.unmarshalInputUpdateProfileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateTrackedFolderInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUpdateTrackedFolderInput(ctx context.Context, v any) (model.UpdateTrackedFolderInput, error) {
+	res, err := ec.unmarshalInputUpdateTrackedFolderInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -17169,6 +18673,24 @@ func (ec *executionContext) marshalOInt2ᚖint32(ctx context.Context, sel ast.Se
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalInt32(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOJSON2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalString(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOJSON2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(*v)
 	return res
 }
 
