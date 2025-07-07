@@ -71,7 +71,7 @@ func NewDirectoryWatcher(store *db.Store, memoryStorage evolvingmemory.MemorySto
 		fileBuffer:     make(map[string]*FileEvent),
 		bufferDuration: BufferTimeout,
 		supportedExts: []string{
-			".json", ".mbox", ".zip", ".sqlite", ".db", ".tar", ".tar.gz", ".txt", ".pdf", ".docx",
+			".json", ".zip", ".tar", ".tar.gz", ".txt", ".pdf", ".docx", ".pptx", ".ppt",
 		},
 	}
 
@@ -398,12 +398,7 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 		return errors.Wrap(err, "failed to check file existence")
 	}
 
-	dataSourceName := dw.determineDataSourceType(filePath)
-	if dataSourceName == "" {
-		dw.logger.Warn("Unsupported file type, skipping processing", "path", filePath)
-		return nil
-	}
-
+	dataSourceName := "misc"
 	dataSourceID, err := dw.store.CreateDataSourceFromFile(ctx, &db.CreateDataSourceFromFileInput{
 		Name: dataSourceName,
 		Path: absPath,
@@ -586,9 +581,8 @@ func (dw *DirectoryWatcher) processRenameEventWithNewPath(oldPath, newPath strin
 		return dw.processNewFile(newAbsPath)
 	}
 
-	newDataSourceType := dw.determineDataSourceType(newAbsPath)
-	if newDataSourceType != matchingSource.Name {
-		dw.logger.Warn("Data source type mismatch, treating as replacement", "oldType", matchingSource.Name, "newType", newDataSourceType)
+	if matchingSource.Name != "misc" {
+		dw.logger.Warn("Data source type mismatch, treating as replacement", "oldType", matchingSource.Name, "newType", "misc")
 		if err := dw.processRemovedFile(oldAbsPath); err != nil {
 			dw.logger.Error("Failed to process old file as removed", "error", err, "oldPath", oldAbsPath)
 		}
@@ -649,8 +643,7 @@ func (dw *DirectoryWatcher) couldBeRenamedFile(oldPath, newPath, dataSourceType 
 		return false
 	}
 
-	newDataSourceType := dw.determineDataSourceType(newPath)
-	if newDataSourceType != dataSourceType {
+	if dataSourceType != "misc" {
 		return false
 	}
 
@@ -792,34 +785,6 @@ func (dw *DirectoryWatcher) isSupportedFile(filePath string) bool {
 	}
 
 	return false
-}
-
-func (dw *DirectoryWatcher) determineDataSourceType(filePath string) string {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	fileName := strings.ToLower(filepath.Base(filePath))
-
-	switch {
-	case strings.Contains(fileName, "whatsapp") && (ext == ".db" || ext == ".sqlite"):
-		return "WhatsApp"
-	case strings.Contains(fileName, "telegram") && ext == ".json":
-		return "Telegram"
-	case strings.Contains(fileName, "gmail") || ext == ".mbox":
-		return "Gmail"
-	case strings.Contains(fileName, "slack") && ext == ".zip":
-		return "Slack"
-	case strings.Contains(fileName, "chatgpt") && (ext == ".json" || ext == ".zip"):
-		return "ChatGPT"
-	case (strings.Contains(fileName, "twitter") || strings.Contains(fileName, "x") || strings.Contains(fileName, "like") || strings.Contains(fileName, "tweet") || strings.Contains(fileName, "direct")) && (ext == ".zip" || ext == ".json" || ext == ".js"):
-		return "X"
-	case ext == ".txt":
-		return "misc"
-	case ext == ".pdf":
-		return "misc"
-	case ext == ".zip":
-		return "X"
-	default:
-		return "misc"
-	}
 }
 
 func (dw *DirectoryWatcher) updateFilePathInMemory(ctx context.Context, oldPath, newPath string) error {
