@@ -7,9 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
-	"unicode"
 )
 
 // ModelConfig represents the model configuration.
@@ -81,7 +79,9 @@ func (t *SentencePieceTokenizer) LoadFromHuggingFace(modelName string) error {
 
 	// Create cache directory
 	cacheDir := filepath.Join(os.TempDir(), "real_tokenizer_cache", modelName)
-	os.MkdirAll(cacheDir, 0o755)
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create cache directory: %v", err)
+	}
 
 	// Download tokenizer.json
 	tokenizerPath := filepath.Join(cacheDir, "tokenizer.json")
@@ -178,7 +178,11 @@ func (t *SentencePieceTokenizer) downloadFile(url, filepath string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Printf("Warning: failed to close response body: %v\n", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download file: status %d", resp.StatusCode)
@@ -188,99 +192,14 @@ func (t *SentencePieceTokenizer) downloadFile(url, filepath string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if err := out.Close(); err != nil {
+			fmt.Printf("Warning: failed to close file: %v\n", err)
+		}
+	}()
 
 	_, err = io.Copy(out, resp.Body)
 	return err
-}
-
-// normalize performs text normalization (NFD normalization).
-func (t *SentencePieceTokenizer) normalize(text string) string {
-	// Basic normalization - in a full implementation you'd use unicode.Normalize
-	return strings.TrimSpace(text)
-}
-
-// preTokenize performs pre-tokenization similar to XLM-RoBERTa.
-func (t *SentencePieceTokenizer) preTokenize(text string) []string {
-	re := regexp.MustCompile(`\w+|[^\w\s]`)
-	matches := re.FindAllString(text, -1)
-
-	var tokens []string
-	for _, match := range matches {
-		if isAlphaNumeric(match) {
-			tokens = append(tokens, "▁"+match)
-		} else {
-			tokens = append(tokens, match)
-		}
-	}
-
-	return tokens
-}
-
-// isAlphaNumeric checks if a string contains alphanumeric characters.
-func isAlphaNumeric(s string) bool {
-	for _, r := range s {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			return true
-		}
-	}
-	return false
-}
-
-// unigramTokenize performs Unigram tokenization on a token.
-func (t *SentencePieceTokenizer) unigramTokenize(token string) []string {
-	if len(token) == 0 {
-		return []string{}
-	}
-
-	// For Unigram, we use a greedy approach to find the best segmentation
-	// This is a simplified implementation
-	return t.greedyTokenize(token)
-}
-
-// greedyTokenize performs greedy tokenization (simplified Unigram).
-func (t *SentencePieceTokenizer) greedyTokenize(token string) []string {
-	if len(token) == 0 {
-		return []string{}
-	}
-
-	var result []string
-	i := 0
-
-	for i < len(token) {
-		// Try to find the longest matching token from current position
-		bestMatch := ""
-		bestLength := 0
-
-		// Try all possible substrings starting from current position
-		for j := i + 1; j <= len(token); j++ {
-			candidate := token[i:j]
-			if _, exists := t.vocab[candidate]; exists {
-				if len(candidate) > bestLength {
-					bestMatch = candidate
-					bestLength = len(candidate)
-				}
-			}
-		}
-
-		if bestMatch != "" {
-			result = append(result, bestMatch)
-			i += bestLength
-		} else {
-			// If no match found, try single character or use UNK
-			if i < len(token) {
-				char := string([]rune(token)[i])
-				if _, exists := t.vocab[char]; exists {
-					result = append(result, char)
-				} else {
-					result = append(result, t.unkToken)
-				}
-				i++
-			}
-		}
-	}
-
-	return result
 }
 
 // tokenToIds converts tokens to IDs.
