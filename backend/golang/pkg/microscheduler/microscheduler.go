@@ -402,92 +402,120 @@ func (e *TaskExecutor) singleProcessor() {
 
 	for {
 		select {
-		case req := <-e.uiQueue:
-			result := processor.Process(req)
-			req.Done <- result
-		case req := <-e.lastEffortQueue:
-			result := processor.Process(req)
-			req.Done <- result
 		case <-e.shutdown:
 			return
 		default:
-			if req, ok := e.getNextBackgroundTask(); ok {
-				select {
-				case uiReq := <-e.uiQueue:
-					processor.Interrupt()
-					e.rescheduleTask(req)
-					result := processor.Process(uiReq)
-					uiReq.Done <- result
-				case lastEffortReq := <-e.lastEffortQueue:
-					processor.Interrupt()
-					e.rescheduleTask(req)
-					result := processor.Process(lastEffortReq)
-					lastEffortReq.Done <- result
-				default:
-					resultChan := make(chan InterruptedTaskResult, 1)
-					go func() {
-						result := processor.ProcessWithInterruption(req)
-						resultChan <- result
-					}()
-
-					select {
-					case result := <-resultChan:
-						if result.Interrupted {
-							if result.NoReschedule {
-								e.logger.Debug("Task interrupted but requested no rescheduling", "taskName", req.Task.Name)
-								req.Done <- result.TaskResult
-							} else if result.StateSaved {
-								e.rescheduleTaskWithState(req, result.SavedState)
-								e.logger.Debug("Task interrupted and rescheduled with state",
-									"taskName", req.Task.Name, "stateSize", len(result.SavedState))
-							} else if req.Task.Priority == Background {
-								e.rescheduleTask(req)
-								e.logger.Debug("Background task interrupted and rescheduled", "taskName", req.Task.Name)
-							}
-						} else {
-							req.Done <- result.TaskResult
-						}
-					case uiReq := <-e.uiQueue:
-						processor.Interrupt()
-
-						result := <-resultChan
-						if result.Interrupted && !result.NoReschedule {
-							if result.StateSaved {
-								e.rescheduleTaskWithState(req, result.SavedState)
-							} else {
-								e.rescheduleTask(req)
-							}
-						} else if result.Interrupted && result.NoReschedule {
-							e.logger.Debug("Task interrupted by UI task but requested no rescheduling", "taskName", req.Task.Name)
-							req.Done <- result.TaskResult
-						}
-
-						uiResult := processor.Process(uiReq)
-						uiReq.Done <- uiResult
-					case lastEffortReq := <-e.lastEffortQueue:
-						processor.Interrupt()
-
-						result := <-resultChan
-						if result.Interrupted && !result.NoReschedule {
-							if result.StateSaved {
-								e.rescheduleTaskWithState(req, result.SavedState)
-							} else {
-								e.rescheduleTask(req)
-							}
-						} else if result.Interrupted && result.NoReschedule {
-							e.logger.Debug("Task interrupted by LastEffort task but requested no rescheduling", "taskName", req.Task.Name)
-							req.Done <- result.TaskResult
-						}
-
-						lastEffortResult := processor.Process(lastEffortReq)
-						lastEffortReq.Done <- lastEffortResult
-					}
-				}
-			} else {
-				time.Sleep(1 * time.Millisecond)
+			if handled := e.handleHighPriorityTasks(processor); handled {
+				continue
 			}
+			if handled := e.handleBackgroundTasks(processor); handled {
+				continue
+			}
+			e.waitForTasks()
 		}
 	}
+}
+
+func (e *TaskExecutor) handleHighPriorityTasks(processor *WorkerProcessor) bool {
+	select {
+	case req := <-e.uiQueue:
+		result := processor.Process(req)
+		req.Done <- result
+		return true
+	case req := <-e.lastEffortQueue:
+		result := processor.Process(req)
+		req.Done <- result
+		return true
+	default:
+		return false
+	}
+}
+
+func (e *TaskExecutor) handleBackgroundTasks(processor *WorkerProcessor) bool {
+	req, ok := e.getNextBackgroundTask()
+	if !ok {
+		return false
+	}
+
+	// Check for immediate preemption by high-priority tasks
+	select {
+	case uiReq := <-e.uiQueue:
+		processor.Interrupt()
+		e.rescheduleTask(req)
+		result := processor.Process(uiReq)
+		uiReq.Done <- result
+		return true
+	case lastEffortReq := <-e.lastEffortQueue:
+		processor.Interrupt()
+		e.rescheduleTask(req)
+		result := processor.Process(lastEffortReq)
+		lastEffortReq.Done <- result
+		return true
+	default:
+		// Process background task with interruption support
+		e.processBackgroundTaskWithInterruption(processor, req)
+		return true
+	}
+}
+
+func (e *TaskExecutor) processBackgroundTaskWithInterruption(processor *WorkerProcessor, req TaskRequest) {
+	resultChan := make(chan InterruptedTaskResult, 1)
+	go func() {
+		result := processor.ProcessWithInterruption(req)
+		resultChan <- result
+	}()
+
+	select {
+	case result := <-resultChan:
+		e.handleBackgroundTaskResult(req, result)
+	case uiReq := <-e.uiQueue:
+		processor.Interrupt()
+		result := <-resultChan
+		e.handleInterruptedTask(req, result)
+		uiResult := processor.Process(uiReq)
+		uiReq.Done <- uiResult
+	case lastEffortReq := <-e.lastEffortQueue:
+		processor.Interrupt()
+		result := <-resultChan
+		e.handleInterruptedTask(req, result)
+		lastEffortResult := processor.Process(lastEffortReq)
+		lastEffortReq.Done <- lastEffortResult
+	}
+}
+
+func (e *TaskExecutor) handleBackgroundTaskResult(req TaskRequest, result InterruptedTaskResult) {
+	if result.Interrupted {
+		if result.NoReschedule {
+			e.logger.Debug("Task interrupted but requested no rescheduling", "taskName", req.Task.Name)
+			req.Done <- result.TaskResult
+		} else if result.StateSaved {
+			e.rescheduleTaskWithState(req, result.SavedState)
+			e.logger.Debug("Task interrupted and rescheduled with state",
+				"taskName", req.Task.Name, "stateSize", len(result.SavedState))
+		} else if req.Task.Priority == Background {
+			e.rescheduleTask(req)
+			e.logger.Debug("Background task interrupted and rescheduled", "taskName", req.Task.Name)
+		}
+	} else {
+		req.Done <- result.TaskResult
+	}
+}
+
+func (e *TaskExecutor) handleInterruptedTask(req TaskRequest, result InterruptedTaskResult) {
+	if result.Interrupted && !result.NoReschedule {
+		if result.StateSaved {
+			e.rescheduleTaskWithState(req, result.SavedState)
+		} else {
+			e.rescheduleTask(req)
+		}
+	} else if result.Interrupted && result.NoReschedule {
+		e.logger.Debug("Task interrupted but requested no rescheduling", "taskName", req.Task.Name)
+		req.Done <- result.TaskResult
+	}
+}
+
+func (e *TaskExecutor) waitForTasks() {
+	time.Sleep(1 * time.Millisecond)
 }
 
 func (e *TaskExecutor) dedicatedUIProcessor(id int) {
