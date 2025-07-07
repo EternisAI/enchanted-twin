@@ -46,6 +46,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/directorywatcher"
 	"github.com/EternisAI/enchanted-twin/pkg/engagement"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
@@ -413,10 +414,11 @@ func main() {
 
 	userProfile, err := identitySvc.GetUserProfile(context.Background())
 	if err != nil {
-		logger.Error("Failed to get user profile", "error", err)
-		panic(errors.Wrap(err, "Failed to get user profile"))
+		logger.Warn("Failed to get user profile during startup - continuing without it", "error", err)
+		// Don't panic here - the server can still function without the user profile
+	} else {
+		logger.Info("User profile", "profile", userProfile)
 	}
-	logger.Info("User profile", "profile", userProfile)
 
 	holonConfig := holon.DefaultManagerConfig()
 	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
@@ -492,6 +494,26 @@ func main() {
 	go telegram.SubscribePoller(telegramService, logger)
 	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
+	directoryWatcher, err := directorywatcher.NewDirectoryWatcher(store, mem, logger, temporalClient)
+	if err != nil {
+		logger.Error("Failed to create directory watcher", "error", err)
+		panic(errors.Wrap(err, "Failed to create directory watcher"))
+	}
+
+	if err := directoryWatcher.Start(context.Background()); err != nil {
+		logger.Error("Failed to start directory watcher", "error", err)
+		panic(errors.Wrap(err, "Failed to start directory watcher"))
+	}
+	logger.Info("Directory watcher started")
+
+	defer func() {
+		if err := directoryWatcher.Stop(); err != nil {
+			logger.Error("Error stopping directory watcher", "error", err)
+		} else {
+			logger.Info("Directory watcher stopped")
+		}
+	}()
+
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
 		temporalClient:    temporalClient,
@@ -503,6 +525,7 @@ func main() {
 		mcpService:        mcpService,
 		telegramService:   telegramService,
 		holonService:      holonService,
+		directoryWatcher:  directoryWatcher,
 		whatsAppQRCode:    currentWhatsAppQRCode,
 		whatsAppConnected: whatsAppConnected,
 	})
@@ -633,6 +656,7 @@ type graphqlServerInput struct {
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
 	holonService           *holon.Service
+	directoryWatcher       *directorywatcher.DirectoryWatcher
 	whatsAppQRCode         *string
 	whatsAppConnected      bool
 }
@@ -657,6 +681,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 		TelegramService:        input.telegramService,
 		HolonService:           input.holonService,
+		DirectoryWatcher:       input.directoryWatcher,
 		WhatsAppQRCode:         input.whatsAppQRCode,
 		WhatsAppConnected:      input.whatsAppConnected,
 	}

@@ -28,6 +28,10 @@ func (workflows *DataProcessingWorkflows) RegisterWorkflowsAndActivities(worker 
 	(*worker).RegisterActivity(workflows.IndexBatchActivity)
 	(*worker).RegisterActivity(workflows.UpdateDataSourceStateActivity)
 	(*worker).RegisterActivity(workflows.PublishIndexingStatus)
+	(*worker).RegisterActivity(workflows.CleanupStaleProcessingActivity)
+	(*worker).RegisterActivity(workflows.ClaimDataSourceForProcessingActivity)
+	(*worker).RegisterActivity(workflows.ClaimDataSourceForIndexingActivity)
+	(*worker).RegisterActivity(workflows.ReleaseDataSourceActivity)
 
 	(*worker).RegisterWorkflow(workflows.XSyncWorkflow)
 	(*worker).RegisterActivity(workflows.XFetchActivity)

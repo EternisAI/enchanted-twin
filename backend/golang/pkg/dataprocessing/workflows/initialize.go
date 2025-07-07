@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -20,7 +21,33 @@ import (
 
 type InitializeWorkflowInput struct{}
 
-type InitializeWorkflowResponse struct{}
+// DataSourceResult represents the detailed result of processing a single data source.
+type DataSourceResult struct {
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	Path              string `json:"path"`
+	ProcessingStatus  string `json:"processing_status"` // "not_started", "completed", "failed", "skipped"
+	IndexingStatus    string `json:"indexing_status"`   // "not_started", "completed", "failed", "skipped"
+	IsProcessed       bool   `json:"is_processed"`
+	IsIndexed         bool   `json:"is_indexed"`
+	HasError          bool   `json:"has_error"`
+	ErrorMessage      string `json:"error_message,omitempty"`
+	DocumentsStored   int    `json:"documents_stored"`   // Number of documents successfully indexed
+	ProcessingSkipped bool   `json:"processing_skipped"` // True if skipped due to concurrent processing
+	IndexingSkipped   bool   `json:"indexing_skipped"`   // True if skipped due to concurrent indexing
+}
+
+// InitializeWorkflowResponse provides comprehensive results of the initialization process.
+type InitializeWorkflowResponse struct {
+	Message           string             `json:"message"`
+	ProcessedSources  []DataSourceResult `json:"processed_sources"`  // Successfully processed and indexed
+	FailedSources     []DataSourceResult `json:"failed_sources"`     // Failed during processing or indexing
+	SkippedSources    []DataSourceResult `json:"skipped_sources"`    // Skipped due to concurrent processing
+	TotalSources      int                `json:"total_sources"`      // Total number of data sources found
+	SuccessfulSources int                `json:"successful_sources"` // Number of successfully processed sources
+	FailedCount       int                `json:"failed_count"`       // Number of failed sources
+	SkippedCount      int                `json:"skipped_count"`      // Number of skipped sources
+}
 
 type InitializeStateQuery struct {
 	State model.IndexingState
@@ -45,8 +72,12 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		},
 	})
 
+	// Get workflow ID for claiming data sources
+	workflowID := workflow.GetInfo(ctx).WorkflowExecution.ID
+
 	indexingState := model.IndexingStateNotStarted
 	dataSources := []*model.DataSource{}
+	dataSourceResults := make(map[string]*DataSourceResult) // Track results by ID
 	w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
 	err := workflow.SetQueryHandler(
@@ -61,6 +92,18 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to set query handler")
 	}
 
+	// Cleanup stale processing data sources at the start
+	var cleanupResponse CleanupStaleProcessingResponse
+	err = workflow.ExecuteActivity(ctx, w.CleanupStaleProcessingActivity, CleanupStaleProcessingInput{
+		StaleAfterMinutes: 60, // Consider stale after 1 hour
+	}).Get(ctx, &cleanupResponse)
+	if err != nil {
+		workflow.GetLogger(ctx).Warn("Failed to cleanup stale processing data sources", "error", err)
+		// Continue execution even if cleanup fails
+	} else if cleanupResponse.CleanedCount > 0 {
+		workflow.GetLogger(ctx).Info("Cleaned up stale processing data sources", "count", cleanupResponse.CleanedCount)
+	}
+
 	var fetchDataSourcesResponse FetchDataSourcesActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.FetchDataSourcesActivity, FetchDataSourcesActivityInput{}).
 		Get(ctx, &fetchDataSourcesResponse)
@@ -73,11 +116,19 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	}
 
 	if len(fetchDataSourcesResponse.DataSources) == 0 {
-		workflow.GetLogger(ctx).Info("No data sources found")
 		indexingState = model.IndexingStateFailed
 		errMsg := "No data sources found"
 		w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
-		return InitializeWorkflowResponse{}, errors.New(errMsg)
+		return InitializeWorkflowResponse{
+			Message:           errMsg,
+			ProcessedSources:  []DataSourceResult{},
+			FailedSources:     []DataSourceResult{},
+			SkippedSources:    []DataSourceResult{},
+			TotalSources:      0,
+			SuccessfulSources: 0,
+			FailedCount:       0,
+			SkippedCount:      0,
+		}, nil
 	}
 
 	for _, dataSource := range fetchDataSourcesResponse.DataSources {
@@ -89,6 +140,19 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			IsIndexed:   *dataSource.IsIndexed,
 			HasError:    *dataSource.HasError,
 		})
+
+		// Initialize result tracking
+		dataSourceResults[dataSource.ID] = &DataSourceResult{
+			ID:               dataSource.ID,
+			Name:             dataSource.Name,
+			Path:             dataSource.Path,
+			ProcessingStatus: "not_started",
+			IndexingStatus:   "not_started",
+			IsProcessed:      false,
+			IsIndexed:        *dataSource.IsIndexed,
+			HasError:         *dataSource.HasError,
+			DocumentsStored:  0,
+		}
 	}
 
 	indexingState = model.IndexingStateProcessingData
@@ -97,6 +161,41 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	for i, dataSource := range fetchDataSourcesResponse.DataSources {
 		w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
+		// Try to claim this data source for processing
+		var claimResponse ClaimDataSourceResponse
+		err = workflow.ExecuteActivity(ctx, w.ClaimDataSourceForProcessingActivity, ClaimDataSourceInput{
+			DataSourceID: dataSource.ID,
+			WorkflowID:   workflowID,
+		}).Get(ctx, &claimResponse)
+		if err != nil {
+			workflow.GetLogger(ctx).Error("Failed to claim data source for processing",
+				"error", err,
+				"dataSource", dataSource.Name)
+			dataSources[i].HasError = true
+			errMsg := err.Error()
+			// Update result tracking
+			if result, exists := dataSourceResults[dataSource.ID]; exists {
+				result.ProcessingStatus = "failed"
+				result.HasError = true
+				result.ErrorMessage = errMsg
+			}
+			w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
+			continue
+		}
+
+		if !claimResponse.Claimed {
+			workflow.GetLogger(ctx).Info("Data source already claimed by another workflow",
+				"dataSource", dataSource.Name)
+			// Update result tracking
+			if result, exists := dataSourceResults[dataSource.ID]; exists {
+				result.ProcessingStatus = "skipped"
+				result.ProcessingSkipped = true
+			}
+			// Skip this data source - it's being processed by another workflow
+			continue
+		}
+
+		// Process the data source
 		processDataActivityInput := ProcessDataActivityInput{
 			DataSourceName: dataSource.Name,
 			SourcePath:     dataSource.Path,
@@ -107,6 +206,17 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).
 			Get(ctx, &processDataResponse)
 
+		// RELEASE IMMEDIATELY after processing (success or failure)
+		releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
+			DataSourceID: dataSource.ID,
+			WorkflowID:   workflowID,
+		}).Get(ctx, nil)
+		if releaseErr != nil {
+			workflow.GetLogger(ctx).Error("Failed to release data source claim",
+				"error", releaseErr,
+				"dataSource", dataSource.Name)
+		}
+
 		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
 		if err != nil {
 			workflow.GetLogger(ctx).Error("Failed to process data source",
@@ -116,11 +226,25 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			dataSources[i].IsProcessed = false
 			dataSources[i].HasError = true
 			errMsg := err.Error()
+			// Update result tracking
+			if result, exists := dataSourceResults[dataSource.ID]; exists {
+				result.ProcessingStatus = "failed"
+				result.IsProcessed = false
+				result.HasError = true
+				result.ErrorMessage = errMsg
+			}
 			w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 		} else {
 			dataSources[i].IsProcessed = true
 			dataSources[i].HasError = false
 			dataSources[i].IsIndexed = false
+			// Update result tracking
+			if result, exists := dataSourceResults[dataSource.ID]; exists {
+				result.ProcessingStatus = "completed"
+				result.IsProcessed = true
+				result.HasError = false
+				result.ErrorMessage = ""
+			}
 			w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 		}
 	}
@@ -148,6 +272,53 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			workflow.GetLogger(ctx).Error("Processed path is nil", "dataSource", dataSourceDB.Name)
 			continue
 		}
+
+		// Try to claim this data source for indexing
+		var claimIndexResponse ClaimDataSourceResponse
+		err = workflow.ExecuteActivity(ctx, w.ClaimDataSourceForIndexingActivity, ClaimDataSourceInput{
+			DataSourceID: dataSourceDB.ID,
+			WorkflowID:   workflowID,
+		}).Get(ctx, &claimIndexResponse)
+		if err != nil {
+			workflow.GetLogger(ctx).Error("Failed to claim data source for indexing",
+				"error", err,
+				"dataSource", dataSourceDB.Name)
+			dataSources[i].HasError = true
+			errMsg := err.Error()
+			// Update result tracking
+			if result, exists := dataSourceResults[dataSourceDB.ID]; exists {
+				result.IndexingStatus = "failed"
+				result.HasError = true
+				result.ErrorMessage = errMsg
+			}
+			w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
+			continue
+		}
+
+		if !claimIndexResponse.Claimed {
+			workflow.GetLogger(ctx).Info("Data source already claimed for indexing by another workflow",
+				"dataSource", dataSourceDB.Name)
+			// Update result tracking
+			if result, exists := dataSourceResults[dataSourceDB.ID]; exists {
+				result.IndexingStatus = "skipped"
+				result.IndexingSkipped = true
+			}
+			// Skip this data source - it's being indexed by another workflow
+			continue
+		}
+
+		// Ensure we release the claim in case of any error
+		defer func(dsID string, idx int) {
+			releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
+				DataSourceID: dsID,
+				WorkflowID:   workflowID,
+			}).Get(ctx, nil)
+			if releaseErr != nil {
+				workflow.GetLogger(ctx).Error("Failed to release data source claim after indexing",
+					"error", releaseErr,
+					"dataSource", dsID)
+			}
+		}(dataSourceDB.ID, i)
 
 		// TODO: systematically decide batching strategy
 		batchSize := 20
@@ -178,12 +349,19 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			workflow.GetLogger(ctx).Warn("No batches found for data source", "dataSource", dataSourceDB.Name)
 			dataSources[i].IsIndexed = true
 			dataSources[i].IndexProgress = 100
+			// Update result tracking
+			if result, exists := dataSourceResults[dataSourceDB.ID]; exists {
+				result.IndexingStatus = "completed"
+				result.IsIndexed = true
+				result.DocumentsStored = 0
+			}
 			continue
 		}
 
 		// Replace sequential processing with parallel batch processing
 		failedBatches := 0
 		successfulBatches := 0
+		totalDocumentsStored := 0
 
 		// Start all batch activities in parallel
 		batchFutures := make([]workflow.Future, getBatchesResponse.TotalBatches)
@@ -233,6 +411,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				}
 			} else {
 				successfulBatches++
+				totalDocumentsStored += indexBatchResponse.DocumentsStored
 				workflow.GetLogger(ctx).Info("Batch indexed successfully",
 					"dataSource", dataSourceDB.Name,
 					"batch", batchIndex+1,
@@ -263,13 +442,28 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			if finalFailureRate > 0.8 {
 				dataSources[i].HasError = true
 				errMsg := fmt.Sprintf("Too many batch failures: %d/%d batches failed", failedBatches, getBatchesResponse.TotalBatches)
+				// Update result tracking
+				if result, exists := dataSourceResults[dataSourceDB.ID]; exists {
+					result.IndexingStatus = "failed"
+					result.HasError = true
+					result.ErrorMessage = errMsg
+					result.DocumentsStored = totalDocumentsStored
+				}
 				w.publishIndexingStatus(ctx, indexingState, dataSources, &errMsg)
 			} else {
 				dataSources[i].IsIndexed = true
 				dataSources[i].IndexProgress = 100
 
+				// Update result tracking
+				if result, exists := dataSourceResults[dataSourceDB.ID]; exists {
+					result.IndexingStatus = "completed"
+					result.IsIndexed = true
+					result.HasError = false
+					result.DocumentsStored = totalDocumentsStored
+				}
+
 				updateStateInput := UpdateDataSourceStateActivityInput{
-					DataSourceID: dataSources[i].ID,
+					DataSourceID: dataSourceDB.ID,
 					IsIndexed:    true,
 					HasError:     false,
 				}
@@ -288,7 +482,40 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		nil,
 	)
 
-	return InitializeWorkflowResponse{}, nil
+	// Categorize results
+	var processedSources []DataSourceResult
+	var failedSources []DataSourceResult
+	var skippedSources []DataSourceResult
+	successfulCount := 0
+	failedCount := 0
+	skippedCount := 0
+
+	for _, result := range dataSourceResults {
+		if result.ProcessingSkipped || result.IndexingSkipped {
+			skippedSources = append(skippedSources, *result)
+			skippedCount++
+		} else if result.HasError {
+			failedSources = append(failedSources, *result)
+			failedCount++
+		} else {
+			processedSources = append(processedSources, *result)
+			successfulCount++
+		}
+	}
+
+	message := fmt.Sprintf("Initialization completed. Processed: %d, Failed: %d, Skipped: %d",
+		successfulCount, failedCount, skippedCount)
+
+	return InitializeWorkflowResponse{
+		Message:           message,
+		ProcessedSources:  processedSources,
+		FailedSources:     failedSources,
+		SkippedSources:    skippedSources,
+		TotalSources:      len(dataSourceResults),
+		SuccessfulSources: successfulCount,
+		FailedCount:       failedCount,
+		SkippedCount:      skippedCount,
+	}, nil
 }
 
 func (w *DataProcessingWorkflows) publishIndexingStatus(
@@ -326,10 +553,36 @@ func (w *DataProcessingWorkflows) FetchDataSourcesActivity(
 	ctx context.Context,
 	input FetchDataSourcesActivityInput,
 ) (FetchDataSourcesActivityResponse, error) {
+	w.Logger.Debug("FetchDataSourcesActivity started")
+
 	dataSources, err := w.Store.GetUnindexedDataSources(ctx)
 	if err != nil {
+		w.Logger.Error("Failed to get unindexed data sources", "error", err)
 		return FetchDataSourcesActivityResponse{}, err
 	}
+
+	w.Logger.Info("FetchDataSourcesActivity completed", "count", len(dataSources))
+
+	for i, ds := range dataSources {
+		hasError := "NULL"
+		if ds.HasError != nil {
+			hasError = fmt.Sprintf("%v", *ds.HasError)
+		}
+		isIndexed := "NULL"
+		if ds.IsIndexed != nil {
+			isIndexed = fmt.Sprintf("%v", *ds.IsIndexed)
+		}
+		w.Logger.Info("Found data source",
+			"index", i,
+			"id", ds.ID,
+			"name", ds.Name,
+			"path", ds.Path,
+			"state", ds.State,
+			"hasError", hasError,
+			"isIndexed", isIndexed,
+		)
+	}
+
 	return FetchDataSourcesActivityResponse{DataSources: dataSources}, nil
 }
 
@@ -558,12 +811,39 @@ func (w *DataProcessingWorkflows) isNewFormatProcessor(dataSourceName string) bo
 	}
 }
 
-// readNewFormatBatch reads a batch from JSONL format (ConversationDocument JSONL).
+// readNewFormatBatch reads a batch from either JSON array format or JSONL format (ConversationDocument[]).
 func (w *DataProcessingWorkflows) readNewFormatBatch(filePath string, batchIndex, batchSize int) ([]memory.Document, error) {
-	// Read ConversationDocuments from JSONL format using helper
-	conversationDocs, err := memory.LoadConversationDocumentsFromJSON(filePath)
+	// Read the entire file first
+	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load ConversationDocuments from JSONL: %w", err)
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Detect format: JSON array or JSONL
+	isJSONL := w.isJSONLFormat(data)
+
+	var conversationDocs []memory.ConversationDocument
+
+	if isJSONL {
+		// JSONL format: each line is a separate JSON object
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+
+			var doc memory.ConversationDocument
+			if err := json.Unmarshal([]byte(line), &doc); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal JSONL line: %w", err)
+			}
+			conversationDocs = append(conversationDocs, doc)
+		}
+	} else {
+		// JSON array format
+		if err := json.Unmarshal(data, &conversationDocs); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal ConversationDocument array: %w", err)
+		}
 	}
 
 	// Calculate batch boundaries
@@ -589,14 +869,56 @@ func (w *DataProcessingWorkflows) readNewFormatBatch(filePath string, batchIndex
 	return documents, nil
 }
 
-// countNewFormatItems counts items in JSONL format.
-func (w *DataProcessingWorkflows) countNewFormatItems(filePath string) (int, error) {
-	conversationDocs, err := memory.LoadConversationDocumentsFromJSON(filePath)
-	if err != nil {
-		return 0, fmt.Errorf("failed to load ConversationDocuments from JSONL: %w", err)
+// isJSONLFormat detects if the data is in JSONL format (each line is a JSON object)
+// versus JSON array format (the entire file is a JSON array).
+func (w *DataProcessingWorkflows) isJSONLFormat(data []byte) bool {
+	// Trim whitespace and check first character
+	trimmed := strings.TrimSpace(string(data))
+	if len(trimmed) == 0 {
+		return false
 	}
 
-	return len(conversationDocs), nil
+	// If it starts with '[', it's likely a JSON array
+	if trimmed[0] == '[' {
+		return false
+	}
+
+	// If it starts with '{', it's likely JSONL
+	if trimmed[0] == '{' {
+		return true
+	}
+
+	return false
+}
+
+// countNewFormatItems counts items in either JSON array format or JSONL format.
+func (w *DataProcessingWorkflows) countNewFormatItems(filePath string) (int, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Detect format: JSON array or JSONL
+	isJSONL := w.isJSONLFormat(data)
+
+	if isJSONL {
+		// JSONL format: count non-empty lines
+		lines := strings.Split(string(data), "\n")
+		count := 0
+		for _, line := range lines {
+			if strings.TrimSpace(line) != "" {
+				count++
+			}
+		}
+		return count, nil
+	} else {
+		// JSON array format
+		var conversationDocs []memory.ConversationDocument
+		if err := json.Unmarshal(data, &conversationDocs); err != nil {
+			return 0, fmt.Errorf("failed to unmarshal ConversationDocument array: %w", err)
+		}
+		return len(conversationDocs), nil
+	}
 }
 
 type PublishIndexingStatusInput struct {
@@ -627,4 +949,66 @@ func (w *DataProcessingWorkflows) PublishIndexingStatus(
 	}
 
 	return nil
+}
+
+type CleanupStaleProcessingInput struct {
+	StaleAfterMinutes int `json:"staleAfterMinutes"`
+}
+
+type CleanupStaleProcessingResponse struct {
+	CleanedCount int `json:"cleanedCount"`
+}
+
+func (w *DataProcessingWorkflows) CleanupStaleProcessingActivity(
+	ctx context.Context,
+	input CleanupStaleProcessingInput,
+) (CleanupStaleProcessingResponse, error) {
+	count, err := w.Store.CleanupStaleProcessingDataSources(ctx, input.StaleAfterMinutes)
+	if err != nil {
+		return CleanupStaleProcessingResponse{}, err
+	}
+	return CleanupStaleProcessingResponse{CleanedCount: count}, nil
+}
+
+type ClaimDataSourceInput struct {
+	DataSourceID string `json:"dataSourceId"`
+	WorkflowID   string `json:"workflowId"`
+}
+
+type ClaimDataSourceResponse struct {
+	Claimed bool `json:"claimed"`
+}
+
+func (w *DataProcessingWorkflows) ClaimDataSourceForProcessingActivity(
+	ctx context.Context,
+	input ClaimDataSourceInput,
+) (ClaimDataSourceResponse, error) {
+	claimed, err := w.Store.ClaimDataSourceForProcessing(ctx, input.DataSourceID, input.WorkflowID)
+	if err != nil {
+		return ClaimDataSourceResponse{}, err
+	}
+	return ClaimDataSourceResponse{Claimed: claimed}, nil
+}
+
+func (w *DataProcessingWorkflows) ClaimDataSourceForIndexingActivity(
+	ctx context.Context,
+	input ClaimDataSourceInput,
+) (ClaimDataSourceResponse, error) {
+	claimed, err := w.Store.ClaimDataSourceForIndexing(ctx, input.DataSourceID, input.WorkflowID)
+	if err != nil {
+		return ClaimDataSourceResponse{}, err
+	}
+	return ClaimDataSourceResponse{Claimed: claimed}, nil
+}
+
+type ReleaseDataSourceInput struct {
+	DataSourceID string `json:"dataSourceId"`
+	WorkflowID   string `json:"workflowId"`
+}
+
+func (w *DataProcessingWorkflows) ReleaseDataSourceActivity(
+	ctx context.Context,
+	input ReleaseDataSourceInput,
+) error {
+	return w.Store.ReleaseDataSourceFromProcessing(ctx, input.DataSourceID, input.WorkflowID)
 }
