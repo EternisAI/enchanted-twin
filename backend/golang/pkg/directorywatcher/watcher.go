@@ -684,7 +684,7 @@ func (dw *DirectoryWatcher) performInitialScan(ctx context.Context) {
 
 	folders, err := dw.store.GetEnabledTrackedFolders(scanCtx)
 	if err != nil {
-		dw.logger.Error("❌ Failed to load tracked folders for initial scan", "error", err)
+		dw.logger.Error(" Failed to load tracked folders for initial scan", "error", err)
 		return
 	}
 
@@ -753,16 +753,16 @@ func (dw *DirectoryWatcher) performInitialScan(ctx context.Context) {
 				dw.incrementErrorCount()
 			}
 		} else {
-			dw.logger.Info("✅ Initial scan completed for directory", "dir", folder.Path, "filesProcessed", folderProcessed)
+			dw.logger.Info(" Initial scan completed for directory", "dir", folder.Path, "filesProcessed", folderProcessed)
 		}
 	}
 
 	dw.logger.Info("All directories scanned")
 
 	if err := dw.triggerProcessingWorkflow(); err != nil {
-		dw.logger.Error("❌ Failed to trigger processing workflow after initial scan", "error", err)
+		dw.logger.Error(" Failed to trigger processing workflow after initial scan", "error", err)
 	} else {
-		dw.logger.Info("✅ Processing workflow triggered successfully")
+		dw.logger.Info(" Processing workflow triggered successfully")
 	}
 }
 
@@ -973,14 +973,14 @@ func (dw *DirectoryWatcher) performInitialScanForDirectory(dirPath string) {
 			dw.incrementErrorCount()
 		}
 	} else {
-		dw.logger.Info("✅ Initial scan completed for newly added directory", "dir", dirPath, "filesProcessed", filesProcessed)
+		dw.logger.Info(" Initial scan completed for newly added directory", "dir", dirPath, "filesProcessed", filesProcessed)
 	}
 
 	if filesProcessed > 0 {
 		if err := dw.triggerProcessingWorkflow(); err != nil {
-			dw.logger.Error("❌ Failed to trigger processing workflow after directory scan", "error", err)
+			dw.logger.Error(" Failed to trigger processing workflow after directory scan", "error", err)
 		} else {
-			dw.logger.Info("✅ Processing workflow triggered after directory scan", "dir", dirPath)
+			dw.logger.Info(" Processing workflow triggered after directory scan", "dir", dirPath)
 		}
 	}
 }
@@ -1003,7 +1003,7 @@ func (dw *DirectoryWatcher) ReloadTrackedFolders(ctx context.Context) error {
 	// Get current enabled folders from database
 	folders, err := dw.store.GetEnabledTrackedFolders(ctx)
 	if err != nil {
-		dw.logger.Error("❌ Failed to load tracked folders from database", "error", err)
+		dw.logger.Error(" Failed to load tracked folders from database", "error", err)
 		return err
 	}
 
@@ -1033,7 +1033,7 @@ func (dw *DirectoryWatcher) ReloadTrackedFolders(ctx context.Context) error {
 		if !desiredDirs[watchedPath] {
 			dw.logger.Info("🗑️ Removing directory from watcher", "path", watchedPath)
 			if err := dw.RemoveWatchedDirectory(watchedPath); err != nil {
-				dw.logger.Error("❌ Failed to remove directory", "path", watchedPath, "error", err)
+				dw.logger.Error(" Failed to remove directory", "path", watchedPath, "error", err)
 			} else {
 				removedCount++
 			}
@@ -1045,7 +1045,7 @@ func (dw *DirectoryWatcher) ReloadTrackedFolders(ctx context.Context) error {
 		if !currentWatched[folder.Path] {
 			dw.logger.Info("➕ Adding new directory to watcher", "path", folder.Path)
 			if err := dw.AddWatchedDirectory(folder.Path); err != nil {
-				dw.logger.Error("❌ Failed to add directory", "path", folder.Path, "error", err)
+				dw.logger.Error(" Failed to add directory", "path", folder.Path, "error", err)
 			} else {
 				addedCount++
 			}
@@ -1082,7 +1082,7 @@ func (dw *DirectoryWatcher) GetWatchedDirectories() []string {
 func (dw *DirectoryWatcher) GetTrackedFoldersFromDB(ctx context.Context) error {
 	folders, err := dw.store.GetEnabledTrackedFolders(ctx)
 	if err != nil {
-		dw.logger.Error("❌ Failed to get tracked folders from DB", "error", err)
+		dw.logger.Error(" Failed to get tracked folders from DB", "error", err)
 		return err
 	}
 
