@@ -1173,7 +1173,87 @@ func (dw *DirectoryWatcher) AddWatchedDirectory(path string) error {
 	}
 
 	dw.logger.Info("Added directory to watcher", "path", path)
+
+	// Perform initial scan of the newly added directory
+	go dw.performInitialScanForDirectory(path)
+
 	return nil
+}
+
+// performInitialScanForDirectory scans a specific directory for existing files
+func (dw *DirectoryWatcher) performInitialScanForDirectory(dirPath string) {
+	ctx := context.Background()
+	scanCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	dw.logger.Info("🔍 Starting initial scan for newly added directory", "dir", dirPath)
+
+	filesProcessed := 0
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		select {
+		case <-scanCtx.Done():
+			return scanCtx.Err()
+		default:
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		fileName := filepath.Base(path)
+		if strings.HasPrefix(fileName, ".") || strings.HasSuffix(fileName, ".tmp") {
+			return nil
+		}
+
+		if !dw.isSupportedFile(path) {
+			return nil
+		}
+
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			absPath = path
+		}
+
+		exists, err := dw.store.ActiveDataSourceExistsByPath(scanCtx, absPath)
+		if err != nil {
+			return nil
+		}
+
+		if !exists {
+			if err := dw.processNewFile(path); err != nil {
+				dw.logger.Error("Failed to process file during directory scan", "error", err, "path", path)
+			} else {
+				dw.incrementProcessedFiles()
+				filesProcessed++
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		if err == context.Canceled {
+			dw.logger.Info("Directory scan canceled", "dir", dirPath)
+		} else {
+			dw.logger.Error("Error during directory scan", "error", err, "dir", dirPath)
+			dw.incrementErrorCount()
+		}
+	} else {
+		dw.logger.Info("✅ Initial scan completed for newly added directory", "dir", dirPath, "filesProcessed", filesProcessed)
+	}
+
+	// Trigger processing workflow after scanning
+	if filesProcessed > 0 {
+		if err := dw.triggerProcessingWorkflow(); err != nil {
+			dw.logger.Error("❌ Failed to trigger processing workflow after directory scan", "error", err)
+		} else {
+			dw.logger.Info("✅ Processing workflow triggered after directory scan", "dir", dirPath)
+		}
+	}
 }
 
 // RemoveWatchedDirectory removes a directory from watching.
