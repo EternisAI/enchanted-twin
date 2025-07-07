@@ -39,6 +39,25 @@ var (
 	mockAnonymizerOnce     sync.Once
 )
 
+// NoOpAnonymizer is a no-op implementation that passes messages through unchanged.
+type NoOpAnonymizer struct {
+	logger *log.Logger
+}
+
+func (n *NoOpAnonymizer) AnonymizeMessages(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error) {
+	// Return messages unchanged with empty replacement rules
+	return messages, make(map[string]string), nil
+}
+
+func (n *NoOpAnonymizer) DeAnonymize(text string, rules map[string]string) string {
+	// Return text unchanged
+	return text
+}
+
+func (n *NoOpAnonymizer) Shutdown() {
+	// No-op
+}
+
 var defaultReplacements = map[string]string{
 	// Common names
 	"John":    "PERSON_001",
@@ -67,7 +86,18 @@ var defaultReplacements = map[string]string{
 	"San Francisco": "LOCATION_006",
 }
 
-func InitMockAnonymizer(delay time.Duration, logger *log.Logger) *MockAnonymizer {
+// InitMockAnonymizer creates a mock anonymizer if enabled via ENABLE_MOCK_ANONYMIZER=true,
+// otherwise returns a no-op anonymizer that passes messages through unchanged.
+func InitMockAnonymizer(delay time.Duration, enabled bool, logger *log.Logger) interface {
+	AnonymizeMessages(context.Context, []openai.ChatCompletionMessageParamUnion, <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error)
+	DeAnonymize(string, map[string]string) string
+	Shutdown()
+} {
+	if !enabled {
+		logger.Info("MockAnonymizer disabled, using no-op anonymizer")
+		return &NoOpAnonymizer{logger: logger}
+	}
+
 	mockAnonymizerOnce.Do(func() {
 		mockAnonymizerInstance = &MockAnonymizer{
 			Delay:                  delay,
