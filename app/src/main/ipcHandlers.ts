@@ -18,6 +18,7 @@ import {
   unmuteLiveKitAgent,
   getCurrentAgentState
 } from './livekitManager'
+import { downloadModels, hasModelsDownloaded } from './modelsDownload'
 
 const PATHNAME = 'input_data'
 
@@ -397,7 +398,6 @@ export function registerIpcHandlers() {
   ipcMain.handle('keyboard-shortcuts:get', () => {
     try {
       const shortcuts = keyboardShortcutsStore.get('shortcuts')
-      log.info('Getting keyboard shortcuts:', shortcuts)
       return shortcuts
     } catch (error) {
       log.error('Failed to get keyboard shortcuts:', error)
@@ -585,6 +585,14 @@ export function registerIpcHandlers() {
       log.error('Failed to reset all keyboard shortcuts:', error)
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
+  })
+
+  ipcMain.handle('models:has-models-downloaded', () => {
+    return hasModelsDownloaded()
+  })
+
+  ipcMain.handle('models:download', async (_, modelName: 'embeddings' | 'anonymizer') => {
+    return downloadModels(modelName)
   })
 }
 

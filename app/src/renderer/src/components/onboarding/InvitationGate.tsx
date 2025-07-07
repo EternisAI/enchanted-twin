@@ -14,7 +14,7 @@ import { router } from '../../main'
 import { OnboardingVoiceAnimation } from './voice/Animations'
 import { useTheme } from '@renderer/lib/theme'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import GoogleSignInButton from '../auth/GoogleSignInButton'
+import GoogleSignInButton from '../oauth/GoogleSignInButton'
 
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')

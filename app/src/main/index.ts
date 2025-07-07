@@ -46,13 +46,10 @@ for (const [key, val] of Object.entries(typeof __APP_ENV__ === 'object' ? __APP_
 // Function to register global shortcuts from store
 function registerStoredShortcuts() {
   try {
-    // First, unregister all existing shortcuts
     globalShortcut.unregisterAll()
     log.info('Unregistered all existing global shortcuts')
-    
-    // Get shortcuts from store (electron-store handles defaults automatically)
+
     const shortcuts = keyboardShortcutsStore.get('shortcuts')
-    log.info('Loading keyboard shortcuts from store:', JSON.stringify(shortcuts, null, 2))
 
     // Register each shortcut
     Object.entries(shortcuts).forEach(([action, shortcut]) => {
