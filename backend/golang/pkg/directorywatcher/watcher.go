@@ -1122,7 +1122,7 @@ func (dw *DirectoryWatcher) readFileContent(filePath string) (string, error) {
 	}
 
 	if fileInfo.Size() > MaxFileSize {
-		dw.logger.Warn("File too large, reading first %d bytes only", "path", filePath, "size", fileInfo.Size())
+		dw.logger.Warn("File too large, reading first portion only", "path", filePath, "size", fileInfo.Size(), "maxSize", MaxFileSize)
 		buffer := make([]byte, MaxFileSize)
 		n, err := file.Read(buffer)
 		if err != nil && err != io.EOF {
@@ -1180,7 +1180,7 @@ func (dw *DirectoryWatcher) AddWatchedDirectory(path string) error {
 	return nil
 }
 
-// performInitialScanForDirectory scans a specific directory for existing files
+// performInitialScanForDirectory scans a specific directory for existing files.
 func (dw *DirectoryWatcher) performInitialScanForDirectory(dirPath string) {
 	ctx := context.Background()
 	scanCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)

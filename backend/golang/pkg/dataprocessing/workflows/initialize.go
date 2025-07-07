@@ -21,7 +21,7 @@ import (
 
 type InitializeWorkflowInput struct{}
 
-// DataSourceResult represents the detailed result of processing a single data source
+// DataSourceResult represents the detailed result of processing a single data source.
 type DataSourceResult struct {
 	ID                string `json:"id"`
 	Name              string `json:"name"`
@@ -37,7 +37,7 @@ type DataSourceResult struct {
 	IndexingSkipped   bool   `json:"indexing_skipped"`   // True if skipped due to concurrent indexing
 }
 
-// InitializeWorkflowResponse provides comprehensive results of the initialization process
+// InitializeWorkflowResponse provides comprehensive results of the initialization process.
 type InitializeWorkflowResponse struct {
 	Message           string             `json:"message"`
 	ProcessedSources  []DataSourceResult `json:"processed_sources"`  // Successfully processed and indexed
