@@ -40,6 +40,8 @@ type DirectoryWatcher struct {
 	processedFiles int64
 	errorCount     int64
 	statsMu        sync.RWMutex
+
+	supportedExts []string
 }
 
 type FileEvent struct {
@@ -69,6 +71,9 @@ func NewDirectoryWatcher(store *db.Store, memoryStorage evolvingmemory.MemorySto
 		shutdownCh:     make(chan struct{}),
 		fileBuffer:     make(map[string]*FileEvent),
 		bufferDuration: BufferTimeout,
+		supportedExts: []string{
+			".json", ".mbox", ".zip", ".sqlite", ".db", ".tar", ".tar.gz", ".txt", ".pdf",
+		},
 	}
 
 	return dw, nil
@@ -188,7 +193,7 @@ func (dw *DirectoryWatcher) handleFileEvent(event fsnotify.Event) {
 	}
 
 	if !dw.isSupportedFile(event.Name) {
-		dw.logger.Info("🟡 Skipping unsupported file", "path", event.Name)
+		dw.logger.Info("Skipping unsupported file", "path", event.Name)
 		return
 	}
 
@@ -243,8 +248,6 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 
 	for _, event := range events {
 		if strings.Contains(event.Operation, "RENAME") && !processedPaths[event.Path] {
-			dw.logger.Info("🟡 Processing standalone rename event", "path", event.Path, "operation", event.Operation, "timestamp", event.Timestamp)
-
 			if err := dw.processRenameEvent(event.Path); err != nil {
 				dw.logger.Error("Failed to process rename event", "error", err, "path", event.Path)
 			}
@@ -811,11 +814,7 @@ func (dw *DirectoryWatcher) isSupportedFile(filePath string) bool {
 		return false
 	}
 
-	supportedExts := []string{
-		".json", ".mbox", ".zip", ".sqlite", ".db", ".tar", ".tar.gz", ".txt", ".pdf",
-	}
-
-	for _, supportedExt := range supportedExts {
+	for _, supportedExt := range dw.supportedExts {
 		if ext == supportedExt {
 			return true
 		}
