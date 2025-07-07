@@ -96,7 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const credential = GoogleAuthProvider.credential(userData.idToken, userData.accessToken)
         await signInWithCredential(auth, credential)
-        router.navigate({ to: '/' })
         localStorage.setItem('enchanted_user_data', JSON.stringify(userData))
       } catch (error) {
         console.error('[Auth] ❌ Failed to sign in with Google credential:', error)
@@ -113,7 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.electron.ipcRenderer.invoke('cleanup-oauth-server')
     }
 
-    console.log('[Auth] Adding IPC listeners for firebase-auth-success and firebase-auth-error')
     window.electron.ipcRenderer.on('firebase-auth-success', handleFirebaseAuthSuccess)
     window.electron.ipcRenderer.on('firebase-auth-error', handleFirebaseAuthError)
 
