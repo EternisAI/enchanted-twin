@@ -99,6 +99,9 @@ type MemoryStorage interface {
 
 	// Manual consolidation - should be called periodically rather than after every storage operation
 	RunConsolidation(ctx context.Context) error
+
+	// Delete memory fact by ID
+	Delete(ctx context.Context, id string) error
 }
 
 // Dependencies holds all the required dependencies for creating a MemoryStorage instance.
@@ -415,6 +418,11 @@ func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memor
 	return s.storage.Query(ctx, queryText, filter)
 }
 
+// Delete implements the MemoryStorage interface by delegating to the storage interface.
+func (s *StorageImpl) Delete(ctx context.Context, id string) error {
+	return s.storage.Delete(ctx, id)
+}
+
 // GetDocumentReferences retrieves all document references for a memory.
 func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
 	return s.storage.GetDocumentReferences(ctx, memoryID)
@@ -489,6 +497,7 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 			"factValue":       fact.Value,
 			"factSensitivity": fact.Sensitivity,
 			"factImportance":  fact.Importance,
+			"factFilePath":    fact.FilePath,
 		}
 
 		// Add temporal context if present

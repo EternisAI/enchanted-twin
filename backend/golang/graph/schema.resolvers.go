@@ -23,6 +23,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
@@ -239,47 +240,6 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
 }
 
-// ProcessMessageHistory processes a list of messages and saves them to the database.
-func (r *mutationResolver) ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (*model.Message, error) {
-	// Convert input messages to the format expected by the service for logging purposes
-	historyJson, err := json.Marshal(map[string]interface{}{
-		"chatId":     chatID,
-		"messages":   messages,
-		"count":      len(messages),
-		"onboarding": isOnboarding,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	r.Logger.Info("Processing message history", "data", string(historyJson))
-
-	// Only publish the last user message to NATS
-	subject := fmt.Sprintf("chat.%s", chatID)
-	if len(messages) > 0 {
-		lastMsg := messages[len(messages)-1]
-		if lastMsg.Role == model.RoleUser {
-			text := lastMsg.Text
-			userMessageJson, err := json.Marshal(model.Message{
-				ID:        uuid.New().String(),
-				Text:      &text,
-				CreatedAt: time.Now().Format(time.RFC3339),
-				Role:      model.RoleUser,
-			})
-			if err != nil {
-				return nil, err
-			}
-			err = r.Nc.Publish(subject, userMessageJson)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// Process the messages and save them to the database
-	return r.TwinChatService.ProcessMessageHistory(ctx, chatID, messages, isOnboarding)
-}
-
 // DeleteChat is the resolver for the deleteChat field.
 func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*model.Chat, error) {
 	chat, err := r.TwinChatService.GetChat(ctx, chatID)
@@ -454,12 +414,90 @@ func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network
 	return true, nil
 }
 
+// StoreToken is the resolver for the storeToken field.
 func (r *mutationResolver) StoreToken(ctx context.Context, input model.StoreTokenInput) (bool, error) {
 	r.Logger.Info("StoreToken called")
 
 	err := auth.StoreToken(ctx, r.Logger, r.Store, input.Token, input.RefreshToken)
 	if err != nil {
 		return false, err
+	}
+
+	return true, nil
+}
+
+// AddTrackedFolder is the resolver for the addTrackedFolder field.
+func (r *mutationResolver) AddTrackedFolder(ctx context.Context, input model.AddTrackedFolderInput) (*model.TrackedFolder, error) {
+	// Check if the folder already exists
+	exists, err := r.Store.TrackedFolderExistsByPath(ctx, input.Path)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, fmt.Errorf("folder path already being tracked: %s", input.Path)
+	}
+
+	// Create the tracked folder
+	folder, err := r.Store.AddTrackedFolder(ctx, &db.CreateTrackedFolderInput{
+		Path: input.Path,
+		Name: input.Name,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Reload DirectoryWatcher to start watching the new folder
+	if r.DirectoryWatcher != nil {
+		if err := r.DirectoryWatcher.ReloadTrackedFolders(ctx); err != nil {
+			r.Logger.Warn("Failed to reload tracked folders in DirectoryWatcher", "error", err)
+		}
+	}
+
+	// Convert to GraphQL model
+	result := &model.TrackedFolder{
+		ID:        folder.ID,
+		Path:      folder.Path,
+		Name:      folder.Name,
+		IsEnabled: folder.IsEnabled,
+		CreatedAt: folder.CreatedAt,
+		UpdatedAt: folder.UpdatedAt,
+	}
+
+	return result, nil
+}
+
+// DeleteTrackedFolder is the resolver for the deleteTrackedFolder field.
+func (r *mutationResolver) DeleteTrackedFolder(ctx context.Context, id string) (bool, error) {
+	err := r.Store.DeleteTrackedFolder(ctx, id)
+	if err != nil {
+		return false, err
+	}
+
+	if r.DirectoryWatcher != nil {
+		if err := r.DirectoryWatcher.ReloadTrackedFolders(ctx); err != nil {
+			r.Logger.Warn("Failed to reload tracked folders in DirectoryWatcher", "error", err)
+		}
+	}
+
+	return true, nil
+}
+
+// UpdateTrackedFolder is the resolver for the updateTrackedFolder field.
+func (r *mutationResolver) UpdateTrackedFolder(ctx context.Context, id string, input model.UpdateTrackedFolderInput) (bool, error) {
+	isEnabled := true
+	if input.IsEnabled != nil {
+		isEnabled = *input.IsEnabled
+	}
+
+	err := r.Store.UpdateTrackedFolder(ctx, id, input.Name, isEnabled)
+	if err != nil {
+		return false, err
+	}
+
+	if r.DirectoryWatcher != nil {
+		if err := r.DirectoryWatcher.ReloadTrackedFolders(ctx); err != nil {
+			r.Logger.Warn("Failed to reload tracked folders in DirectoryWatcher", "error", err)
+		}
 	}
 
 	return true, nil
@@ -740,6 +778,87 @@ func (r *queryResolver) GetThreads(ctx context.Context, network *string, first i
 // GetThread is the resolver for the getThread field.
 func (r *queryResolver) GetThread(ctx context.Context, network *string, id string) (*model.Thread, error) {
 	return r.HolonService.GetThread(ctx, id)
+}
+
+// GetTrackedFolders is the resolver for the getTrackedFolders field.
+func (r *queryResolver) GetTrackedFolders(ctx context.Context) ([]*model.TrackedFolder, error) {
+	dbFolders, err := r.Store.GetTrackedFolders(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	modelFolders := make([]*model.TrackedFolder, len(dbFolders))
+	for i, folder := range dbFolders {
+		modelFolders[i] = &model.TrackedFolder{
+			ID:        folder.ID,
+			Path:      folder.Path,
+			Name:      folder.Name,
+			IsEnabled: folder.IsEnabled,
+			CreatedAt: folder.CreatedAt,
+			UpdatedAt: folder.UpdatedAt,
+		}
+	}
+	return modelFolders, nil
+}
+
+// GetDirectoryWatcherStatus is the resolver for the getDirectoryWatcherStatus field.
+func (r *queryResolver) GetDirectoryWatcherStatus(ctx context.Context) (*model.DirectoryWatcherStatus, error) {
+	r.Logger.Info("🔍 GetDirectoryWatcherStatus called")
+
+	status := &model.DirectoryWatcherStatus{
+		IsRunning:            false,
+		WatchedDirectories:   []string{},
+		TrackedFoldersFromDb: []*model.TrackedFolder{},
+	}
+
+	// Check if DirectoryWatcher exists
+	if r.DirectoryWatcher == nil {
+		r.Logger.Warn("⚠️ DirectoryWatcher is nil")
+		status.ErrorMessage = stringPtr("DirectoryWatcher is not initialized")
+		return status, nil
+	}
+
+	// Get tracked folders from database
+	dbFolders, err := r.Store.GetTrackedFolders(ctx)
+	if err != nil {
+		r.Logger.Error("❌ Failed to get tracked folders from database", "error", err)
+		status.ErrorMessage = stringPtr(fmt.Sprintf("Database error: %v", err))
+		return status, nil
+	}
+
+	// Convert to GraphQL model
+	for _, folder := range dbFolders {
+		status.TrackedFoldersFromDb = append(status.TrackedFoldersFromDb, &model.TrackedFolder{
+			ID:        folder.ID,
+			Path:      folder.Path,
+			Name:      folder.Name,
+			IsEnabled: folder.IsEnabled,
+			CreatedAt: folder.CreatedAt,
+			UpdatedAt: folder.UpdatedAt,
+		})
+	}
+
+	// Get currently watched directories from fsnotify
+	watchedDirs := r.DirectoryWatcher.GetWatchedDirectories()
+	status.WatchedDirectories = watchedDirs
+	status.IsRunning = len(watchedDirs) > 0
+
+	// Trigger debug info logging
+	if err := r.DirectoryWatcher.GetTrackedFoldersFromDB(ctx); err != nil {
+		r.Logger.Error("❌ Failed to log tracked folders from DB", "error", err)
+	}
+
+	r.Logger.Info("✅ DirectoryWatcher status retrieved",
+		"isRunning", status.IsRunning,
+		"watchedCount", len(status.WatchedDirectories),
+		"dbFoldersCount", len(status.TrackedFoldersFromDb))
+
+	return status, nil
+}
+
+// Helper function to create string pointer.
+func stringPtr(s string) *string {
+	return &s
 }
 
 // MessageAdded is the resolver for the messageAdded field.
@@ -1102,6 +1221,39 @@ func (r *subscriptionResolver) WhatsAppSyncStatus(ctx context.Context) (<-chan *
 	}()
 
 	return whatsappSyncStatus, nil
+}
+
+// PrivacyDictUpdated is the resolver for the privacyDictUpdated field.
+func (r *subscriptionResolver) PrivacyDictUpdated(ctx context.Context, chatID string) (<-chan *model.PrivacyDictUpdate, error) {
+	privacyUpdateChan := make(chan *model.PrivacyDictUpdate, 10)
+	subject := fmt.Sprintf("chat.%s.privacy_dict", chatID)
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		var update model.PrivacyDictUpdate
+		if err := json.Unmarshal(msg.Data, &update); err != nil {
+			r.Logger.Error("Failed to unmarshal privacy dict update", "error", err)
+			return
+		}
+
+		select {
+		case privacyUpdateChan <- &update:
+		case <-ctx.Done():
+			return
+		default:
+			r.Logger.Warn("Privacy update channel full, dropping update")
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+		close(privacyUpdateChan)
+	}()
+
+	return privacyUpdateChan, nil
 }
 
 // IndexingStatus is the resolver for the indexingStatus field.

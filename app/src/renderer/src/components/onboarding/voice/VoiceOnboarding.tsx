@@ -23,33 +23,7 @@ import { Mic } from 'lucide-react'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
-
-const getMockFrequencyData = (): Uint8Array => {
-  const arraySize = 128
-  const freqData = new Uint8Array(arraySize)
-
-  const time = Date.now() * 0.001
-
-  for (let i = 0; i < arraySize; i++) {
-    const lowFreq = Math.sin(time * 2 + i * 0.1) * 40 + 60
-    const midFreq = Math.sin(time * 3 + i * 0.05) * 30 + 80
-    const highFreq = Math.sin(time * 1.5 + i * 0.15) * 20 + 40
-
-    let amplitude = 0
-    if (i < arraySize * 0.3) {
-      amplitude = lowFreq
-    } else if (i < arraySize * 0.7) {
-      amplitude = midFreq
-    } else {
-      amplitude = highFreq
-    }
-    amplitude += (Math.random() - 0.5) * 15
-    amplitude *= 0.8 + 0.2 * Math.sin(time * 0.5)
-    freqData[i] = Math.max(0, Math.min(255, Math.round(amplitude)))
-  }
-
-  return freqData
-}
+import { getMockFrequencyData } from '@renderer/lib/utils'
 
 export default function VoiceOnboardingContainer() {
   const navigate = useNavigate()
@@ -59,6 +33,7 @@ export default function VoiceOnboardingContainer() {
 
   useEffect(() => {
     if (isCompleted) {
+      console.log('isCompleted and pushing', isCompleted)
       navigate({ to: '/' })
     }
   }, [isCompleted, navigate])
@@ -114,8 +89,6 @@ function VoiceOnboarding() {
   const [deleteChat] = useMutation(DeleteChatDocument)
   const { isLiveKitSessionReady } = useDependencyStatus()
   const { isAgentSpeaking } = useVoiceAgent()
-
-  console.log('isAgentSpeaking', isAgentSpeaking)
 
   useEffect(() => {
     const initiateVoiceOnboarding = async () => {
@@ -224,7 +197,7 @@ function VoiceOnboarding() {
                 transition={{ duration: 0.3, ease: 'easeOut' }}
                 className="z-1"
               >
-                <UserMessageBubble message={lastMessage} />
+                <UserMessageBubble message={lastMessage} chatPrivacyDict={null} />
               </motion.div>
             )}
 

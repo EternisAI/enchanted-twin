@@ -62,6 +62,7 @@ type Chat {
   category: ChatCategory!
   holonThreadId: String #include this in the system prompt so user does not have to excit. on twinchat.go
   initialMessage: String
+  privacyDictJson: JSON
 }
 
 type Message {
@@ -117,6 +118,15 @@ type Query {
   getHolons(userId: ID!): [String!]
   getThreads(network: String, first: Int! = 10, offset: Int! = 0): [Thread!]!
   getThread(network: String, id: ID!): Thread
+  getTrackedFolders: [TrackedFolder!]!
+  getDirectoryWatcherStatus: DirectoryWatcherStatus!
+}
+
+type DirectoryWatcherStatus {
+  isRunning: Boolean!
+  watchedDirectories: [String!]!
+  trackedFoldersFromDB: [TrackedFolder!]!
+  errorMessage: String
 }
 
 type SetupProgress {
@@ -147,11 +157,6 @@ type Mutation {
     reasoning: Boolean! = False
     voice: Boolean! = False
   ): Message!
-  processMessageHistory(
-    chatId: ID!
-    messages: [MessageInput!]!
-    isOnboarding: Boolean! = False
-  ): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
@@ -165,6 +170,9 @@ type Mutation {
   activate(inviteCode: String!): Boolean!
   joinHolon(userId: String!, network: String): Boolean!
   storeToken(input: StoreTokenInput!): Boolean!
+  addTrackedFolder(input: AddTrackedFolderInput!): TrackedFolder!
+  deleteTrackedFolder(id: ID!): Boolean!
+  updateTrackedFolder(id: ID!, input: UpdateTrackedFolderInput!): Boolean!
 }
 
 type Subscription {
@@ -180,6 +188,7 @@ type Subscription {
     isOnboarding: Boolean! = False
   ): MessageStreamPayload!
   whatsAppSyncStatus: WhatsAppSyncStatus!
+  privacyDictUpdated(chatId: ID!): PrivacyDictUpdate!
 }
 
 type WhatsAppSyncStatus {
@@ -198,6 +207,25 @@ type DataSource {
   isIndexed: Boolean!
   indexProgress: Int!
   hasError: Boolean!
+}
+
+type TrackedFolder {
+  id: ID!
+  path: String!
+  name: String
+  isEnabled: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input AddTrackedFolderInput {
+  path: String!
+  name: String
+}
+
+input UpdateTrackedFolderInput {
+  name: String
+  isEnabled: Boolean
 }
 
 enum IndexingState {
@@ -297,6 +325,11 @@ type WhatsAppQRCodeUpdate {
   event: String!
   timestamp: DateTime!
   isConnected: Boolean!
+}
+
+type PrivacyDictUpdate {
+  chatId: ID!
+  privacyDictJson: JSON!
 }
 
 type AgentTask {

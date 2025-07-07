@@ -26,14 +26,16 @@ const messageAnimation = {
   transition: { duration: 0.3, ease: 'easeOut' }
 }
 
-export function UserMessageBubble({ message }: { message: Message }) {
+export function UserMessageBubble({
+  message,
+  showAnonymize = false,
+  chatPrivacyDict
+}: {
+  message: Message
+  chatPrivacyDict: string | null
+  showAnonymize?: boolean
+}) {
   const [isAnonymized, setIsAnonymized] = useState(false)
-
-  const privacyDictJson = {
-    Arthur: 'Max',
-    google: 'BigCorp',
-    'san francisco': 'US CITY'
-  }
 
   return (
     <motion.div
@@ -44,7 +46,7 @@ export function UserMessageBubble({ message }: { message: Message }) {
     >
       <div className="flex flex-col gap-1 max-w-md">
         <div className="bg-accent dark:bg-black dark:border dark:border-border text-foreground rounded-lg px-4 py-2 max-w-md relative group">
-          {message.text && <p>{anonymizeText(message.text, privacyDictJson, isAnonymized)}</p>}
+          {message.text && <p>{anonymizeText(message.text, chatPrivacyDict, isAnonymized)}</p>}
           {message.imageUrls.length > 0 && (
             <div className="grid grid-cols-4 gap-y-4 my-2">
               {message.imageUrls.map((url, i) => (
@@ -59,20 +61,22 @@ export function UserMessageBubble({ message }: { message: Message }) {
           )}
         </div>
         <div className="flex items-center gap-2 w-full">
-          <button
-            onClick={() => setIsAnonymized(!isAnonymized)}
-            className="p-1 rounded-md bg-accent cursor-pointer hover:bg-accent/50"
-            style={{ pointerEvents: 'auto' }}
-            tabIndex={-1}
-            aria-label={isAnonymized ? 'Show original message' : 'Anonymize message'}
-          >
-            {isAnonymized ? (
-              <EyeClosed className="h-4 w-4 text-primary" />
-            ) : (
-              <Eye className="h-4 w-4 text-primary" />
-            )}
-          </button>
-          <div className="text-xs text-muted-foreground">
+          {showAnonymize && (
+            <button
+              onClick={() => setIsAnonymized(!isAnonymized)}
+              className="p-1 rounded-md bg-accent cursor-pointer hover:bg-accent/50"
+              style={{ pointerEvents: 'auto' }}
+              tabIndex={-1}
+              aria-label={isAnonymized ? 'Show original message' : 'Anonymize message'}
+            >
+              {isAnonymized ? (
+                <EyeClosed className="h-4 w-4 text-primary" />
+              ) : (
+                <Eye className="h-4 w-4 text-primary" />
+              )}
+            </button>
+          )}
+          <div className="text-xs text-muted-foreground pl-1">
             {new Date(message.createdAt).toLocaleTimeString()}
           </div>
         </div>
@@ -227,16 +231,14 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
   )
 }
 
-const anonymizeText = (
-  text: string,
-  privacyDictJson: Record<string, string>,
-  isAnonymized: boolean
-) => {
-  if (!isAnonymized) return text
+const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymized: boolean) => {
+  if (!privacyDictJson || !isAnonymized) return text
+
+  const privacyDict = JSON.parse(privacyDictJson) as Record<string, string>
 
   let parts: (string | React.ReactElement)[] = [text]
 
-  Object.entries(privacyDictJson).forEach(([original, replacement]) => {
+  Object.entries(privacyDict).forEach(([original, replacement]) => {
     const regex = new RegExp(`(${original})`, 'gi')
     parts = parts.flatMap((part) => {
       if (typeof part === 'string') {
