@@ -30,7 +30,7 @@ type CreateDataSourceFromFileInput struct {
 // GetDataSources retrieves all data sources.
 func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources ORDER BY created_at DESC`)
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, COALESCE(created_at, updated_at, CURRENT_TIMESTAMP) as created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -40,10 +40,10 @@ func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 // GetUnindexedDataSources retrieves all active data sources that are not indexed and not currently being processed.
 func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	query := `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE AND state = 'active' AND processing_status = 'idle' ORDER BY created_at DESC`
+	query := `SELECT id, name, updated_at, COALESCE(created_at, updated_at, CURRENT_TIMESTAMP) as created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE AND state = 'active' AND processing_status = 'idle' ORDER BY created_at DESC`
 
 	var allDataSources []*DataSource
-	err := s.db.SelectContext(ctx, &allDataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources ORDER BY created_at DESC`)
+	err := s.db.SelectContext(ctx, &allDataSources, `SELECT id, name, updated_at, COALESCE(created_at, updated_at, CURRENT_TIMESTAMP) as created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
