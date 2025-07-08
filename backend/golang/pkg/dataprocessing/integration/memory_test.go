@@ -427,8 +427,6 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 	mockAIService := createMockAIService(sharedLogger)
 	mockEmbeddingsService := createMockAIService(sharedLogger)
 
-	dataprocessingService := dataprocessing.NewDataProcessingService(mockAIService, completionsModel, store, sharedLogger)
-
 	embeddingsWrapper, err := storage.NewEmbeddingWrapper(mockEmbeddingsService, config.EmbeddingsModel)
 	if err != nil {
 		t.Fatalf("Failed to create embedding wrapper: %v", err)
@@ -452,6 +450,8 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 		EmbeddingsWrapper:  embeddingsWrapper,
 	})
 	require.NoError(t, err)
+
+	dataprocessingService := dataprocessing.NewDataProcessingService(mockAIService, completionsModel, store, mem, sharedLogger)
 
 	sharedLogger.Info("=CONFIG=", "Model", config.CompletionsModel)
 	sharedLogger.Info("=CONFIG=", "Model", config.EmbeddingsModel)

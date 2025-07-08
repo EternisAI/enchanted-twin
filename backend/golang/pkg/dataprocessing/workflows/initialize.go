@@ -595,36 +595,71 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 	ctx context.Context,
 	input ProcessDataActivityInput,
 ) (ProcessDataActivityResponse, error) {
-	outputPath := fmt.Sprintf(
-		"%s/%s_%s.jsonl",
-		w.Config.AppDataPath,
-		input.DataSourceName,
-		input.DataSourceID,
-	)
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
-	success, err := dataprocessingService.ProcessSource(
-		ctx,
-		input.DataSourceName,
-		input.SourcePath,
-		outputPath,
-	)
-	if err != nil {
-		w.Logger.Error(
-			"Failed to process data source",
-			"error",
-			err,
-			"dataSource",
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Memory, w.Logger)
+
+	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
+
+	if isNewFormat {
+		// New format processors (misc, telegram, whatsapp, etc.) store documents directly in memory
+		// No file is created, so we use a special marker path
+		success, err := dataprocessingService.ProcessSource(
+			ctx,
 			input.DataSourceName,
+			input.SourcePath,
+			"", // Empty output path - no file will be created
 		)
-		return ProcessDataActivityResponse{}, err
-	}
+		if err != nil {
+			w.Logger.Error(
+				"Failed to process data source",
+				"error",
+				err,
+				"dataSource",
+				input.DataSourceName,
+			)
+			return ProcessDataActivityResponse{}, err
+		}
 
-	err = w.Store.UpdateDataSourceProcessedPath(ctx, input.DataSourceID, outputPath)
-	if err != nil {
-		return ProcessDataActivityResponse{}, err
-	}
+		// Use a special marker to indicate direct processing (no file)
+		processedPath := fmt.Sprintf("direct://%s_%s", input.DataSourceName, input.DataSourceID)
+		err = w.Store.UpdateDataSourceProcessedPath(ctx, input.DataSourceID, processedPath)
+		if err != nil {
+			return ProcessDataActivityResponse{}, err
+		}
 
-	return ProcessDataActivityResponse{Success: success}, nil
+		return ProcessDataActivityResponse{Success: success}, nil
+	} else {
+		// Old format processors create JSONL files
+		outputPath := fmt.Sprintf(
+			"%s/%s_%s.jsonl",
+			w.Config.AppDataPath,
+			input.DataSourceName,
+			input.DataSourceID,
+		)
+
+		success, err := dataprocessingService.ProcessSource(
+			ctx,
+			input.DataSourceName,
+			input.SourcePath,
+			outputPath,
+		)
+		if err != nil {
+			w.Logger.Error(
+				"Failed to process data source",
+				"error",
+				err,
+				"dataSource",
+				input.DataSourceName,
+			)
+			return ProcessDataActivityResponse{}, err
+		}
+
+		err = w.Store.UpdateDataSourceProcessedPath(ctx, input.DataSourceID, outputPath)
+		if err != nil {
+			return ProcessDataActivityResponse{}, err
+		}
+
+		return ProcessDataActivityResponse{Success: success}, nil
+	}
 }
 
 type UpdateDataSourceStateActivityInput struct {
@@ -673,6 +708,12 @@ func (w *DataProcessingWorkflows) GetBatchesActivity(
 	}
 	if input.ProcessedPath == "" {
 		return GetBatchesActivityResponse{}, errors.New("processed path cannot be empty")
+	}
+
+	// Check if this is a direct processing marker (documents already stored in memory)
+	if strings.HasPrefix(input.ProcessedPath, "direct://") {
+		// Documents were stored directly in memory during processing, no indexing needed
+		return GetBatchesActivityResponse{TotalBatches: 0}, nil
 	}
 
 	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
@@ -754,6 +795,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 			w.OpenAIService,
 			w.Config.CompletionsModel,
 			w.Store,
+			w.Memory,
 			w.Logger,
 		)
 
@@ -798,7 +840,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 // isNewFormatProcessor checks if the data source uses the new ConversationDocument format.
 func (w *DataProcessingWorkflows) isNewFormatProcessor(dataSourceName string) bool {
 	switch strings.ToLower(dataSourceName) {
-	case "telegram", "whatsapp", "gmail", "chatgpt":
+	case "telegram", "whatsapp", "gmail", "chatgpt", "misc":
 		return true
 	default:
 		return false

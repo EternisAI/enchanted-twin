@@ -60,29 +60,26 @@ func TestPowerPointProcessing(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			records, err := processor.ProcessFile(ctx, testFilePath)
+			documents, err := processor.ProcessFile(ctx, testFilePath)
 
 			if test.expected.shouldSucceed {
 				require.NoError(t, err, "Should process PowerPoint file successfully")
-				require.NotEmpty(t, records, "Should produce records")
+				require.NotEmpty(t, documents, "Should produce documents")
 
-				firstRecord := records[0]
+				firstDoc := documents[0]
 
-				assert.Equal(t, "synced-document", firstRecord.Source)
-				assert.Contains(t, firstRecord.Data, "content")
-				assert.Contains(t, firstRecord.Data, "filename")
-				assert.Contains(t, firstRecord.Data, "type")
+				assert.Equal(t, "synced-document", firstDoc.FieldSource)
+				assert.Contains(t, firstDoc.FieldContent, "content")
+				assert.Contains(t, firstDoc.FieldMetadata, "filename")
+				assert.Contains(t, firstDoc.FieldMetadata, "type")
 
-				docType, ok := firstRecord.Data["type"].(string)
-				require.True(t, ok)
+				docType := firstDoc.FieldMetadata["type"]
 				assert.Equal(t, test.expected.expectedType, docType)
 
-				filename, ok := firstRecord.Data["filename"].(string)
-				require.True(t, ok)
+				filename := firstDoc.FieldMetadata["filename"]
 				assert.Equal(t, test.filename, filename)
 
-				content, ok := firstRecord.Data["content"].(string)
-				require.True(t, ok)
+				content := firstDoc.FieldContent
 				assert.GreaterOrEqual(t, len(content), test.expected.minContentLen)
 
 				for _, required := range test.expected.shouldContain {
@@ -112,11 +109,8 @@ func TestPowerPointTextExtraction(t *testing.T) {
 	env := SetupTestEnvironment(t)
 	defer env.Cleanup(t)
 
-	processor, err := misc.NewTextDocumentProcessor(createMockAIService(env.logger), "gpt-4o-mini", env.store, env.logger)
+	textProcessor, err := misc.NewTextDocumentProcessor(createMockAIService(env.logger), "gpt-4o-mini", env.store, env.logger)
 	require.NoError(t, err)
-
-	textProcessor, ok := processor.(*misc.TextDocumentProcessor)
-	require.True(t, ok)
 
 	t.Run("ExtractTextFromPPTX", func(t *testing.T) {
 		testFilePath := filepath.Join("testdata", "synced-document", "test_presentation.pptx")
@@ -219,19 +213,15 @@ func TestPowerPointIntegration(t *testing.T) {
 
 	ctx := context.Background()
 
-	records, err := processor.ProcessFile(ctx, testFilePath)
+	textDocuments, err := processor.ProcessFile(ctx, testFilePath)
 	require.NoError(t, err)
-	require.NotEmpty(t, records)
+	require.NotEmpty(t, textDocuments)
 
-	documents, err := processor.ToDocuments(ctx, records)
-	require.NoError(t, err)
-	require.NotEmpty(t, documents)
+	doc := textDocuments[0]
+	assert.NotEmpty(t, doc.FieldID)
+	assert.NotEmpty(t, doc.FieldContent)
+	assert.Equal(t, "misc", doc.FieldSource)
 
-	doc := documents[0]
-	assert.NotEmpty(t, doc.ID())
-	assert.NotEmpty(t, doc.Content())
-	assert.Equal(t, "synced-document", doc.Source())
-
-	t.Logf("Document ID: %s", doc.ID())
-	t.Logf("Document content length: %d", len(doc.Content()))
+	t.Logf("Document ID: %s", doc.FieldID)
+	t.Logf("Document content length: %d", len(doc.FieldContent))
 }

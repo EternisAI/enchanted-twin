@@ -277,14 +277,16 @@ type DataProcessingService struct {
 	openAiService    *ai.Service
 	completionsModel string
 	store            *db.Store
+	memory           memory.Storage
 	logger           *log.Logger
 }
 
-func NewDataProcessingService(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger) *DataProcessingService {
+func NewDataProcessingService(openAiService *ai.Service, completionsModel string, store *db.Store, memoryStorage memory.Storage, logger *log.Logger) *DataProcessingService {
 	return &DataProcessingService{
 		openAiService:    openAiService,
 		completionsModel: completionsModel,
 		store:            store,
+		memory:           memoryStorage,
 		logger:           logger,
 	}
 }
@@ -404,10 +406,28 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessDirectory(ctx, inputPath)
+		fileDocuments, err := source.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
+
+		// Convert FileDocuments to Document interface for storage
+		var documents []memory.Document
+		for _, fileDoc := range fileDocuments {
+			documents = append(documents, &fileDoc)
+		}
+
+		// Store via the memory system which will route to DocumentChunk storage
+		progressCallback := func(processed, total int) {
+			s.logger.Info("Processing documents", "processed", processed, "total", total)
+		}
+
+		if err := s.memory.Store(ctx, documents, progressCallback); err != nil {
+			return false, fmt.Errorf("failed to store documents: %w", err)
+		}
+
+		s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+		return true, nil
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
 	}
@@ -468,14 +488,8 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 			return nil, err
 		}
 	case "synced-document":
-		miscProcessor, err := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store, s.logger)
-		if err != nil {
-			return nil, err
-		}
-		documents, err = miscProcessor.ToDocuments(ctx, records)
-		if err != nil {
-			return nil, err
-		}
+		// Misc processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly
+		return nil, fmt.Errorf("misc processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
 	default:
 		return nil, fmt.Errorf("unsupported source type: %s", sourceType)
 	}

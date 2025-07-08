@@ -30,7 +30,7 @@ type CreateDataSourceFromFileInput struct {
 // GetDataSources retrieves all data sources.
 func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources ORDER BY created_at DESC`)
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, COALESCE(created_at, updated_at, CURRENT_TIMESTAMP) as created_at, path, processed_path, is_indexed, has_error, COALESCE(state, 'active') as state, processing_status, processing_started_at, processing_workflow_id FROM data_sources ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -40,10 +40,10 @@ func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 // GetUnindexedDataSources retrieves all active data sources that are not indexed and not currently being processed.
 func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	query := `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE AND state = 'active' AND processing_status = 'idle' ORDER BY created_at DESC`
+	query := `SELECT id, name, updated_at, COALESCE(created_at, updated_at, CURRENT_TIMESTAMP) as created_at, path, processed_path, is_indexed, has_error, COALESCE(state, 'active') as state, processing_status, processing_started_at, processing_workflow_id FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE AND COALESCE(state, 'active') = 'active' AND processing_status = 'idle' ORDER BY created_at DESC`
 
 	var allDataSources []*DataSource
-	err := s.db.SelectContext(ctx, &allDataSources, `SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id FROM data_sources ORDER BY created_at DESC`)
+	err := s.db.SelectContext(ctx, &allDataSources, `SELECT id, name, updated_at, COALESCE(created_at, updated_at, CURRENT_TIMESTAMP) as created_at, path, processed_path, is_indexed, has_error, COALESCE(state, 'active') as state, processing_status, processing_started_at, processing_workflow_id FROM data_sources ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -58,11 +58,11 @@ func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, err
 
 // CreateDataSource creates a new data source.
 func (s *Store) CreateDataSource(ctx context.Context, id string, name string, path string) (*DataSource, error) {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO data_sources (id, name, path) VALUES (?, ?, ?)`, id, name, path)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO data_sources (id, name, path, state, created_at, updated_at, is_indexed, has_error, processing_status) VALUES (?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE, FALSE, 'idle')`, id, name, path)
 	if err != nil {
 		return nil, err
 	}
-	return &DataSource{ID: id, Name: name, Path: path}, nil
+	return &DataSource{ID: id, Name: name, Path: path, State: "active"}, nil
 }
 
 // UpdateDataSource updates a data source.
@@ -108,7 +108,7 @@ func (s *Store) DataSourceExistsByPath(ctx context.Context, path string) (bool, 
 // ActiveDataSourceExistsByPath checks if an active data source exists for the given file path.
 func (s *Store) ActiveDataSourceExistsByPath(ctx context.Context, path string) (bool, error) {
 	var count int
-	err := s.db.GetContext(ctx, &count, `SELECT COUNT(*) FROM data_sources WHERE path = ? AND state = 'active'`, path)
+	err := s.db.GetContext(ctx, &count, `SELECT COUNT(*) FROM data_sources WHERE path = ? AND COALESCE(state, 'active') = 'active'`, path)
 	return count > 0, err
 }
 
@@ -117,7 +117,7 @@ func (s *Store) MarkDataSourceAsDeleted(ctx context.Context, path string) error 
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE data_sources 
 		SET state = 'deleted', updated_at = CURRENT_TIMESTAMP 
-		WHERE path = ? AND state = 'active'
+		WHERE path = ? AND COALESCE(state, 'active') = 'active'
 	`, path)
 	return err
 }
@@ -127,7 +127,7 @@ func (s *Store) MarkDataSourceAsReplaced(ctx context.Context, path string) error
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE data_sources 
 		SET state = 'replaced', updated_at = CURRENT_TIMESTAMP 
-		WHERE path = ? AND state = 'active'
+		WHERE path = ? AND COALESCE(state, 'active') = 'active'
 	`, path)
 	return err
 }
@@ -146,9 +146,9 @@ func (s *Store) UpdateDataSourcePath(ctx context.Context, id string, newPath str
 func (s *Store) FindOrphanedDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
 	err := s.db.SelectContext(ctx, &dataSources, `
-		SELECT id, name, path, state, created_at, updated_at, is_indexed, has_error, processed_path
+		SELECT id, name, path, COALESCE(state, 'active') as state, created_at, updated_at, is_indexed, has_error, processed_path
 		FROM data_sources 
-		WHERE state = 'active'
+		WHERE COALESCE(state, 'active') = 'active'
 		ORDER BY updated_at DESC
 	`)
 	if err != nil {
@@ -161,7 +161,7 @@ func (s *Store) FindOrphanedDataSources(ctx context.Context) ([]*DataSource, err
 func (s *Store) GetDataSourceHistory(ctx context.Context, path string) ([]*DataSource, error) {
 	var dataSources []*DataSource
 	err := s.db.SelectContext(ctx, &dataSources, `
-		SELECT id, name, path, state, created_at, updated_at, is_indexed, has_error, processed_path
+		SELECT id, name, path, COALESCE(state, 'active') as state, created_at, updated_at, is_indexed, has_error, processed_path
 		FROM data_sources 
 		WHERE path = ? 
 		ORDER BY created_at DESC
@@ -246,7 +246,7 @@ func (s *Store) ReleaseDataSourceFromProcessing(ctx context.Context, dataSourceI
 func (s *Store) GetStaleProcessingDataSources(ctx context.Context, staleAfterMinutes int) ([]*DataSource, error) {
 	var dataSources []*DataSource
 	err := s.db.SelectContext(ctx, &dataSources, `
-		SELECT id, name, updated_at, created_at, path, processed_path, is_indexed, has_error, state, processing_status, processing_started_at, processing_workflow_id
+		SELECT id, name, updated_at, COALESCE(created_at, updated_at, CURRENT_TIMESTAMP) as created_at, path, processed_path, is_indexed, has_error, COALESCE(state, 'active') as state, processing_status, processing_started_at, processing_workflow_id
 		FROM data_sources 
 		WHERE processing_status IN ('processing', 'indexing') 
 		AND processing_started_at < datetime('now', '-' || ? || ' minutes')
