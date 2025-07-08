@@ -56,7 +56,6 @@ export function useGoServer() {
     initializing: false,
     isRunning: false
   })
-  const [isInitializing, setIsInitializing] = useState(false)
 
   const checkStatus = useCallback(async () => {
     try {
@@ -79,7 +78,6 @@ export function useGoServer() {
 
   const start = useCallback(async () => {
     try {
-      // First check if already running
       const status = await getGoServerStatus()
       if (status.isRunning) {
         setState({ initializing: false, isRunning: true })
@@ -135,13 +133,12 @@ export function useGoServer() {
   }, [])
 
   const initializeIfNeeded = useCallback(async () => {
-    if (isInitializing || state.initializing) {
+    if (state.initializing) {
       return { success: true }
     }
 
     try {
-      setIsInitializing(true)
-      setState((prev) => ({ ...prev, error: undefined }))
+      setState((prev) => ({ ...prev, initializing: true, error: undefined }))
 
       const status = await getGoServerStatus()
       if (status.isRunning) {
@@ -157,10 +154,8 @@ export function useGoServer() {
         error: error instanceof Error ? error.message : 'Unknown error'
       })
       throw error
-    } finally {
-      setIsInitializing(false)
     }
-  }, [start, isInitializing, state.initializing])
+  }, [start, state.initializing])
 
   const retry = useCallback(async () => {
     setState((prev) => ({ ...prev, error: undefined }))
