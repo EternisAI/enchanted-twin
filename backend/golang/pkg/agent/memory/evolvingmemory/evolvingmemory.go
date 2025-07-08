@@ -3,6 +3,7 @@ package evolvingmemory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,8 +12,6 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/go-openapi/strfmt"
 	"github.com/weaviate/weaviate/entities/models"
-
-	"errors"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"

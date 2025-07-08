@@ -24,7 +24,7 @@ import (
 const (
 	ClassName              = "MemoryFact"
 	DocumentClassName      = "SourceDocument"
-	DocumentChunkClassName = "DocumentChunk"chunks
+	DocumentChunkClassName = "DocumentChunk"
 	contentProperty        = "content"
 	timestampProperty      = "timestamp"
 	metadataProperty       = "metadataJson"
