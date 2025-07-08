@@ -64,7 +64,13 @@ func TestRecursiveDirectoryWatching(t *testing.T) {
 	require.NoError(t, os.MkdirAll(deepDir, 0o755))
 
 	// Create mock dependencies
-	mockStore := &db.Store{}
+	mockStore, err := db.NewStore(context.Background(), "test")
+	require.NoError(t, err)
+	defer func() {
+		err := mockStore.Close()
+		require.NoError(t, err)
+	}()
+
 	mockMemoryStorage := &mockMemoryStorage{}
 	logger := log.New(os.Stdout)
 	mockTemporalClient := &mocks.Client{}
@@ -104,7 +110,13 @@ func TestDirectoryCreationDetection(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create mock dependencies
-	mockStore := &db.Store{}
+	mockStore, err := db.NewStore(context.Background(), "test")
+	require.NoError(t, err)
+	defer func() {
+		err := mockStore.Close()
+		require.NoError(t, err)
+	}()
+
 	mockMemoryStorage := &mockMemoryStorage{}
 	logger := log.New(os.Stdout)
 	mockTemporalClient := &mocks.Client{}

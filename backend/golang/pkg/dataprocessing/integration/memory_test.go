@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -1003,7 +1004,21 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	assert.Empty(t, result.Facts, "should not find memories for invalid source")
 }
 
+func isDockerAvailable() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "docker", "info")
+	err := cmd.Run()
+	return err == nil
+}
+
 func TestMain(m *testing.M) {
+	if !isDockerAvailable() {
+		fmt.Println("Docker is not available. Skipping integration tests.")
+		os.Exit(0)
+	}
+
 	SetupSharedInfrastructure()
 
 	code := m.Run()
