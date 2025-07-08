@@ -190,6 +190,11 @@ const api = {
       ipcRenderer.on('models:progress', listener)
       return () => ipcRenderer.removeListener('models:progress', listener)
     }
+  },
+  goServer: {
+    initialize: () => ipcRenderer.invoke('go-server:initialize'),
+    cleanup: () => ipcRenderer.invoke('go-server:cleanup'),
+    getStatus: () => ipcRenderer.invoke('go-server:status')
   }
 }
 
