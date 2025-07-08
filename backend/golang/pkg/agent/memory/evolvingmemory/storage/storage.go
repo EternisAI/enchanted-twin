@@ -23,8 +23,8 @@ import (
 
 const (
 	ClassName              = "MemoryFact"
-	DocumentClassName      = "SourceDocument" // New separate class for documents
-	DocumentChunkClassName = "DocumentChunk"  // New separate class for document chunks
+	DocumentClassName      = "SourceDocument"
+	DocumentChunkClassName = "DocumentChunk"chunks
 	contentProperty        = "content"
 	timestampProperty      = "timestamp"
 	metadataProperty       = "metadataJson"

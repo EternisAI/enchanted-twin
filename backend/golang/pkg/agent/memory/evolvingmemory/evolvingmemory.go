@@ -750,7 +750,7 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 			ConsolidatedInsightCount: len(consolidatedResults.Facts),
 			CitedEvidenceCount:       len(citedFacts),
 			AdditionalContextCount:   len(additionalContext),
-			DocumentChunkCount:       len(memoryDocumentChunks), // NEW: Document chunk count
+			DocumentChunkCount:       len(memoryDocumentChunks),
 			TotalResults:             len(consolidatedResults.Facts) + len(citedFacts) + len(additionalContext) + len(memoryDocumentChunks),
 			QueryStrategy:            "3-stage-intelligent-with-parallel-chunks", // MemoryFact stages + parallel DocumentChunk
 		},
