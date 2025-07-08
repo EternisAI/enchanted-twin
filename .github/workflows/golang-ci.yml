@@ -75,7 +75,7 @@ jobs:
 
       - name: Check for dead code
         run: |
-          deadcode_output=$(go run golang.org/x/tools/cmd/deadcode@latest ./... 2>/dev/null || true)
+          deadcode_output=$(go run golang.org/x/tools/cmd/deadcode@latest -test ./... 2>/dev/null || true)
           if [ -n "$deadcode_output" ]; then
             echo "❌ Dead code found! Please remove the following:"
             echo "$deadcode_output"

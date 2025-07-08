@@ -79,13 +79,10 @@ app.whenReady().then(async () => {
   setupAutoUpdater()
   setupMenu()
 
-  // Register global shortcuts from store
   registerStoredShortcuts()
 
-  // Setup LiveKit cleanup on renderer issues
   setupLiveKitCleanup(mainWindow)
 
-  // startKokoro(mainWindow)
   startLiveKitSetup(mainWindow)
   autoStartScreenpipeIfEnabled()
 
