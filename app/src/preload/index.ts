@@ -170,11 +170,31 @@ const api = {
     hasModelsDownloaded: () => ipcRenderer.invoke('models:has-models-downloaded'),
     downloadModels: (modelName: 'embeddings' | 'anonymizer') =>
       ipcRenderer.invoke('models:download', modelName),
-    onProgress: (callback: (data: { modelName: string; pct: number }) => void) => {
-      const listener = (_: unknown, data: { modelName: string; pct: number }) => callback(data)
+    onProgress: (
+      callback: (data: {
+        modelName: string
+        pct: number
+        totalBytes: number
+        downloadedBytes: number
+      }) => void
+    ) => {
+      const listener = (
+        _: unknown,
+        data: {
+          modelName: string
+          pct: number
+          totalBytes: number
+          downloadedBytes: number
+        }
+      ) => callback(data)
       ipcRenderer.on('models:progress', listener)
       return () => ipcRenderer.removeListener('models:progress', listener)
     }
+  },
+  goServer: {
+    initialize: () => ipcRenderer.invoke('go-server:initialize'),
+    cleanup: () => ipcRenderer.invoke('go-server:cleanup'),
+    getStatus: () => ipcRenderer.invoke('go-server:status')
   }
 }
 
