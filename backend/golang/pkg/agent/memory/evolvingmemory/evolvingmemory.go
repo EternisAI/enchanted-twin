@@ -572,7 +572,37 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, filter *memory.Filter) (*memory.IntelligentQueryResult, error) {
 	s.logger.Info("Starting intelligent query", "query", queryText)
 
-	// Stage 1: Find relevant consolidated insights
+	// PARALLEL EXECUTION: Start DocumentChunk search alongside MemoryFact stages
+	type documentChunkResult struct {
+		chunks []*storage.DocumentChunk
+		err    error
+	}
+
+	documentChunkCh := make(chan documentChunkResult, 1)
+	go func() {
+		defer close(documentChunkCh)
+
+		// DocumentChunk search - runs independently in parallel
+		documentChunkFilter := &memory.Filter{
+			Distance: 0.85, // More permissive for document content search
+			Limit:    func() *int { limit := 10; return &limit }(),
+		}
+
+		// Copy user filter settings
+		if filter != nil {
+			if filter.Source != nil {
+				documentChunkFilter.Source = filter.Source
+			}
+			if filter.Subject != nil {
+				documentChunkFilter.Subject = filter.Subject
+			}
+		}
+
+		chunks, err := s.storage.QueryDocumentChunks(ctx, queryText, documentChunkFilter)
+		documentChunkCh <- documentChunkResult{chunks: chunks, err: err}
+	}()
+
+	// Stage 1: Find relevant consolidated insights (MemoryFact class only)
 	consolidatedFilter := &memory.Filter{
 		Distance: 0.7,
 		Limit:    func() *int { limit := 10; return &limit }(),
@@ -682,19 +712,47 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 
 	s.logger.Info("Stage 3 completed", "additional_context", len(additionalContext))
 
+	// Collect parallel DocumentChunk results
+	documentChunkRes := <-documentChunkCh
+	var memoryDocumentChunks []memory.DocumentChunk
+
+	if documentChunkRes.err != nil {
+		s.logger.Warn("Parallel document chunk query failed", "error", documentChunkRes.err)
+	} else {
+		// Convert storage.DocumentChunk to memory.DocumentChunk
+		for _, chunk := range documentChunkRes.chunks {
+			memoryChunk := memory.DocumentChunk{
+				ID:                 chunk.ID,
+				Content:            chunk.Content,
+				ChunkIndex:         chunk.ChunkIndex,
+				OriginalDocumentID: chunk.OriginalDocumentID,
+				Source:             chunk.Source,
+				FilePath:           chunk.FilePath,
+				Tags:               chunk.Tags,
+				Metadata:           chunk.Metadata,
+				CreatedAt:          chunk.CreatedAt,
+			}
+			memoryDocumentChunks = append(memoryDocumentChunks, memoryChunk)
+		}
+	}
+
+	s.logger.Info("Parallel DocumentChunk search completed", "document_chunks", len(memoryDocumentChunks))
+
 	// Build result using memory package types
 	result := &memory.IntelligentQueryResult{
 		Query:                queryText,
 		ConsolidatedInsights: consolidatedResults.Facts,
 		CitedEvidence:        citedFacts,
 		AdditionalContext:    additionalContext,
+		DocumentChunks:       memoryDocumentChunks,
 		Metadata: memory.QueryMetadata{
 			QueriedAt:                time.Now().Format(time.RFC3339),
 			ConsolidatedInsightCount: len(consolidatedResults.Facts),
 			CitedEvidenceCount:       len(citedFacts),
 			AdditionalContextCount:   len(additionalContext),
-			TotalResults:             len(consolidatedResults.Facts) + len(citedFacts) + len(additionalContext),
-			QueryStrategy:            "3-stage-intelligent",
+			DocumentChunkCount:       len(memoryDocumentChunks), // NEW: Document chunk count
+			TotalResults:             len(consolidatedResults.Facts) + len(citedFacts) + len(additionalContext) + len(memoryDocumentChunks),
+			QueryStrategy:            "3-stage-intelligent-with-parallel-chunks", // MemoryFact stages + parallel DocumentChunk
 		},
 	}
 
@@ -703,6 +761,7 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 		"insights", len(result.ConsolidatedInsights),
 		"evidence", len(result.CitedEvidence),
 		"context", len(result.AdditionalContext),
+		"chunks", len(result.DocumentChunks),
 		"total", result.Metadata.TotalResults)
 
 	return result, nil

@@ -406,15 +406,15 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		textDocuments, err := processor.ProcessFile(ctx, inputPath)
+		fileDocuments, err := processor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
 
-		// Convert TextDocuments to Document interface for storage
+		// Convert FileDocuments to Document interface for storage
 		var documents []memory.Document
-		for _, textDoc := range textDocuments {
-			documents = append(documents, &textDoc)
+		for _, fileDoc := range fileDocuments {
+			documents = append(documents, &fileDoc)
 		}
 
 		// Store via the memory system which will route to DocumentChunk storage

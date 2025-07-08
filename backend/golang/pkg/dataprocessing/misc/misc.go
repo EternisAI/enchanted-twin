@@ -452,7 +452,7 @@ func (s *TextDocumentProcessor) ExtractContentTags(ctx context.Context, content 
 	return tags, nil
 }
 
-func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.TextDocument, error) {
+func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.FileDocument, error) {
 	// Check if the input is a directory
 	info, err := os.Stat(filePath)
 	if err != nil {
@@ -468,8 +468,8 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 	return s.processSingleFile(ctx, filePath)
 }
 
-func (s *TextDocumentProcessor) processDirectory(ctx context.Context, dirPath string) ([]memory.TextDocument, error) {
-	var allDocuments []memory.TextDocument
+func (s *TextDocumentProcessor) processDirectory(ctx context.Context, dirPath string) ([]memory.FileDocument, error) {
+	var allDocuments []memory.FileDocument
 
 	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -496,7 +496,7 @@ func (s *TextDocumentProcessor) processDirectory(ctx context.Context, dirPath st
 	return allDocuments, nil
 }
 
-func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath string) ([]memory.TextDocument, error) {
+func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath string) ([]memory.FileDocument, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
@@ -589,7 +589,7 @@ func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath 
 	s.logger.Info("Processing file", "fileName", fileName, "contentLength", len(textContent), "preview", textContent[:min(200, len(textContent))])
 
 	if len(textContent) == 0 {
-		emptyDoc := memory.TextDocument{
+		emptyDoc := memory.FileDocument{
 			FieldID:        fmt.Sprintf("misc-%s-%d", fileName, timestamp.Unix()),
 			FieldContent:   "",
 			FieldTimestamp: &timestamp,
@@ -602,7 +602,7 @@ func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath 
 			},
 			FieldFilePath: filePath,
 		}
-		return []memory.TextDocument{emptyDoc}, nil
+		return []memory.FileDocument{emptyDoc}, nil
 	}
 
 	tags, err := s.ExtractContentTags(context.Background(), textContent)
@@ -611,7 +611,7 @@ func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath 
 		tags = []string{}
 	}
 
-	var documents []memory.TextDocument
+	var documents []memory.FileDocument
 	for i := 0; i < len(textContent); i += s.chunkSize {
 		end := i + s.chunkSize
 		if end > len(textContent) {
@@ -621,7 +621,7 @@ func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath 
 		chunk := textContent[i:end]
 		chunkIndex := i / s.chunkSize
 
-		doc := memory.TextDocument{
+		doc := memory.FileDocument{
 			FieldID:        fmt.Sprintf("misc-%s-%d-chunk%d", fileName, timestamp.Unix(), chunkIndex),
 			FieldContent:   chunk,
 			FieldTimestamp: &timestamp,

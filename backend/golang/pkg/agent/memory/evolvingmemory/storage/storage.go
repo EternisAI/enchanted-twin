@@ -1788,29 +1788,39 @@ func (s *WeaviateStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 
 // QueryDocumentChunks retrieves document chunks relevant to the query text.
 func (s *WeaviateStorage) QueryDocumentChunks(ctx context.Context, queryText string, filter *memory.Filter) ([]*DocumentChunk, error) {
+	s.logger.Debug("QueryDocumentChunks called", "query", queryText, "filter", filter)
+
 	// Generate query vector for semantic search
 	queryVector, err := s.embeddingsWrapper.Embedding(ctx, queryText)
 	if err != nil {
+		s.logger.Error("Failed to create embedding for chunk query", "error", err)
 		return nil, fmt.Errorf("failed to create embedding for chunk query: %w", err)
 	}
+	s.logger.Debug("Generated embedding vector", "dimension", len(queryVector))
 
 	// Build nearVector search
 	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector)
 	if filter != nil && filter.Distance > 0 {
 		nearVector = nearVector.WithDistance(filter.Distance)
+		s.logger.Debug("Added distance filter", "distance", filter.Distance)
 	}
 
-	// Define fields to retrieve
-	fields := []string{
-		contentProperty,
-		chunkIndexProperty,
-		chunkOriginalDocumentIDProperty,
-		sourceProperty,
-		chunkFilePathProperty,
-		tagsProperty,
-		metadataProperty,
-		chunkCreatedAtProperty,
-		"_additional { id }",
+	// Define fields to retrieve - construct them properly as weaviateGraphql.Field objects
+	fields := []weaviateGraphql.Field{
+		{Name: contentProperty},
+		{Name: chunkIndexProperty},
+		{Name: chunkOriginalDocumentIDProperty},
+		{Name: sourceProperty},
+		{Name: chunkFilePathProperty},
+		{Name: tagsProperty},
+		{Name: metadataProperty},
+		{Name: chunkCreatedAtProperty},
+		{
+			Name: "_additional",
+			Fields: []weaviateGraphql.Field{
+				{Name: "id"},
+			},
+		},
 	}
 
 	// Build query
@@ -1818,48 +1828,56 @@ func (s *WeaviateStorage) QueryDocumentChunks(ctx context.Context, queryText str
 		WithClassName(DocumentChunkClassName).
 		WithNearVector(nearVector)
 
-	// Add fields one by one
-	for _, field := range fields {
-		queryBuilder = queryBuilder.WithFields(weaviateGraphql.Field{Name: field})
-	}
+	// Add fields - no longer need the loop since we're using proper Field objects
+	queryBuilder = queryBuilder.WithFields(fields...)
 
 	// Add limit if specified
 	if filter != nil && filter.Limit != nil {
 		queryBuilder = queryBuilder.WithLimit(*filter.Limit)
+		s.logger.Debug("Added limit", "limit", *filter.Limit)
 	}
 
+	s.logger.Debug("Executing DocumentChunk GraphQL query")
 	// Execute query
 	result, err := queryBuilder.Do(ctx)
 	if err != nil {
+		s.logger.Error("Failed to execute document chunk query", "error", err)
 		return nil, fmt.Errorf("executing document chunk query: %w", err)
 	}
 
+	s.logger.Debug("Query executed successfully")
 	// Parse results
 	data := result.Data
 	if data == nil {
+		s.logger.Debug("No data in result")
 		return []*DocumentChunk{}, nil
 	}
 
 	get, ok := data["Get"].(map[string]interface{})
 	if !ok {
+		s.logger.Debug("No Get field in result data")
 		return []*DocumentChunk{}, nil
 	}
 
 	classData, ok := get[DocumentChunkClassName].([]interface{})
 	if !ok {
+		s.logger.Debug("No DocumentChunk class data in result")
 		return []*DocumentChunk{}, nil
 	}
 
+	s.logger.Debug("Found raw chunk data", "count", len(classData))
 	var chunks []*DocumentChunk
-	for _, item := range classData {
+	for i, item := range classData {
 		chunk, err := s.parseDocumentChunk(item)
 		if err != nil {
-			s.logger.Warn("Failed to parse document chunk", "error", err)
+			s.logger.Warn("Failed to parse document chunk", "index", i, "error", err)
 			continue
 		}
+		s.logger.Debug("Parsed chunk", "index", i, "content_length", len(chunk.Content), "id", chunk.ID)
 		chunks = append(chunks, chunk)
 	}
 
+	s.logger.Info("QueryDocumentChunks completed", "results", len(chunks))
 	return chunks, nil
 }
 
