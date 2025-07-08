@@ -487,6 +487,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 	var textContent string
 
 	if isPdf {
+		s.logger.Info("Extracting text from PDF", "filePath", filePath)
 		extractedText, err := s.ExtractTextFromPDF(filePath)
 		if err != nil {
 			return nil, err

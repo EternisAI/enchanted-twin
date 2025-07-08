@@ -141,6 +141,13 @@ interface IApi {
     reset: (action: string) => Promise<{ success: boolean; error?: string }>
     resetAll: () => Promise<{ success: boolean; error?: string }>
   }
+  models: {
+    hasModelsDownloaded: () => Promise<{ embeddings: boolean; anonymizer: boolean }>
+    downloadModels: (
+      modelName: 'embeddings' | 'anonymizer'
+    ) => Promise<{ success: boolean; error?: string }>
+    onProgress: (callback: (data: { modelName: string; pct: number }) => void) => () => void
+  }
 }
 
 interface ScreenpipeStatus {

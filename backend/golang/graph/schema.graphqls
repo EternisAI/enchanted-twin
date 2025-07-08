@@ -118,6 +118,15 @@ type Query {
   getHolons(userId: ID!): [String!]
   getThreads(network: String, first: Int! = 10, offset: Int! = 0): [Thread!]!
   getThread(network: String, id: ID!): Thread
+  getTrackedFolders: [TrackedFolder!]!
+  getDirectoryWatcherStatus: DirectoryWatcherStatus!
+}
+
+type DirectoryWatcherStatus {
+  isRunning: Boolean!
+  watchedDirectories: [String!]!
+  trackedFoldersFromDB: [TrackedFolder!]!
+  errorMessage: String
 }
 
 type SetupProgress {
@@ -161,6 +170,9 @@ type Mutation {
   activate(inviteCode: String!): Boolean!
   joinHolon(userId: String!, network: String): Boolean!
   storeToken(input: StoreTokenInput!): Boolean!
+  addTrackedFolder(input: AddTrackedFolderInput!): TrackedFolder!
+  deleteTrackedFolder(id: ID!): Boolean!
+  updateTrackedFolder(id: ID!, input: UpdateTrackedFolderInput!): Boolean!
 }
 
 type Subscription {
@@ -195,6 +207,25 @@ type DataSource {
   isIndexed: Boolean!
   indexProgress: Int!
   hasError: Boolean!
+}
+
+type TrackedFolder {
+  id: ID!
+  path: String!
+  name: String
+  isEnabled: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input AddTrackedFolderInput {
+  path: String!
+  name: String
+}
+
+input UpdateTrackedFolderInput {
+  name: String
+  isEnabled: Boolean
 }
 
 enum IndexingState {
