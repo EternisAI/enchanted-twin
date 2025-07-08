@@ -77,7 +77,9 @@ func (s *service) ConnectMCPServer(
 	enabled := true
 
 	name := input.Name
-	if input.Type != model.MCPServerTypeOther {
+	// Servers of MCPServerTypeFreysa are expected to have properly formatted names
+	// set in the server. Names of all URL-type MCP servers are picked up automatically.
+	if input.Type != model.MCPServerTypeOther && input.Type != model.MCPServerTypeFreysa {
 		name = CapitalizeFirst(input.Type.String())
 	}
 
@@ -90,7 +92,8 @@ func (s *service) ConnectMCPServer(
 		return nil, fmt.Errorf("mcp server with name %s already exists", name)
 	}
 
-	if input.Type != model.MCPServerTypeOther {
+	// MCPServerTypeFreysa is just a URL-type MCP server, it will be handled similar to other URL-type MCP servers.
+	if input.Type != model.MCPServerTypeOther && input.Type != model.MCPServerTypeFreysa {
 		input.Command = "npx"
 
 		var client MCPClient
@@ -400,7 +403,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 	for _, server := range servers {
 		var client MCPClient
 
-		if server.Type != model.MCPServerTypeOther {
+		if server.Type != model.MCPServerTypeOther && server.Type != model.MCPServerTypeFreysa {
 			switch server.Type {
 			case model.MCPServerTypeTwitter:
 				client = &twitter.TwitterClient{
