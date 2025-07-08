@@ -21,7 +21,6 @@ type LlamaModel struct {
 func NewLlamaModel(
 	binaryPath string,
 	modelDir string,
-
 ) *LlamaModel {
 	return &LlamaModel{
 		binaryPath: binaryPath,
