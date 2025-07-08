@@ -14,7 +14,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { routeTree } from '@renderer/routeTree.gen'
 import InvitationGate from './components/onboarding/InvitationGate'
 import UpdateNotification from './components/UpdateNotification'
-import ModelDownloadedGate from './components/setup/ModelDownloadedGate'
+import AppSetupGate from './components/setup/AppSetupGate'
 
 export const router = createRouter({
   routeTree,
@@ -41,7 +41,7 @@ function App() {
     <ThemeProvider defaultTheme={savedTheme}>
       <TTSProvider>
         <ApolloClientProvider>
-          <ModelDownloadedGate>
+          <AppSetupGate>
             <AuthProvider>
               <GoLogsProvider>
                 <div className="flex flex-col h-full w-full">
@@ -54,7 +54,7 @@ function App() {
                 </div>
               </GoLogsProvider>
             </AuthProvider>
-          </ModelDownloadedGate>
+          </AppSetupGate>
         </ApolloClientProvider>
       </TTSProvider>
     </ThemeProvider>
