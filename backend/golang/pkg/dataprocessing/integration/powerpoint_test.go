@@ -50,7 +50,7 @@ func TestPowerPointProcessing(t *testing.T) {
 			env := SetupTestEnvironment(t)
 			defer env.Cleanup(t)
 
-			processor, err := misc.NewTextDocumentProcessor(createMockAIService(env.logger), "gpt-4o-mini", env.store, env.logger)
+			processor, err := misc.NewTextDocumentProcessor(env.store, env.logger)
 			require.NoError(t, err)
 
 			testFilePath := filepath.Join("testdata", "synced-document", test.filename)
@@ -109,7 +109,7 @@ func TestPowerPointTextExtraction(t *testing.T) {
 	env := SetupTestEnvironment(t)
 	defer env.Cleanup(t)
 
-	textProcessor, err := misc.NewTextDocumentProcessor(createMockAIService(env.logger), "gpt-4o-mini", env.store, env.logger)
+	textProcessor, err := misc.NewTextDocumentProcessor(env.store, env.logger)
 	require.NoError(t, err)
 
 	t.Run("ExtractTextFromPPTX", func(t *testing.T) {
@@ -202,7 +202,7 @@ func TestPowerPointIntegration(t *testing.T) {
 	env := SetupTestEnvironment(t)
 	defer env.Cleanup(t)
 
-	processor, err := misc.NewTextDocumentProcessor(createMockAIService(env.logger), "gpt-4o-mini", env.store, env.logger)
+	processor, err := misc.NewTextDocumentProcessor(env.store, env.logger)
 	require.NoError(t, err)
 
 	testFilePath := filepath.Join("testdata", "synced-document", "test_presentation.pptx")

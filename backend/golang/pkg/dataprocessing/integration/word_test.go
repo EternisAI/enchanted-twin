@@ -50,12 +50,9 @@ func TestWordDocumentProcessing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := log.New(os.Stderr)
 			logger.SetLevel(log.DebugLevel)
-
-			aiService := createMockAIService(logger)
-
 			store := &db.Store{}
 
-			processor, err := misc.NewTextDocumentProcessor(aiService, "gpt-4o-mini", store, logger)
+			processor, err := misc.NewTextDocumentProcessor(store, logger)
 			require.NoError(t, err, "Failed to create text document processor")
 
 			testFilePath := filepath.Join("testdata", "synced-document", tt.filename)
@@ -126,10 +123,9 @@ func TestWordDocumentTextExtraction(t *testing.T) {
 	logger := log.New(os.Stderr)
 	logger.SetLevel(log.DebugLevel)
 
-	aiService := createMockAIService(logger)
 	store := &db.Store{}
 
-	processor, err := misc.NewTextDocumentProcessor(aiService, "gpt-4o-mini", store, logger)
+	processor, err := misc.NewTextDocumentProcessor(store, logger)
 	require.NoError(t, err)
 
 	testFilePath := filepath.Join("testdata", "synced-document", "test_doc.docx")
@@ -159,10 +155,9 @@ func TestWordDocumentErrorHandling(t *testing.T) {
 	logger := log.New(os.Stderr)
 	logger.SetLevel(log.DebugLevel)
 
-	aiService := createMockAIService(logger)
 	store := &db.Store{}
 
-	processor, err := misc.NewTextDocumentProcessor(aiService, "gpt-4o-mini", store, logger)
+	processor, err := misc.NewTextDocumentProcessor(store, logger)
 	require.NoError(t, err)
 
 	ctx := context.Background()

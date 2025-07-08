@@ -402,7 +402,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		}
 		return true, nil
 	case "synced-document":
-		source, err := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store, s.logger)
+		source, err := misc.NewTextDocumentProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
