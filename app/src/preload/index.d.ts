@@ -108,6 +108,20 @@ interface IApi {
     reset: (action: string) => Promise<{ success: boolean; error?: string }>
     resetAll: () => Promise<{ success: boolean; error?: string }>
   }
+  models: {
+    hasModelsDownloaded: () => Promise<{ embeddings: boolean; anonymizer: boolean }>
+    downloadModels: (
+      modelName: 'embeddings' | 'anonymizer'
+    ) => Promise<{ success: boolean; path: string }>
+    onProgress: (
+      callback: (data: {
+        modelName: string
+        pct: number
+        totalBytes: number
+        downloadedBytes: number
+      }) => void
+    ) => () => void
+  }
 }
 
 declare global {

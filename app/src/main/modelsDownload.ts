@@ -37,8 +37,6 @@ export function hasModelsDownloaded(): {
 }
 
 export async function downloadModels(modelName: ModelName) {
-  console.log(`[downloadModels] Starting download for model: ${modelName}`)
-
   const cfg = MODEL_CONFIGS[modelName]
   if (!cfg) {
     console.error(`[downloadModels] Unknown model: ${modelName}`)
@@ -48,23 +46,15 @@ export async function downloadModels(modelName: ModelName) {
   console.log(`[downloadModels] Model config found:`, { name: cfg.name, url: cfg.url })
 
   const modelDir = path.join(MODELS_DIR, cfg.name)
-  console.log(`[downloadModels] Model directory: ${modelDir}`)
 
   if (!fs.existsSync(modelDir)) {
-    console.log(`[downloadModels] Creating model directory: ${modelDir}`)
     fs.mkdirSync(modelDir, { recursive: true })
-  } else {
-    console.log(`[downloadModels] Model directory already exists: ${modelDir}`)
   }
-
   const tmpZip = path.join(modelDir, `${modelName}.zip`)
-  console.log(`[downloadModels] Temporary ZIP path: ${tmpZip}`)
 
-  console.log(`[downloadModels] Starting HTTP request to: ${cfg.url}`)
   const resp = await axios.get(cfg.url, {
     responseType: 'stream'
   })
-  console.log(`[downloadModels] HTTP response received, status: ${resp.status}`)
 
   const total = Number(resp.headers['content-length'] || 0)
   let downloaded = 0
@@ -72,6 +62,13 @@ export async function downloadModels(modelName: ModelName) {
   console.log(
     `[downloadModels] Total file size: ${total} bytes (${(total / 1024 / 1024).toFixed(2)} MB)`
   )
+
+  windowManager.mainWindow?.webContents.send('models:progress', {
+    modelName,
+    pct: 0,
+    totalBytes: total,
+    downloadedBytes: 0
+  })
 
   await new Promise<void>((resolve, reject) => {
     console.log(`[downloadModels] Creating write stream to: ${tmpZip}`)
@@ -81,18 +78,20 @@ export async function downloadModels(modelName: ModelName) {
       downloaded += chunk.length
       const pct = total > 0 ? Math.round((downloaded / total) * 100) : 0
 
-      // Log progress every 10% or every 10MB
-      if (pct % 10 === 0 || downloaded % (10 * 1024 * 1024) < chunk.length) {
-        console.log(`[downloadModels] Progress: ${pct}% (${downloaded} / ${total} bytes)`)
+      // Send progress every 10% or every 50MB
+      if (pct % 10 === 0 || downloaded % (50 * 1024 * 1024) < chunk.length) {
+        windowManager.mainWindow?.webContents.send('models:progress', {
+          modelName,
+          pct,
+          totalBytes: total,
+          downloadedBytes: downloaded
+        })
       }
-
-      windowManager.mainWindow?.webContents.send('models:progress', { modelName, pct })
     })
 
     resp.data.pipe(ws)
 
     ws.on('finish', () => {
-      console.log(`[downloadModels] Download completed: ${downloaded} bytes written`)
       resolve()
     })
 
@@ -111,7 +110,12 @@ export async function downloadModels(modelName: ModelName) {
 
   console.log(`[downloadModels] Model download completed successfully: ${modelName}`)
 
-  windowManager.mainWindow?.webContents.send('models:progress', { modelName, pct: 100 })
+  windowManager.mainWindow?.webContents.send('models:progress', {
+    modelName,
+    pct: 100,
+    totalBytes: total,
+    downloadedBytes: total
+  })
 
   return { success: true, path: modelDir }
 }
