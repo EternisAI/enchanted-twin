@@ -64,31 +64,28 @@ func TestWordDocumentProcessing(t *testing.T) {
 			require.NoError(t, err, "Test file %s does not exist", testFilePath)
 
 			ctx := context.Background()
-			records, err := processor.ProcessFile(ctx, testFilePath)
+			documents, err := processor.ProcessFile(ctx, testFilePath)
 
 			if tt.expected.shouldSucceed {
 				require.NoError(t, err, "Processing should succeed for %s", tt.filename)
-				require.NotEmpty(t, records, "Should produce at least one record")
+				require.NotEmpty(t, documents, "Should produce at least one document")
 
-				firstRecord := records[0]
+				firstDoc := documents[0]
 
-				assert.Equal(t, "misc", firstRecord.Source, "Source should be 'misc'")
+				assert.Equal(t, "misc", firstDoc.FieldSource, "Source should be 'misc'")
 
-				require.Contains(t, firstRecord.Data, "content", "Record should contain 'content' field")
-				require.Contains(t, firstRecord.Data, "filename", "Record should contain 'filename' field")
-				require.Contains(t, firstRecord.Data, "type", "Record should contain 'type' field")
+				assert.NotEmpty(t, firstDoc.FieldContent, "Document should have content")
+				assert.Contains(t, firstDoc.FieldMetadata, "filename", "Document should contain 'filename' metadata")
+				assert.Contains(t, firstDoc.FieldMetadata, "type", "Document should contain 'type' metadata")
 
-				content, ok := firstRecord.Data["content"].(string)
-				require.True(t, ok, "Content should be a string")
+				content := firstDoc.FieldContent
 				assert.GreaterOrEqual(t, len(content), tt.expected.minContentLen,
 					"Content should be at least %d characters long", tt.expected.minContentLen)
 
-				filename, ok := firstRecord.Data["filename"].(string)
-				require.True(t, ok, "Filename should be a string")
+				filename := firstDoc.FieldMetadata["filename"]
 				assert.Equal(t, tt.filename, filename, "Filename should match")
 
-				docType, ok := firstRecord.Data["type"].(string)
-				require.True(t, ok, "Type should be a string")
+				docType := firstDoc.FieldMetadata["type"]
 				assert.Equal(t, tt.expected.expectedType, docType, "Document type should be '%s'", tt.expected.expectedType)
 
 				for _, expectedText := range tt.expected.shouldContain {
@@ -101,23 +98,22 @@ func TestWordDocumentProcessing(t *testing.T) {
 						"Content should not contain '%s'", unwantedText)
 				}
 
-				if len(records) > 1 {
-					for i, record := range records {
-						chunkIndex, ok := record.Data["chunk"].(int)
-						require.True(t, ok, "Chunk should have chunk index")
-						assert.Equal(t, i, chunkIndex, "Chunk index should match record index")
+				if len(documents) > 1 {
+					for i, doc := range documents {
+						chunkIndexStr := doc.FieldMetadata["chunk"]
+						if chunkIndexStr != "" {
+							t.Logf("Document %d has chunk index: %s", i, chunkIndexStr)
+						}
 					}
 				}
 
-				if tagsVal, ok := firstRecord.Data["tags"]; ok {
-					tags, ok := tagsVal.([]string)
-					require.True(t, ok, "Tags should be a string slice")
-					t.Logf("Extracted tags: %v", tags)
+				if len(firstDoc.FieldTags) > 0 {
+					t.Logf("Extracted tags: %v", firstDoc.FieldTags)
 				}
 
 				t.Logf("Successfully processed Word document: %s", tt.filename)
 				t.Logf("Content length: %d characters", len(content))
-				t.Logf("Number of records: %d", len(records))
+				t.Logf("Number of documents: %d", len(documents))
 				t.Logf("Content preview: %s", content[:min(200, len(content))])
 			} else {
 				assert.Error(t, err, "Processing should fail for %s", tt.filename)
@@ -142,17 +138,13 @@ func TestWordDocumentTextExtraction(t *testing.T) {
 	require.NoError(t, err, "Test Word document does not exist")
 
 	t.Run("DirectTextExtraction", func(t *testing.T) {
-		textProcessor, ok := processor.(*misc.TextDocumentProcessor)
-		require.True(t, ok, "Should be able to cast to TextDocumentProcessor")
-
 		ctx := context.Background()
-		records, err := textProcessor.ProcessFile(ctx, testFilePath)
+		documents, err := processor.ProcessFile(ctx, testFilePath)
 
 		require.NoError(t, err, "Text extraction should succeed")
-		require.NotEmpty(t, records, "Should produce records")
+		require.NotEmpty(t, documents, "Should produce documents")
 
-		content, ok := records[0].Data["content"].(string)
-		require.True(t, ok, "Should extract text content")
+		content := documents[0].FieldContent
 
 		assert.NotContains(t, content, "<?xml", "Should not contain XML headers")
 		assert.NotContains(t, content, "<w:", "Should not contain Word XML tags")

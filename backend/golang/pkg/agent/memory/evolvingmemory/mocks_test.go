@@ -100,6 +100,20 @@ func (m *MockStorage) GetFactsByIDs(ctx context.Context, factIDs []string) ([]*m
 	return facts, args.Error(1)
 }
 
+func (m *MockStorage) StoreDocumentChunksBatch(ctx context.Context, chunks []*storage.DocumentChunk) error {
+	args := m.Called(ctx, chunks)
+	return args.Error(0)
+}
+
+func (m *MockStorage) QueryDocumentChunks(ctx context.Context, queryText string, filter *memory.Filter) ([]*storage.DocumentChunk, error) {
+	args := m.Called(ctx, queryText, filter)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	chunks, _ := args.Get(0).([]*storage.DocumentChunk)
+	return chunks, args.Error(1)
+}
+
 // Ensure MockStorage implements the storage interface.
 var _ storage.Interface = (*MockStorage)(nil)
 

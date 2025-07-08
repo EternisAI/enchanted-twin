@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -284,64 +285,75 @@ func (s *StorageImpl) storeFactExtractionDocuments(ctx context.Context, document
 	return nil
 }
 
-// storeFileDocumentsDirectly implements the new direct file storage pipeline.
+// storeFileDocumentsDirectly implements the new direct file storage pipeline using DocumentChunk class.
 func (s *StorageImpl) storeFileDocumentsDirectly(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
 	s.logger.Info("Processing file documents directly", "count", len(documents))
 
-	// Step 1: Chunk documents (reuse existing logic)
-	var chunks []memory.Document
+	// Step 1: Store original documents first
 	for _, doc := range documents {
-		docChunks := doc.Chunk()
-		chunks = append(chunks, docChunks...)
+		_, err := s.storage.UpsertDocument(ctx, doc)
+		if err != nil {
+			return fmt.Errorf("storing original document %s: %w", doc.ID(), err)
+		}
 	}
 
-	s.logger.Info("Chunked file documents", "original_count", len(documents), "chunk_count", len(chunks))
+	// Step 2: Chunk documents (reuse existing logic)
+	var allChunks []memory.Document
+	for _, doc := range documents {
+		docChunks := doc.Chunk()
+		allChunks = append(allChunks, docChunks...)
+	}
 
-	// Step 2: Convert chunks to MemoryFact objects (no LLM extraction)
-	var facts []*memory.MemoryFact
-	for _, chunk := range chunks {
-		// Extract filename from metadata for natural subject
-		subject := "document"
-		if filename, exists := chunk.Metadata()["path"]; exists {
-			// Use just the filename, not the full path
-			if lastSlash := strings.LastIndex(filename, "/"); lastSlash != -1 {
-				subject = filename[lastSlash+1:]
-			} else {
-				subject = filename
+	s.logger.Info("Chunked file documents", "original_count", len(documents), "chunk_count", len(allChunks))
+
+	// Step 3: Convert document chunks to DocumentChunk objects (not MemoryFacts!)
+	var documentChunks []*storage.DocumentChunk
+	for i, chunk := range allChunks {
+		// Extract file path from metadata
+		filePath := ""
+		if path, exists := chunk.Metadata()["path"]; exists {
+			filePath = path
+		}
+
+		// Extract chunk index from metadata (set during chunking process)
+		chunkIndex := i
+		if chunkNumStr, exists := chunk.Metadata()["_enchanted_chunk_number"]; exists {
+			if chunkNum, err := strconv.Atoi(chunkNumStr); err == nil {
+				chunkIndex = chunkNum
 			}
 		}
 
-		fact := &memory.MemoryFact{
-			ID:      "",              // Let Weaviate auto-generate UUID for file chunks
-			Content: chunk.Content(), // Direct content as searchable text
-			Timestamp: func() time.Time {
-				if chunk.Timestamp() != nil {
-					return *chunk.Timestamp()
-				}
-				return time.Now()
-			}(),
-			// Structured fields for file documents
-			Category:           "document",      // Mark as document type
-			Subject:            subject,         // Use filename as subject
-			Attribute:          "file_chunk",    // Attribute is file_chunk
-			Value:              chunk.Content(), // Value is the actual content
-			TemporalContext:    nil,             // No temporal context for files
-			Sensitivity:        "low",           // Files are typically low sensitivity
-			Importance:         1,               // Default importance
-			Source:             chunk.Source(),
-			DocumentReferences: []string{}, // No document references for direct storage
-			Tags:               chunk.Tags(),
-			Metadata:           chunk.Metadata(),
+		// Get original document ID from metadata
+		originalDocumentID := ""
+		if origID, exists := chunk.Metadata()["_enchanted_original_document_id"]; exists {
+			originalDocumentID = origID
 		}
-		facts = append(facts, fact)
+
+		documentChunk := &storage.DocumentChunk{
+			ID:                 "",                 // Let Weaviate auto-generate UUID
+			Content:            chunk.Content(),    // Chunk content for semantic search
+			ChunkIndex:         chunkIndex,         // Position within document
+			OriginalDocumentID: originalDocumentID, // Reference to original document
+			Source:             chunk.Source(),     // Source type (e.g., "file")
+			FilePath:           filePath,           // File path for filtering
+			Tags:               chunk.Tags(),       // Tags from original document
+			Metadata:           chunk.Metadata(),   // Preserve all metadata
+			CreatedAt:          time.Now(),         // When chunk was created
+		}
+		documentChunks = append(documentChunks, documentChunk)
 	}
 
-	s.logger.Info("Converted file chunks to memory facts", "fact_count", len(facts))
+	s.logger.Info("Converted document chunks to DocumentChunk objects", "chunk_count", len(documentChunks))
 
-	// Step 3: Store using existing fact storage pipeline (includes embeddings)
-	err := s.StoreFactsDirectly(ctx, facts, callback)
+	// Step 4: Store document chunks in the separate DocumentChunk class
+	err := s.storage.StoreDocumentChunksBatch(ctx, documentChunks)
 	if err != nil {
-		return fmt.Errorf("storing file facts: %w", err)
+		return fmt.Errorf("storing document chunks: %w", err)
+	}
+
+	// Update progress callback for file chunks
+	if callback != nil {
+		callback(len(documentChunks), len(documentChunks))
 	}
 
 	// 🚀 FILE UPLOAD CONSOLIDATION - Only run for file uploads, not chat messages
