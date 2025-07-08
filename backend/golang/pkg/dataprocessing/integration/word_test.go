@@ -170,7 +170,7 @@ func TestWordDocumentErrorHandling(t *testing.T) {
 	t.Run("NonExistentFile", func(t *testing.T) {
 		_, err := processor.ProcessFile(ctx, "nonexistent.docx")
 		assert.Error(t, err, "Should fail for non-existent file")
-		assert.Contains(t, err.Error(), "failed to open file", "Error should mention file opening failure")
+		assert.Contains(t, err.Error(), "failed to get file info", "Error should mention file info failure")
 	})
 
 	t.Run("InvalidWordFile", func(t *testing.T) {
