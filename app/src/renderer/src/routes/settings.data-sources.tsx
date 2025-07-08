@@ -44,7 +44,7 @@ function Header() {
         <TabsContent value="available">
           <div className="flex flex-col gap-15">
             <MCPPanel />
-            <DataSourcesPanel header={false} />
+            <DataSourcesPanel />
           </div>
         </TabsContent>
         <TabsContent value="local-files">
