@@ -22,8 +22,8 @@ func NewJinaAIEmbeddingModel(modelDir string, onnxLib string) (*JinaAIEmbeddingM
 	configPath := modelDir + "/config.json"
 	modelPath := modelDir + "/model.onnx"
 
-	tokenizer := NewSentencePieceTokenizer()
-	err := tokenizer.LoadFromLocal(tokenizerPath, configPath)
+	tk := NewSentencePieceTokenizer()
+	err := tk.LoadFromLocal(tokenizerPath, configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func NewJinaAIEmbeddingModel(modelDir string, onnxLib string) (*JinaAIEmbeddingM
 	}
 
 	return &JinaAIEmbeddingModel{
-		tokenizer: NewSentencePieceTokenizer(),
+		tokenizer: tk,
 		session:   session,
 	}, nil
 }
