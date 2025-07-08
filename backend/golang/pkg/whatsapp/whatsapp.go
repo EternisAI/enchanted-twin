@@ -1,4 +1,5 @@
 // Owner: slim@eternis.ai
+// whatsapp.go
 package whatsapp
 
 import (
@@ -75,27 +76,13 @@ type SyncStatus struct {
 }
 
 type GlobalState struct {
-	qrChan          chan QRCodeEvent
-	qrChanOnce      sync.Once
-	latestQREvent   *QRCodeEvent
-	connectChan     chan struct{}
-	connectChanOnce sync.Once
-	allContacts     []WhatsappContact
-	syncStatus      SyncStatus
-	mu              sync.RWMutex
+	latestQREvent *QRCodeEvent
+	allContacts   []WhatsappContact
+	syncStatus    SyncStatus
+	mu            sync.RWMutex
 }
 
 var globalState = &GlobalState{}
-
-func GetQRChannel() chan QRCodeEvent {
-	globalState.mu.Lock()
-	defer globalState.mu.Unlock()
-
-	globalState.qrChanOnce.Do(func() {
-		globalState.qrChan = make(chan QRCodeEvent, 100)
-	})
-	return globalState.qrChan
-}
 
 func GetLatestQREvent() *QRCodeEvent {
 	globalState.mu.RLock()
@@ -107,16 +94,6 @@ func SetLatestQREvent(evt QRCodeEvent) {
 	globalState.mu.Lock()
 	defer globalState.mu.Unlock()
 	globalState.latestQREvent = &evt
-}
-
-func GetConnectChannel() chan struct{} {
-	globalState.mu.Lock()
-	defer globalState.mu.Unlock()
-
-	globalState.connectChanOnce.Do(func() {
-		globalState.connectChan = make(chan struct{}, 1)
-	})
-	return globalState.connectChan
 }
 
 func GetSyncStatus() SyncStatus {
@@ -1100,14 +1077,12 @@ func (cm *ConnectionManager) handleConnectionEvents(evt interface{}) {
 		cm.logger.Warn("WhatsApp client disconnected")
 		cm.isConnected = false
 
-		// Don't auto-reconnect if we're shutting down
 		select {
 		case <-cm.ctx.Done():
 			return
 		default:
 		}
 
-		// Prevent multiple concurrent reconnection attempts
 		cm.reconnectMux2.Lock()
 		if cm.isReconnecting {
 			cm.reconnectMux2.Unlock()
@@ -1116,16 +1091,13 @@ func (cm *ConnectionManager) handleConnectionEvents(evt interface{}) {
 		cm.isReconnecting = true
 		cm.reconnectMux2.Unlock()
 
-		// Cancel any existing reconnection attempt
 		if cm.reconnectCancel != nil {
 			cm.reconnectCancel()
 		}
 
-		// Create new context for reconnection
 		reconnectCtx, cancel := context.WithCancel(cm.ctx)
 		cm.reconnectCancel = cancel
 
-		// Attempt reconnection
 		go func() {
 			defer func() {
 				cm.reconnectMux2.Lock()
@@ -1289,7 +1261,17 @@ func (cm *ConnectionManager) Disconnect() {
 	cm.isConnected = false
 }
 
-func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logger *log.Logger, nc *nats.Conn, dbPath string, config *config.Config, aiService *ai.Service) *whatsmeow.Client {
+func BootstrapWhatsAppClient(
+	memoryStorage memory.Storage,
+	database *db.DB,
+	logger *log.Logger,
+	nc *nats.Conn,
+	dbPath string,
+	config *config.Config,
+	aiService *ai.Service,
+	connectChan chan struct{},
+	qrChan chan QRCodeEvent,
+) *whatsmeow.Client {
 	dbLog := &WhatsmeowLoggerAdapter{Logger: logger, Module: "Database"}
 
 	dbDir := filepath.Dir(dbPath)
@@ -1324,12 +1306,11 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logg
 	})
 
 	logger.Info("Waiting for WhatsApp connection signal...")
-	connectChan := GetConnectChannel()
 	<-connectChan
 	logger.Info("Received signal to start WhatsApp connection")
 
 	if client.Store.ID == nil {
-		qrChan, _ := client.GetQRChannel(context.Background())
+		clientQRChan, _ := client.GetQRChannel(context.Background())
 
 		go func() {
 			defer func() {
@@ -1345,7 +1326,7 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logg
 		}()
 
 		// Handle QR code events
-		for evt := range qrChan {
+		for evt := range clientQRChan {
 			switch evt.Event {
 			case "code":
 				qrEvent := QRCodeEvent{
@@ -1353,9 +1334,8 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logg
 					Code:  evt.Code,
 				}
 				SetLatestQREvent(qrEvent)
-				whatsappQRChan := GetQRChannel()
 				select {
-				case whatsappQRChan <- qrEvent:
+				case qrChan <- qrEvent:
 				default:
 					logger.Warn("Warning: QR channel buffer full, dropping event")
 				}
@@ -1366,7 +1346,7 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logg
 					Code:  "",
 				}
 				SetLatestQREvent(qrEvent)
-				GetQRChannel() <- qrEvent
+				qrChan <- qrEvent
 				logger.Info("WhatsApp connection successful")
 
 				StartSync()
@@ -1387,7 +1367,6 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logg
 			}
 		}
 	} else {
-		// Existing session - connect directly
 		err = connManager.Connect()
 		if err != nil {
 			logger.Error("Error connecting to WhatsApp with existing session", "error", err)
@@ -1397,7 +1376,7 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logg
 				Code:  "",
 			}
 			SetLatestQREvent(qrEvent)
-			GetQRChannel() <- qrEvent
+			qrChan <- qrEvent
 			logger.Info("Already logged in, reusing session")
 
 			StartSync()

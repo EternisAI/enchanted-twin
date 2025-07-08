@@ -3,7 +3,6 @@ package evolvingmemory
 import (
 	"context"
 
-	"github.com/openai/openai-go"
 	"github.com/stretchr/testify/mock"
 	"github.com/weaviate/weaviate/entities/models"
 
@@ -120,63 +119,4 @@ var _ storage.Interface = (*MockStorage)(nil)
 // MockCompletionsService mocks the AI completions service.
 type MockCompletionsService struct {
 	mock.Mock
-}
-
-func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
-	args := m.Called(ctx, messages, tools, model)
-	if args.Get(0) == nil {
-		return openai.ChatCompletionMessage{}, args.Error(1)
-	}
-	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
-}
-
-func (m *MockCompletionsService) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
-	args := m.Called(ctx, inputs, model)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	embeddings, _ := args.Get(0).([][]float64)
-	return embeddings, args.Error(1)
-}
-
-func (m *MockCompletionsService) Embedding(ctx context.Context, input string, model string) ([]float64, error) {
-	args := m.Called(ctx, input, model)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	embedding, _ := args.Get(0).([]float64)
-	return embedding, args.Error(1)
-}
-
-// MockEmbeddingsService mocks the embeddings service.
-type MockEmbeddingsService struct {
-	mock.Mock
-}
-
-func (m *MockEmbeddingsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
-	args := m.Called(ctx, messages, tools, model)
-	if args.Get(0) == nil {
-		return openai.ChatCompletionMessage{}, args.Error(1)
-	}
-	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
-}
-
-func (m *MockEmbeddingsService) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
-	args := m.Called(ctx, inputs, model)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	embeddings, _ := args.Get(0).([][]float64)
-	return embeddings, args.Error(1)
-}
-
-func (m *MockEmbeddingsService) Embedding(ctx context.Context, input string, model string) ([]float64, error) {
-	args := m.Called(ctx, input, model)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	embedding, _ := args.Get(0).([]float64)
-	return embedding, args.Error(1)
 }
