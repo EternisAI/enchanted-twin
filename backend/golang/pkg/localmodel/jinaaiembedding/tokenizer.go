@@ -3,10 +3,7 @@ package jinaaiembedding
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -73,37 +70,15 @@ func NewSentencePieceTokenizer() *SentencePieceTokenizer {
 	}
 }
 
-// LoadFromHuggingFace downloads and loads the real tokenizer from HuggingFace.
-func (t *SentencePieceTokenizer) LoadFromHuggingFace(modelName string) error {
-	baseURL := fmt.Sprintf("https://huggingface.co/%s/resolve/main", modelName)
-
-	// Create cache directory
-	cacheDir := filepath.Join(os.TempDir(), "real_tokenizer_cache", modelName)
-	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create cache directory: %v", err)
-	}
-
-	// Download tokenizer.json
-	tokenizerPath := filepath.Join(cacheDir, "tokenizer.json")
+func (t *SentencePieceTokenizer) LoadFromLocal(tokenizerPath, configPath string) error {
 	if _, err := os.Stat(tokenizerPath); os.IsNotExist(err) {
-		fmt.Printf("Downloading tokenizer.json...\n")
-		err := t.downloadFile(baseURL+"/tokenizer.json", tokenizerPath)
-		if err != nil {
-			return fmt.Errorf("failed to download tokenizer.json: %v", err)
-		}
+		return fmt.Errorf("tokenizer.json not found at %s", tokenizerPath)
 	}
 
-	// Download config.json
-	configPath := filepath.Join(cacheDir, "config.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		fmt.Printf("Downloading config.json...\n")
-		err := t.downloadFile(baseURL+"/config.json", configPath)
-		if err != nil {
-			return fmt.Errorf("failed to download config.json: %v", err)
-		}
+		return fmt.Errorf("config.json not found at %s", configPath)
 	}
 
-	// Load tokenizer configuration
 	tokenizerData, err := os.ReadFile(tokenizerPath)
 	if err != nil {
 		return fmt.Errorf("failed to read tokenizer.json: %v", err)
@@ -115,7 +90,6 @@ func (t *SentencePieceTokenizer) LoadFromHuggingFace(modelName string) error {
 		return fmt.Errorf("failed to parse tokenizer.json: %v", err)
 	}
 
-	// Load model config
 	configData, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to read config.json: %v", err)
@@ -127,13 +101,10 @@ func (t *SentencePieceTokenizer) LoadFromHuggingFace(modelName string) error {
 		return fmt.Errorf("failed to parse config.json: %v", err)
 	}
 
-	// Set up tokenizer
 	t.config = &modelConfig
 
-	// Parse vocab - handle both object and array formats
 	switch vocab := tokenizerJSON.Model.Vocab.(type) {
 	case map[string]interface{}:
-		// Object format: {"token": id}
 		for token, id := range vocab {
 			if idInt, ok := id.(float64); ok {
 				t.vocab[token] = int(idInt)
@@ -141,7 +112,6 @@ func (t *SentencePieceTokenizer) LoadFromHuggingFace(modelName string) error {
 			}
 		}
 	case []interface{}:
-		// Array format: [["token", score], ...]
 		for i, vocabItem := range vocab {
 			if vocabArray, ok := vocabItem.([]interface{}); ok && len(vocabArray) >= 2 {
 				if token, ok := vocabArray[0].(string); ok {
@@ -152,10 +122,8 @@ func (t *SentencePieceTokenizer) LoadFromHuggingFace(modelName string) error {
 		}
 	}
 
-	// Set up special tokens from added_tokens
 	for _, token := range tokenizerJSON.AddedTokens {
 		t.specialTokens[token.Content] = token.ID
-		// Update special token strings
 		switch token.Content {
 		case "<s>":
 			t.bosToken = token.Content
@@ -170,36 +138,6 @@ func (t *SentencePieceTokenizer) LoadFromHuggingFace(modelName string) error {
 	fmt.Printf("Special tokens: %v\n", t.specialTokens)
 
 	return nil
-}
-
-// downloadFile downloads a file from URL.
-func (t *SentencePieceTokenizer) downloadFile(url, filepath string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			fmt.Printf("Warning: failed to close response body: %v\n", err)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download file: status %d", resp.StatusCode)
-	}
-
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := out.Close(); err != nil {
-			fmt.Printf("Warning: failed to close file: %v\n", err)
-		}
-	}()
-
-	_, err = io.Copy(out, resp.Body)
-	return err
 }
 
 // tokenToIds converts tokens to IDs.
