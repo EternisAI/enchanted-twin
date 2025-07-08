@@ -39,7 +39,7 @@ type DirectoryWatcher struct {
 	processedFiles int64
 	errorCount     int64
 	statsMu        sync.RWMutex
-	supportedExts []string
+	supportedExts  []string
 }
 
 type FileEvent struct {
@@ -98,10 +98,6 @@ func (dw *DirectoryWatcher) Start(ctx context.Context) error {
 			continue
 		}
 		successfullyAdded++
-	}
-
-	watchList := dw.watcher.WatchList()
-	for i, path := range watchList {
 	}
 
 	dw.wg.Add(2)
@@ -746,6 +742,7 @@ func (dw *DirectoryWatcher) performInitialScan(ctx context.Context) {
 				dw.incrementErrorCount()
 			}
 		} else {
+			dw.logger.Info("Initial scan completed for directory", "dir", folder.Path, "filesProcessed", folderProcessed)
 		}
 	}
 
@@ -798,7 +795,6 @@ func (dw *DirectoryWatcher) updateFilePathInMemory(ctx context.Context, oldPath,
 	dw.logger.Info("Found memories to update for file path change", "oldPath", oldPath, "newPath", newPath, "count", len(result.Facts))
 
 	for _, fact := range result.Facts {
-
 		fact.FilePath = newPath
 		if fact.Metadata == nil {
 			fact.Metadata = make(map[string]string)
