@@ -10,7 +10,7 @@ import ToolCallCenter from './toolCallCenter/ToolCallCenter'
 import { getToolConfig } from '../config'
 import { Tooltip } from '@renderer/components/ui/tooltip'
 import { Button } from '@renderer/components/ui/button'
-import { cn } from '@renderer/lib/utils'
+import { cn, getMockFrequencyData } from '@renderer/lib/utils'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 
@@ -23,6 +23,7 @@ interface VoiceModeChatViewProps {
   stopVoiceMode: () => void
   error: string
   isWaitingTwinResponse: boolean
+  chatPrivacyDict: string | null
 }
 
 export default function VoiceModeChatView({
@@ -31,7 +32,8 @@ export default function VoiceModeChatView({
   activeToolCalls,
   historicToolCalls,
   stopVoiceMode,
-  error
+  error,
+  chatPrivacyDict
 }: VoiceModeChatViewProps) {
   const { isAgentSpeaking } = useVoiceAgent()
 
@@ -58,7 +60,7 @@ export default function VoiceModeChatView({
           <VoiceVisualizer
             className="absolute inset-0"
             visualState={visualState}
-            getFreqData={() => new Uint8Array()}
+            getFreqData={getMockFrequencyData}
             toolUrl={toolUrl}
           />
           <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
@@ -72,7 +74,7 @@ export default function VoiceModeChatView({
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
             >
-              <UserMessageBubble message={lastUserMessage} />
+              <UserMessageBubble message={lastUserMessage} chatPrivacyDict={chatPrivacyDict} />
             </motion.div>
           )}
           {error && (

@@ -38,7 +38,7 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 declare const __APP_ENV__: Record<string, string>
 
 for (const [key, val] of Object.entries(typeof __APP_ENV__ === 'object' ? __APP_ENV__ : {})) {
-  if (!(key in process.env)) {
+  if (!(key in process.env) && (key.startsWith('TTS') || key.startsWith('STT'))) {
     process.env[key] = val
   }
 }
@@ -46,13 +46,10 @@ for (const [key, val] of Object.entries(typeof __APP_ENV__ === 'object' ? __APP_
 // Function to register global shortcuts from store
 function registerStoredShortcuts() {
   try {
-    // First, unregister all existing shortcuts
     globalShortcut.unregisterAll()
     log.info('Unregistered all existing global shortcuts')
-    
-    // Get shortcuts from store (electron-store handles defaults automatically)
+
     const shortcuts = keyboardShortcutsStore.get('shortcuts')
-    log.info('Loading keyboard shortcuts from store:', JSON.stringify(shortcuts, null, 2))
 
     // Register each shortcut
     Object.entries(shortcuts).forEach(([action, shortcut]) => {
@@ -84,6 +81,9 @@ app.whenReady().then(async () => {
 
   // Register global shortcuts from store
   registerStoredShortcuts()
+
+  // Setup LiveKit cleanup on renderer issues
+  setupLiveKitCleanup(mainWindow)
 
   // startKokoro(mainWindow)
   startLiveKitSetup(mainWindow)
@@ -148,3 +148,32 @@ app.on('will-quit', async () => {
   await cleanupLiveKitAgent()
   cleanupScreenpipe()
 })
+
+// Simple rule: Non-voice mode = no process should live
+function setupLiveKitCleanup(mainWindow: Electron.BrowserWindow) {
+  // Any renderer issue = stop process (keep agent ready)
+  mainWindow.webContents.on('render-process-gone', async (_event, details) => {
+    log.error(`Renderer process gone: ${details.reason} - stopping LiveKit process`)
+    const { stopLiveKitAgent } = await import('./livekitManager')
+    await stopLiveKitAgent()
+  })
+
+  // Page refresh = stop process (keep agent ready)
+  mainWindow.webContents.on(
+    'did-start-navigation',
+    async (_event, _url, isInPlace, isMainFrame) => {
+      if (isMainFrame && isInPlace) {
+        log.info('Page refresh - stopping LiveKit process')
+        const { stopLiveKitAgent } = await import('./livekitManager')
+        await stopLiveKitAgent()
+      }
+    }
+  )
+
+  // Window close = stop process (keep agent ready)
+  mainWindow.on('close', async () => {
+    log.info('Window closing - stopping LiveKit process')
+    const { stopLiveKitAgent } = await import('./livekitManager')
+    await stopLiveKitAgent()
+  })
+}

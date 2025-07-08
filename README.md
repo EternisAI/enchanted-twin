@@ -67,10 +67,11 @@ TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
 ENCHANTED_MCP_URL=https://enchanted-mcp-dev.up.railway.app/mcp \
 POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
 INVITE_SERVER_URL=http://52.90.4.74:8080 \
-TINFOIL_API_KEY=tinfoil-api-key \
-TINFOIL_TTS_MODEL=kokoro \
-TINFOIL_AUDIO_URL=https://audio-processing.model.tinfoil.sh/v1/ \
-TINFOIL_STT_MODEL="whisper-large-v3-turbo" \    
+TTS_API_KEY=tinfoil-api-key \
+TTS_MODEL=kokoro \
+TTS_URL=https://audio-processing.model.tinfoil.sh/v1/ \
+STT_MODEL="whisper-large-v3-turbo" \    
+STT_URL=https://audio-processing.model.tinfoil.sh/v1/ \
 make build-mac-silicon
 ```
 
@@ -91,10 +92,12 @@ TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
 ENCHANTED_MCP_URL=https://enchanted-mcp-dev.up.railway.app/mcp \
 POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
 INVITE_SERVER_URL=http://52.90.4.74:8080 \
-TINFOIL_API_KEY=tinfoil-api-key \
-TINFOIL_TTS_MODEL=kokoro \
-TINFOIL_AUDIO_URL=https://audio-processing.model.tinfoil.sh/v1/ \
-TINFOIL_STT_MODEL="whisper-large-v3-turbo" \    
+TTS_API_KEY=tinfoil-api-key \
+TTS_MODEL=kokoro \
+TTS_URL=https://audio-processing.model.tinfoil.sh/v1/ \
+STT_API_KEY=tinfoil-api-key \
+STT_MODEL="whisper-large-v3-turbo" \    
+STT_URL=https://audio-processing.model.tinfoil.sh/v1/ \
 make build-all
 ```
 
@@ -115,10 +118,12 @@ TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
 ENCHANTED_MCP_URL=https://enchanted-mcp-dev.up.railway.app/mcp \
 POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
 INVITE_SERVER_URL=http://52.90.4.74:8080 \
-TINFOIL_API_KEY=tinfoil-api-key \
-TINFOIL_TTS_MODEL=kokoro \
-TINFOIL_AUDIO_URL=https://audio-processing.model.tinfoil.sh/v1/ \
-TINFOIL_STT_MODEL="whisper-large-v3-turbo" \    
+TTS_API_KEY=tinfoil-api-key \
+TTS_MODEL=kokoro \
+TTS_URL=https://audio-processing.model.tinfoil.sh/v1/ \
+STT_API_KEY=tinfoil-api-key \
+STT_MODEL="whisper-large-v3-turbo" \    
+STT_URL=https://audio-processing.model.tinfoil.sh/v1/ \
 pnpm build-local:mac
 ```
 
