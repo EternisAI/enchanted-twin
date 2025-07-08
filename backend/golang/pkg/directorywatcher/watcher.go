@@ -39,7 +39,6 @@ type DirectoryWatcher struct {
 	processedFiles int64
 	errorCount     int64
 	statsMu        sync.RWMutex
-
 	supportedExts []string
 }
 
@@ -103,7 +102,6 @@ func (dw *DirectoryWatcher) Start(ctx context.Context) error {
 
 	watchList := dw.watcher.WatchList()
 	for i, path := range watchList {
-		dw.logger.Info("� Watching", "index", i, "path", path)
 	}
 
 	dw.wg.Add(2)
@@ -193,7 +191,6 @@ func (dw *DirectoryWatcher) handleFileEvent(event fsnotify.Event) {
 	}
 
 	if !dw.isSupportedFile(event.Name) {
-		dw.logger.Info("Skipping unsupported file", "path", event.Name)
 		return
 	}
 
@@ -261,7 +258,6 @@ func (dw *DirectoryWatcher) processBatchedEvents() {
 
 	for _, event := range events {
 		if processedPaths[event.Path] {
-			dw.logger.Info("Skipping already processed event", "path", event.Path, "operation", event.Operation)
 			continue
 		}
 
@@ -466,7 +462,6 @@ func (dw *DirectoryWatcher) findNewPathForRenameEvent(oldPath string) string {
 			}
 
 			if time.Since(info.ModTime()) < 30*time.Second {
-				dw.logger.Info("Found potential new path for renamed file", "oldPath", oldPath, "newPath", newPath)
 				return newPath
 			}
 		}
@@ -502,7 +497,6 @@ func (dw *DirectoryWatcher) processRenameEvent(filePath string) error {
 	if err != nil {
 		dw.logger.Error("Failed to check if data source exists for new path", "error", err, "path", absPath)
 	} else if exists {
-		dw.logger.Info("Data source already exists for new path - treating as replacement", "path", absPath)
 		return dw.processNewFile(absPath)
 	}
 
@@ -556,7 +550,6 @@ func (dw *DirectoryWatcher) processRenameEventWithNewPath(oldPath, newPath strin
 	if err != nil {
 		dw.logger.Error("Failed to check if data source exists for new path", "error", err, "path", newAbsPath)
 	} else if exists {
-		dw.logger.Info("Data source already exists for new path - treating as replacement", "path", newAbsPath)
 		if err := dw.processRemovedFile(oldAbsPath); err != nil {
 			dw.logger.Error("Failed to process old file as removed", "error", err, "oldPath", oldAbsPath)
 		}
@@ -685,7 +678,6 @@ func (dw *DirectoryWatcher) performInitialScan(ctx context.Context) {
 
 	folders, err := dw.store.GetEnabledTrackedFolders(scanCtx)
 	if err != nil {
-		dw.logger.Error(" Failed to load tracked folders for initial scan", "error", err)
 		return
 	}
 
@@ -754,7 +746,6 @@ func (dw *DirectoryWatcher) performInitialScan(ctx context.Context) {
 				dw.incrementErrorCount()
 			}
 		} else {
-			dw.logger.Info(" Initial scan completed for directory", "dir", folder.Path, "filesProcessed", folderProcessed)
 		}
 	}
 
@@ -801,14 +792,12 @@ func (dw *DirectoryWatcher) updateFilePathInMemory(ctx context.Context, oldPath,
 	}
 
 	if len(result.Facts) == 0 {
-		dw.logger.Info("No memories found for old file path", "oldPath", oldPath)
 		return nil
 	}
 
 	dw.logger.Info("Found memories to update for file path change", "oldPath", oldPath, "newPath", newPath, "count", len(result.Facts))
 
 	for _, fact := range result.Facts {
-		dw.logger.Info("Updating memory file path", "memory_id", fact.ID, "oldPath", oldPath, "newPath", newPath)
 
 		fact.FilePath = newPath
 		if fact.Metadata == nil {
@@ -829,7 +818,6 @@ func (dw *DirectoryWatcher) updateFilePathInMemory(ctx context.Context, oldPath,
 		documents := []memory.Document{fileDoc}
 
 		err = dw.memoryStorage.Store(ctx, documents, func(processed, total int) {
-			dw.logger.Info("Updating file path in memory", "processed", processed, "total", total)
 		})
 		if err != nil {
 			dw.logger.Error("Failed to update memory file path", "error", err, "memory_id", fact.ID)
@@ -1000,7 +988,6 @@ func (dw *DirectoryWatcher) ReloadTrackedFolders(ctx context.Context) error {
 	// Get current enabled folders from database
 	folders, err := dw.store.GetEnabledTrackedFolders(ctx)
 	if err != nil {
-		dw.logger.Error(" Failed to load tracked folders from database", "error", err)
 		return err
 	}
 
@@ -1030,7 +1017,6 @@ func (dw *DirectoryWatcher) ReloadTrackedFolders(ctx context.Context) error {
 		if !desiredDirs[watchedPath] {
 			dw.logger.Info("🗑️ Removing directory from watcher", "path", watchedPath)
 			if err := dw.RemoveWatchedDirectory(watchedPath); err != nil {
-				dw.logger.Error(" Failed to remove directory", "path", watchedPath, "error", err)
 			} else {
 				removedCount++
 			}
@@ -1042,7 +1028,6 @@ func (dw *DirectoryWatcher) ReloadTrackedFolders(ctx context.Context) error {
 		if !currentWatched[folder.Path] {
 			dw.logger.Info("➕ Adding new directory to watcher", "path", folder.Path)
 			if err := dw.AddWatchedDirectory(folder.Path); err != nil {
-				dw.logger.Error(" Failed to add directory", "path", folder.Path, "error", err)
 			} else {
 				addedCount++
 			}
@@ -1079,7 +1064,6 @@ func (dw *DirectoryWatcher) GetWatchedDirectories() []string {
 func (dw *DirectoryWatcher) GetTrackedFoldersFromDB(ctx context.Context) error {
 	folders, err := dw.store.GetEnabledTrackedFolders(ctx)
 	if err != nil {
-		dw.logger.Error(" Failed to get tracked folders from DB", "error", err)
 		return err
 	}
 
