@@ -16,15 +16,19 @@ type JinaAIEmbeddingModel struct {
 	session   *ort.DynamicAdvancedSession
 }
 
-func NewJinaAIEmbeddingModel(modelPath string) (*JinaAIEmbeddingModel, error) {
+func NewJinaAIEmbeddingModel(modelDir string, onnxLib string) (*JinaAIEmbeddingModel, error) {
+
+	tokenizerPath := modelDir + "/tokenizer.json"
+	configPath := modelDir + "/config.json"
+	modelPath := modelDir + "/model.onnx"
+
 	tokenizer := NewSentencePieceTokenizer()
-	err := tokenizer.LoadFromLocal(modelPath+"/tokenizer.json", modelPath+"/config.json")
+	err := tokenizer.LoadFromLocal(tokenizerPath, configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO
-	// ort.SetSharedLibraryPath("/usr/local/lib/onnxruntime/libonnxruntime.dylib")
+	ort.SetSharedLibraryPath(onnxLib)
 
 	err = ort.InitializeEnvironment()
 	if err != nil {
