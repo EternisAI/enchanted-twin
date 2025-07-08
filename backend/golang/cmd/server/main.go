@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -27,7 +26,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
-	"go.mau.fi/whatsmeow"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -57,7 +55,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
-	waTools "github.com/EternisAI/enchanted-twin/pkg/whatsapp/tools"
 )
 
 // customLogWriter routes logs to stderr if they contain "err" or "error", otherwise to stdout.
@@ -72,11 +69,6 @@ func (w *customLogWriter) Write(p []byte) (n int, err error) {
 }
 
 func main() {
-	whatsappQRChan := whatsapp.GetQRChannel()
-	var currentWhatsAppQRCode *string
-	whatsAppConnected := false
-	var whatsappClient *whatsmeow.Client
-
 	logger := log.NewWithOptions(&customLogWriter{}, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
@@ -100,68 +92,6 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create nats client"))
 	}
 	logger.Info("NATS client started")
-
-	go func() {
-		for evt := range whatsappQRChan {
-			switch evt.Event {
-			case "code":
-				qrCode := evt.Code
-				currentWhatsAppQRCode = &qrCode
-				whatsAppConnected = false
-				logger.Info("Received new WhatsApp QR code, length:", "length", len(qrCode))
-
-				qrCodeUpdate := map[string]interface{}{
-					"event":        "code",
-					"qr_code_data": qrCode,
-					"is_connected": false,
-					"timestamp":    time.Now().Format(time.RFC3339),
-				}
-				jsonData, err := json.Marshal(qrCodeUpdate)
-				if err == nil {
-					err = nc.Publish("whatsapp.qr_code", jsonData)
-					if err != nil {
-						logger.Error("Failed to publish WhatsApp QR code to NATS", "error", err)
-					} else {
-						logger.Info("Published WhatsApp QR code to NATS")
-					}
-				} else {
-					logger.Error("Failed to marshal WhatsApp QR code data", "error", err)
-				}
-			case "success":
-				whatsAppConnected = true
-				currentWhatsAppQRCode = nil
-				logger.Info("WhatsApp connection successful")
-
-				whatsapp.StartSync()
-				whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
-					IsSyncing:      true,
-					IsCompleted:    false,
-					ProcessedItems: 0,
-					TotalItems:     0,
-					StatusMessage:  "Waiting for history sync to begin",
-				})
-				whatsapp.PublishSyncStatus(nc, logger) //nolint:errcheck
-
-				successUpdate := map[string]interface{}{
-					"event":        "success",
-					"qr_code_data": nil,
-					"is_connected": true,
-					"timestamp":    time.Now().Format(time.RFC3339),
-				}
-				jsonData, err := json.Marshal(successUpdate)
-				if err == nil {
-					err = nc.Publish("whatsapp.qr_code", jsonData)
-					if err != nil {
-						logger.Error("Failed to publish WhatsApp connection success to NATS", "error", err)
-					} else {
-						logger.Info("Published WhatsApp connection success to NATS")
-					}
-				} else {
-					logger.Error("Failed to marshal WhatsApp success data", "error", err)
-				}
-			}
-		}
-	}()
 
 	store, err := db.NewStore(context.Background(), envs.DBPath)
 	if err != nil {
@@ -270,23 +200,6 @@ func main() {
 	logger.Info("Evolving memory created", "elapsed", time.Since(memoryCreateStart))
 	logger.Info("Total Weaviate setup completed", "total_elapsed", time.Since(weaviateBootstrapStart))
 
-	whatsappClientChan := make(chan *whatsmeow.Client)
-	go func() {
-		client := whatsapp.BootstrapWhatsAppClient(mem, dbsqlc, logger, nc, envs.DBPath, envs, aiCompletionsService)
-		whatsappClientChan <- client
-	}()
-
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		connectChan := whatsapp.GetConnectChannel()
-		select {
-		case connectChan <- struct{}{}:
-			logger.Info("Sent automatic WhatsApp connect signal on startup")
-		default:
-			logger.Debug("WhatsApp connect channel already has a signal")
-		}
-	}()
-
 	ttsSvc, err := bootstrapTTS(logger)
 	if err != nil {
 		logger.Error("TTS bootstrap failed", "error", err)
@@ -319,15 +232,24 @@ func main() {
 		panic(errors.Wrap(err, "Failed to register schedule task tool"))
 	}
 
-	go func() {
-		logger.Info("Waiting for WhatsApp client to register tool...")
-		whatsappClient = <-whatsappClientChan
-		if whatsappClient != nil {
-			if err := toolRegistry.Register(waTools.NewWhatsAppTool(logger, whatsappClient)); err != nil {
-				logger.Error("Failed to register WhatsApp tool", "error", err)
-			} else {
-				logger.Info("WhatsApp tools registered")
-			}
+	whatsappService := whatsapp.NewService(whatsapp.ServiceConfig{
+		Logger:        logger,
+		NatsClient:    nc,
+		Database:      dbsqlc,
+		MemoryStorage: mem,
+		Config:        envs,
+		AIService:     aiCompletionsService,
+		ToolRegistry:  toolRegistry,
+	})
+
+	if err := whatsappService.Start(context.Background()); err != nil {
+		logger.Error("Failed to start WhatsApp service", "error", err)
+		panic(errors.Wrap(err, "Failed to start WhatsApp service"))
+	}
+
+	defer func() {
+		if err := whatsappService.Stop(context.Background()); err != nil {
+			logger.Error("Failed to stop WhatsApp service", "error", err)
 		}
 	}()
 
@@ -515,19 +437,18 @@ func main() {
 	}()
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
-		logger:            logger,
-		temporalClient:    temporalClient,
-		port:              envs.GraphqlPort,
-		twinChatService:   *twinChatService,
-		natsClient:        nc,
-		store:             store,
-		aiService:         aiCompletionsService,
-		mcpService:        mcpService,
-		telegramService:   telegramService,
-		holonService:      holonService,
-		directoryWatcher:  directoryWatcher,
-		whatsAppQRCode:    currentWhatsAppQRCode,
-		whatsAppConnected: whatsAppConnected,
+		logger:           logger,
+		temporalClient:   temporalClient,
+		port:             envs.GraphqlPort,
+		twinChatService:  *twinChatService,
+		natsClient:       nc,
+		store:            store,
+		aiService:        aiCompletionsService,
+		mcpService:       mcpService,
+		telegramService:  telegramService,
+		holonService:     holonService,
+		directoryWatcher: directoryWatcher,
+		whatsAppService:  whatsappService,
 	})
 
 	go func() {
@@ -657,8 +578,7 @@ type graphqlServerInput struct {
 	telegramService        *telegram.TelegramService
 	holonService           *holon.Service
 	directoryWatcher       *directorywatcher.DirectoryWatcher
-	whatsAppQRCode         *string
-	whatsAppConnected      bool
+	whatsAppService        *whatsapp.Service
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -682,8 +602,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		TelegramService:        input.telegramService,
 		HolonService:           input.holonService,
 		DirectoryWatcher:       input.directoryWatcher,
-		WhatsAppQRCode:         input.whatsAppQRCode,
-		WhatsAppConnected:      input.whatsAppConnected,
+		WhatsAppService:        input.whatsAppService,
 	}
 
 	srv := handler.New(gqlSchema(resolver))

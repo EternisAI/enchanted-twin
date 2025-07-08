@@ -380,18 +380,13 @@ func (r *mutationResolver) RemoveMCPServer(ctx context.Context, id string) (bool
 
 // StartWhatsAppConnection is the resolver for the startWhatsAppConnection field.
 func (r *mutationResolver) StartWhatsAppConnection(ctx context.Context) (bool, error) {
-	connectChan := whatsapp.GetConnectChannel()
-	select {
-	case connectChan <- struct{}{}:
-		r.Logger.Info("Triggered WhatsApp connection start")
-		return true, nil
-	default:
-		go func() {
-			connectChan <- struct{}{}
-		}()
-		r.Logger.Info("Triggered WhatsApp connection start (async)")
-		return true, nil
+	if r.WhatsAppService == nil {
+		return false, fmt.Errorf("WhatsApp service not available")
 	}
+
+	r.WhatsAppService.TriggerConnect()
+
+	return true, nil
 }
 
 // Activate is the resolver for the activate field.
@@ -598,10 +593,14 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 
 // GetWhatsAppStatus is the resolver for the getWhatsAppStatus field.
 func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppStatus, error) {
+	if r.WhatsAppService == nil {
+		return nil, fmt.Errorf("WhatsApp service not available")
+	}
+
 	// Get the latest QR event to ensure we have the most up-to-date information
 	latestQREvent := whatsapp.GetLatestQREvent()
 
-	isConnected := r.WhatsAppConnected
+	isConnected := r.WhatsAppService.IsConnected()
 	var qrCodeData *string
 
 	// If we have a latest QR event, use its data
@@ -615,7 +614,7 @@ func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppS
 			qrCodeData = &latestQREvent.Code
 		}
 	} else {
-		qrCodeData = r.WhatsAppQRCode
+		qrCodeData = r.WhatsAppService.GetCurrentQRCode()
 	}
 
 	statusMessage := ""
