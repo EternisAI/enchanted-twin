@@ -1335,16 +1335,6 @@ func (cm *ConnectionManager) monitorConnection() {
 	}
 }
 
-func (cm *ConnectionManager) IsConnected() bool {
-	defer func() {
-		if r := recover(); r != nil {
-			cm.logger.Error("Recovered from panic while checking connection status", "panic", r)
-		}
-	}()
-
-	return cm.client.IsConnected()
-}
-
 func (cm *ConnectionManager) shouldAttemptReconnection() bool {
 	if cm.failureCount >= 5 {
 		if time.Since(cm.lastFailureTime) < 5*time.Minute {
