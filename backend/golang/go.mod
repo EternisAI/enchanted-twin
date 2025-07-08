@@ -6,6 +6,7 @@ require (
 	github.com/99designs/gqlgen v0.17.73
 	github.com/KSpaceer/goppt v0.1.1
 	github.com/charmbracelet/log v0.4.2
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/g8rswimmer/go-twitter/v2 v2.1.5
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-openapi/loads v0.22.0
