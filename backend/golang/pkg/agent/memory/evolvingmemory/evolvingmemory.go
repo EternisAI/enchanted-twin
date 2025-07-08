@@ -12,6 +12,8 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/weaviate/weaviate/entities/models"
 
+	"errors"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -214,6 +216,10 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 	// Process fact extraction documents (existing pipeline)
 	if len(factExtractionDocs) > 0 {
 		if err := s.storeFactExtractionDocuments(ctx, factExtractionDocs, callback); err != nil {
+			// Don't wrap context errors - they're already meaningful
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return err
+			}
 			return fmt.Errorf("storing fact extraction documents: %w", err)
 		}
 	}
@@ -221,6 +227,10 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 	// Process file documents directly (new simple pipeline)
 	if len(fileDocs) > 0 {
 		if err := s.storeFileDocumentsDirectly(ctx, fileDocs, callback); err != nil {
+			// Don't wrap context errors - they're already meaningful
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return err
+			}
 			return fmt.Errorf("storing file documents: %w", err)
 		}
 	}
