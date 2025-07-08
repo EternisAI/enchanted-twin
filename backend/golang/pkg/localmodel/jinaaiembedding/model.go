@@ -17,10 +17,16 @@ type JinaAIEmbeddingModel struct {
 }
 
 func NewJinaAIEmbeddingModel(modelPath string) (*JinaAIEmbeddingModel, error) {
+	tokenizer := NewSentencePieceTokenizer()
+	err := tokenizer.LoadFromLocal(modelPath+"/tokenizer.json", modelPath+"/config.json")
+	if err != nil {
+		return nil, err
+	}
+
 	// TODO
 	// ort.SetSharedLibraryPath("/usr/local/lib/onnxruntime/libonnxruntime.dylib")
 
-	err := ort.InitializeEnvironment()
+	err = ort.InitializeEnvironment()
 	if err != nil {
 		return nil, err
 	}
