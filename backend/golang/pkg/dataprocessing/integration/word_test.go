@@ -50,15 +50,12 @@ func TestWordDocumentProcessing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := log.New(os.Stderr)
 			logger.SetLevel(log.DebugLevel)
-
-			aiService := createMockAIService(logger)
-
 			store := &db.Store{}
 
-			processor, err := misc.NewTextDocumentProcessor(aiService, "gpt-4o-mini", store, logger)
+			processor, err := misc.NewTextDocumentProcessor(store, logger)
 			require.NoError(t, err, "Failed to create text document processor")
 
-			testFilePath := filepath.Join("testdata", "misc", tt.filename)
+			testFilePath := filepath.Join("testdata", "synced-document", tt.filename)
 
 			_, err = os.Stat(testFilePath)
 			require.NoError(t, err, "Test file %s does not exist", testFilePath)
@@ -72,7 +69,7 @@ func TestWordDocumentProcessing(t *testing.T) {
 
 				firstDoc := documents[0]
 
-				assert.Equal(t, "misc", firstDoc.FieldSource, "Source should be 'misc'")
+				assert.Equal(t, "synced-document", firstDoc.FieldSource, "Source should be 'misc'")
 
 				assert.NotEmpty(t, firstDoc.FieldContent, "Document should have content")
 				assert.Contains(t, firstDoc.FieldMetadata, "filename", "Document should contain 'filename' metadata")
@@ -126,13 +123,12 @@ func TestWordDocumentTextExtraction(t *testing.T) {
 	logger := log.New(os.Stderr)
 	logger.SetLevel(log.DebugLevel)
 
-	aiService := createMockAIService(logger)
 	store := &db.Store{}
 
-	processor, err := misc.NewTextDocumentProcessor(aiService, "gpt-4o-mini", store, logger)
+	processor, err := misc.NewTextDocumentProcessor(store, logger)
 	require.NoError(t, err)
 
-	testFilePath := filepath.Join("testdata", "misc", "test_doc.docx")
+	testFilePath := filepath.Join("testdata", "synced-document", "test_doc.docx")
 
 	_, err = os.Stat(testFilePath)
 	require.NoError(t, err, "Test Word document does not exist")
@@ -159,10 +155,9 @@ func TestWordDocumentErrorHandling(t *testing.T) {
 	logger := log.New(os.Stderr)
 	logger.SetLevel(log.DebugLevel)
 
-	aiService := createMockAIService(logger)
 	store := &db.Store{}
 
-	processor, err := misc.NewTextDocumentProcessor(aiService, "gpt-4o-mini", store, logger)
+	processor, err := misc.NewTextDocumentProcessor(store, logger)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -196,10 +191,10 @@ func TestWordDocumentIntegration(t *testing.T) {
 	env := SetupTestEnvironment(t)
 	defer env.Cleanup(t)
 
-	wordTestPath := filepath.Join("testdata", "misc")
+	wordTestPath := filepath.Join("testdata", "synced-document")
 
 	t.Run("WordDocumentFullPipeline", func(t *testing.T) {
-		env.LoadDocuments(t, "misc", wordTestPath)
+		env.LoadDocuments(t, "synced-document", wordTestPath)
 
 		assert.NotEmpty(t, env.documents, "Should load documents including Word document")
 

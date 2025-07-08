@@ -15,10 +15,8 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/guylaor/goword"
 	"github.com/ledongthuc/pdf"
-	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -27,22 +25,16 @@ const (
 )
 
 type TextDocumentProcessor struct {
-	openAiService    *ai.Service
-	chunkSize        int
-	completionsModel string
-	store            *db.Store
-	logger           *log.Logger
+	chunkSize int
+	store     *db.Store
+	logger    *log.Logger
 }
 
-func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger) (*TextDocumentProcessor, error) {
-	if openAiService == nil {
-		return nil, fmt.Errorf("openAiService is nil")
-	}
+const (
+	MemorySourceName = "synced-document"
+)
 
-	if completionsModel == "" {
-		return nil, fmt.Errorf("completionsModel is empty")
-	}
-
+func NewTextDocumentProcessor(store *db.Store, logger *log.Logger) (*TextDocumentProcessor, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store is nil")
 	}
@@ -52,16 +44,14 @@ func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string
 	}
 
 	return &TextDocumentProcessor{
-		openAiService:    openAiService,
-		chunkSize:        DefaultChunkSize,
-		completionsModel: completionsModel,
-		store:            store,
-		logger:           logger,
+		chunkSize: DefaultChunkSize,
+		store:     store,
+		logger:    logger,
 	}, nil
 }
 
 func (s *TextDocumentProcessor) Name() string {
-	return "misc"
+	return "synced-document"
 }
 
 // IsHumanReadableContent determines if the content is human-readable text.
@@ -416,42 +406,6 @@ func (s *TextDocumentProcessor) removeXMLTags(content string) string {
 	return result.String()
 }
 
-// ExtractContentTags uses a language model to extract relevant tags from the content.
-func (s *TextDocumentProcessor) ExtractContentTags(ctx context.Context, content string) ([]string, error) {
-	contentSample := content
-	if len(content) > 1000 {
-		contentSample = content[:1000]
-	}
-
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(fmt.Sprintf("Extract 3-5 tags that describe this content. Reply with ONLY a comma-separated list of tags (no explanations, just the tags).\n\nText sample: %s", contentSample)),
-	}
-
-	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, s.completionsModel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract tags: %w", err)
-	}
-
-	responseText := strings.TrimSpace(response.Content)
-
-	responseText = strings.ReplaceAll(responseText, "\n", " ")
-	responseText = strings.ReplaceAll(responseText, "  ", " ")
-	responseText = strings.ReplaceAll(responseText, "* ", "")
-	responseText = strings.ReplaceAll(responseText, "- ", "")
-
-	tagsList := strings.Split(responseText, ",")
-
-	tags := make([]string, 0, len(tagsList))
-	for _, tag := range tagsList {
-		tag = strings.TrimSpace(tag)
-		if tag != "" && len(tag) < 50 {
-			tags = append(tags, tag)
-		}
-	}
-
-	return tags, nil
-}
-
 func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.FileDocument, error) {
 	// Check if the input is a directory
 	info, err := os.Stat(filePath)
@@ -605,12 +559,6 @@ func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath 
 		return []memory.FileDocument{emptyDoc}, nil
 	}
 
-	tags, err := s.ExtractContentTags(context.Background(), textContent)
-	if err != nil {
-		s.logger.Warn("Failed to extract tags", "filePath", filePath, "error", err)
-		tags = []string{}
-	}
-
 	var documents []memory.FileDocument
 	for i := 0; i < len(textContent); i += s.chunkSize {
 		end := i + s.chunkSize
@@ -626,7 +574,7 @@ func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath 
 			FieldContent:   chunk,
 			FieldTimestamp: &timestamp,
 			FieldSource:    s.Name(),
-			FieldTags:      tags,
+			FieldTags:      []string{"misc", "file", "document", ext},
 			FieldMetadata: map[string]string{
 				"filename": fileName,
 				"path":     filePath,

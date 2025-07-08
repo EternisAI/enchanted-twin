@@ -401,12 +401,12 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return false, err
 		}
 		return true, nil
-	case "misc":
-		processor, err := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store, s.logger)
+	case "synced-document":
+		source, err := misc.NewTextDocumentProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		fileDocuments, err := processor.ProcessFile(ctx, inputPath)
+		fileDocuments, err := source.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
@@ -487,7 +487,7 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 		if err != nil {
 			return nil, err
 		}
-	case "misc":
+	case "synced-document":
 		// Misc processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly
 		return nil, fmt.Errorf("misc processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
 	default:

@@ -50,10 +50,10 @@ func TestPowerPointProcessing(t *testing.T) {
 			env := SetupTestEnvironment(t)
 			defer env.Cleanup(t)
 
-			processor, err := misc.NewTextDocumentProcessor(createMockAIService(env.logger), "gpt-4o-mini", env.store, env.logger)
+			processor, err := misc.NewTextDocumentProcessor(env.store, env.logger)
 			require.NoError(t, err)
 
-			testFilePath := filepath.Join("testdata", "misc", test.filename)
+			testFilePath := filepath.Join("testdata", "synced-document", test.filename)
 
 			if _, err := os.Stat(testFilePath); os.IsNotExist(err) {
 				t.Skip("Test PowerPoint file not found, skipping test")
@@ -68,8 +68,8 @@ func TestPowerPointProcessing(t *testing.T) {
 
 				firstDoc := documents[0]
 
-				assert.Equal(t, "misc", firstDoc.FieldSource)
-				assert.NotEmpty(t, firstDoc.FieldContent)
+				assert.Equal(t, "synced-document", firstDoc.FieldSource)
+				assert.Contains(t, firstDoc.FieldContent, "content")
 				assert.Contains(t, firstDoc.FieldMetadata, "filename")
 				assert.Contains(t, firstDoc.FieldMetadata, "type")
 
@@ -109,11 +109,11 @@ func TestPowerPointTextExtraction(t *testing.T) {
 	env := SetupTestEnvironment(t)
 	defer env.Cleanup(t)
 
-	textProcessor, err := misc.NewTextDocumentProcessor(createMockAIService(env.logger), "gpt-4o-mini", env.store, env.logger)
+	textProcessor, err := misc.NewTextDocumentProcessor(env.store, env.logger)
 	require.NoError(t, err)
 
 	t.Run("ExtractTextFromPPTX", func(t *testing.T) {
-		testFilePath := filepath.Join("testdata", "misc", "test_presentation.pptx")
+		testFilePath := filepath.Join("testdata", "synced-document", "test_presentation.pptx")
 
 		if _, err := os.Stat(testFilePath); os.IsNotExist(err) {
 			t.Skip("Test PPTX file not found, skipping extraction test")
@@ -134,7 +134,7 @@ func TestPowerPointTextExtraction(t *testing.T) {
 	})
 
 	t.Run("ExtractTextFromPPT", func(t *testing.T) {
-		testFilePath := filepath.Join("testdata", "misc", "test_presentation.ppt")
+		testFilePath := filepath.Join("testdata", "synced-document", "test_presentation.ppt")
 
 		if _, err := os.Stat(testFilePath); os.IsNotExist(err) {
 			t.Skip("Test PPT file not found, skipping extraction test")
@@ -202,10 +202,10 @@ func TestPowerPointIntegration(t *testing.T) {
 	env := SetupTestEnvironment(t)
 	defer env.Cleanup(t)
 
-	processor, err := misc.NewTextDocumentProcessor(createMockAIService(env.logger), "gpt-4o-mini", env.store, env.logger)
+	processor, err := misc.NewTextDocumentProcessor(env.store, env.logger)
 	require.NoError(t, err)
 
-	testFilePath := filepath.Join("testdata", "misc", "test_presentation.pptx")
+	testFilePath := filepath.Join("testdata", "synced-document", "test_presentation.pptx")
 
 	if _, err := os.Stat(testFilePath); os.IsNotExist(err) {
 		t.Skip("Test PowerPoint file not found, skipping integration test")
