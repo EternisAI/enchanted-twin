@@ -39,6 +39,7 @@ const (
 	factTemporalContextProperty = "factTemporalContext"
 	factSensitivityProperty     = "factSensitivity"
 	factImportanceProperty      = "factImportance"
+	factFilePathProperty        = "factFilePath" // NEW: Indexed file path field for efficient querying
 	// Document table properties.
 	documentContentHashProperty = "contentHash"
 	documentTypeProperty        = "documentType"
@@ -63,6 +64,7 @@ type WeaviateMemoryFact struct {
 	FactTemporalContext string `json:"factTemporalContext"`
 	FactSensitivity     string `json:"factSensitivity"`
 	FactImportance      int    `json:"factImportance"`
+	FactFilePath        string `json:"factFilePath"` // NEW: Indexed file path field
 }
 
 // DocumentReference holds the original document information.
@@ -204,6 +206,7 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.Memor
 		Source:             weaviateFact.Source,
 		DocumentReferences: weaviateFact.DocumentReferences,
 		Tags:               weaviateFact.Tags,
+		FilePath:           weaviateFact.FactFilePath,
 		Metadata:           metadata,
 	}, nil
 }
@@ -269,6 +272,11 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, fact *memory.Me
 	// Update tags
 	if len(fact.Tags) > 0 {
 		properties[tagsProperty] = fact.Tags
+	}
+
+	// NEW: Update file path if provided
+	if fact.FilePath != "" {
+		properties[factFilePathProperty] = fact.FilePath
 	}
 
 	// Store metadata as JSON if present
@@ -421,7 +429,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				sourceProperty,
 				factCategoryProperty, factSubjectProperty, factAttributeProperty,
 				factValueProperty, factTemporalContextProperty, factSensitivityProperty,
-				factImportanceProperty,
+				factImportanceProperty, factFilePathProperty,
 			}
 
 			needsUpdate := false
@@ -529,6 +537,12 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				Name:            factImportanceProperty,
 				DataType:        []string{"int"},
 				Description:     "Importance score of the fact (1-3)",
+				IndexFilterable: helpers.Ptr(true),
+			},
+			{
+				Name:            factFilePathProperty,
+				DataType:        []string{"text"},
+				Description:     "File path for indexed files (indexed for efficient querying)",
 				IndexFilterable: helpers.Ptr(true),
 			},
 		},
@@ -645,13 +659,23 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
 	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
-	// Step 1: Generate query vector
+	// Handle filter-only queries (no semantic search)
+	if queryText == "" {
+		s.logger.Debug("Empty query text - performing filter-only query")
+		queryBuilder, err := s.buildFilterOnlyQueryBuilder(filter)
+		if err != nil {
+			return memory.QueryResult{}, fmt.Errorf("building filter-only query: %w", err)
+		}
+		return s.executeAndProcessQuery(ctx, queryBuilder)
+	}
+
+	// Step 1: Generate query vector for semantic search
 	queryVector, err := s.embeddingsWrapper.Embedding(ctx, queryText)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("failed to create embedding: %w", err)
 	}
 
-	// Step 2: Build GraphQL query
+	// Step 2: Build GraphQL query with vector search
 	queryBuilder, err := s.buildQueryBuilder(queryVector, filter)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("building query: %w", err)
@@ -696,6 +720,41 @@ func (s *WeaviateStorage) buildQueryBuilder(queryVector []float32, filter *memor
 	return queryBuilder, nil
 }
 
+// buildFilterOnlyQueryBuilder constructs GraphQL query with only filters (no vector search).
+func (s *WeaviateStorage) buildFilterOnlyQueryBuilder(filter *memory.Filter) (*weaviateGraphql.GetBuilder, error) {
+	// Define fields to retrieve
+	fields := s.buildQueryFields()
+
+	// Build base query without vector search
+	queryBuilder := s.client.GraphQL().Get().
+		WithClassName(ClassName).
+		WithFields(fields...)
+
+	// Apply limit from filter
+	if filter != nil && filter.Limit != nil {
+		queryBuilder = queryBuilder.WithLimit(*filter.Limit)
+		s.logger.Debug("Applied filter limit", "limit", *filter.Limit)
+	} else {
+		// Default limit for filter-only queries to prevent excessive results
+		queryBuilder = queryBuilder.WithLimit(100)
+		s.logger.Debug("Applied default limit for filter-only query", "limit", 100)
+	}
+
+	// Add WHERE filters
+	if filter != nil {
+		whereBuilder, err := s.buildWhereFilters(filter)
+		if err != nil {
+			return nil, fmt.Errorf("building WHERE filters: %w", err)
+		}
+		if whereBuilder != nil {
+			queryBuilder = queryBuilder.WithWhere(whereBuilder)
+			s.logger.Debug("Applied WHERE filters for filter-only query")
+		}
+	}
+
+	return queryBuilder, nil
+}
+
 // buildQueryFields defines all fields we want to retrieve from GraphQL query.
 func (s *WeaviateStorage) buildQueryFields() []weaviateGraphql.Field {
 	return []weaviateGraphql.Field{
@@ -713,6 +772,7 @@ func (s *WeaviateStorage) buildQueryFields() []weaviateGraphql.Field {
 		{Name: factTemporalContextProperty},
 		{Name: factSensitivityProperty},
 		{Name: factImportanceProperty},
+		{Name: factFilePathProperty},
 		{
 			Name: "_additional",
 			Fields: []weaviateGraphql.Field{
@@ -836,6 +896,16 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 			WithValueText(*filter.FactAttribute)
 		whereFilters = append(whereFilters, attributeFilter)
 		s.logger.Debug("Added fact attribute filter", "attribute", *filter.FactAttribute)
+	}
+
+	// NEW: File path filter for efficient file path querying
+	if filter.FactFilePath != nil {
+		filePathFilter := filters.Where().
+			WithPath([]string{factFilePathProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactFilePath)
+		whereFilters = append(whereFilters, filePathFilter)
+		s.logger.Debug("Added file path filter", "file_path", *filter.FactFilePath)
 	}
 
 	// Fact importance filtering (exact, min, max)
@@ -1018,6 +1088,7 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 		Source:             weaviateFact.Source,
 		DocumentReferences: weaviateFact.DocumentReferences,
 		Tags:               weaviateFact.Tags,
+		FilePath:           weaviateFact.FactFilePath,
 		Metadata:           metaMap,
 	}, nil
 }
@@ -1307,6 +1378,12 @@ func (s *WeaviateStorage) addMemoryFactFields(ctx context.Context) error {
 			DataType:    []string{"int"},
 			Description: "Importance score of the fact (1-3)",
 		},
+		factFilePathProperty: {
+			Name:            factFilePathProperty,
+			DataType:        []string{"text"},
+			Description:     "File path for indexed files (indexed for efficient querying)",
+			IndexFilterable: &indexFilterable,
+		},
 	}
 
 	// Add only missing properties with proper error handling and validation
@@ -1583,6 +1660,7 @@ func (s *WeaviateStorage) GetFactsByIDs(ctx context.Context, factIDs []string) (
 		{Name: factTemporalContextProperty},
 		{Name: factSensitivityProperty},
 		{Name: factImportanceProperty},
+		{Name: factFilePathProperty},
 		{
 			Name: "_additional",
 			Fields: []weaviateGraphql.Field{

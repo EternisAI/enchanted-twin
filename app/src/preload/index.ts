@@ -122,9 +122,8 @@ const api = {
     set: (key: string, value: unknown) => screenpipeStore.set(key, value)
   },
   livekit: {
-    setup: () => ipcRenderer.invoke('livekit:setup'),
-    start: (chatId: string, isOnboarding?: boolean) =>
-      ipcRenderer.invoke('livekit:start', chatId, isOnboarding),
+    start: (chatId: string, isOnboarding?: boolean, jwtToken?: string) =>
+      ipcRenderer.invoke('livekit:start', chatId, isOnboarding, jwtToken),
     stop: () => ipcRenderer.invoke('livekit:stop'),
     isRunning: () => ipcRenderer.invoke('livekit:is-running'),
     isSessionReady: () => ipcRenderer.invoke('livekit:is-session-ready'),
@@ -162,9 +161,20 @@ const api = {
   rendererReady: () => ipcRenderer.send('renderer-ready'),
   keyboardShortcuts: {
     get: () => ipcRenderer.invoke('keyboard-shortcuts:get'),
-    set: (action: string, keys: string) => ipcRenderer.invoke('keyboard-shortcuts:set', action, keys),
+    set: (action: string, keys: string) =>
+      ipcRenderer.invoke('keyboard-shortcuts:set', action, keys),
     reset: (action: string) => ipcRenderer.invoke('keyboard-shortcuts:reset', action),
     resetAll: () => ipcRenderer.invoke('keyboard-shortcuts:reset-all')
+  },
+  models: {
+    hasModelsDownloaded: () => ipcRenderer.invoke('models:has-models-downloaded'),
+    downloadModels: (modelName: 'embeddings' | 'anonymizer') =>
+      ipcRenderer.invoke('models:download', modelName),
+    onProgress: (callback: (data: { modelName: string; pct: number }) => void) => {
+      const listener = (_: unknown, data: { modelName: string; pct: number }) => callback(data)
+      ipcRenderer.on('models:progress', listener)
+      return () => ipcRenderer.removeListener('models:progress', listener)
+    }
   }
 }
 

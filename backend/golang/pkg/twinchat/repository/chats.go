@@ -24,7 +24,7 @@ func (r *Repository) GetChat(ctx context.Context, id string) (model.Chat, error)
 		}
 	}()
 
-	query := "SELECT id, name, category, holon_thread_id, created_at FROM chats WHERE id = ?"
+	query := "SELECT id, name, category, holon_thread_id, created_at, privacy_dict_json FROM chats WHERE id = ?"
 
 	var chatDB ChatDB
 	err = tx.GetContext(ctx, &chatDB, query, id)
@@ -80,7 +80,7 @@ func (r *Repository) GetChatByName(ctx context.Context, name string) (model.Chat
 		}
 	}()
 
-	query := "SELECT id, name, category, holon_thread_id, created_at FROM chats WHERE name = ? ORDER BY created_at DESC LIMIT 1"
+	query := "SELECT id, name, category, holon_thread_id, created_at, privacy_dict_json FROM chats WHERE name = ? ORDER BY created_at DESC LIMIT 1"
 
 	var chatDB ChatDB
 	err = tx.GetContext(ctx, &chatDB, query, name)
@@ -141,6 +141,7 @@ func (r *Repository) GetChats(ctx context.Context) ([]*model.Chat, error) {
 		c.category,
 		c.holon_thread_id,
 		c.created_at,
+		c.privacy_dict_json,
 		COALESCE(MAX(m.created_at), c.created_at) AS last_message_at
 	FROM   chats AS c
 	LEFT JOIN messages AS m ON m.chat_id = c.id
@@ -189,8 +190,8 @@ func (r *Repository) CreateChat(ctx context.Context, name string, category model
 	categoryStr := string(category)
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO chats (id, name, category, holon_thread_id, created_at) VALUES (?, ?, ?, ?, ?)
-	`, chatID, name, categoryStr, holonThreadID, createdAt)
+		INSERT INTO chats (id, name, category, holon_thread_id, created_at, privacy_dict_json) VALUES (?, ?, ?, ?, ?, ?)
+	`, chatID, name, categoryStr, holonThreadID, createdAt, nil)
 	if err != nil {
 		return model.Chat{}, fmt.Errorf("failed to create chat: %w", err)
 	}
@@ -212,6 +213,38 @@ func (r *Repository) CreateChat(ctx context.Context, name string, category model
 	}
 
 	return chat, nil
+}
+
+func (r *Repository) UpdateChatPrivacyDict(ctx context.Context, chatID string, privacyDictJson *string) error {
+	// Start a transaction to ensure consistency
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	// Defer a rollback in case anything fails
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE chats SET privacy_dict_json = ? WHERE id = ?
+	`, privacyDictJson, chatID)
+	if err != nil {
+		return fmt.Errorf("failed to update chat privacy dict: %w", err)
+	}
+
+	// Commit the transaction
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Set tx to nil so rollback won't be called
+	tx = nil
+
+	return nil
 }
 
 func (r *Repository) DeleteChat(ctx context.Context, chatID string) error {

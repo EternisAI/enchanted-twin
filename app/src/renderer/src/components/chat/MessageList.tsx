@@ -5,14 +5,24 @@ import { motion } from 'framer-motion'
 type MessageListProps = {
   messages: Message[]
   isWaitingTwinResponse: boolean
+  chatPrivacyDict: string | null
 }
 
-export default function MessageList({ messages, isWaitingTwinResponse }: MessageListProps) {
+export default function MessageList({
+  messages,
+  isWaitingTwinResponse,
+  chatPrivacyDict
+}: MessageListProps) {
   return (
     <div className="flex flex-col gap-10 w-full">
       {messages.map((msg) =>
         msg.role === Role.User ? (
-          <UserMessageBubble key={msg.id} message={msg} />
+          <UserMessageBubble
+            key={msg.id}
+            message={msg}
+            showAnonymize={true}
+            chatPrivacyDict={chatPrivacyDict}
+          />
         ) : (
           <AssistantMessageBubble key={msg.id} message={msg} />
         )
