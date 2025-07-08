@@ -109,9 +109,9 @@ interface IApi {
     resetAll: () => Promise<{ success: boolean; error?: string }>
   }
   models: {
-    hasModelsDownloaded: () => Promise<{ embeddings: boolean; anonymizer: boolean }>
+    hasModelsDownloaded: () => Promise<{ embeddings: boolean; anonymizer: boolean; onnx: boolean }>
     downloadModels: (
-      modelName: 'embeddings' | 'anonymizer'
+      modelName: 'embeddings' | 'anonymizer' | 'onnx'
     ) => Promise<{ success: boolean; path: string }>
     onProgress: (
       callback: (data: {
@@ -119,8 +119,14 @@ interface IApi {
         pct: number
         totalBytes: number
         downloadedBytes: number
+        error?: string
       }) => void
     ) => () => void
+  }
+  goServer: {
+    initialize: () => Promise<{ success: boolean; error?: string }>
+    cleanup: () => Promise<{ success: boolean; error?: string }>
+    getStatus: () => Promise<{ success: boolean; isRunning: boolean; message: string }>
   }
 }
 

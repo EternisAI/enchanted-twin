@@ -17,13 +17,13 @@ import { registerIpcHandlers, registerShortcut } from './ipcHandlers'
 import { setupMenu } from './menuSetup'
 import { setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
-import { cleanupGoServer, initializeGoServer } from './goServer'
+import { cleanupGoServer } from './goServer'
 // import { startKokoro, cleanupKokoro } from './kokoroManager'
 import { startLiveKitSetup, cleanupLiveKitAgent } from './livekitManager'
 import { initializeAnalytics } from './analytics'
 import { keyboardShortcutsStore } from './stores'
 
-const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
+// const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
 
 // Check if running in production using environment variable
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
@@ -65,7 +65,7 @@ function registerStoredShortcuts() {
 app.whenReady().then(async () => {
   log.info(`App version: ${app.getVersion()}`)
 
-  await initializeGoServer(IS_PRODUCTION, DEFAULT_BACKEND_PORT)
+  // await initializeGoServer(IS_PRODUCTION, DEFAULT_BACKEND_PORT)
 
   const mainWindow = windowManager.createMainWindow()
   registerNotificationIpc(mainWindow)
