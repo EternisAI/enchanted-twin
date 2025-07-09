@@ -185,13 +185,11 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
 
         <Button
           variant="outline"
-          className="w-full justify-between px-2 h-9 mb-1 group"
+          className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
           onClick={handleNewChat}
         >
-          <div className="flex items-center gap-2">
-            <Plus className="w-3 h-3" />
-            <span className="text-base">New chat</span>
-          </div>
+          <Plus className="w-4 h-4" />
+          <span className="text-base">New chat</span>
           {shortcuts.newChat?.keys && (
             <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
               <kbd className="rounded bg-muted px-1.5 py-0.5">
@@ -206,7 +204,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
           onClick={handleNavigateTasks}
         >
-          <CheckSquare className="w-4 h-4 mr-2 text-muted-foreground" />
+          <CheckSquare className="w-4 h-4 text-muted-foreground" />
           <span className="text-base">Tasks</span>
         </Button>
 
@@ -215,7 +213,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-1"
           onClick={() => navigate({ to: '/holon' })}
         >
-          <Globe className="w-4 h-4 mr-2 text-muted-foreground" />
+          <Globe className="w-4 h-4 text-muted-foreground" />
           <span className="text-base">Holon Networks</span>
         </Button>
 
