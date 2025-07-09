@@ -67,7 +67,10 @@ export default function VoiceOnboardingContainer() {
 
 function VoiceOnboarding() {
   const navigate = useNavigate()
-  // const { speak, stop, isSpeaking, getFreqData, speakWithEvents } = useTTS()
+  const { completeOnboarding } = useOnboardingStore()
+  const { startVoiceMode, stopVoiceMode } = useVoiceStore()
+  const { isLiveKitSessionReady } = useDependencyStatus()
+  const { isAgentSpeaking } = useVoiceAgent()
 
   const [lastMessage, setLastMessage] = useState<Message | null>(null)
   const [lastAgentMessage, setLastAgentMessage] = useState<Message | null>({
@@ -81,24 +84,19 @@ function VoiceOnboarding() {
   })
   const [chatId, setChatId] = useState('')
   const [triggerAnimation, setTriggerAnimation] = useState(false)
-  const { completeOnboarding } = useOnboardingStore()
-  const { startVoiceMode, stopVoiceMode } = useVoiceStore()
+  const [isTTSPlaying, setIsTTSPlaying] = useState(false)
+  const [messageHistory, setMessageHistory] = useState<Array<{ text: string; role: Role }>>([])
+  const [streamingResponse, setStreamingResponse] = useState('')
 
   const [createChat] = useMutation(CreateChatDocument)
   const [updateProfile] = useMutation(UpdateProfileDocument)
   const [deleteChat] = useMutation(DeleteChatDocument)
-  const { isLiveKitSessionReady } = useDependencyStatus()
-  const { isAgentSpeaking } = useVoiceAgent()
-  const [isTTSPlaying, setIsTTSPlaying] = useState(false)
-  const [messageHistory, setMessageHistory] = useState<Array<{ text: string; role: Role }>>([])
-  const [currentResponse, setCurrentResponse] = useState('')
 
   const handleSendMessage = async (text: string) => {
     console.log('[VoiceOnboarding] Sending message:', text)
 
     const newMessageHistory = [...messageHistory, { text, role: Role.User }]
     setMessageHistory(newMessageHistory)
-    setCurrentResponse('')
   }
 
   const handleResponseChunk = (
@@ -116,15 +114,16 @@ function VoiceOnboarding() {
       imageUrls
     )
 
-    setCurrentResponse((prev) => prev + chunk)
+    setStreamingResponse((prev) => prev + chunk)
 
     if (isComplete) {
       console.log('[VoiceOnboarding] Response complete, generating TTS')
-      generateTTSForResponse(currentResponse + chunk)
+      const completeResponse = streamingResponse + chunk
+      generateTTSForResponse(completeResponse)
+      setStreamingResponse('')
     }
   }
 
-  // Generate TTS for the complete response
   const generateTTSForResponse = async (responseText: string) => {
     try {
       const firebaseToken = await auth.currentUser?.getIdToken()
@@ -166,6 +165,7 @@ function VoiceOnboarding() {
         audio.addEventListener('error', (e) => {
           console.error('[TTS] Audio playback error:', e)
           URL.revokeObjectURL(audioUrl)
+          setIsTTSPlaying(false)
         })
 
         await audio.play()
@@ -185,7 +185,7 @@ function VoiceOnboarding() {
     const initiateVoiceOnboarding = async () => {
       const chat = await createChat({
         variables: {
-          name: 'Onboarding Chat',
+          name: 'Onboarding Chat test',
           category: ChatCategory.Voice
         }
       })
@@ -269,7 +269,7 @@ function VoiceOnboarding() {
 
       {isLiveKitSessionReady ? (
         <>
-          {(lastAgentMessage || currentResponse) && (
+          {lastAgentMessage && (
             <div className="w-full flex flex-col items-center gap-6">
               <motion.p
                 key={lastAgentMessage?.id || 'current-response'}
@@ -278,10 +278,11 @@ function VoiceOnboarding() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, ease: 'easeOut' }}
               >
-                {currentResponse || lastAgentMessage?.text}
+                {lastAgentMessage?.text}
               </motion.p>
             </div>
           )}
+
           <div className="w-xl pb-12 flex flex-col gap-4">
             {lastMessage && (
               <motion.div
