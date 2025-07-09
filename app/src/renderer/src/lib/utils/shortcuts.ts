@@ -4,10 +4,10 @@
  */
 export function formatShortcutForDisplay(shortcut: string): string {
   if (!shortcut) return ''
-  
+
   const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0
   const parts = shortcut.split('+')
-  
+
   const symbols: Record<string, string> = {
     CommandOrControl: isMac ? '⌘' : 'Ctrl',
     Command: '⌘',
@@ -29,6 +29,5 @@ export function formatShortcutForDisplay(shortcut: string): string {
     Left: '←',
     Right: '→'
   }
-  
   return parts.map((key) => symbols[key] || key.toUpperCase()).join(' ')
 }

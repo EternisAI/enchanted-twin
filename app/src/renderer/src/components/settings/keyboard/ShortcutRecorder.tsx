@@ -155,7 +155,7 @@ export function ShortcutRecorder({
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [isRecording, onChange, onStopRecording, buildShortcut, normalizeKey])
+  }, [isRecording, onChange, onStopRecording, buildShortcut, normalizeKey, onCancel])
 
   const formatShortcut = (keys: string[]): string => {
     const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0
@@ -181,7 +181,7 @@ export function ShortcutRecorder({
       Right: '→'
     }
 
-    return keys.map((key) => symbols[key] || key).join(' + ')
+    return keys.map((key) => symbols[key] || key).join(' ')
   }
 
   const formatDisplayValue = (shortcut: string): string => {
