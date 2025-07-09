@@ -16,10 +16,11 @@ type JinaAIEmbeddingModel struct {
 	session   *ort.DynamicAdvancedSession
 }
 
-func NewJinaAIEmbeddingModel(modelDir string, onnxLib string) (*JinaAIEmbeddingModel, error) {
-	tokenizerPath := modelDir + "/tokenizer.json"
-	configPath := modelDir + "/config.json"
-	modelPath := modelDir + "/model.onnx"
+func NewJinaAIEmbeddingModel(appDataPath string, sharedLibraryPath string) (*JinaAIEmbeddingModel, error) {
+	tokenizerPath := appDataPath + "/models/embeddings/tokenizer.json"
+	configPath := appDataPath + "/models/embeddings/config.json"
+	modelPath := appDataPath + "/models/embeddings/model.onnx"
+	onnxLibPath := sharedLibraryPath + "/onnx/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"
 
 	tk := NewSentencePieceTokenizer()
 	err := tk.LoadFromLocal(tokenizerPath, configPath)
@@ -27,7 +28,7 @@ func NewJinaAIEmbeddingModel(modelDir string, onnxLib string) (*JinaAIEmbeddingM
 		return nil, err
 	}
 
-	ort.SetSharedLibraryPath(onnxLib)
+	ort.SetSharedLibraryPath(onnxLibPath)
 
 	err = ort.InitializeEnvironment()
 	if err != nil {
@@ -107,6 +108,7 @@ func (m *JinaAIEmbeddingModel) Embedding(ctx context.Context, input string) ([]f
 }
 
 func (m *JinaAIEmbeddingModel) Embeddings(ctx context.Context, inputs []string) ([][]float32, error) {
+	// TODO implement me
 	return nil, nil
 }
 
