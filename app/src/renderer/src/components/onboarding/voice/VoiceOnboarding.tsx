@@ -10,7 +10,6 @@ import {
   DeleteChatDocument,
   Message,
   Role,
-  SendMessageDocument,
   UpdateProfileDocument
 } from '@renderer/graphql/generated/graphql'
 import { OnboardingVoiceAnimation, OnboardingDoneAnimation } from './Animations'
@@ -24,6 +23,7 @@ import { Mic } from 'lucide-react'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
+import { useProcessMessageHistoryStream } from '@renderer/hooks/useProcessMessageHistoryStream'
 import { getMockFrequencyData } from '@renderer/lib/utils'
 import MessageInput from '@renderer/components/chat/MessageInput'
 import { auth } from '@renderer/lib/firebase'
@@ -87,26 +87,46 @@ function VoiceOnboarding() {
   const [createChat] = useMutation(CreateChatDocument)
   const [updateProfile] = useMutation(UpdateProfileDocument)
   const [deleteChat] = useMutation(DeleteChatDocument)
-  const [sendMessage] = useMutation(SendMessageDocument)
   const { isLiveKitSessionReady } = useDependencyStatus()
   const { isAgentSpeaking } = useVoiceAgent()
   const [isTTSPlaying, setIsTTSPlaying] = useState(false)
+  const [messageHistory, setMessageHistory] = useState<Array<{ text: string; role: Role }>>([])
+  const [currentResponse, setCurrentResponse] = useState('')
 
   const handleSendMessage = async (text: string) => {
-    console.log('[TTS] Generating speech for text:', text)
+    console.log('[VoiceOnboarding] Sending message:', text)
 
+    const newMessageHistory = [...messageHistory, { text, role: Role.User }]
+    setMessageHistory(newMessageHistory)
+    setCurrentResponse('')
+  }
+
+  const handleResponseChunk = (
+    messageId: string,
+    chunk: string,
+    isComplete: boolean,
+    imageUrls: string[]
+  ) => {
+    console.log(
+      '[VoiceOnboarding] Received chunk:',
+      chunk,
+      'isComplete:',
+      isComplete,
+      'imageUrls:',
+      imageUrls
+    )
+
+    setCurrentResponse((prev) => prev + chunk)
+
+    if (isComplete) {
+      console.log('[VoiceOnboarding] Response complete, generating TTS')
+      generateTTSForResponse(currentResponse + chunk)
+    }
+  }
+
+  // Generate TTS for the complete response
+  const generateTTSForResponse = async (responseText: string) => {
     try {
-      const result = await sendMessage({
-        variables: {
-          chatId,
-          text,
-          reasoning: false,
-          voice: true
-        }
-      })
-
-      console.log('result!!', result)
-
       const firebaseToken = await auth.currentUser?.getIdToken()
 
       if (!firebaseToken) {
@@ -114,10 +134,7 @@ function VoiceOnboarding() {
         return
       }
 
-      const ttsResult = await window.api.tts.generate(
-        result.data?.sendMessage.text || '',
-        firebaseToken
-      )
+      const ttsResult = await window.api.tts.generate(responseText, firebaseToken)
 
       if (!ttsResult.success) {
         console.error('[TTS] Failed to generate TTS:', ttsResult.error)
@@ -142,7 +159,7 @@ function VoiceOnboarding() {
 
         audio.addEventListener('ended', () => {
           console.log('[TTS] Audio playback finished')
-          URL.revokeObjectURL(audioUrl) // Clean up object URL
+          URL.revokeObjectURL(audioUrl)
           setIsTTSPlaying(false)
         })
 
@@ -152,16 +169,17 @@ function VoiceOnboarding() {
         })
 
         await audio.play()
-
         setIsTTSPlaying(true)
         console.log('[TTS] Started audio playback')
       } else {
         console.error('[TTS] Failed to generate audio')
       }
     } catch (error) {
-      console.error('[TTS] Error in handleSendMessage:', error)
+      console.error('[TTS] Error generating TTS:', error)
     }
   }
+
+  useProcessMessageHistoryStream(chatId, messageHistory, true, handleResponseChunk)
 
   useEffect(() => {
     const initiateVoiceOnboarding = async () => {
@@ -251,16 +269,16 @@ function VoiceOnboarding() {
 
       {isLiveKitSessionReady ? (
         <>
-          {lastAgentMessage && (
+          {(lastAgentMessage || currentResponse) && (
             <div className="w-full flex flex-col items-center gap-6">
               <motion.p
-                key={lastAgentMessage.id}
+                key={lastAgentMessage?.id || 'current-response'}
                 className="text-white text-lg text-center max-w-xl break-words"
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, ease: 'easeOut' }}
               >
-                {lastAgentMessage.text}
+                {currentResponse || lastAgentMessage?.text}
               </motion.p>
             </div>
           )}
