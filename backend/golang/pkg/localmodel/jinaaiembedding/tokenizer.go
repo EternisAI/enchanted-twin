@@ -12,7 +12,7 @@ type ModelConfig struct {
 	LoraAdaptations []string `json:"lora_adaptations"`
 }
 
-// SentencePieceTokenizer represents a proper XLM-RoBERTa tokenizer.
+// SentencePieceTokenizer represents a basic word-level tokenizer for embedding models.
 type SentencePieceTokenizer struct {
 	vocab         map[string]int
 	vocabReverse  map[int]string
@@ -133,9 +133,6 @@ func (t *SentencePieceTokenizer) LoadFromLocal(tokenizerPath, configPath string)
 			t.unkToken = token.Content
 		}
 	}
-
-	fmt.Printf("Loaded tokenizer with vocab size: %d\n", len(t.vocab))
-	fmt.Printf("Special tokens: %v\n", t.specialTokens)
 
 	return nil
 }
