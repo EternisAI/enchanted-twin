@@ -95,8 +95,10 @@ func (s *Service) Execute(
 		postToolCallback,
 	)
 
-	// Get the tool list from the registry
-	toolsList := s.toolRegistry.Excluding("send_to_chat").GetAll()
+	var toolsList []tools.Tool
+	if !reasoning {
+		toolsList = s.toolRegistry.Excluding("send_to_chat").GetAll()
+	}
 
 	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta, reasoning)
 	if err != nil {

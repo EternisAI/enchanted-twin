@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -426,8 +427,6 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 	mockAIService := createMockAIService(sharedLogger)
 	mockEmbeddingsService := createMockAIService(sharedLogger)
 
-	dataprocessingService := dataprocessing.NewDataProcessingService(mockAIService, completionsModel, store, sharedLogger)
-
 	embeddingsWrapper, err := storage.NewEmbeddingWrapper(mockEmbeddingsService, config.EmbeddingsModel)
 	if err != nil {
 		t.Fatalf("Failed to create embedding wrapper: %v", err)
@@ -451,6 +450,8 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 		EmbeddingsWrapper:  embeddingsWrapper,
 	})
 	require.NoError(t, err)
+
+	dataprocessingService := dataprocessing.NewDataProcessingService(mockAIService, completionsModel, store, mem, sharedLogger)
 
 	sharedLogger.Info("=CONFIG=", "Model", config.CompletionsModel)
 	sharedLogger.Info("=CONFIG=", "Model", config.EmbeddingsModel)
@@ -753,9 +754,9 @@ func (env *testEnvironment) StoreDocumentsWithTimeout(t *testing.T, timeout time
 func getTestConfig(t *testing.T) testConfig {
 	t.Helper()
 
-	source := getEnvOrDefault("TEST_SOURCE", "misc")
+	source := getEnvOrDefault("TEST_SOURCE", "synced-document")
 
-	defaultInputPath := filepath.Join("testdata", "misc")
+	defaultInputPath := filepath.Join("testdata", "synced-document")
 	inputPath := getEnvOrDefault("TEST_INPUT_PATH", defaultInputPath)
 
 	outputPath := getEnvOrDefault("TEST_OUTPUT_PATH", "")
@@ -1003,7 +1004,21 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	assert.Empty(t, result.Facts, "should not find memories for invalid source")
 }
 
+func isDockerAvailable() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "docker", "info")
+	err := cmd.Run()
+	return err == nil
+}
+
 func TestMain(m *testing.M) {
+	if !isDockerAvailable() {
+		fmt.Println("Docker is not available. Skipping integration tests.")
+		os.Exit(0)
+	}
+
 	SetupSharedInfrastructure()
 
 	code := m.Run()
