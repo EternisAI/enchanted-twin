@@ -4,6 +4,7 @@ import {
   onAuthStateChanged,
   signOut as firebaseSignOut,
   GoogleAuthProvider,
+  TwitterAuthProvider,
   signInWithCredential
 } from 'firebase/auth'
 import { auth, firebaseConfig } from '@renderer/lib/firebase'
@@ -16,6 +17,7 @@ interface AuthContextType {
   waitingForLogin: boolean
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
+  signInWithX: () => Promise<void>
   authError: string | null
   hasUpdatedToken: boolean
 }
@@ -86,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           accessToken: string
           idToken: string
           refreshToken?: string
+          provider?: string
         }
       ]
 
@@ -94,21 +97,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setWaitingForLogin(false)
 
       try {
-        const credential = GoogleAuthProvider.credential(userData.idToken, userData.accessToken)
+        let credential
+        if (userData.provider === 'twitter') {
+          credential = TwitterAuthProvider.credential(userData.accessToken, userData.idToken)
+        } else {
+          credential = GoogleAuthProvider.credential(userData.idToken, userData.accessToken)
+        }
         await signInWithCredential(auth, credential)
         localStorage.setItem('enchanted_user_data', JSON.stringify(userData))
       } catch (error) {
-        console.error('[Auth] ❌ Failed to sign in with Google credential:', error)
+        console.error('[Auth] ❌ Failed to sign in with credential:', error)
         setAuthError(error instanceof Error ? error.message : 'Authentication failed')
       }
     }
 
-    const handleFirebaseAuthError = (...args: unknown[]) => {
+    const handleFirebaseAuthError = async (...args: unknown[]) => {
       const [, errorData] = args as [unknown, { error: string }]
       console.error('[Auth] ❌ Received Firebase auth error from main process:', errorData)
+
+      // Clear any cached authentication state
+      try {
+        await firebaseSignOut(auth)
+        localStorage.removeItem('enchanted_user_data')
+      } catch (error) {
+        console.error('[Auth] Failed to clear auth state:', error)
+      }
+
       setAuthError(errorData.error)
       setLoading(false)
       setWaitingForLogin(false)
+      setUser(null)
       window.electron.ipcRenderer.invoke('cleanup-oauth-server')
     }
 
@@ -121,16 +139,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signInWithGoogle = async () => {
-    console.log('[Auth]  Starting Google sign-in flow')
+    console.log('[Auth] Starting Google sign-in flow')
     setAuthError(null)
     setWaitingForLogin(true)
 
     try {
-      console.log('[Auth]  Invoking start-firebase-oauth')
-      const result = (await window.electron.ipcRenderer.invoke(
-        'start-firebase-oauth',
-        firebaseConfig
-      )) as unknown as {
+      console.log('[Auth] Invoking start-firebase-oauth')
+      const result = (await window.electron.ipcRenderer.invoke('start-firebase-oauth', {
+        ...firebaseConfig,
+        provider: 'google'
+      })) as unknown as {
         success: boolean
         loginUrl?: string
         error?: string
@@ -140,14 +158,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(result.error || 'Failed to start OAuth server')
       }
 
-      console.log(
-        '[Auth]  Firebase OAuth server started successfully, waiting for auth callback...'
-      )
-      // The authentication flow will continue through IPC events -  wait for the IPC callback
+      console.log('[Auth] Firebase OAuth server started successfully, waiting for auth callback...')
+      // The authentication flow will continue through IPC events - wait for the IPC callback
     } catch (error) {
-      console.error('[Auth]  Failed to start Google sign-in:', error)
+      console.error('[Auth] Failed to start Google sign-in:', error)
       setAuthError(error instanceof Error ? error.message : 'Failed to start authentication')
-      // setLoading(false)
+      setWaitingForLogin(false)
+    }
+  }
+
+  const signInWithX = async () => {
+    console.log('[Auth] Starting X sign-in flow')
+    setAuthError(null)
+    setWaitingForLogin(true)
+
+    try {
+      console.log('[Auth] Invoking start-firebase-oauth for X')
+      const result = (await window.electron.ipcRenderer.invoke('start-firebase-oauth', {
+        ...firebaseConfig,
+        provider: 'twitter'
+      })) as unknown as {
+        success: boolean
+        loginUrl?: string
+        error?: string
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to start OAuth server')
+      }
+
+      console.log('[Auth] Firebase OAuth server started successfully, waiting for auth callback...')
+      // The authentication flow will continue through IPC events - wait for the IPC callback
+    } catch (error) {
+      console.error('[Auth] Failed to start X sign-in:', error)
+      setAuthError(error instanceof Error ? error.message : 'Failed to start authentication')
       setWaitingForLogin(false)
     }
   }
@@ -174,6 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasUpdatedToken,
         signOut,
         signInWithGoogle,
+        signInWithX,
         authError
       }}
     >
