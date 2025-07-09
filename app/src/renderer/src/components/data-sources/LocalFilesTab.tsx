@@ -59,8 +59,8 @@ export default function LocalFilesTab() {
   }, [])
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Drag and Drop Container */}
+    <div className="flex flex-col h-full gap-10">
+      <h2 className="text-2xl font-semibold">Files</h2>
       <div
         className={cn(
           'relative rounded-lg border-2 border-dashed transition-all duration-200 p-8 mb-6',
@@ -98,36 +98,38 @@ export default function LocalFilesTab() {
       </div>
 
       {/* File List Placeholder */}
-      <div className="flex-1 rounded-lg border bg-card">
-        <div className="border-b px-4 py-3">
-          <h3 className="text-sm font-medium">Local Files</h3>
-        </div>
+      {selectedFiles.length > 0 && (
+        <div className="flex-1 rounded-lg border bg-card">
+          <div className="border-b px-4 py-3">
+            <h3 className="text-sm font-medium">Local Files</h3>
+          </div>
 
-        <div className="p-4">
-          {selectedFiles.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Folder className="h-12 w-12 mb-4 opacity-20" />
-              <p className="text-sm">No files selected</p>
-              <p className="text-xs mt-1">Add files to get started</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground mb-4">
-                File list implementation coming soon...
-              </p>
-              {/* Temporary display of selected files */}
-              {selectedFiles.map((filePath, index) => (
-                <div key={index} className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
-                  <File className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm truncate flex-1">
-                    {filePath.split('/').pop() || filePath}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="p-4">
+            {selectedFiles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Folder className="h-12 w-12 mb-4 opacity-20" />
+                <p className="text-sm">No files selected</p>
+                <p className="text-xs mt-1">Add files to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground mb-4">
+                  File list implementation coming soon...
+                </p>
+                {/* Temporary display of selected files */}
+                {selectedFiles.map((filePath, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                    <File className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm truncate flex-1">
+                      {filePath.split('/').pop() || filePath}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

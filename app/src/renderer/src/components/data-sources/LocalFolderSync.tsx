@@ -9,7 +9,6 @@ import {
 } from '@renderer/graphql/generated/graphql'
 
 import { Button } from '../ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { cn } from '@renderer/lib/utils'
 
 export default function LocalFolderSync() {
@@ -152,67 +151,61 @@ export default function LocalFolderSync() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FolderOpen className="h-5 w-5" />
-            Add Local Folders
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={cn(
-              'flex flex-col gap-4 p-6 rounded-lg border-2 border-dashed transition-all duration-200',
-              isDragOver
-                ? 'border-primary bg-primary/5 scale-[1.02]'
-                : 'border-border bg-card dark:bg-muted'
-            )}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div
-                className={cn(
-                  'p-4 rounded-full transition-colors',
-                  isDragOver ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-                )}
-              >
-                <Upload className="w-6 h-6" />
-              </div>
-
-              <div className="space-y-2">
-                <p
-                  className={cn(
-                    'text-lg font-medium transition-colors',
-                    isDragOver ? 'text-primary' : 'text-foreground'
-                  )}
-                >
-                  {isDragOver ? 'Drop your folder here' : 'Drag & drop folders here'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Drop folders or click the button below to select folders
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-px bg-border"></div>
-              <span className="text-xs text-muted-foreground px-2">or</span>
-              <div className="flex-1 h-px bg-border"></div>
-            </div>
-
-            <Button onClick={handleSelectDirectory} disabled={isSelecting} className="w-full">
-              {isSelecting ? 'Selecting...' : 'Select Folder'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <h2 className="text-2xl font-semibold">Folders</h2>
 
       <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-bold">Connected</h2>
+        <div
+          className={cn(
+            'flex flex-col gap-4 p-6 rounded-lg border-2 border-dashed transition-all duration-200',
+            isDragOver
+              ? 'border-primary bg-primary/5 scale-[1.02]'
+              : 'border-border bg-card dark:bg-muted'
+          )}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <div className="flex flex-col items-center gap-2 text-center">
+            <div
+              className={cn(
+                'p-4 rounded-full transition-colors',
+                isDragOver ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+              )}
+            >
+              <Upload className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-2">
+              <p
+                className={cn(
+                  'text-lg font-medium transition-colors',
+                  isDragOver ? 'text-primary' : 'text-foreground'
+                )}
+              >
+                {isDragOver ? 'Drop your folder here' : 'Drag & drop folders here'}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Drop folders or click the button below to select folders
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-px bg-border"></div>
+            <span className="text-xs text-muted-foreground px-2">or</span>
+            <div className="flex-1 h-px bg-border"></div>
+          </div>
+
+          <Button onClick={handleSelectDirectory} disabled={isSelecting} className="w-full">
+            {isSelecting ? 'Selecting...' : 'Select Folder'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4">
         {data?.getTrackedFolders && data.getTrackedFolders.length > 0 ? (
           <div className="space-y-3">
+            <h2 className="text-lg font-bold">Connected</h2>
             {data.getTrackedFolders.map((folder) => (
               <div
                 key={folder.id}
@@ -270,15 +263,7 @@ export default function LocalFolderSync() {
               </div>
             ))}
           </div>
-        ) : (
-          <div className="text-center py-8 justify-center flex flex-col items-center gap-2 text-muted-foreground">
-            <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No folders connected yet</p>
-            <p className="text-sm">
-              Drag and drop folders or click the button above to get started
-            </p>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   )
