@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/u
 import ConnectMCPServerButton from '@renderer/components/oauth/MCPConnectServerButton'
 import LocalFilesTab from '@renderer/components/data-sources/LocalFilesTab'
 import { FolderIcon, NetworkIcon, PlugIcon } from 'lucide-react'
+import LocalFolderSync from '@renderer/components/data-sources/LocalFolderSync'
 
 export const Route = createFileRoute('/settings/data-sources')({
   component: ImportDataSettings
@@ -48,7 +49,12 @@ function Header() {
           </div>
         </TabsContent>
         <TabsContent value="local-files">
-          <LocalFilesTab />
+          <div className="flex flex-col gap-15">
+            <h2 className="text-2xl font-semibold">Local Files</h2>
+            <LocalFilesTab />
+            <h2 className="text-2xl font-semibold">Synced Folders</h2>
+            <LocalFolderSync />
+          </div>
         </TabsContent>
         <TabsContent value="connected">
           <DataSourcesPanel header={false} />
