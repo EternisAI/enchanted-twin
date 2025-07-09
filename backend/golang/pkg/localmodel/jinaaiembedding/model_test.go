@@ -150,7 +150,7 @@ func TestCompareOpenAIEmbeddings(t *testing.T) {
 	logger := log.New(os.Stdout)
 	openaiService := ai.NewOpenAIService(logger, apiKey, "https://api.openai.com/v1")
 
-	words := []string{"cat", "dog", "kitty", "puppy", "mathematics", "spaceship"}
+	words := []string{"bank", "money", "river", "finance", "tree", "loan"}
 
 	t.Logf("Getting embeddings from JinaAI local model...")
 	jinaVectors, err := localModel.Embeddings(context.Background(), words, "jina-embeddings-v2-base-en")
@@ -171,63 +171,59 @@ func TestCompareOpenAIEmbeddings(t *testing.T) {
 	}
 
 	type SimilarityResult struct {
-		pair        string
+		word        string
 		jinaScore   float64
 		openaiScore float64
 	}
 
-	results := []SimilarityResult{
-		{
-			pair:        "cat-kitty",
-			jinaScore:   cosineSimilarity(jinaWordVectors["cat"], jinaWordVectors["kitty"]),
-			openaiScore: cosineSimilarity(openaiWordVectors["cat"], openaiWordVectors["kitty"]),
-		},
-		{
-			pair:        "dog-puppy",
-			jinaScore:   cosineSimilarity(jinaWordVectors["dog"], jinaWordVectors["puppy"]),
-			openaiScore: cosineSimilarity(openaiWordVectors["dog"], openaiWordVectors["puppy"]),
-		},
-		{
-			pair:        "cat-mathematics",
-			jinaScore:   cosineSimilarity(jinaWordVectors["cat"], jinaWordVectors["mathematics"]),
-			openaiScore: cosineSimilarity(openaiWordVectors["cat"], openaiWordVectors["mathematics"]),
-		},
-		{
-			pair:        "dog-spaceship",
-			jinaScore:   cosineSimilarity(jinaWordVectors["dog"], jinaWordVectors["spaceship"]),
-			openaiScore: cosineSimilarity(openaiWordVectors["dog"], openaiWordVectors["spaceship"]),
-		},
+	// Calculate similarities of all words with "bank"
+	var results []SimilarityResult
+	bankJinaVector := jinaWordVectors["bank"]
+	bankOpenaiVector := openaiWordVectors["bank"]
+
+	for _, word := range words {
+		if word == "bank" {
+			continue // Skip comparing bank with itself
+		}
+		results = append(results, SimilarityResult{
+			word:        word,
+			jinaScore:   cosineSimilarity(bankJinaVector, jinaWordVectors[word]),
+			openaiScore: cosineSimilarity(bankOpenaiVector, openaiWordVectors[word]),
+		})
 	}
 
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].jinaScore > results[j].jinaScore
 	})
 
-	t.Logf("\nJinaAI Local Model Similarities (ordered by score):")
+	t.Logf("\nJinaAI Local Model Similarities with 'bank' (ordered by score):")
 	for _, result := range results {
-		t.Logf("  %s: %.4f", result.pair, result.jinaScore)
+		t.Logf("  bank-%s: %.4f", result.word, result.jinaScore)
 	}
 
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].openaiScore > results[j].openaiScore
 	})
 
-	t.Logf("\nOpenAI Similarities (ordered by score):")
+	t.Logf("\nOpenAI Similarities with 'bank' (ordered by score):")
 	for _, result := range results {
-		t.Logf("  %s: %.4f", result.pair, result.openaiScore)
+		t.Logf("  bank-%s: %.4f", result.word, result.openaiScore)
 	}
 
 	jinaScores := make(map[string]float64)
 	openaiScores := make(map[string]float64)
 	for _, result := range results {
-		jinaScores[result.pair] = result.jinaScore
-		openaiScores[result.pair] = result.openaiScore
+		jinaScores[result.word] = result.jinaScore
+		openaiScores[result.word] = result.openaiScore
 	}
 
-	assert.Greater(t, jinaScores["cat-kitty"], jinaScores["cat-mathematics"], "JinaAI: cat-kitty should be more similar than cat-mathematics")
-	assert.Greater(t, jinaScores["dog-puppy"], jinaScores["dog-spaceship"], "JinaAI: dog-puppy should be more similar than dog-spaceship")
-	assert.Greater(t, openaiScores["cat-kitty"], openaiScores["cat-mathematics"], "OpenAI: cat-kitty should be more similar than cat-mathematics")
-	assert.Greater(t, openaiScores["dog-puppy"], openaiScores["dog-spaceship"], "OpenAI: dog-puppy should be more similar than dog-spaceship")
+	// Test that bank's financial context words have higher similarity than unrelated words
+	assert.Greater(t, jinaScores["money"], jinaScores["tree"], "JinaAI: bank-money should be more similar than bank-tree")
+	assert.Greater(t, jinaScores["finance"], jinaScores["tree"], "JinaAI: bank-finance should be more similar than bank-tree")
+	assert.Greater(t, jinaScores["loan"], jinaScores["tree"], "JinaAI: bank-loan should be more similar than bank-tree")
+	assert.Greater(t, openaiScores["money"], openaiScores["tree"], "OpenAI: bank-money should be more similar than bank-tree")
+	assert.Greater(t, openaiScores["finance"], openaiScores["tree"], "OpenAI: bank-finance should be more similar than bank-tree")
+	assert.Greater(t, openaiScores["loan"], openaiScores["tree"], "OpenAI: bank-loan should be more similar than bank-tree")
 
 	t.Logf("\nModel Comparison:")
 	t.Logf("  JinaAI vector dimensions: %d", len(jinaVectors[0]))
