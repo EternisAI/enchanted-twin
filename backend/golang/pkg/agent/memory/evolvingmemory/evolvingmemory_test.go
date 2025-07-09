@@ -278,7 +278,7 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 		err = storageImplTyped.Store(ctx, docs, nil)
 		assert.Error(t, err)
-		assert.Equal(t, context.Canceled, err)
+		assert.ErrorIs(t, err, context.Canceled)
 	})
 }
 

@@ -161,6 +161,7 @@ export type McpServerDefinition = {
 
 export enum McpServerType {
   Enchanted = 'ENCHANTED',
+  Freysa = 'FREYSA',
   Google = 'GOOGLE',
   Other = 'OTHER',
   Screenpipe = 'SCREENPIPE',
@@ -207,7 +208,6 @@ export type Mutation = {
   deleteDataSource: Scalars['Boolean']['output'];
   deleteTrackedFolder: Scalars['Boolean']['output'];
   joinHolon: Scalars['Boolean']['output'];
-  processMessageHistory: Message;
   refreshExpiredOAuthTokens: Array<OAuthStatus>;
   removeMCPServer: Scalars['Boolean']['output'];
   sendMessage: Message;
@@ -280,13 +280,6 @@ export type MutationDeleteTrackedFolderArgs = {
 export type MutationJoinHolonArgs = {
   network?: InputMaybe<Scalars['String']['input']>;
   userId: Scalars['String']['input'];
-};
-
-
-export type MutationProcessMessageHistoryArgs = {
-  chatId: Scalars['ID']['input'];
-  isOnboarding: Scalars['Boolean']['input'];
-  messages: Array<MessageInput>;
 };
 
 
