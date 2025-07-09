@@ -43,12 +43,16 @@ const settingsTabs = [
     icon: Keyboard,
     path: '/settings/keyboard'
   },
-  {
-    value: 'advanced',
-    label: 'Advanced',
-    icon: Settings2,
-    path: '/settings/advanced'
-  }
+  ...(process.env.NODE_ENV === 'development'
+    ? [
+        {
+          value: 'advanced',
+          label: 'Developer',
+          icon: Settings2,
+          path: '/settings/advanced'
+        }
+      ]
+    : [])
 ]
 
 function SettingsLayout() {
