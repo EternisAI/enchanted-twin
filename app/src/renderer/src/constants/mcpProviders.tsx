@@ -37,11 +37,11 @@ export const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
     </IconContainer>
   ),
   SCREENPIPE: (
-    <IconContainer className="bg-foreground">
-      <ComputerIcon strokeWidth={1.5} className="w-7 h-7 text-primary-foreground/90" />
+    <IconContainer>
+      <ComputerIcon strokeWidth={1.5} className="w-7 h-7" />
     </IconContainer>
   ),
   OTHER: <PlugIcon className="w-10 h-10" />,
   ENCHANTED: <img src={enchantedIcon} alt="Enchanted" className="w-10 h-10" />,
-  FREYSA: <img src={freysaIcon} alt="Freysa" className="w-6 h-6 rounded" />
+  FREYSA: <img src={freysaIcon} alt="Freysa" className="w-10 h-10" />
 }
