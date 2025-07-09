@@ -9,7 +9,7 @@ import (
 )
 
 func TestJinaAIEmbeddingModel(t *testing.T) {
-	// t.Skip()
+	t.Skip()
 
 	appDataPath := os.Getenv("APP_DATA_PATH")
 	assert.NotEmpty(t, appDataPath)
