@@ -6,10 +6,10 @@ import (
 
 	ort "github.com/yalue/onnxruntime_go"
 
-	"github.com/EternisAI/enchanted-twin/pkg/localmodel"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-var _ localmodel.EmbeddingModel = (*JinaAIEmbeddingModel)(nil)
+var _ ai.Embedding = (*JinaAIEmbeddingModel)(nil)
 
 type JinaAIEmbeddingModel struct {
 	tokenizer *SentencePieceTokenizer
@@ -55,7 +55,7 @@ func (m *JinaAIEmbeddingModel) Close() {
 	_ = ort.DestroyEnvironment()
 }
 
-func (m *JinaAIEmbeddingModel) Embedding(ctx context.Context, input string) ([]float32, error) {
+func (m *JinaAIEmbeddingModel) Embedding(ctx context.Context, input string, model string) ([]float64, error) {
 	inputIds, attentionMask := m.tokenizer.Encode(input)
 
 	tokenTypeIds := make([]int64, len(inputIds))
@@ -104,10 +104,16 @@ func (m *JinaAIEmbeddingModel) Embedding(ctx context.Context, input string) ([]f
 	pooledEmbeddings := meanPooling(rawOutput, attentionMask, batchSize, seqLen, embedDim)
 	finalEmbeddings := l2Normalize(pooledEmbeddings, batchSize, embedDim)
 
-	return finalEmbeddings, nil
+	// Convert to float64 for interface compliance
+	result := make([]float64, len(finalEmbeddings))
+	for i, v := range finalEmbeddings {
+		result[i] = float64(v)
+	}
+
+	return result, nil
 }
 
-func (m *JinaAIEmbeddingModel) Embeddings(ctx context.Context, inputs []string) ([][]float32, error) {
+func (m *JinaAIEmbeddingModel) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
 	// TODO implement me
 	return nil, nil
 }

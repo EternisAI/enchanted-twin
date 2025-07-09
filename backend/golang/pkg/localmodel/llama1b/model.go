@@ -8,10 +8,10 @@ import (
 
 	"github.com/openai/openai-go"
 
-	"github.com/EternisAI/enchanted-twin/pkg/localmodel"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-var _ localmodel.Completion = (*LlamaModel)(nil)
+var _ ai.Completion = (*LlamaModel)(nil)
 
 type LlamaModel struct {
 	binaryPath string
