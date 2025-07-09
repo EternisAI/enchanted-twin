@@ -60,9 +60,9 @@ function Content() {
         </TabsContent>
         <TabsContent value="local-files">
           <div className="flex flex-col gap-15">
-            <h2 className="text-2xl font-semibold">Local Files</h2>
+            <h2 className="text-2xl font-semibold">Files</h2>
             <LocalFilesTab />
-            <h2 className="text-2xl font-semibold">Synced Folders</h2>
+            <h2 className="text-2xl font-semibold">Folders</h2>
             <LocalFolderSync />
           </div>
         </TabsContent>
