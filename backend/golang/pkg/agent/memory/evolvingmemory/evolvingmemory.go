@@ -3,7 +3,9 @@ package evolvingmemory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -213,6 +215,10 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 	// Process fact extraction documents (existing pipeline)
 	if len(factExtractionDocs) > 0 {
 		if err := s.storeFactExtractionDocuments(ctx, factExtractionDocs, callback); err != nil {
+			// Don't wrap context errors - they're already meaningful
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return err
+			}
 			return fmt.Errorf("storing fact extraction documents: %w", err)
 		}
 	}
@@ -220,6 +226,10 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 	// Process file documents directly (new simple pipeline)
 	if len(fileDocs) > 0 {
 		if err := s.storeFileDocumentsDirectly(ctx, fileDocs, callback); err != nil {
+			// Don't wrap context errors - they're already meaningful
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return err
+			}
 			return fmt.Errorf("storing file documents: %w", err)
 		}
 	}
@@ -284,64 +294,75 @@ func (s *StorageImpl) storeFactExtractionDocuments(ctx context.Context, document
 	return nil
 }
 
-// storeFileDocumentsDirectly implements the new direct file storage pipeline.
+// storeFileDocumentsDirectly implements the new direct file storage pipeline using DocumentChunk class.
 func (s *StorageImpl) storeFileDocumentsDirectly(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
 	s.logger.Info("Processing file documents directly", "count", len(documents))
 
-	// Step 1: Chunk documents (reuse existing logic)
-	var chunks []memory.Document
+	// Step 1: Store original documents first
 	for _, doc := range documents {
-		docChunks := doc.Chunk()
-		chunks = append(chunks, docChunks...)
+		_, err := s.storage.UpsertDocument(ctx, doc)
+		if err != nil {
+			return fmt.Errorf("storing original document %s: %w", doc.ID(), err)
+		}
 	}
 
-	s.logger.Info("Chunked file documents", "original_count", len(documents), "chunk_count", len(chunks))
+	// Step 2: Chunk documents (reuse existing logic)
+	var allChunks []memory.Document
+	for _, doc := range documents {
+		docChunks := doc.Chunk()
+		allChunks = append(allChunks, docChunks...)
+	}
 
-	// Step 2: Convert chunks to MemoryFact objects (no LLM extraction)
-	var facts []*memory.MemoryFact
-	for _, chunk := range chunks {
-		// Extract filename from metadata for natural subject
-		subject := "document"
-		if filename, exists := chunk.Metadata()["path"]; exists {
-			// Use just the filename, not the full path
-			if lastSlash := strings.LastIndex(filename, "/"); lastSlash != -1 {
-				subject = filename[lastSlash+1:]
-			} else {
-				subject = filename
+	s.logger.Info("Chunked file documents", "original_count", len(documents), "chunk_count", len(allChunks))
+
+	// Step 3: Convert document chunks to DocumentChunk objects (not MemoryFacts!)
+	var documentChunks []*storage.DocumentChunk
+	for i, chunk := range allChunks {
+		// Extract file path from metadata
+		filePath := ""
+		if path, exists := chunk.Metadata()["path"]; exists {
+			filePath = path
+		}
+
+		// Extract chunk index from metadata (set during chunking process)
+		chunkIndex := i
+		if chunkNumStr, exists := chunk.Metadata()["_enchanted_chunk_number"]; exists {
+			if chunkNum, err := strconv.Atoi(chunkNumStr); err == nil {
+				chunkIndex = chunkNum
 			}
 		}
 
-		fact := &memory.MemoryFact{
-			ID:      "",              // Let Weaviate auto-generate UUID for file chunks
-			Content: chunk.Content(), // Direct content as searchable text
-			Timestamp: func() time.Time {
-				if chunk.Timestamp() != nil {
-					return *chunk.Timestamp()
-				}
-				return time.Now()
-			}(),
-			// Structured fields for file documents
-			Category:           "document",      // Mark as document type
-			Subject:            subject,         // Use filename as subject
-			Attribute:          "file_chunk",    // Attribute is file_chunk
-			Value:              chunk.Content(), // Value is the actual content
-			TemporalContext:    nil,             // No temporal context for files
-			Sensitivity:        "low",           // Files are typically low sensitivity
-			Importance:         1,               // Default importance
-			Source:             chunk.Source(),
-			DocumentReferences: []string{}, // No document references for direct storage
-			Tags:               chunk.Tags(),
-			Metadata:           chunk.Metadata(),
+		// Get original document ID from metadata
+		originalDocumentID := ""
+		if origID, exists := chunk.Metadata()["_enchanted_original_document_id"]; exists {
+			originalDocumentID = origID
 		}
-		facts = append(facts, fact)
+
+		documentChunk := &storage.DocumentChunk{
+			ID:                 "",                 // Let Weaviate auto-generate UUID
+			Content:            chunk.Content(),    // Chunk content for semantic search
+			ChunkIndex:         chunkIndex,         // Position within document
+			OriginalDocumentID: originalDocumentID, // Reference to original document
+			Source:             chunk.Source(),     // Source type (e.g., "file")
+			FilePath:           filePath,           // File path for filtering
+			Tags:               chunk.Tags(),       // Tags from original document
+			Metadata:           chunk.Metadata(),   // Preserve all metadata
+			CreatedAt:          time.Now(),         // When chunk was created
+		}
+		documentChunks = append(documentChunks, documentChunk)
 	}
 
-	s.logger.Info("Converted file chunks to memory facts", "fact_count", len(facts))
+	s.logger.Info("Converted document chunks to DocumentChunk objects", "chunk_count", len(documentChunks))
 
-	// Step 3: Store using existing fact storage pipeline (includes embeddings)
-	err := s.StoreFactsDirectly(ctx, facts, callback)
+	// Step 4: Store document chunks in the separate DocumentChunk class
+	err := s.storage.StoreDocumentChunksBatch(ctx, documentChunks)
 	if err != nil {
-		return fmt.Errorf("storing file facts: %w", err)
+		return fmt.Errorf("storing document chunks: %w", err)
+	}
+
+	// Update progress callback for file chunks
+	if callback != nil {
+		callback(len(documentChunks), len(documentChunks))
 	}
 
 	// 🚀 FILE UPLOAD CONSOLIDATION - Only run for file uploads, not chat messages
@@ -560,7 +581,37 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, filter *memory.Filter) (*memory.IntelligentQueryResult, error) {
 	s.logger.Info("Starting intelligent query", "query", queryText)
 
-	// Stage 1: Find relevant consolidated insights
+	// PARALLEL EXECUTION: Start DocumentChunk search alongside MemoryFact stages
+	type documentChunkResult struct {
+		chunks []*storage.DocumentChunk
+		err    error
+	}
+
+	documentChunkCh := make(chan documentChunkResult, 1)
+	go func() {
+		defer close(documentChunkCh)
+
+		// DocumentChunk search - runs independently in parallel
+		documentChunkFilter := &memory.Filter{
+			Distance: 0.85, // More permissive for document content search
+			Limit:    func() *int { limit := 10; return &limit }(),
+		}
+
+		// Copy user filter settings
+		if filter != nil {
+			if filter.Source != nil {
+				documentChunkFilter.Source = filter.Source
+			}
+			if filter.Subject != nil {
+				documentChunkFilter.Subject = filter.Subject
+			}
+		}
+
+		chunks, err := s.storage.QueryDocumentChunks(ctx, queryText, documentChunkFilter)
+		documentChunkCh <- documentChunkResult{chunks: chunks, err: err}
+	}()
+
+	// Stage 1: Find relevant consolidated insights (MemoryFact class only)
 	consolidatedFilter := &memory.Filter{
 		Distance: 0.7,
 		Limit:    func() *int { limit := 10; return &limit }(),
@@ -670,19 +721,47 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 
 	s.logger.Info("Stage 3 completed", "additional_context", len(additionalContext))
 
+	// Collect parallel DocumentChunk results
+	documentChunkRes := <-documentChunkCh
+	var memoryDocumentChunks []memory.DocumentChunk
+
+	if documentChunkRes.err != nil {
+		s.logger.Warn("Parallel document chunk query failed", "error", documentChunkRes.err)
+	} else {
+		// Convert storage.DocumentChunk to memory.DocumentChunk
+		for _, chunk := range documentChunkRes.chunks {
+			memoryChunk := memory.DocumentChunk{
+				ID:                 chunk.ID,
+				Content:            chunk.Content,
+				ChunkIndex:         chunk.ChunkIndex,
+				OriginalDocumentID: chunk.OriginalDocumentID,
+				Source:             chunk.Source,
+				FilePath:           chunk.FilePath,
+				Tags:               chunk.Tags,
+				Metadata:           chunk.Metadata,
+				CreatedAt:          chunk.CreatedAt,
+			}
+			memoryDocumentChunks = append(memoryDocumentChunks, memoryChunk)
+		}
+	}
+
+	s.logger.Info("Parallel DocumentChunk search completed", "document_chunks", len(memoryDocumentChunks))
+
 	// Build result using memory package types
 	result := &memory.IntelligentQueryResult{
 		Query:                queryText,
 		ConsolidatedInsights: consolidatedResults.Facts,
 		CitedEvidence:        citedFacts,
 		AdditionalContext:    additionalContext,
+		DocumentChunks:       memoryDocumentChunks,
 		Metadata: memory.QueryMetadata{
 			QueriedAt:                time.Now().Format(time.RFC3339),
 			ConsolidatedInsightCount: len(consolidatedResults.Facts),
 			CitedEvidenceCount:       len(citedFacts),
 			AdditionalContextCount:   len(additionalContext),
-			TotalResults:             len(consolidatedResults.Facts) + len(citedFacts) + len(additionalContext),
-			QueryStrategy:            "3-stage-intelligent",
+			DocumentChunkCount:       len(memoryDocumentChunks),
+			TotalResults:             len(consolidatedResults.Facts) + len(citedFacts) + len(additionalContext) + len(memoryDocumentChunks),
+			QueryStrategy:            "3-stage-intelligent-with-parallel-chunks", // MemoryFact stages + parallel DocumentChunk
 		},
 	}
 
@@ -691,6 +770,7 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 		"insights", len(result.ConsolidatedInsights),
 		"evidence", len(result.CitedEvidence),
 		"context", len(result.AdditionalContext),
+		"chunks", len(result.DocumentChunks),
 		"total", result.Metadata.TotalResults)
 
 	return result, nil
