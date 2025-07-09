@@ -37,7 +37,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
         ),
         pre: ({ className, children, ...props }) => (
           <pre
-            className={`w-full bg-accent max-w-full overflow-x-auto rounded-md border border-border p-2 ${className || ''}`}
+            className={`w-full bg-muted/40 max-w-full overflow-x-auto rounded-md border border-border p-2 ${className || ''}`}
             {...props}
           >
             {children}
@@ -45,7 +45,10 @@ export default function Markdown({ children }: { children: string; isChat?: bool
         ),
         code: ({ className, children, ...props }) => {
           return (
-            <code className={`rounded bg-accent px-1 py-0.5 text-sm ${className || ''}`} {...props}>
+            <code
+              className={`rounded bg-muted/40 px-1 py-0.5 text-sm ${className || ''}`}
+              {...props}
+            >
               {children}
             </code>
           )
@@ -83,7 +86,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
           </div>
         ),
         thead: ({ children, ...props }) => (
-          <thead className="bg-accent" {...props}>
+          <thead className="bg-muted/40" {...props}>
             {children}
           </thead>
         ),
