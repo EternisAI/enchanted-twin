@@ -16,7 +16,50 @@ export default function LocalFolderSync() {
   const { data, refetch } = useQuery(GetTrackedFoldersDocument)
   const [addTrackedFolder] = useMutation(AddTrackedFolderDocument)
   const [deleteTrackedFolder] = useMutation(DeleteTrackedFolderDocument)
+  const [isSelecting, setIsSelecting] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+
+  const handleSelectDirectory = async () => {
+    setIsSelecting(true)
+    try {
+      const result = await window.api.selectDirectory()
+
+      if (!result.canceled && result.filePaths.length > 0) {
+        const folderPath = result.filePaths[0] // selectDirectory returns array with single path
+        await addFolder(folderPath)
+      }
+    } catch (error) {
+      console.error('Error selecting directory:', error)
+    } finally {
+      setIsSelecting(false)
+    }
+  }
+
+  const addFolder = async (folderPath: string) => {
+    const existingPaths = data?.getTrackedFolders?.map((folder) => folder.path) || []
+
+    if (existingPaths.includes(folderPath)) {
+      console.log('Folder already tracked:', folderPath)
+      return
+    }
+
+    console.log('Adding folder:', folderPath)
+
+    try {
+      await addTrackedFolder({
+        variables: {
+          input: {
+            path: folderPath,
+            name: folderPath.split('/').pop() || 'Untitled Folder'
+          }
+        }
+      })
+      console.log(`Successfully added folder: ${folderPath}`)
+      refetch()
+    } catch (error) {
+      console.error('Error adding tracked folder:', error)
+    }
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -40,47 +83,47 @@ export default function LocalFolderSync() {
     const items = Array.from(e.dataTransfer.items)
     const folderPaths: string[] = []
 
-    const existingPaths = data?.getTrackedFolders?.map((folder) => folder.path) || []
-
     for (const item of items) {
       if (item.kind === 'file') {
-        if ('webkitGetAsEntry' in item) {
-          const entry = item.webkitGetAsEntry?.()
-          if (entry && entry.isDirectory) {
-            const fullPath = entry.fullPath
-            const normalizedPath = fullPath.startsWith('/') ? fullPath.slice(1) : fullPath
-            if (!existingPaths.includes(normalizedPath)) {
-              folderPaths.push(normalizedPath)
+        // Get the file object to access the full path
+        const file = item.getAsFile()
+        if (file) {
+          try {
+            // Use the Electron API to get the full path
+            const fullPath = window.api.getPathForFile(file)
+            if (fullPath) {
+              console.log(
+                'Dropped file:',
+                file.name,
+                'Path:',
+                fullPath,
+                'Size:',
+                file.size,
+                'Type:',
+                file.type
+              )
+
+              // For folders dragged from Finder/Explorer, the file object often represents the folder itself
+              // We'll add all dropped items and let the backend handle directory validation
+              folderPaths.push(fullPath)
             }
+          } catch (error) {
+            console.error('Error getting path for file:', error)
           }
         }
       }
     }
 
     if (folderPaths.length === 0) {
-      console.log('No new folders to add')
+      console.log('No folders to add')
       return
     }
 
     console.log('Adding folders:', folderPaths)
 
     for (const path of folderPaths) {
-      try {
-        await addTrackedFolder({
-          variables: {
-            input: {
-              path,
-              name: path.split('/').pop() || 'Untitled Folder'
-            }
-          }
-        })
-        console.log(`Successfully added folder: ${path}`)
-      } catch (error) {
-        console.error('Error adding tracked folder:', error)
-      }
+      await addFolder(path)
     }
-
-    refetch()
   }
 
   const handleDeleteFolder = async (id: string) => {
@@ -119,7 +162,7 @@ export default function LocalFolderSync() {
         <CardContent>
           <div
             className={cn(
-              'flex flex-col gap-2 p-6 rounded-lg border-2 border-dashed transition-all duration-200 cursor-pointer',
+              'flex flex-col gap-4 p-6 rounded-lg border-2 border-dashed transition-all duration-200',
               isDragOver
                 ? 'border-primary bg-primary/5 scale-[1.02]'
                 : 'border-border bg-card dark:bg-muted'
@@ -148,10 +191,20 @@ export default function LocalFolderSync() {
                   {isDragOver ? 'Drop your folder here' : 'Drag & drop folders here'}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Drop folders to automatically sync and track changes
+                  Drop folders or click the button below to select folders
                 </p>
               </div>
             </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-border"></div>
+              <span className="text-xs text-muted-foreground px-2">or</span>
+              <div className="flex-1 h-px bg-border"></div>
+            </div>
+
+            <Button onClick={handleSelectDirectory} disabled={isSelecting} className="w-full">
+              {isSelecting ? 'Selecting...' : 'Select Folder'}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -179,7 +232,7 @@ export default function LocalFolderSync() {
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-muted-foreground mb-2">
-                      /{truncatePath(folder.path)}
+                      {truncatePath(folder.path)}
                     </p>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -218,10 +271,12 @@ export default function LocalFolderSync() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="text-center py-8 justify-center flex flex-col items-center gap-2 text-muted-foreground">
             <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No folders connected yet</p>
-            <p className="text-sm">Drag and drop folders above to get started</p>
+            <p className="text-sm">
+              Drag and drop folders or click the button above to get started
+            </p>
           </div>
         )}
       </div>

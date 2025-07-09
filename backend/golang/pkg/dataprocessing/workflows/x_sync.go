@@ -140,7 +140,7 @@ func (w *DataProcessingWorkflows) XFetchActivity(
 		return XFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for X")
 	}
 	w.Logger.Debug("XFetchActivity", "tokens", tokens)
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Memory, w.Logger)
 	records, err := dataprocessingService.Sync(ctx, "x", tokens.AccessToken)
 	if err != nil {
 		return XFetchActivityResponse{}, err
@@ -158,7 +158,7 @@ func (w *DataProcessingWorkflows) XIndexActivity(
 	ctx context.Context,
 	input XIndexActivityInput,
 ) (XIndexActivityResponse, error) {
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Memory, w.Logger)
 	documents, err := dataprocessingService.ToDocuments(ctx, "x", input.Records)
 	if err != nil {
 		return XIndexActivityResponse{}, err
