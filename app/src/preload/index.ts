@@ -195,6 +195,10 @@ const api = {
     initialize: () => ipcRenderer.invoke('go-server:initialize'),
     cleanup: () => ipcRenderer.invoke('go-server:cleanup'),
     getStatus: () => ipcRenderer.invoke('go-server:status')
+  },
+  tts: {
+    generate: (text: string, firebaseToken: string) =>
+      ipcRenderer.invoke('tts:generate', text, firebaseToken)
   }
 }
 

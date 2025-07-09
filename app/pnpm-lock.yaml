@@ -125,6 +125,9 @@ importers:
       node-machine-id:
         specifier: ^1.1.12
         version: 1.1.12
+      openai:
+        specifier: ^5.8.3
+        version: 5.8.3(ws@8.18.1)(zod@3.24.2)
       posthog-node:
         specifier: ^4.17.1
         version: 4.17.1
@@ -4908,6 +4911,18 @@ packages:
   onetime@5.1.2:
     resolution: {integrity: sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==}
     engines: {node: '>=6'}
+
+  openai@5.8.3:
+    resolution: {integrity: sha512-IdotKmquCnpouTRvF9xRXVhMx6K5Sc8zkD6Usf+so+NTQ+qiJ8bLSCd7LBb8b/Rof7uYltlSxJhNp+spphKI4Q==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
 
   optimism@0.18.1:
     resolution: {integrity: sha512-mLXNwWPa9dgFyDqkNi54sjDyNJ9/fTI6WGBLgnXku1vdKY/jovHfZT5r+aiVeFFLOz+foPNOm5YJ4mqgld2GBQ==}
@@ -11979,6 +11994,11 @@ snapshots:
   onetime@5.1.2:
     dependencies:
       mimic-fn: 2.1.0
+
+  openai@5.8.3(ws@8.18.1)(zod@3.24.2):
+    optionalDependencies:
+      ws: 8.18.1
+      zod: 3.24.2
 
   optimism@0.18.1:
     dependencies:

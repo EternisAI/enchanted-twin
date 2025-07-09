@@ -23,6 +23,7 @@ import {
 import { downloadDependency, hasDependenciesDownloaded } from './dependenciesDownload'
 import { DependencyName } from './types/dependencies'
 import { initializeGoServer, cleanupGoServer, isGoServerRunning } from './goServer'
+import { generateTTS } from './ttsManager'
 
 const PATHNAME = 'input_data'
 
@@ -644,6 +645,26 @@ export function registerIpcHandlers() {
       success: true,
       isRunning,
       message: isRunning ? 'Go server is running' : 'Go server is not running'
+    }
+  })
+
+  ipcMain.handle('tts:generate', async (_, text: string, firebaseToken: string) => {
+    try {
+      const audioBuffer = await generateTTS(text, firebaseToken)
+
+      if (!audioBuffer) {
+        return { success: false, error: 'Failed to generate TTS' }
+      }
+
+      // Convert ArrayBuffer to Buffer for IPC transmission
+      const buffer = Buffer.from(audioBuffer)
+      return { success: true, audioBuffer: buffer }
+    } catch (error) {
+      log.error('[TTS] IPC handler error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
     }
   })
 }

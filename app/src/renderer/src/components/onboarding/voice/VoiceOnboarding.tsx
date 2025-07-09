@@ -10,6 +10,7 @@ import {
   DeleteChatDocument,
   Message,
   Role,
+  SendMessageDocument,
   UpdateProfileDocument
 } from '@renderer/graphql/generated/graphql'
 import { OnboardingVoiceAnimation, OnboardingDoneAnimation } from './Animations'
@@ -24,6 +25,8 @@ import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
 import { getMockFrequencyData } from '@renderer/lib/utils'
+import MessageInput from '@renderer/components/chat/MessageInput'
+import { auth } from '@renderer/lib/firebase'
 
 export default function VoiceOnboardingContainer() {
   const navigate = useNavigate()
@@ -66,9 +69,6 @@ function VoiceOnboarding() {
   const navigate = useNavigate()
   // const { speak, stop, isSpeaking, getFreqData, speakWithEvents } = useTTS()
 
-  // const [stepIdx, setStepIdx] = useState(0)
-  // const [answers, setAnswers] = useState<string[]>([])
-
   const [lastMessage, setLastMessage] = useState<Message | null>(null)
   const [lastAgentMessage, setLastAgentMessage] = useState<Message | null>({
     id: '1',
@@ -87,8 +87,81 @@ function VoiceOnboarding() {
   const [createChat] = useMutation(CreateChatDocument)
   const [updateProfile] = useMutation(UpdateProfileDocument)
   const [deleteChat] = useMutation(DeleteChatDocument)
+  const [sendMessage] = useMutation(SendMessageDocument)
   const { isLiveKitSessionReady } = useDependencyStatus()
   const { isAgentSpeaking } = useVoiceAgent()
+  const [isTTSPlaying, setIsTTSPlaying] = useState(false)
+
+  const handleSendMessage = async (text: string) => {
+    console.log('[TTS] Generating speech for text:', text)
+
+    try {
+      const result = await sendMessage({
+        variables: {
+          chatId,
+          text,
+          reasoning: false,
+          voice: true
+        }
+      })
+
+      console.log('result!!', result)
+
+      const firebaseToken = await auth.currentUser?.getIdToken()
+
+      if (!firebaseToken) {
+        console.error('[TTS] No Firebase token available')
+        return
+      }
+
+      const ttsResult = await window.api.tts.generate(
+        result.data?.sendMessage.text || '',
+        firebaseToken
+      )
+
+      if (!ttsResult.success) {
+        console.error('[TTS] Failed to generate TTS:', ttsResult.error)
+        return
+      }
+
+      if (!ttsResult.audioBuffer) {
+        console.error('[TTS] No audio buffer returned')
+        return
+      }
+
+      const audioBlob = new Blob([ttsResult.audioBuffer], { type: 'audio/mpeg' })
+
+      if (audioBlob) {
+        console.log('[TTS] Successfully generated audio, size:', audioBlob.size)
+        const audioUrl = URL.createObjectURL(audioBlob)
+        const audio = new Audio(audioUrl)
+
+        audio.addEventListener('loadeddata', () => {
+          console.log('[TTS] Audio loaded, duration:', audio.duration)
+        })
+
+        audio.addEventListener('ended', () => {
+          console.log('[TTS] Audio playback finished')
+          URL.revokeObjectURL(audioUrl) // Clean up object URL
+          setIsTTSPlaying(false)
+        })
+
+        audio.addEventListener('error', (e) => {
+          console.error('[TTS] Audio playback error:', e)
+          URL.revokeObjectURL(audioUrl)
+        })
+
+        await audio.play()
+
+        setIsTTSPlaying(true)
+        console.log('[TTS] Started audio playback')
+      } else {
+        console.error('[TTS] Failed to generate audio')
+      }
+    } catch (error) {
+      console.error('[TTS] Error in handleSendMessage:', error)
+    }
+  }
 
   useEffect(() => {
     const initiateVoiceOnboarding = async () => {
@@ -170,7 +243,10 @@ function VoiceOnboarding() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease: 'easeOut', delay: 0.4 }}
       >
-        <OnboardingVoiceAnimation run={isAgentSpeaking} getFreqData={getMockFrequencyData} />
+        <OnboardingVoiceAnimation
+          run={isAgentSpeaking || isTTSPlaying}
+          getFreqData={getMockFrequencyData}
+        />
       </motion.div>
 
       {isLiveKitSessionReady ? (
@@ -206,7 +282,15 @@ function VoiceOnboarding() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: 'easeOut', delay: 0.8 }}
               className="z-1 relative"
-            ></motion.div>
+            >
+              <MessageInput
+                onSend={handleSendMessage}
+                isWaitingTwinResponse={isTTSPlaying}
+                isReasonSelected={false}
+                voiceMode
+                onStop={() => {}}
+              />
+            </motion.div>
           </div>
         </>
       ) : (

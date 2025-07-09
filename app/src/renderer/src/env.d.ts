@@ -161,6 +161,16 @@ interface IApi {
     cleanup: () => Promise<{ success: boolean; error?: string }>
     getStatus: () => Promise<{ success: boolean; isRunning: boolean; message: string }>
   }
+  tts: {
+    generate: (
+      text: string,
+      firebaseToken: string
+    ) => Promise<{
+      success: boolean
+      audioBuffer?: Buffer
+      error?: string
+    }>
+  }
 }
 
 interface ScreenpipeStatus {
