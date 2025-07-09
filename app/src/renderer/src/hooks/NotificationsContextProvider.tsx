@@ -27,7 +27,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   })
 
   useEffect(() => {
-    console.log('setting up deep link listener')
     window.api.onDeepLink((url) => {
       // Backend Notification format: twin://chat/{chatId}
       const match = url.match(/twin:\/\/chat\/(.+)/)

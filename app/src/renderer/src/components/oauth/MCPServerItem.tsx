@@ -28,6 +28,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import { Check, ComputerIcon, PlugIcon, Trash2 } from 'lucide-react'
 import icon from '../../../../../resources/icon.png'
 import IconContainer from '@renderer/assets/icons/IconContainer'
+import freysaIcon from '../../../../../resources/freysa.jpg'
 
 const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
   GOOGLE: {
@@ -46,7 +47,8 @@ const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> =
   },
   SCREENPIPE: { provider: 'screenpipe', scope: '' },
   OTHER: { provider: 'other', scope: '' },
-  ENCHANTED: { provider: 'enchanted', scope: '' }
+  ENCHANTED: { provider: 'enchanted', scope: '' },
+  FREYSA: { provider: 'freysa', scope: '' }
 }
 
 const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
@@ -63,7 +65,8 @@ const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
     </IconContainer>
   ),
   OTHER: <PlugIcon className="w-10 h-10" />,
-  ENCHANTED: <img src={icon} alt="Enchanted" className="w-10 h-10" />
+  ENCHANTED: <img src={icon} alt="Enchanted" className="w-10 h-10" />,
+  FREYSA: <img src={freysaIcon} alt="Freysa" className="w-6 h-6 rounded" />
 }
 
 interface MCPServerItemProps {
@@ -93,9 +96,9 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
       variables: {
         input: {
           name: server.name,
-          command: 'npx',
-          args: [],
-          envs: [],
+          command: server.command || 'npx',
+          args: server.args || [],
+          envs: server.envs || [],
           type: server.type
         }
       }
@@ -108,7 +111,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   async function handleOAuthFlow(
-    serverType: string,
+    serverType: McpServerType,
     startOAuthFlow: MutationFunction<StartOAuthFlowMutation, StartOAuthFlowMutationVariables>
   ) {
     try {
@@ -140,13 +143,16 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   const handleEnableToolsToggle = async (enabled: boolean) => {
-    // Enchanted and Screenpipe are handled by the backend without OAuth
-    if (server.type === McpServerType.Enchanted || server.type === McpServerType.Screenpipe) {
+    if (
+      server.type === McpServerType.Enchanted ||
+      server.type === McpServerType.Screenpipe ||
+      server.type === McpServerType.Freysa
+    ) {
       handleConnectMcpServer()
       return
     }
 
-    if (server.type === 'OTHER') {
+    if (server.type === McpServerType.Other) {
       setShowEnvInputs(enabled)
       return
     }
@@ -158,9 +164,10 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
 
   useEffect(() => {
     if (
-      server.type === 'OTHER' ||
+      server.type === McpServerType.Other ||
       server.type === McpServerType.Enchanted ||
-      server.type === McpServerType.Screenpipe
+      server.type === McpServerType.Screenpipe ||
+      server.type === McpServerType.Freysa
     )
       return
 
@@ -222,7 +229,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
               Connect
             </Button>
           )}
-          {(server.type === 'OTHER' || server.connected) && onRemove && (
+          {(server.type === McpServerType.Other || server.connected) && onRemove && (
             <AlertDialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
               <AlertDialogTrigger asChild>
                 <TooltipProvider>
