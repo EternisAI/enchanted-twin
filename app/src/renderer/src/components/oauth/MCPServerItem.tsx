@@ -155,7 +155,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
 
   return (
     <div className="p-4 w-full">
-      <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-5">
+      <div className="font-semibold text-lg flex flex-wrap items-center justify-between flex-row gap-5">
         <div className="flex items-center gap-5">
           <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center">
             {PROVIDER_ICON_MAP[server.type]}

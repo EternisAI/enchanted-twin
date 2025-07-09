@@ -13,9 +13,9 @@ export const Route = createFileRoute('/settings/data-sources')({
 
 function ImportDataSettings() {
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="flex flex-col gap-4 w-full">
-        <Header />
+    <div className="p-4 sm:p-8 w-full flex flex-col items-center justify-center">
+      <div className="flex flex-col w-full max-w-3xl">
+        <Content />
       </div>
     </div>
   )
@@ -23,10 +23,15 @@ function ImportDataSettings() {
 
 // Tabs: Available, Local Files, Connected
 
-function Header() {
+function Content() {
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-4xl font-semibold">Data Sources</h2>
+      <div className="flex flex-row gap-2 w-full items-center justify-between">
+        <h2 className="text-4xl font-semibold">Data Sources</h2>
+        <div className="block sm:hidden">
+          <ConnectMCPServerButton onSuccess={() => {}} />
+        </div>
+      </div>
       <Tabs defaultValue="available">
         <div className="flex flex-row gap-2 w-full items-center justify-between pb-10">
           <TabsList>
@@ -40,11 +45,16 @@ function Header() {
               <PlugIcon className="w-4 h-4" /> Connected
             </TabsTrigger>
           </TabsList>
-          <ConnectMCPServerButton onSuccess={() => {}} />
+          <div className="hidden sm:block">
+            <ConnectMCPServerButton onSuccess={() => {}} />
+          </div>
         </div>
         <TabsContent value="available">
           <div className="flex flex-col gap-15">
             <MCPPanel />
+            <header className="flex flex-col gap-2 border-b pb-3">
+              <h2 className="text-2xl font-bold leading-none">Imports & Takeouts</h2>
+            </header>
             <DataSourcesPanel />
           </div>
         </TabsContent>

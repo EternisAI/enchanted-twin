@@ -351,10 +351,6 @@ export function DataSourcesPanel({
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl">
-      <header className="flex flex-col gap-2 border-b pb-3">
-        <h2 className="text-2xl font-bold leading-none">Imports & Takeouts</h2>
-      </header>
-
       <div className="flex flex-col gap-4">
         {SUPPORTED_DATA_SOURCES.map((source) => (
           <UnifiedDataSourceCard
