@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/param"
 )
 
 func TestPrivateCompletionsMockAnonymizer(t *testing.T) {
@@ -357,4 +358,234 @@ func TestPrivateCompletionsE2EAnonymizationFlow(t *testing.T) {
 	t.Log("  3. Response was de-anonymized before user")
 	t.Log("  4. Replacement rules preserved for full round-trip")
 	t.Log("  5. Full system integration through microscheduler worked")
+}
+
+func TestPrivateCompletionsE2EWithToolCalls(t *testing.T) {
+	logger := log.New(nil)
+
+	// Reset singleton to ensure clean state
+	ResetMockAnonymizerForTesting()
+	anonymizer := InitMockAnonymizer(0, true, logger) // No delay for faster test
+
+	// Create capturing mock that will record what the LLM sees and responds with tool calls
+	mockLLM := &capturingMockCompletionsService{
+		response: openai.ChatCompletionMessage{
+			Content: "I'll help you find information about PERSON_001 at COMPANY_001.",
+			ToolCalls: []openai.ChatCompletionMessageToolCall{
+				{
+					ID:   "call_001",
+					Type: "function",
+					Function: openai.ChatCompletionMessageToolCallFunction{
+						Name:      "search_employee",
+						Arguments: `{"name": "PERSON_001", "company": "COMPANY_001", "location": "LOCATION_006"}`,
+					},
+				},
+			},
+		},
+	}
+
+	// Create private completions service with our mocks
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: mockLLM,
+		Anonymizer:         anonymizer,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create private service: %v", err)
+	}
+	defer privateService.Shutdown()
+
+	ctx := context.Background()
+
+	// Original user message containing sensitive information
+	originalMessage := "Please search for John Smith who works at OpenAI in San Francisco"
+
+	// Define tool that LLM can use - with sensitive info in the tool definition
+	tools := []openai.ChatCompletionToolParam{
+		{
+			Type: "function",
+			Function: openai.FunctionDefinitionParam{
+				Name:        "search_employee",
+				Description: param.Opt[string]{Value: "Search for employee information"},
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"name": map[string]interface{}{
+							"type":        "string",
+							"description": "Employee name (e.g., John Smith)",
+						},
+						"company": map[string]interface{}{
+							"type":        "string",
+							"description": "Company name (e.g., OpenAI)",
+						},
+						"location": map[string]interface{}{
+							"type":        "string",
+							"description": "Location (e.g., San Francisco)",
+						},
+					},
+					"required": []string{"name", "company"},
+				},
+			},
+		},
+	}
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(originalMessage),
+	}
+
+	// Execute the full e2e flow with tool calls
+	result, err := privateService.Completions(ctx, messages, tools, "test-model", Background)
+	if err != nil {
+		t.Fatalf("Private completions failed: %v", err)
+	}
+
+	// === VERIFICATION 1: Original message was anonymized before sending to LLM ===
+	if len(mockLLM.capturedMessages) != 1 {
+		t.Fatalf("Expected 1 message sent to LLM, got %d", len(mockLLM.capturedMessages))
+	}
+
+	// Extract the content that was sent to the LLM
+	sentToLLMBytes, err := json.Marshal(mockLLM.capturedMessages[0])
+	if err != nil {
+		t.Fatalf("Failed to marshal captured message: %v", err)
+	}
+
+	var sentToLLMMap map[string]interface{}
+	if err := json.Unmarshal(sentToLLMBytes, &sentToLLMMap); err != nil {
+		t.Fatalf("Failed to unmarshal captured message: %v", err)
+	}
+
+	anonymizedContent, ok := sentToLLMMap["content"].(string)
+	if !ok {
+		t.Fatalf("Expected string content in captured message")
+	}
+
+	// Verify that sensitive data was anonymized in what was sent to LLM
+	if strings.Contains(anonymizedContent, "John") {
+		t.Errorf("LLM received un-anonymized name 'John': %s", anonymizedContent)
+	}
+	if strings.Contains(anonymizedContent, "OpenAI") {
+		t.Errorf("LLM received un-anonymized company 'OpenAI': %s", anonymizedContent)
+	}
+	if strings.Contains(anonymizedContent, "San Francisco") {
+		t.Errorf("LLM received un-anonymized location 'San Francisco': %s", anonymizedContent)
+	}
+
+	// Verify that anonymized tokens were used instead
+	if !strings.Contains(anonymizedContent, "PERSON_001") {
+		t.Errorf("LLM did not receive anonymized name token 'PERSON_001': %s", anonymizedContent)
+	}
+	if !strings.Contains(anonymizedContent, "COMPANY_001") {
+		t.Errorf("LLM did not receive anonymized company token 'COMPANY_001': %s", anonymizedContent)
+	}
+	if !strings.Contains(anonymizedContent, "LOCATION_006") {
+		t.Errorf("LLM did not receive anonymized location token 'LOCATION_006': %s", anonymizedContent)
+	}
+
+	t.Logf("Original message: %s", originalMessage)
+	t.Logf("Anonymized sent to LLM: %s", anonymizedContent)
+
+	// === VERIFICATION 2: LLM response content was de-anonymized ===
+	finalResponse := result.Message.Content
+
+	// Verify that the response content was de-anonymized
+	if strings.Contains(finalResponse, "PERSON_001") {
+		t.Errorf("Final response still contains anonymized token 'PERSON_001': %s", finalResponse)
+	}
+	if strings.Contains(finalResponse, "COMPANY_001") {
+		t.Errorf("Final response still contains anonymized token 'COMPANY_001': %s", finalResponse)
+	}
+
+	// Verify that original terms were restored in response content
+	if !strings.Contains(finalResponse, "John") {
+		t.Errorf("Final response missing de-anonymized name 'John': %s", finalResponse)
+	}
+	if !strings.Contains(finalResponse, "OpenAI") {
+		t.Errorf("Final response missing de-anonymized company 'OpenAI': %s", finalResponse)
+	}
+
+	t.Logf("Final de-anonymized response: %s", finalResponse)
+
+	// === VERIFICATION 3: Tool calls were present and arguments were de-anonymized ===
+	if len(result.Message.ToolCalls) == 0 {
+		t.Fatalf("Expected tool calls in response, got none")
+	}
+
+	toolCall := result.Message.ToolCalls[0]
+	if toolCall.Function.Name != "search_employee" {
+		t.Errorf("Expected tool call name 'search_employee', got '%s'", toolCall.Function.Name)
+	}
+
+	// Parse the tool call arguments
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+		t.Fatalf("Failed to unmarshal tool call arguments: %v", err)
+	}
+
+	// Verify that tool call arguments were de-anonymized
+	if name, ok := args["name"].(string); ok {
+		if name != "John" {
+			t.Errorf("Expected de-anonymized name 'John' in tool call, got '%s'", name)
+		}
+		if strings.Contains(name, "PERSON_001") {
+			t.Errorf("Tool call arguments still contain anonymized token 'PERSON_001': %s", name)
+		}
+	} else {
+		t.Error("Expected 'name' field in tool call arguments")
+	}
+
+	if company, ok := args["company"].(string); ok {
+		if company != "OpenAI" {
+			t.Errorf("Expected de-anonymized company 'OpenAI' in tool call, got '%s'", company)
+		}
+		if strings.Contains(company, "COMPANY_001") {
+			t.Errorf("Tool call arguments still contain anonymized token 'COMPANY_001': %s", company)
+		}
+	} else {
+		t.Error("Expected 'company' field in tool call arguments")
+	}
+
+	if location, ok := args["location"].(string); ok {
+		if location != "San Francisco" {
+			t.Errorf("Expected de-anonymized location 'San Francisco' in tool call, got '%s'", location)
+		}
+		if strings.Contains(location, "LOCATION_006") {
+			t.Errorf("Tool call arguments still contain anonymized token 'LOCATION_006': %s", location)
+		}
+	} else {
+		t.Error("Expected 'location' field in tool call arguments")
+	}
+
+	t.Logf("Tool call arguments: %s", toolCall.Function.Arguments)
+
+	// === VERIFICATION 4: Replacement rules were captured correctly ===
+	if len(result.ReplacementRules) == 0 {
+		t.Error("Expected replacement rules to be returned, got none")
+	}
+
+	expectedRules := map[string]string{
+		"PERSON_001":   "John",
+		"COMPANY_001":  "OpenAI",
+		"LOCATION_006": "San Francisco",
+	}
+
+	for token, expectedOriginal := range expectedRules {
+		if actual, exists := result.ReplacementRules[token]; !exists {
+			t.Errorf("Missing replacement rule for token '%s'", token)
+		} else if actual != expectedOriginal {
+			t.Errorf("Wrong replacement rule for '%s': expected '%s', got '%s'", token, expectedOriginal, actual)
+		}
+	}
+
+	t.Logf("Replacement rules: %v", result.ReplacementRules)
+
+	// === VERIFICATION 5: End-to-end privacy guarantee with tool calls ===
+	t.Log("E2E Privacy Verification with Tool Calls PASSED:")
+	t.Log("  1. Sensitive data was anonymized before LLM")
+	t.Log("  2. LLM only saw anonymized tokens")
+	t.Log("  3. Response content was de-anonymized before user")
+	t.Log("  4. Tool call arguments were de-anonymized before user")
+	t.Log("  5. Replacement rules preserved for full round-trip")
+	t.Log("  6. Tool calls work correctly with anonymization/deanonymization")
 }
