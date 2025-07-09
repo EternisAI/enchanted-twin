@@ -154,7 +154,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }, [completeOAuthFlow, server.name, server.type, onConnect, authStateId])
 
   return (
-    <div className="p-4 w-full">
+    <div className="p-4 w-full hover:bg-muted rounded-md">
       <div className="font-semibold text-lg flex flex-wrap items-center justify-between flex-row gap-5">
         <div className="flex items-center gap-5">
           <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center">

@@ -350,7 +350,13 @@ export function DataSourcesPanel({
   }, [isIndexing, onIndexingComplete, indexingData?.indexingStatus?.dataSources])
 
   return (
-    <div className="flex flex-col gap-6 max-w-6xl">
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-2 border-b pb-3">
+        <h2 className="text-2xl font-bold leading-none">Imports & Takeouts</h2>
+        <p className="text-sm text-muted-foreground">
+          Export data from your services and import it into Enchanted.
+        </p>
+      </header>
       <div className="flex flex-col gap-4">
         {SUPPORTED_DATA_SOURCES.map((source) => (
           <UnifiedDataSourceCard
