@@ -22,8 +22,13 @@ func TestJinaAIEmbeddingModel(t *testing.T) {
 	defer model.Close()
 
 	inputText := "This is an apple"
-	emb, err := model.Embedding(context.Background(), inputText, "jina-embeddings-v2-base-en")
+	vector, err := model.Embedding(context.Background(), inputText, "jina-embeddings-v2-base-en")
 	assert.NoError(t, err)
 
-	t.Logf("Embedding: %v", emb[:10])
+	t.Logf("Embedding: %v", vector[:10])
+
+	inputTexts := []string{}
+	vectors, err := model.Embeddings(context.Background(), inputTexts, "jina-embeddings-v2-base-en")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, vectors)
 }

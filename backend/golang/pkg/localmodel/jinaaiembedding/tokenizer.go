@@ -190,39 +190,3 @@ func (t *SentencePieceTokenizer) Encode(text string) ([]int64, []int64) {
 
 	return inputIds, attentionMask
 }
-
-// GetTaskID returns the task ID for a given task type.
-func (t *SentencePieceTokenizer) GetTaskID(taskType string) (int64, error) {
-	if t.config == nil {
-		return 0, fmt.Errorf("config not loaded")
-	}
-
-	for i, task := range t.config.LoraAdaptations {
-		if task == taskType {
-			return int64(i), nil
-		}
-	}
-
-	// If no specific task found, return 0 as default
-	return 0, nil
-}
-
-// DecodeIds converts token IDs back to text (for debugging).
-func (t *SentencePieceTokenizer) DecodeIds(ids []int64) string {
-	var tokens []string
-	for _, id := range ids {
-		if token, exists := t.vocabReverse[int(id)]; exists {
-			tokens = append(tokens, token)
-		} else {
-			tokens = append(tokens, t.unkToken)
-		}
-	}
-
-	// Join tokens and clean up
-	text := strings.Join(tokens, "")
-	text = strings.ReplaceAll(text, "▁", " ")
-	text = strings.ReplaceAll(text, t.bosToken, "")
-	text = strings.ReplaceAll(text, t.eosToken, "")
-
-	return strings.TrimSpace(text)
-}
