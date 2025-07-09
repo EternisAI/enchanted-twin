@@ -34,7 +34,7 @@ export interface PendingDataSource {
 
 export interface ExportInstructions {
   timeEstimate: string
-  steps: string[]
+  steps?: string[]
   link?: string
 }
 
