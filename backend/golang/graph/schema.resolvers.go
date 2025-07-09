@@ -9,8 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +26,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
@@ -379,18 +383,13 @@ func (r *mutationResolver) RemoveMCPServer(ctx context.Context, id string) (bool
 
 // StartWhatsAppConnection is the resolver for the startWhatsAppConnection field.
 func (r *mutationResolver) StartWhatsAppConnection(ctx context.Context) (bool, error) {
-	connectChan := whatsapp.GetConnectChannel()
-	select {
-	case connectChan <- struct{}{}:
-		r.Logger.Info("Triggered WhatsApp connection start")
-		return true, nil
-	default:
-		go func() {
-			connectChan <- struct{}{}
-		}()
-		r.Logger.Info("Triggered WhatsApp connection start (async)")
-		return true, nil
+	if r.WhatsAppService == nil {
+		return false, fmt.Errorf("WhatsApp service not available")
 	}
+
+	r.WhatsAppService.TriggerConnect()
+
+	return true, nil
 }
 
 // Activate is the resolver for the activate field.
@@ -420,6 +419,111 @@ func (r *mutationResolver) StoreToken(ctx context.Context, input model.StoreToke
 	err := auth.StoreToken(ctx, r.Logger, r.Store, input.Token, input.RefreshToken)
 	if err != nil {
 		return false, err
+	}
+
+	return true, nil
+}
+
+// AddTrackedFolder is the resolver for the addTrackedFolder field.
+func (r *mutationResolver) AddTrackedFolder(ctx context.Context, input model.AddTrackedFolderInput) (*model.TrackedFolder, error) {
+	absPath, err := filepath.Abs(input.Path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid path: %w", err)
+	}
+
+	stat, err := os.Stat(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("path does not exist: %s", absPath)
+		}
+		return nil, fmt.Errorf("error accessing path: %w", err)
+	}
+
+	if !stat.IsDir() {
+		return nil, fmt.Errorf("path is not a directory: %s", absPath)
+	}
+
+	cleanPath := filepath.Clean(absPath)
+
+	existingFolders, err := r.Store.GetTrackedFolders(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting existing tracked folders: %w", err)
+	}
+
+	for _, existing := range existingFolders {
+		existingCleanPath := filepath.Clean(existing.Path)
+
+		if existingCleanPath == cleanPath {
+			return nil, fmt.Errorf("folder path already being tracked: %s", cleanPath)
+		}
+
+		if strings.HasPrefix(cleanPath+string(filepath.Separator), existingCleanPath+string(filepath.Separator)) {
+			return nil, fmt.Errorf("path %s is contained within already tracked folder: %s", cleanPath, existingCleanPath)
+		}
+
+		if strings.HasPrefix(existingCleanPath+string(filepath.Separator), cleanPath+string(filepath.Separator)) {
+			return nil, fmt.Errorf("path %s would contain already tracked folder: %s", cleanPath, existingCleanPath)
+		}
+	}
+
+	folder, err := r.Store.AddTrackedFolder(ctx, &db.CreateTrackedFolderInput{
+		Path: cleanPath,
+		Name: input.Name,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if r.DirectoryWatcher != nil {
+		if err := r.DirectoryWatcher.ReloadTrackedFolders(ctx); err != nil {
+			r.Logger.Warn("Failed to reload tracked folders in DirectoryWatcher", "error", err)
+		}
+	}
+
+	result := &model.TrackedFolder{
+		ID:        folder.ID,
+		Path:      folder.Path,
+		Name:      folder.Name,
+		IsEnabled: folder.IsEnabled,
+		CreatedAt: folder.CreatedAt,
+		UpdatedAt: folder.UpdatedAt,
+	}
+
+	return result, nil
+}
+
+// DeleteTrackedFolder is the resolver for the deleteTrackedFolder field.
+func (r *mutationResolver) DeleteTrackedFolder(ctx context.Context, id string) (bool, error) {
+	err := r.Store.DeleteTrackedFolder(ctx, id)
+	if err != nil {
+		return false, err
+	}
+
+	if r.DirectoryWatcher != nil {
+		if err := r.DirectoryWatcher.ReloadTrackedFolders(ctx); err != nil {
+			r.Logger.Warn("Failed to reload tracked folders in DirectoryWatcher", "error", err)
+		}
+	}
+
+	return true, nil
+}
+
+// UpdateTrackedFolder is the resolver for the updateTrackedFolder field.
+func (r *mutationResolver) UpdateTrackedFolder(ctx context.Context, id string, input model.UpdateTrackedFolderInput) (bool, error) {
+	isEnabled := true
+	if input.IsEnabled != nil {
+		isEnabled = *input.IsEnabled
+	}
+
+	err := r.Store.UpdateTrackedFolder(ctx, id, input.Name, isEnabled)
+	if err != nil {
+		return false, err
+	}
+
+	if r.DirectoryWatcher != nil {
+		if err := r.DirectoryWatcher.ReloadTrackedFolders(ctx); err != nil {
+			r.Logger.Warn("Failed to reload tracked folders in DirectoryWatcher", "error", err)
+		}
 	}
 
 	return true, nil
@@ -520,10 +624,14 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 
 // GetWhatsAppStatus is the resolver for the getWhatsAppStatus field.
 func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppStatus, error) {
+	if r.WhatsAppService == nil {
+		return nil, fmt.Errorf("WhatsApp service not available")
+	}
+
 	// Get the latest QR event to ensure we have the most up-to-date information
 	latestQREvent := whatsapp.GetLatestQREvent()
 
-	isConnected := r.WhatsAppConnected
+	isConnected := r.WhatsAppService.IsConnected()
 	var qrCodeData *string
 
 	// If we have a latest QR event, use its data
@@ -537,7 +645,7 @@ func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppS
 			qrCodeData = &latestQREvent.Code
 		}
 	} else {
-		qrCodeData = r.WhatsAppQRCode
+		qrCodeData = r.WhatsAppService.GetCurrentQRCode()
 	}
 
 	statusMessage := ""
@@ -700,6 +808,80 @@ func (r *queryResolver) GetThreads(ctx context.Context, network *string, first i
 // GetThread is the resolver for the getThread field.
 func (r *queryResolver) GetThread(ctx context.Context, network *string, id string) (*model.Thread, error) {
 	return r.HolonService.GetThread(ctx, id)
+}
+
+// GetTrackedFolders is the resolver for the getTrackedFolders field.
+func (r *queryResolver) GetTrackedFolders(ctx context.Context) ([]*model.TrackedFolder, error) {
+	dbFolders, err := r.Store.GetTrackedFolders(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	modelFolders := make([]*model.TrackedFolder, len(dbFolders))
+	for i, folder := range dbFolders {
+		modelFolders[i] = &model.TrackedFolder{
+			ID:        folder.ID,
+			Path:      folder.Path,
+			Name:      folder.Name,
+			IsEnabled: folder.IsEnabled,
+			CreatedAt: folder.CreatedAt,
+			UpdatedAt: folder.UpdatedAt,
+		}
+	}
+	return modelFolders, nil
+}
+
+// GetDirectoryWatcherStatus is the resolver for the getDirectoryWatcherStatus field.
+func (r *queryResolver) GetDirectoryWatcherStatus(ctx context.Context) (*model.DirectoryWatcherStatus, error) {
+	r.Logger.Info("🔍 GetDirectoryWatcherStatus called")
+
+	status := &model.DirectoryWatcherStatus{
+		IsRunning:            false,
+		WatchedDirectories:   []string{},
+		TrackedFoldersFromDb: []*model.TrackedFolder{},
+	}
+
+	// Check if DirectoryWatcher exists
+	if r.DirectoryWatcher == nil {
+		r.Logger.Warn("⚠️ DirectoryWatcher is nil")
+		status.ErrorMessage = stringPtr("DirectoryWatcher is not initialized")
+		return status, nil
+	}
+
+	// Get tracked folders from database
+	dbFolders, err := r.Store.GetTrackedFolders(ctx)
+	if err != nil {
+		r.Logger.Error("❌ Failed to get tracked folders from database", "error", err)
+		status.ErrorMessage = stringPtr(fmt.Sprintf("Database error: %v", err))
+		return status, nil
+	}
+
+	// Convert to GraphQL model
+	for _, folder := range dbFolders {
+		status.TrackedFoldersFromDb = append(status.TrackedFoldersFromDb, &model.TrackedFolder{
+			ID:        folder.ID,
+			Path:      folder.Path,
+			Name:      folder.Name,
+			IsEnabled: folder.IsEnabled,
+			CreatedAt: folder.CreatedAt,
+			UpdatedAt: folder.UpdatedAt,
+		})
+	}
+
+	watchedDirs := r.DirectoryWatcher.GetWatchedDirectories()
+	status.WatchedDirectories = watchedDirs
+	status.IsRunning = len(watchedDirs) > 0
+
+	if err := r.DirectoryWatcher.GetTrackedFoldersFromDB(ctx); err != nil {
+		r.Logger.Error("❌ Failed to log tracked folders from DB", "error", err)
+	}
+
+	return status, nil
+}
+
+// Helper function to create string pointer.
+func stringPtr(s string) *string {
+	return &s
 }
 
 // MessageAdded is the resolver for the messageAdded field.

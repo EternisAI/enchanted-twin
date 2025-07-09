@@ -9,6 +9,11 @@ import (
 	"strconv"
 )
 
+type AddTrackedFolderInput struct {
+	Path string  `json:"path"`
+	Name *string `json:"name,omitempty"`
+}
+
 type AgentTask struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
@@ -71,6 +76,13 @@ type DataSource struct {
 	IsIndexed     bool   `json:"isIndexed"`
 	IndexProgress int32  `json:"indexProgress"`
 	HasError      bool   `json:"hasError"`
+}
+
+type DirectoryWatcherStatus struct {
+	IsRunning            bool             `json:"isRunning"`
+	WatchedDirectories   []string         `json:"watchedDirectories"`
+	TrackedFoldersFromDb []*TrackedFolder `json:"trackedFoldersFromDB"`
+	ErrorMessage         *string          `json:"errorMessage,omitempty"`
 }
 
 type IndexingStatus struct {
@@ -217,9 +229,23 @@ type ToolCallResult struct {
 	ImageUrls []string `json:"imageUrls"`
 }
 
+type TrackedFolder struct {
+	ID        string  `json:"id"`
+	Path      string  `json:"path"`
+	Name      *string `json:"name,omitempty"`
+	IsEnabled bool    `json:"isEnabled"`
+	CreatedAt string  `json:"createdAt"`
+	UpdatedAt string  `json:"updatedAt"`
+}
+
 type UpdateProfileInput struct {
 	Name *string `json:"name,omitempty"`
 	Bio  *string `json:"bio,omitempty"`
+}
+
+type UpdateTrackedFolderInput struct {
+	Name      *string `json:"name,omitempty"`
+	IsEnabled *bool   `json:"isEnabled,omitempty"`
 }
 
 type UserProfile struct {
@@ -378,6 +404,7 @@ const (
 	MCPServerTypeOther      MCPServerType = "OTHER"
 	MCPServerTypeScreenpipe MCPServerType = "SCREENPIPE"
 	MCPServerTypeEnchanted  MCPServerType = "ENCHANTED"
+	MCPServerTypeFreysa     MCPServerType = "FREYSA"
 )
 
 var AllMCPServerType = []MCPServerType{
@@ -387,11 +414,12 @@ var AllMCPServerType = []MCPServerType{
 	MCPServerTypeOther,
 	MCPServerTypeScreenpipe,
 	MCPServerTypeEnchanted,
+	MCPServerTypeFreysa,
 }
 
 func (e MCPServerType) IsValid() bool {
 	switch e {
-	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther, MCPServerTypeScreenpipe, MCPServerTypeEnchanted:
+	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther, MCPServerTypeScreenpipe, MCPServerTypeEnchanted, MCPServerTypeFreysa:
 		return true
 	}
 	return false

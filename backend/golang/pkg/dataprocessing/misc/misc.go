@@ -15,12 +15,8 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/guylaor/goword"
 	"github.com/ledongthuc/pdf"
-	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -29,22 +25,16 @@ const (
 )
 
 type TextDocumentProcessor struct {
-	openAiService    *ai.Service
-	chunkSize        int
-	completionsModel string
-	store            *db.Store
-	logger           *log.Logger
+	chunkSize int
+	store     *db.Store
+	logger    *log.Logger
 }
 
-func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger) (processor.Processor, error) {
-	if openAiService == nil {
-		return nil, fmt.Errorf("openAiService is nil")
-	}
+const (
+	MemorySourceName = "synced-document"
+)
 
-	if completionsModel == "" {
-		return nil, fmt.Errorf("completionsModel is empty")
-	}
-
+func NewTextDocumentProcessor(store *db.Store, logger *log.Logger) (*TextDocumentProcessor, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store is nil")
 	}
@@ -54,16 +44,14 @@ func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string
 	}
 
 	return &TextDocumentProcessor{
-		openAiService:    openAiService,
-		chunkSize:        DefaultChunkSize,
-		completionsModel: completionsModel,
-		store:            store,
-		logger:           logger,
+		chunkSize: DefaultChunkSize,
+		store:     store,
+		logger:    logger,
 	}, nil
 }
 
 func (s *TextDocumentProcessor) Name() string {
-	return "misc"
+	return "synced-document"
 }
 
 // IsHumanReadableContent determines if the content is human-readable text.
@@ -418,43 +406,51 @@ func (s *TextDocumentProcessor) removeXMLTags(content string) string {
 	return result.String()
 }
 
-// ExtractContentTags uses a language model to extract relevant tags from the content.
-func (s *TextDocumentProcessor) ExtractContentTags(ctx context.Context, content string) ([]string, error) {
-	contentSample := content
-	if len(content) > 1000 {
-		contentSample = content[:1000]
-	}
-
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(fmt.Sprintf("Extract 3-5 tags that describe this content. Reply with ONLY a comma-separated list of tags (no explanations, just the tags).\n\nText sample: %s", contentSample)),
-	}
-
-	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, s.completionsModel)
+func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.FileDocument, error) {
+	// Check if the input is a directory
+	info, err := os.Stat(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract tags: %w", err)
+		return nil, fmt.Errorf("failed to get file info for %s: %w", filePath, err)
 	}
 
-	responseText := strings.TrimSpace(response.Content)
-
-	responseText = strings.ReplaceAll(responseText, "\n", " ")
-	responseText = strings.ReplaceAll(responseText, "  ", " ")
-	responseText = strings.ReplaceAll(responseText, "* ", "")
-	responseText = strings.ReplaceAll(responseText, "- ", "")
-
-	tagsList := strings.Split(responseText, ",")
-
-	tags := make([]string, 0, len(tagsList))
-	for _, tag := range tagsList {
-		tag = strings.TrimSpace(tag)
-		if tag != "" && len(tag) < 50 {
-			tags = append(tags, tag)
-		}
+	if info.IsDir() {
+		// Handle directory by walking through all files
+		return s.processDirectory(ctx, filePath)
 	}
 
-	return tags, nil
+	// Handle single file
+	return s.processSingleFile(ctx, filePath)
 }
 
-func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
+func (s *TextDocumentProcessor) processDirectory(ctx context.Context, dirPath string) ([]memory.FileDocument, error) {
+	var allDocuments []memory.FileDocument
+
+	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		documents, err := s.processSingleFile(ctx, path)
+		if err != nil {
+			s.logger.Warn("Failed to process file", "path", path, "error", err)
+			return nil // Continue processing other files
+		}
+
+		allDocuments = append(allDocuments, documents...)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error walking directory %s: %w", dirPath, err)
+	}
+
+	return allDocuments, nil
+}
+
+func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath string) ([]memory.FileDocument, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
@@ -487,6 +483,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 	var textContent string
 
 	if isPdf {
+		s.logger.Info("Extracting text from PDF", "filePath", filePath)
 		extractedText, err := s.ExtractTextFromPDF(filePath)
 		if err != nil {
 			return nil, err
@@ -546,38 +543,23 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 	s.logger.Info("Processing file", "fileName", fileName, "contentLength", len(textContent), "preview", textContent[:min(200, len(textContent))])
 
 	if len(textContent) == 0 {
-		emptyRecord := types.Record{
-			Data: map[string]interface{}{
-				"content":  "",
+		emptyDoc := memory.FileDocument{
+			FieldID:        fmt.Sprintf("misc-%s-%d", fileName, timestamp.Unix()),
+			FieldContent:   "",
+			FieldTimestamp: &timestamp,
+			FieldSource:    s.Name(),
+			FieldTags:      []string{},
+			FieldMetadata: map[string]string{
 				"filename": fileName,
-				"type": func() string {
-					if isPdf {
-						return "pdf"
-					} else if isDocx {
-						return "docx"
-					} else if isPpt {
-						return "ppt"
-					} else if isPptx {
-						return "pptx"
-					} else {
-						return "text"
-					}
-				}(),
-				"path": filePath,
+				"path":     filePath,
+				"type":     s.getFileType(ext),
 			},
-			Timestamp: timestamp,
-			Source:    s.Name(),
+			FieldFilePath: filePath,
 		}
-		return []types.Record{emptyRecord}, nil
+		return []memory.FileDocument{emptyDoc}, nil
 	}
 
-	tags, err := s.ExtractContentTags(context.Background(), textContent)
-	if err != nil {
-		s.logger.Warn("Failed to extract tags", "filePath", filePath, "error", err)
-		tags = []string{}
-	}
-
-	var records []types.Record
+	var documents []memory.FileDocument
 	for i := 0; i < len(textContent); i += s.chunkSize {
 		end := i + s.chunkSize
 		if end > len(textContent) {
@@ -585,131 +567,42 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 		}
 
 		chunk := textContent[i:end]
-		record := types.Record{
-			Data: map[string]interface{}{
-				"content":  chunk,
-				"filename": fileName,
-				"type": func() string {
-					if isPdf {
-						return "pdf"
-					} else if isDocx {
-						return "docx"
-					} else if isPpt {
-						return "ppt"
-					} else if isPptx {
-						return "pptx"
-					} else {
-						return "text"
-					}
-				}(),
-				"chunk": i / s.chunkSize,
-				"tags":  tags,
-			},
-			Timestamp: timestamp,
-			Source:    s.Name(),
-		}
-		records = append(records, record)
-
-		s.logger.Info("Created record", "fileName", fileName, "chunk", i/s.chunkSize, "contentLength", len(chunk))
-	}
-
-	s.logger.Info("File processed into records", "fileName", fileName, "records", len(records))
-	return records, nil
-}
-
-func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
-	var allRecords []types.Record
-
-	err := filepath.WalkDir(inputPath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		records, err := s.ProcessFile(ctx, path)
-		if err != nil {
-			s.logger.Warn("Failed to process file", "path", path, "error", err)
-			return nil
-		}
-
-		allRecords = append(allRecords, records...)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error walking directory %s: %w", inputPath, err)
-	}
-
-	return allRecords, nil
-}
-
-func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	s.logger.Info("Converting records to documents", "records", len(records))
-
-	documents := make([]memory.FileDocument, 0, len(records))
-	for _, record := range records {
-		metadata := map[string]string{}
-
-		content := ""
-		if contentVal, ok := record.Data["content"]; ok && contentVal != nil {
-			if contentStr, ok := contentVal.(string); ok {
-				content = contentStr
-			}
-		}
-
-		if pathVal, ok := record.Data["path"]; ok && pathVal != nil {
-			if pathStr, ok := pathVal.(string); ok {
-				metadata["path"] = pathStr
-			}
-		}
-
-		var tags []string
-		if tagsVal, ok := record.Data["tags"]; ok && tagsVal != nil {
-			if tagsArr, ok := tagsVal.([]string); ok {
-				tags = tagsArr
-			}
-		}
-
-		chunkIndex := 0
-		if chunkVal, ok := record.Data["chunk"]; ok && chunkVal != nil {
-			if chunkInt, ok := chunkVal.(int); ok {
-				chunkIndex = chunkInt
-			}
-		}
-
-		docID := fmt.Sprintf("misc-%s-%d-chunk%d", record.Source, record.Timestamp.Unix(), chunkIndex)
-		if pathVal, ok := record.Data["path"]; ok && pathVal != nil {
-			if pathStr, ok := pathVal.(string); ok {
-				filename := filepath.Base(pathStr)
-				docID = fmt.Sprintf("misc-%s-%s-%d-chunk%d", record.Source, filename, record.Timestamp.Unix(), chunkIndex)
-			}
-		}
+		chunkIndex := i / s.chunkSize
 
 		doc := memory.FileDocument{
-			FieldID:        docID,
-			FieldContent:   content,
-			FieldTimestamp: &record.Timestamp,
-			FieldSource:    record.Source,
-			FieldMetadata:  metadata,
-			FieldTags:      tags,
+			FieldID:        fmt.Sprintf("misc-%s-%d-chunk%d", fileName, timestamp.Unix(), chunkIndex),
+			FieldContent:   chunk,
+			FieldTimestamp: &timestamp,
+			FieldSource:    s.Name(),
+			FieldTags:      []string{"misc", "file", "document", ext},
+			FieldMetadata: map[string]string{
+				"filename": fileName,
+				"path":     filePath,
+				"type":     s.getFileType(ext),
+				"chunk":    fmt.Sprintf("%d", chunkIndex),
+			},
+			FieldFilePath: filePath,
 		}
-
-		s.logger.Info("Document", "id", doc.ID(), "source", doc.Source(), "contentLength", len(doc.Content()), "preview", doc.Content()[:min(100, len(doc.Content()))])
-
 		documents = append(documents, doc)
+
+		s.logger.Info("Created document", "fileName", fileName, "chunk", chunkIndex, "contentLength", len(chunk))
 	}
 
-	var documents_ []memory.Document
-	for _, document := range documents {
-		documents_ = append(documents_, &document)
-	}
-
-	s.logger.Info("Converted records to documents", "records", len(records), "documents", len(documents_))
-	return documents_, nil
+	s.logger.Info("File processed into documents", "fileName", fileName, "documents", len(documents))
+	return documents, nil
 }
 
-func (s *TextDocumentProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
-	return nil, false, fmt.Errorf("sync not supported for local text files")
+func (s *TextDocumentProcessor) getFileType(ext string) string {
+	switch ext {
+	case ".pdf":
+		return "pdf"
+	case ".docx":
+		return "docx"
+	case ".ppt":
+		return "ppt"
+	case ".pptx":
+		return "pptx"
+	default:
+		return "text"
+	}
 }
