@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DetailCard } from '../permissions/DetailCard'
 import { Telescope } from 'lucide-react'
+import { toast } from 'sonner'
 
 const getStatusConfig = (status: boolean) => {
   return {
@@ -20,6 +21,7 @@ export default function TelemetryToggle() {
   const handleToggle = async () => {
     const newState = !enabled
     await window.api.analytics.setEnabled(newState)
+    toast.success('Telemetry ' + (newState ? 'enabled' : 'disabled'))
     setEnabled(newState)
   }
 

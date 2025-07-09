@@ -8,13 +8,11 @@ import TelemetryToggle from '../telemetry/TelemetryToggle'
 
 export default function PermissionsCard() {
   return (
-    <div className="flex flex-col gap-4 ">
-      <MediaStatus />
+    <div className="flex flex-col gap-5 ">
       <AccessibilityStatus />
-      <div className="flex flex-col gap-4">
-        <NotificationStatusCard />
-        <TelemetryToggle />
-      </div>
+      <MediaStatus />
+      <NotificationStatusCard />
+      <TelemetryToggle />
       <ScreenpipePanel />
     </div>
   )
