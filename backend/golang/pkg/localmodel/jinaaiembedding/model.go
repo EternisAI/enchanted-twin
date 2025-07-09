@@ -116,8 +116,17 @@ func (m *JinaAIEmbeddingModel) Embedding(ctx context.Context, input string, mode
 }
 
 func (m *JinaAIEmbeddingModel) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
-	// TODO implement me
-	return nil, nil
+	results := make([][]float64, len(inputs))
+
+	for i, input := range inputs {
+		embedding, err := m.Embedding(ctx, input, model)
+		if err != nil {
+			return nil, err
+		}
+		results[i] = embedding
+	}
+
+	return results, nil
 }
 
 func meanPooling(modelOutput []float32, attentionMask []int64, batchSize, seqLen, embedDim int) []float32 {
