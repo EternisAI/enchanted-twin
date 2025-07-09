@@ -135,9 +135,9 @@ func meanPooling(modelOutput []float32, attentionMask []int64, batchSize, seqLen
 
 	for b := range batchSize {
 		var sumMask float32
-		for i := 0; i < embedDim; i++ {
+		for i := range embedDim {
 			var sumEmbedding float32
-			for s := 0; s < seqLen; s++ {
+			for s := range seqLen {
 				maskVal := float32(attentionMask[b*seqLen+s])
 				embeddingVal := modelOutput[b*seqLen*embedDim+s*embedDim+i]
 				sumEmbedding += embeddingVal * maskVal
@@ -159,7 +159,7 @@ func l2Normalize(embeddings []float32, batchSize, embedDim int) []float32 {
 
 	for b := range batchSize {
 		var norm float32
-		for i := 0; i < embedDim; i++ {
+		for i := range embedDim {
 			val := embeddings[b*embedDim+i]
 			norm += val * val
 		}
@@ -168,7 +168,7 @@ func l2Normalize(embeddings []float32, batchSize, embedDim int) []float32 {
 			norm = 1e-9
 		}
 
-		for i := 0; i < embedDim; i++ {
+		for i := range embedDim {
 			result[b*embedDim+i] = embeddings[b*embedDim+i] / norm
 		}
 	}
