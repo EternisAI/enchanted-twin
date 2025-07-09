@@ -185,13 +185,13 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
 
         <Button
           variant="outline"
-          className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
+          className="group w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
           onClick={handleNewChat}
         >
           <Plus className="w-4 h-4" />
           <span className="text-base">New chat</span>
           {shortcuts.newChat?.keys && (
-            <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
+            <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
               <kbd className="rounded bg-muted px-1.5 py-0.5">
                 {formatShortcutForDisplay(shortcuts.newChat.keys)}
               </kbd>
