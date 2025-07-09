@@ -7,8 +7,13 @@ import {
   signInWithCredential
 } from 'firebase/auth'
 import { auth, firebaseConfig } from '@renderer/lib/firebase'
-import { useMutation } from '@apollo/client'
-import { StoreTokenDocument } from '@renderer/graphql/generated/graphql'
+import { useMutation, useQuery } from '@apollo/client'
+import {
+  StoreTokenDocument,
+  GetWhitelistStatusDocument,
+  ActivateInviteCodeDocument
+} from '@renderer/graphql/generated/graphql'
+import { toast } from 'sonner'
 
 interface AuthContextType {
   user: User | null
@@ -18,6 +23,12 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>
   authError: string | null
   hasUpdatedToken: boolean
+  // Whitelist related
+  whitelistStatus: boolean | null
+  whitelistLoading: boolean
+  whitelistError: string | null
+  activateInviteCode: (inviteCode: string) => Promise<void>
+  isWhitelisted: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -34,6 +45,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('[Auth] Failed to store token:', error)
     }
   })
+
+  const {
+    data: whitelistData,
+    loading: whitelistLoading,
+    error: whitelistError,
+    refetch: refetchWhitelist
+  } = useQuery(GetWhitelistStatusDocument, {
+    fetchPolicy: 'network-only',
+    skip: !user || !hasUpdatedToken
+  })
+
+  const [activateInviteCodeMutation] = useMutation(ActivateInviteCodeDocument, {
+    onCompleted: async () => {
+      toast.success('Invite code activated successfully!')
+      await refetchWhitelist()
+    },
+    onError: (error) => {
+      console.error('[Auth] Failed to activate invite code:', error)
+      toast.error(`Failed to activate invite code: ${error.message}`)
+      throw error
+    }
+  })
+
+  const activateInviteCode = async (inviteCode: string) => {
+    if (!inviteCode.trim()) {
+      throw new Error('Please enter an invite code')
+    }
+
+    await activateInviteCodeMutation({
+      variables: { inviteCode: inviteCode.trim() }
+    })
+  }
+
+  const whitelistStatus = whitelistData?.whitelistStatus || null
+  const isWhitelisted = Boolean(whitelistStatus || whitelistError)
 
   useEffect(() => {
     if (!user) return
@@ -174,7 +220,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasUpdatedToken,
         signOut,
         signInWithGoogle,
-        authError
+        authError,
+        whitelistStatus,
+        whitelistLoading,
+        whitelistError: whitelistError?.message || null,
+        activateInviteCode,
+        isWhitelisted
       }}
     >
       {children}

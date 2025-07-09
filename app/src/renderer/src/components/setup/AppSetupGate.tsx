@@ -86,8 +86,6 @@ export default function AppSetupGate({ children }: { children: React.ReactNode }
 
   const [downloadState, setDownloadState] = useState<DownloadState>(initialDownloadState)
 
-  console.log('hasModelsDownloaded', hasModelsDownloaded, downloadState)
-
   const { state: goServerState, initializeIfNeeded, retry: retryGoServer } = useGoServer()
   const hasInitializedGoServer = useRef(false)
 
@@ -161,6 +159,8 @@ export default function AppSetupGate({ children }: { children: React.ReactNode }
     const cleanup = window.api.models.onProgress(handleProgress)
 
     window.api.models.hasModelsDownloaded().then((hasModelsDownloaded) => {
+      console.log('hasModelsDownloaded', hasModelsDownloaded)
+
       setHasModelsDownloaded(hasModelsDownloaded)
 
       let needsDownload = false
