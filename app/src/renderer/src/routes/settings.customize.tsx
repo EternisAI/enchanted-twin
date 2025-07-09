@@ -16,7 +16,7 @@ function KeyboardSettings() {
         <h2 className="text-2xl font-semibold p-2">Appearance</h2>
         <SystemTheme />
       </Card>
-      <Card className="flex flex-col md:flex-row gap-4 justify-between p-4">
+      <Card className="flex flex-col gap-4 justify-between p-4">
         <h2 className="text-2xl font-semibold p-2">Keyboard Shortcuts</h2>
         <ShortcutList />
       </Card>
