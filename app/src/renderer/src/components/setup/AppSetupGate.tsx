@@ -86,8 +86,6 @@ export default function AppSetupGate({ children }: { children: React.ReactNode }
 
   const [downloadState, setDownloadState] = useState<DownloadState>(initialDownloadState)
 
-  console.log('hasModelsDownloaded', hasModelsDownloaded, downloadState)
-
   const { state: goServerState, initializeIfNeeded, retry: retryGoServer } = useGoServer()
   const hasInitializedGoServer = useRef(false)
 

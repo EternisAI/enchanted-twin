@@ -65,6 +65,11 @@ export default function VoiceOnboardingContainer() {
   )
 }
 
+// @TODO:
+// - [ ] Have TTS disabled in case user is using STS
+// - [ ] IF STS we should add message and response to history
+// - [ ] Being able to mix STS and TTS
+
 function VoiceOnboarding() {
   const navigate = useNavigate()
   const { completeOnboarding } = useOnboardingStore()
@@ -87,10 +92,20 @@ function VoiceOnboarding() {
   const [isTTSPlaying, setIsTTSPlaying] = useState(false)
   const [messageHistory, setMessageHistory] = useState<Array<{ text: string; role: Role }>>([])
   const [streamingResponse, setStreamingResponse] = useState('')
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null)
+  const [assistantMessageStack, setAssistantMessageStack] = useState<Set<string>>(new Set())
 
   const [createChat] = useMutation(CreateChatDocument)
   const [updateProfile] = useMutation(UpdateProfileDocument)
   const [deleteChat] = useMutation(DeleteChatDocument)
+
+  const isMessageInStack = (messageText: string): boolean => {
+    return assistantMessageStack.has(messageText)
+  }
+
+  const addMessageToStack = (messageText: string) => {
+    setAssistantMessageStack((prev) => new Set([...prev, messageText]))
+  }
 
   const handleSendMessage = async (text: string) => {
     console.log('[VoiceOnboarding] Sending message:', text)
@@ -114,6 +129,7 @@ function VoiceOnboarding() {
       imageUrls
     )
 
+    // disabled if voice
     setStreamingResponse((prev) => prev + chunk)
 
     if (isComplete) {
@@ -121,6 +137,16 @@ function VoiceOnboarding() {
       const completeResponse = streamingResponse + chunk
       generateTTSForResponse(completeResponse)
       setStreamingResponse('')
+    }
+  }
+
+  const stopTTS = () => {
+    if (currentAudio) {
+      console.log('[TTS] Stopping audio playback')
+      currentAudio.pause()
+      currentAudio.currentTime = 0
+      setIsTTSPlaying(false)
+      setCurrentAudio(null)
     }
   }
 
@@ -152,6 +178,8 @@ function VoiceOnboarding() {
         const audioUrl = URL.createObjectURL(audioBlob)
         const audio = new Audio(audioUrl)
 
+        setCurrentAudio(audio)
+
         audio.addEventListener('loadeddata', () => {
           console.log('[TTS] Audio loaded, duration:', audio.duration)
         })
@@ -160,12 +188,14 @@ function VoiceOnboarding() {
           console.log('[TTS] Audio playback finished')
           URL.revokeObjectURL(audioUrl)
           setIsTTSPlaying(false)
+          setCurrentAudio(null)
         })
 
         audio.addEventListener('error', (e) => {
           console.error('[TTS] Audio playback error:', e)
           URL.revokeObjectURL(audioUrl)
           setIsTTSPlaying(false)
+          setCurrentAudio(null)
         })
 
         await audio.play()
@@ -178,8 +208,6 @@ function VoiceOnboarding() {
       console.error('[TTS] Error generating TTS:', error)
     }
   }
-
-  useProcessMessageHistoryStream(chatId, messageHistory, true, handleResponseChunk)
 
   useEffect(() => {
     const initiateVoiceOnboarding = async () => {
@@ -195,13 +223,18 @@ function VoiceOnboarding() {
     initiateVoiceOnboarding()
   }, [])
 
+  useProcessMessageHistoryStream(chatId, messageHistory, true, handleResponseChunk)
+
   useMessageSubscription(chatId, (message) => {
-    console.log('message', message)
+    console.log('message stream received', message)
+
     if (message.role === Role.User) {
       setLastMessage(message)
     } else {
-      if (message.text !== lastAgentMessage?.text) {
+      if (message.text && !isMessageInStack(message.text)) {
+        console.log('[VoiceOnboarding] New user message received, updating lastMessage')
         setLastAgentMessage(message)
+        addMessageToStack(message.text)
       }
     }
 
@@ -307,7 +340,7 @@ function VoiceOnboarding() {
                 isWaitingTwinResponse={isTTSPlaying}
                 isReasonSelected={false}
                 voiceMode
-                onStop={() => {}}
+                onStop={stopTTS}
               />
             </motion.div>
           </div>
