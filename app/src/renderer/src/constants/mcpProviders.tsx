@@ -43,7 +43,7 @@ export const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
   ),
   OTHER: (
     <IconContainer>
-      <PlugIcon className="w-10 h-10" />
+      <PlugIcon strokeWidth={1.5} className="w-10 h-10" />
     </IconContainer>
   ),
   ENCHANTED: <img src={enchantedIcon} alt="Enchanted" className="w-10 h-10" />,
