@@ -17,7 +17,7 @@ func TestJinaAIEmbeddingModel(t *testing.T) {
 	sharedLibPath := os.Getenv("SHARED_LIBRARY_PATH")
 	assert.NotEmpty(t, sharedLibPath)
 
-	model, err := NewJinaAIEmbeddingModel(appDataPath, sharedLibPath)
+	model, err := NewEmbedding(appDataPath, sharedLibPath)
 	assert.NoError(t, err)
 	defer model.Close()
 

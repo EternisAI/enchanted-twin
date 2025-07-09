@@ -17,7 +17,7 @@ type JinaAIEmbeddingModel struct {
 	session   *ort.DynamicAdvancedSession
 }
 
-func NewJinaAIEmbeddingModel(appDataPath string, sharedLibraryPath string) (*JinaAIEmbeddingModel, error) {
+func NewEmbedding(appDataPath string, sharedLibraryPath string) (*JinaAIEmbeddingModel, error) {
 	modelDir := filepath.Join(appDataPath, "models", "jina-embeddings-v2-base-en")
 	tokenizerPath := filepath.Join(modelDir, "tokenizer.json")
 	configPath := filepath.Join(modelDir, "config.json")
