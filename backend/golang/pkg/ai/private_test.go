@@ -25,7 +25,7 @@ func TestPrivateCompletionsMockAnonymizer(t *testing.T) {
 	interruptChan := make(chan struct{})
 	defer close(interruptChan)
 
-	anonymizedMessages, rules, err := anonymizer.AnonymizeMessages(ctx, messages, interruptChan)
+	anonymizedMessages, _, rules, err := anonymizer.AnonymizeMessages(ctx, "", messages, nil, interruptChan)
 	if err != nil {
 		t.Fatalf("Anonymization failed: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestMockAnonymizerDelay(t *testing.T) {
 	defer close(interruptChan)
 
 	start := time.Now()
-	_, _, err := anonymizer.AnonymizeMessages(ctx, messages, interruptChan)
+	_, _, _, err := anonymizer.AnonymizeMessages(ctx, "", messages, nil, interruptChan)
 	elapsed := time.Since(start)
 
 	if err != nil {
@@ -646,7 +646,7 @@ func TestMockAnonymizerLongerReplacementFirst(t *testing.T) {
 				openai.UserMessage(tc.input),
 			}
 
-			anonymizedMessages, rules, err := mockAnonymizer.AnonymizeMessages(ctx, messages, interruptChan)
+			anonymizedMessages, _, rules, err := mockAnonymizer.AnonymizeMessages(ctx, "", messages, nil, interruptChan)
 			if err != nil {
 				t.Fatalf("Anonymization failed: %v", err)
 			}

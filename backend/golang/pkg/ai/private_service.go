@@ -66,9 +66,14 @@ func (s *PrivateCompletionsService) Shutdown() {
 }
 
 func (s *PrivateCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
-	s.logger.Debug("Starting private completion processing", "model", model, "messageCount", len(messages), "toolCount", len(tools))
+	// Call new method with empty conversation ID (memory-only mode)
+	return s.CompletionsWithContext(ctx, "", messages, tools, model, priority)
+}
 
-	anonymizedMessages, allRules, err := s.scheduleAnonymization(ctx, messages, priority)
+func (s *PrivateCompletionsService) CompletionsWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+	s.logger.Debug("Starting private completion processing", "model", model, "conversationID", conversationID, "messageCount", len(messages), "toolCount", len(tools))
+
+	anonymizedMessages, allRules, err := s.scheduleAnonymization(ctx, conversationID, messages, priority)
 	if err != nil {
 		return PrivateCompletionResult{}, fmt.Errorf("failed to anonymize messages: %w", err)
 	}
@@ -90,7 +95,7 @@ func (s *PrivateCompletionsService) Completions(ctx context.Context, messages []
 	}, nil
 }
 
-func (s *PrivateCompletionsService) scheduleAnonymization(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, priority Priority) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error) {
+func (s *PrivateCompletionsService) scheduleAnonymization(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, priority Priority) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error) {
 	task := microscheduler.Task{
 		Name:         "AnonymizeMessages",
 		Priority:     priority,
@@ -108,7 +113,7 @@ func (s *PrivateCompletionsService) scheduleAnonymization(ctx context.Context, m
 				return nil, fmt.Errorf("anonymization task interrupted before starting")
 			}
 
-			anonymizedMessages, rules, err := s.anonymizer.AnonymizeMessages(ctx, messages, interruptChan)
+			anonymizedMessages, _, rules, err := s.anonymizer.AnonymizeMessages(ctx, conversationID, messages, nil, interruptChan)
 
 			// Check for context cancellation after anonymization
 			select {
