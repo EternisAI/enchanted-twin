@@ -15,7 +15,7 @@ func TestWordDocumentExtraction(t *testing.T) {
 	testDir := t.TempDir()
 	testFilePath := filepath.Join(testDir, "test.docx")
 
-	integrationTestFile := filepath.Join("..", "integration", "testdata", "misc", "test_doc.docx")
+	integrationTestFile := filepath.Join("..", "integration", "testdata", "synced-document", "test_doc.docx")
 
 	if _, err := os.Stat(integrationTestFile); err == nil {
 		input, err := os.ReadFile(integrationTestFile)
@@ -112,8 +112,8 @@ func TestPowerPointDocumentExtraction(t *testing.T) {
 	testPptxPath := filepath.Join(testDir, "test.pptx")
 	testPptPath := filepath.Join(testDir, "test.ppt")
 
-	integrationPptxFile := filepath.Join("..", "integration", "testdata", "misc", "test_presentation.pptx")
-	integrationPptFile := filepath.Join("..", "integration", "testdata", "misc", "test_presentation.ppt")
+	integrationPptxFile := filepath.Join("..", "integration", "testdata", "synced-document", "test_presentation.pptx")
+	integrationPptFile := filepath.Join("..", "integration", "testdata", "synced-document", "test_presentation.ppt")
 	hasPptx := false
 	hasPpt := false
 
