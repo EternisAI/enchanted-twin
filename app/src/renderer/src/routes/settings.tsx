@@ -69,7 +69,7 @@ function SettingsLayout() {
       <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm drag">
         Settings
       </div>
-      <div className="flex-1 flex flex-col mt-8 overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-4 border-b no-drag">
           <Button variant="outline" className="h-9 px-2" onClick={handleBackClick}>
             <ArrowLeft className="w-4 h-4 mr-2" />
