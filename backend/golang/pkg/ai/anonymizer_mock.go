@@ -45,9 +45,10 @@ type NoOpAnonymizer struct {
 	logger *log.Logger
 }
 
-func (n *NoOpAnonymizer) AnonymizeMessages(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error) {
+func (n *NoOpAnonymizer) AnonymizeMessages(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
 	// Return messages unchanged with empty replacement rules
-	return messages, make(map[string]string), nil
+	emptyDict := make(map[string]string)
+	return messages, emptyDict, emptyDict, nil
 }
 
 func (n *NoOpAnonymizer) DeAnonymize(text string, rules map[string]string) string {
@@ -57,6 +58,27 @@ func (n *NoOpAnonymizer) DeAnonymize(text string, rules map[string]string) strin
 
 func (n *NoOpAnonymizer) Shutdown() {
 	// No-op
+}
+
+func (n *NoOpAnonymizer) LoadConversationDict(conversationID string) (map[string]string, error) {
+	// No-op anonymizer doesn't support persistence
+	return make(map[string]string), nil
+}
+
+func (n *NoOpAnonymizer) SaveConversationDict(conversationID string, dict map[string]string) error {
+	// No-op anonymizer doesn't support persistence
+	return nil
+}
+
+func (n *NoOpAnonymizer) GetMessageHash(message openai.ChatCompletionMessageParamUnion) string {
+	// Simple hash implementation for no-op
+	hasher := NewMessageHasher()
+	return hasher.GetMessageHash(message)
+}
+
+func (n *NoOpAnonymizer) IsMessageAnonymized(conversationID, messageHash string) (bool, error) {
+	// No-op anonymizer doesn't support persistence
+	return false, nil
 }
 
 var defaultReplacements = map[string]string{
@@ -89,11 +111,7 @@ var defaultReplacements = map[string]string{
 
 // InitMockAnonymizer creates a mock anonymizer if enabled via ENABLE_MOCK_ANONYMIZER=true,
 // otherwise returns a no-op anonymizer that passes messages through unchanged.
-func InitMockAnonymizer(delay time.Duration, enabled bool, logger *log.Logger) interface {
-	AnonymizeMessages(context.Context, []openai.ChatCompletionMessageParamUnion, <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error)
-	DeAnonymize(string, map[string]string) string
-	Shutdown()
-} {
+func InitMockAnonymizer(delay time.Duration, enabled bool, logger *log.Logger) Anonymizer {
 	if !enabled {
 		logger.Info("MockAnonymizer disabled, using no-op anonymizer")
 		return &NoOpAnonymizer{logger: logger}
@@ -117,7 +135,7 @@ func InitMockAnonymizer(delay time.Duration, enabled bool, logger *log.Logger) i
 	return mockAnonymizerInstance
 }
 
-func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, error) {
+func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
 	responseChan := make(chan anonymizationResponse, 1)
 
 	request := anonymizationRequest{
@@ -131,19 +149,20 @@ func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, messages []opena
 	select {
 	case m.requestChan <- request:
 	case <-ctx.Done():
-		return nil, nil, ctx.Err()
+		return nil, nil, nil, ctx.Err()
 	case <-interruptChan:
-		return nil, nil, fmt.Errorf("anonymization interrupted before processing")
+		return nil, nil, nil, fmt.Errorf("anonymization interrupted before processing")
 	}
 
 	// Wait for response
 	select {
 	case response := <-responseChan:
-		return response.messages, response.rules, response.err
+		// For mock anonymizer, updatedDict is the same as rules (no persistence)
+		return response.messages, response.rules, response.rules, response.err
 	case <-ctx.Done():
-		return nil, nil, ctx.Err()
+		return nil, nil, nil, ctx.Err()
 	case <-interruptChan:
-		return nil, nil, fmt.Errorf("anonymization interrupted while waiting for response")
+		return nil, nil, nil, fmt.Errorf("anonymization interrupted while waiting for response")
 	}
 }
 
@@ -356,6 +375,27 @@ func (m *MockAnonymizer) DeAnonymize(anonymized string, rules map[string]string)
 
 func (m *MockAnonymizer) Shutdown() {
 	close(m.done)
+}
+
+func (m *MockAnonymizer) LoadConversationDict(conversationID string) (map[string]string, error) {
+	// Mock anonymizer doesn't support persistence
+	return make(map[string]string), nil
+}
+
+func (m *MockAnonymizer) SaveConversationDict(conversationID string, dict map[string]string) error {
+	// Mock anonymizer doesn't support persistence
+	return nil
+}
+
+func (m *MockAnonymizer) GetMessageHash(message openai.ChatCompletionMessageParamUnion) string {
+	// Simple hash implementation for mock
+	hasher := NewMessageHasher()
+	return hasher.GetMessageHash(message)
+}
+
+func (m *MockAnonymizer) IsMessageAnonymized(conversationID, messageHash string) (bool, error) {
+	// Mock anonymizer doesn't support persistence
+	return false, nil
 }
 
 // ResetMockAnonymizerForTesting resets the singleton instance for testing purposes.
