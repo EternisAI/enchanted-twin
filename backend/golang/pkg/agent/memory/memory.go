@@ -855,8 +855,37 @@ type MemoryFact struct {
 	Metadata map[string]string `json:"metadata,omitempty"` // Additional metadata (being phased out)
 }
 
+// GenerateContent creates the searchable content string from structured fields.
+func (mf *MemoryFact) GenerateContent() string {
+	// Simple combination for embeddings and search
+	return fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
+}
+
+// GenerateContentForLLM creates rich content with timestamp for LLM consumption.
+func (mf *MemoryFact) GenerateContentForLLM() string {
+	content := fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
+	if !mf.Timestamp.IsZero() {
+		content += fmt.Sprintf(" [%s]", mf.Timestamp.Format("Jan 2006"))
+	}
+	return content
+}
+
+// DocumentChunk represents a document chunk result for queries.
+type DocumentChunk struct {
+	ID                 string            `json:"id"`
+	Content            string            `json:"content"`
+	ChunkIndex         int               `json:"chunk_index"`
+	OriginalDocumentID string            `json:"original_document_id"`
+	Source             string            `json:"source"`
+	FilePath           string            `json:"file_path"`
+	Tags               []string          `json:"tags"`
+	Metadata           map[string]string `json:"metadata"`
+	CreatedAt          time.Time         `json:"created_at"`
+}
+
 type QueryResult struct {
-	Facts []MemoryFact `json:"facts"`
+	Facts          []MemoryFact    `json:"facts"`
+	DocumentChunks []DocumentChunk `json:"document_chunks,omitempty"`
 }
 
 // ProgressUpdate represents progress information for memory storage operations.
@@ -881,21 +910,6 @@ func (tf *TagsFilter) IsEmpty() bool {
 		return true
 	}
 	return len(tf.All) == 0 && len(tf.Any) == 0 && tf.Expression == nil
-}
-
-// GenerateContent creates the searchable content string from structured fields.
-func (mf *MemoryFact) GenerateContent() string {
-	// Simple combination for embeddings and search
-	return fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
-}
-
-// GenerateContentForLLM creates rich content with timestamp for LLM consumption.
-func (mf *MemoryFact) GenerateContentForLLM() string {
-	content := fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
-	if !mf.Timestamp.IsZero() {
-		content += fmt.Sprintf(" [%s]", mf.Timestamp.Format("Jan 2006"))
-	}
-	return content
 }
 
 // IsLeaf returns true if this is a leaf node (has tags).
