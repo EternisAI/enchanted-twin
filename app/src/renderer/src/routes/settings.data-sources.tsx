@@ -6,6 +6,7 @@ import ConnectMCPServerButton from '@renderer/components/oauth/MCPConnectServerB
 import LocalFilesTab from '@renderer/components/data-sources/LocalFilesTab'
 import { FolderIcon, NetworkIcon, PlugIcon } from 'lucide-react'
 import LocalFolderSync from '@renderer/components/data-sources/LocalFolderSync'
+import { SettingsContent } from '@renderer/components/settings/SettingsContent'
 
 export const Route = createFileRoute('/settings/data-sources')({
   component: ImportDataSettings
@@ -13,27 +14,15 @@ export const Route = createFileRoute('/settings/data-sources')({
 
 function ImportDataSettings() {
   return (
-    <div className="p-4 sm:p-8 w-full flex flex-col items-center justify-center">
-      <div className="flex flex-col w-full max-w-3xl">
-        <Content />
-      </div>
-    </div>
-  )
-}
-
-// Tabs: Available, Local Files, Connected
-
-function Content() {
-  return (
-    <div className="flex flex-col gap-4">
+    <SettingsContent>
       <div className="flex flex-row gap-2 w-full items-center justify-between">
         <h2 className="text-4xl font-semibold">Data Sources</h2>
-        <div className="block sm:hidden">
+        <div className="block md:hidden">
           <ConnectMCPServerButton onSuccess={() => {}} />
         </div>
       </div>
       <Tabs defaultValue="available">
-        <div className="flex flex-row gap-2 w-full items-center justify-between pb-10">
+        <div className="flex flex-row gap-2 w-full items-center justify-between pt-5 pb-10">
           <TabsList>
             <TabsTrigger value="available">
               <NetworkIcon className="w-4 h-4" /> Available
@@ -45,16 +34,13 @@ function Content() {
               <PlugIcon className="w-4 h-4" /> Connected
             </TabsTrigger>
           </TabsList>
-          <div className="hidden sm:block">
+          <div className="hidden md:block">
             <ConnectMCPServerButton onSuccess={() => {}} />
           </div>
         </div>
         <TabsContent value="available">
           <div className="flex flex-col gap-15">
             <MCPPanel />
-            <header className="flex flex-col gap-2 border-b pb-3">
-              <h2 className="text-2xl font-bold leading-none">Imports & Takeouts</h2>
-            </header>
             <DataSourcesPanel />
           </div>
         </TabsContent>
@@ -68,6 +54,6 @@ function Content() {
           <DataSourcesPanel header={false} />
         </TabsContent>
       </Tabs>
-    </div>
+    </SettingsContent>
   )
 }

@@ -1,5 +1,4 @@
 import { Button } from '@renderer/components/ui/button'
-import { Card } from '@renderer/components/ui/card'
 import { useTheme } from '@renderer/lib/theme'
 import { Sun, Moon, Monitor } from 'lucide-react'
 
@@ -7,7 +6,7 @@ export default function SystemTheme() {
   const { theme, setTheme } = useTheme()
 
   return (
-    <Card className="flex flex-row items-center gap-2 mt-4 max-w-4xl p-4">
+    <div className="flex flex-row items-center gap-2">
       <Button
         variant={theme === 'light' ? 'default' : 'outline'}
         className="flex-1"
@@ -32,6 +31,6 @@ export default function SystemTheme() {
         <Monitor className="mr-2" />
         System
       </Button>
-    </Card>
+    </div>
   )
 }

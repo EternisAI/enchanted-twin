@@ -1,8 +1,8 @@
 import { createFileRoute, Outlet, Navigate } from '@tanstack/react-router'
 import { Button } from '@renderer/components/ui/button'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Info } from 'lucide-react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Monitor, Database, Settings2, Shield, RefreshCcw, Keyboard } from 'lucide-react'
+import { Database, Settings2, Shield } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
@@ -26,28 +26,22 @@ const settingsTabs = [
     path: '/settings/permissions'
   },
   {
-    value: 'updates',
-    label: 'Updates',
-    icon: RefreshCcw,
-    path: '/settings/updates'
+    value: 'customize',
+    label: 'Customize',
+    icon: Settings2,
+    path: '/settings/customize'
   },
   {
-    value: 'appearance',
-    label: 'Appearance',
-    icon: Monitor,
-    path: '/settings/appearance'
-  },
-  {
-    value: 'keyboard',
-    label: 'Keyboard',
-    icon: Keyboard,
-    path: '/settings/keyboard'
+    value: 'about',
+    label: 'About',
+    icon: Info,
+    path: '/settings/about'
   },
   ...(process.env.NODE_ENV === 'development'
     ? [
         {
           value: 'advanced',
-          label: 'Developer',
+          label: 'Advanced',
           icon: Settings2,
           path: '/settings/advanced'
         }

@@ -18,12 +18,11 @@ import { Route as OmnibarOverlayImport } from './routes/omnibar-overlay'
 import { Route as AdminImport } from './routes/admin'
 import { Route as IndexImport } from './routes/index'
 import { Route as HolonIndexImport } from './routes/holon/index'
-import { Route as SettingsUpdatesImport } from './routes/settings.updates'
 import { Route as SettingsPermissionsImport } from './routes/settings.permissions'
-import { Route as SettingsKeyboardImport } from './routes/settings.keyboard'
 import { Route as SettingsDataSourcesImport } from './routes/settings.data-sources'
-import { Route as SettingsAppearanceImport } from './routes/settings.appearance'
+import { Route as SettingsCustomizeImport } from './routes/settings.customize'
 import { Route as SettingsAdvancedImport } from './routes/settings.advanced'
+import { Route as SettingsAboutImport } from './routes/settings.about'
 import { Route as HolonThreadIdImport } from './routes/holon/$threadId'
 import { Route as ChatChatIdImport } from './routes/chat/$chatId'
 
@@ -71,21 +70,9 @@ const HolonIndexRoute = HolonIndexImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
-const SettingsUpdatesRoute = SettingsUpdatesImport.update({
-  id: '/updates',
-  path: '/updates',
-  getParentRoute: () => SettingsRoute,
-} as any)
-
 const SettingsPermissionsRoute = SettingsPermissionsImport.update({
   id: '/permissions',
   path: '/permissions',
-  getParentRoute: () => SettingsRoute,
-} as any)
-
-const SettingsKeyboardRoute = SettingsKeyboardImport.update({
-  id: '/keyboard',
-  path: '/keyboard',
   getParentRoute: () => SettingsRoute,
 } as any)
 
@@ -95,15 +82,21 @@ const SettingsDataSourcesRoute = SettingsDataSourcesImport.update({
   getParentRoute: () => SettingsRoute,
 } as any)
 
-const SettingsAppearanceRoute = SettingsAppearanceImport.update({
-  id: '/appearance',
-  path: '/appearance',
+const SettingsCustomizeRoute = SettingsCustomizeImport.update({
+  id: '/customize',
+  path: '/customize',
   getParentRoute: () => SettingsRoute,
 } as any)
 
 const SettingsAdvancedRoute = SettingsAdvancedImport.update({
   id: '/advanced',
   path: '/advanced',
+  getParentRoute: () => SettingsRoute,
+} as any)
+
+const SettingsAboutRoute = SettingsAboutImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => SettingsRoute,
 } as any)
 
@@ -179,6 +172,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HolonThreadIdImport
       parentRoute: typeof rootRoute
     }
+    '/settings/about': {
+      id: '/settings/about'
+      path: '/about'
+      fullPath: '/settings/about'
+      preLoaderRoute: typeof SettingsAboutImport
+      parentRoute: typeof SettingsImport
+    }
     '/settings/advanced': {
       id: '/settings/advanced'
       path: '/advanced'
@@ -186,11 +186,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAdvancedImport
       parentRoute: typeof SettingsImport
     }
-    '/settings/appearance': {
-      id: '/settings/appearance'
-      path: '/appearance'
-      fullPath: '/settings/appearance'
-      preLoaderRoute: typeof SettingsAppearanceImport
+    '/settings/customize': {
+      id: '/settings/customize'
+      path: '/customize'
+      fullPath: '/settings/customize'
+      preLoaderRoute: typeof SettingsCustomizeImport
       parentRoute: typeof SettingsImport
     }
     '/settings/data-sources': {
@@ -200,25 +200,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsDataSourcesImport
       parentRoute: typeof SettingsImport
     }
-    '/settings/keyboard': {
-      id: '/settings/keyboard'
-      path: '/keyboard'
-      fullPath: '/settings/keyboard'
-      preLoaderRoute: typeof SettingsKeyboardImport
-      parentRoute: typeof SettingsImport
-    }
     '/settings/permissions': {
       id: '/settings/permissions'
       path: '/permissions'
       fullPath: '/settings/permissions'
       preLoaderRoute: typeof SettingsPermissionsImport
-      parentRoute: typeof SettingsImport
-    }
-    '/settings/updates': {
-      id: '/settings/updates'
-      path: '/updates'
-      fullPath: '/settings/updates'
-      preLoaderRoute: typeof SettingsUpdatesImport
       parentRoute: typeof SettingsImport
     }
     '/holon/': {
@@ -234,21 +220,19 @@ declare module '@tanstack/react-router' {
 // Create and export the route tree
 
 interface SettingsRouteChildren {
+  SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsAdvancedRoute: typeof SettingsAdvancedRoute
-  SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsCustomizeRoute: typeof SettingsCustomizeRoute
   SettingsDataSourcesRoute: typeof SettingsDataSourcesRoute
-  SettingsKeyboardRoute: typeof SettingsKeyboardRoute
   SettingsPermissionsRoute: typeof SettingsPermissionsRoute
-  SettingsUpdatesRoute: typeof SettingsUpdatesRoute
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsAboutRoute: SettingsAboutRoute,
   SettingsAdvancedRoute: SettingsAdvancedRoute,
-  SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsCustomizeRoute: SettingsCustomizeRoute,
   SettingsDataSourcesRoute: SettingsDataSourcesRoute,
-  SettingsKeyboardRoute: SettingsKeyboardRoute,
   SettingsPermissionsRoute: SettingsPermissionsRoute,
-  SettingsUpdatesRoute: SettingsUpdatesRoute,
 }
 
 const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
@@ -264,12 +248,11 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
   '/holon/$threadId': typeof HolonThreadIdRoute
+  '/settings/about': typeof SettingsAboutRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
-  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/customize': typeof SettingsCustomizeRoute
   '/settings/data-sources': typeof SettingsDataSourcesRoute
-  '/settings/keyboard': typeof SettingsKeyboardRoute
   '/settings/permissions': typeof SettingsPermissionsRoute
-  '/settings/updates': typeof SettingsUpdatesRoute
   '/holon': typeof HolonIndexRoute
 }
 
@@ -282,12 +265,11 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
   '/holon/$threadId': typeof HolonThreadIdRoute
+  '/settings/about': typeof SettingsAboutRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
-  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/customize': typeof SettingsCustomizeRoute
   '/settings/data-sources': typeof SettingsDataSourcesRoute
-  '/settings/keyboard': typeof SettingsKeyboardRoute
   '/settings/permissions': typeof SettingsPermissionsRoute
-  '/settings/updates': typeof SettingsUpdatesRoute
   '/holon': typeof HolonIndexRoute
 }
 
@@ -301,12 +283,11 @@ export interface FileRoutesById {
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
   '/holon/$threadId': typeof HolonThreadIdRoute
+  '/settings/about': typeof SettingsAboutRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
-  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/customize': typeof SettingsCustomizeRoute
   '/settings/data-sources': typeof SettingsDataSourcesRoute
-  '/settings/keyboard': typeof SettingsKeyboardRoute
   '/settings/permissions': typeof SettingsPermissionsRoute
-  '/settings/updates': typeof SettingsUpdatesRoute
   '/holon/': typeof HolonIndexRoute
 }
 
@@ -321,12 +302,11 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/chat/$chatId'
     | '/holon/$threadId'
+    | '/settings/about'
     | '/settings/advanced'
-    | '/settings/appearance'
+    | '/settings/customize'
     | '/settings/data-sources'
-    | '/settings/keyboard'
     | '/settings/permissions'
-    | '/settings/updates'
     | '/holon'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -338,12 +318,11 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/chat/$chatId'
     | '/holon/$threadId'
+    | '/settings/about'
     | '/settings/advanced'
-    | '/settings/appearance'
+    | '/settings/customize'
     | '/settings/data-sources'
-    | '/settings/keyboard'
     | '/settings/permissions'
-    | '/settings/updates'
     | '/holon'
   id:
     | '__root__'
@@ -355,12 +334,11 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/chat/$chatId'
     | '/holon/$threadId'
+    | '/settings/about'
     | '/settings/advanced'
-    | '/settings/appearance'
+    | '/settings/customize'
     | '/settings/data-sources'
-    | '/settings/keyboard'
     | '/settings/permissions'
-    | '/settings/updates'
     | '/holon/'
   fileRoutesById: FileRoutesById
 }
@@ -425,12 +403,11 @@ export const routeTree = rootRoute
     "/settings": {
       "filePath": "settings.tsx",
       "children": [
+        "/settings/about",
         "/settings/advanced",
-        "/settings/appearance",
+        "/settings/customize",
         "/settings/data-sources",
-        "/settings/keyboard",
-        "/settings/permissions",
-        "/settings/updates"
+        "/settings/permissions"
       ]
     },
     "/tasks": {
@@ -442,28 +419,24 @@ export const routeTree = rootRoute
     "/holon/$threadId": {
       "filePath": "holon/$threadId.tsx"
     },
+    "/settings/about": {
+      "filePath": "settings.about.tsx",
+      "parent": "/settings"
+    },
     "/settings/advanced": {
       "filePath": "settings.advanced.tsx",
       "parent": "/settings"
     },
-    "/settings/appearance": {
-      "filePath": "settings.appearance.tsx",
+    "/settings/customize": {
+      "filePath": "settings.customize.tsx",
       "parent": "/settings"
     },
     "/settings/data-sources": {
       "filePath": "settings.data-sources.tsx",
       "parent": "/settings"
     },
-    "/settings/keyboard": {
-      "filePath": "settings.keyboard.tsx",
-      "parent": "/settings"
-    },
     "/settings/permissions": {
       "filePath": "settings.permissions.tsx",
-      "parent": "/settings"
-    },
-    "/settings/updates": {
-      "filePath": "settings.updates.tsx",
       "parent": "/settings"
     },
     "/holon/": {
