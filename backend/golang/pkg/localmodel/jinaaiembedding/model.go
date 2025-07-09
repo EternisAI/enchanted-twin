@@ -133,7 +133,7 @@ func (m *JinaAIEmbeddingModel) Embeddings(ctx context.Context, inputs []string, 
 func meanPooling(modelOutput []float32, attentionMask []int64, batchSize, seqLen, embedDim int) []float32 {
 	result := make([]float32, batchSize*embedDim)
 
-	for b := 0; b < batchSize; b++ {
+	for b := range batchSize {
 		var sumMask float32
 		for i := 0; i < embedDim; i++ {
 			var sumEmbedding float32
@@ -157,13 +157,16 @@ func meanPooling(modelOutput []float32, attentionMask []int64, batchSize, seqLen
 func l2Normalize(embeddings []float32, batchSize, embedDim int) []float32 {
 	result := make([]float32, len(embeddings))
 
-	for b := 0; b < batchSize; b++ {
+	for b := range batchSize {
 		var norm float32
 		for i := 0; i < embedDim; i++ {
 			val := embeddings[b*embedDim+i]
 			norm += val * val
 		}
 		norm = float32(math.Sqrt(float64(norm)))
+		if norm < 1e-9 {
+			norm = 1e-9
+		}
 
 		for i := 0; i < embedDim; i++ {
 			result[b*embedDim+i] = embeddings[b*embedDim+i] / norm
@@ -175,7 +178,7 @@ func l2Normalize(embeddings []float32, batchSize, embedDim int) []float32 {
 func getONNXLibraryPath(sharedLibraryPath string) string {
 	var libName string
 	var platformDir string
-	
+
 	arch := "x64"
 	if runtime.GOARCH == "arm64" {
 		arch = "arm64"

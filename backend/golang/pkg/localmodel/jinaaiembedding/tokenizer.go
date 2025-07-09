@@ -27,13 +27,13 @@ type SentencePieceTokenizer struct {
 type TokenizerJSON struct {
 	Version string `json:"version"`
 	Model   struct {
-		Type       string      `json:"type"`
-		Vocab      interface{} `json:"vocab"` // Can be object or array
-		UnkId      int         `json:"unk_id"`
-		Dropout    *float64    `json:"dropout"`
-		Continuing interface{} `json:"continuing_subword_prefix"`
-		EndOfWord  bool        `json:"end_of_word_suffix"`
-		FuseUnk    bool        `json:"fuse_unk"`
+		Type       string   `json:"type"`
+		Vocab      any      `json:"vocab"` // Can be object or array
+		UnkId      int      `json:"unk_id"`
+		Dropout    *float64 `json:"dropout"`
+		Continuing any      `json:"continuing_subword_prefix"`
+		EndOfWord  bool     `json:"end_of_word_suffix"`
+		FuseUnk    bool     `json:"fuse_unk"`
 	} `json:"model"`
 	Normalizer struct {
 		Type string `json:"type"`
@@ -104,16 +104,16 @@ func (t *SentencePieceTokenizer) LoadFromLocal(tokenizerPath, configPath string)
 	t.config = &modelConfig
 
 	switch vocab := tokenizerJSON.Model.Vocab.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		for token, id := range vocab {
 			if idInt, ok := id.(float64); ok {
 				t.vocab[token] = int(idInt)
 				t.vocabReverse[int(idInt)] = token
 			}
 		}
-	case []interface{}:
+	case []any:
 		for i, vocabItem := range vocab {
-			if vocabArray, ok := vocabItem.([]interface{}); ok && len(vocabArray) >= 2 {
+			if vocabArray, ok := vocabItem.([]any); ok && len(vocabArray) >= 2 {
 				if token, ok := vocabArray[0].(string); ok {
 					t.vocab[token] = i
 					t.vocabReverse[i] = token
