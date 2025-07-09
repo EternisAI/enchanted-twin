@@ -30,6 +30,7 @@ export default function VoiceOnboardingContainer() {
   const { theme } = useTheme()
   const { isCompleted } = useOnboardingStore()
   const { updateTitlebarColor } = useTitlebarColor()
+  const { stopVoiceMode } = useVoiceStore()
 
   useEffect(() => {
     if (isCompleted) {
@@ -46,6 +47,13 @@ export default function VoiceOnboardingContainer() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    return () => {
+      console.log('stopVoiceMode!!!')
+      stopVoiceMode()
+    }
+  }, [stopVoiceMode])
 
   return (
     <div

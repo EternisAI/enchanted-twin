@@ -15,6 +15,7 @@ import { routeTree } from '@renderer/routeTree.gen'
 import InvitationGate from './components/onboarding/InvitationGate'
 import UpdateNotification from './components/UpdateNotification'
 import AppSetupGate from './components/setup/AppSetupGate'
+import AppInitialize from './components/setup/AppInitialize'
 
 export const router = createRouter({
   routeTree,
@@ -39,22 +40,23 @@ const savedTheme = (() => {
 function App() {
   return (
     <ThemeProvider defaultTheme={savedTheme}>
+      <Toaster position="bottom-right" />
       <TTSProvider>
         <ApolloClientProvider>
-          <AppSetupGate>
+          <GoLogsProvider>
             <AuthProvider>
-              <GoLogsProvider>
+              <AppInitialize>
                 <div className="flex flex-col h-full w-full">
-                  <UpdateNotification />
-
-                  <Toaster position="bottom-right" />
-                  <InvitationGate>
-                    <RouterProvider router={router} />
-                  </InvitationGate>
+                  <AppSetupGate>
+                    <InvitationGate>
+                      <UpdateNotification />
+                      <RouterProvider router={router} />
+                    </InvitationGate>
+                  </AppSetupGate>
                 </div>
-              </GoLogsProvider>
+              </AppInitialize>
             </AuthProvider>
-          </AppSetupGate>
+          </GoLogsProvider>
         </ApolloClientProvider>
       </TTSProvider>
     </ThemeProvider>

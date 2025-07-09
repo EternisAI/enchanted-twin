@@ -1,11 +1,6 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useQuery, useMutation } from '@apollo/client'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
-import {
-  GetWhitelistStatusDocument,
-  ActivateInviteCodeDocument
-} from '@renderer/graphql/generated/graphql'
 import { OnboardingLayout } from './OnboardingLayout'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
@@ -19,58 +14,19 @@ import GoogleSignInButton from '../oauth/GoogleSignInButton'
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isActivated, setIsActivated] = useState(false)
-
-  const { user, authError, loading: authLoading, waitingForLogin, hasUpdatedToken } = useAuth()
 
   const {
-    data: whitelistData,
-    loading: whitelistLoading,
-    error: whitelistError,
-    refetch: refetchWhitelist
-  } = useQuery(GetWhitelistStatusDocument, {
-    fetchPolicy: 'network-only',
-    skip: !user || !hasUpdatedToken
-  })
+    user,
+    authError,
+    loading: authLoading,
+    waitingForLogin,
+    whitelistLoading,
+    whitelistError,
+    isWhitelisted,
+    activateInviteCode
+  } = useAuth()
 
-  const [activateInviteCode] = useMutation(ActivateInviteCodeDocument, {
-    onCompleted: async () => {
-      toast.success('Invite code activated successfully!')
-      await refetchWhitelist()
-      setIsActivated(true)
-    },
-    onError: (error) => {
-      console.error(error)
-      toast.error(`Failed to activate invite code: ${error.message}`)
-      setIsSubmitting(false)
-    }
-  })
-
-  console.log('whitelistData', whitelistData, whitelistError)
-
-  const errorFetching = useMemo(() => {
-    return whitelistError?.message || authError
-  }, [whitelistError, authError])
-
-  useEffect(() => {
-    const handleError = async () => {
-      if (errorFetching) {
-        console.error('Whitelist query failed:', errorFetching)
-
-        // Don't redirect if we're on the omnibar overlay route
-        // const currentPath = window.location.hash.replace('#', '')
-        // if (currentPath === '/omnibar-overlay') {
-        //   return
-        // }
-
-        // await new Promise((resolve) => setTimeout(resolve, 3000))
-        // router.navigate({ to: '/settings/advanced' })
-      }
-    }
-    handleError()
-  }, [errorFetching])
-
-  const isWhitelisted = whitelistData?.whitelistStatus || whitelistError
+  const errorFetching = whitelistError || authError
 
   const handleInviteCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,18 +37,17 @@ export default function InvitationGate({ children }: { children: React.ReactNode
 
     setIsSubmitting(true)
     try {
-      await activateInviteCode({
-        variables: { inviteCode: inviteCode.trim() }
-      })
+      await activateInviteCode(inviteCode.trim())
       setInviteCode('')
+      router.navigate({ to: '/onboarding' })
     } catch {
-      // Error is handled in onError callback
+      // Error is handled in the auth context
+    } finally {
+      setIsSubmitting(false)
     }
-    setIsSubmitting(false)
-    router.navigate({ to: '/onboarding' })
   }
 
-  if (isActivated || isWhitelisted || errorFetching) {
+  if (isWhitelisted || errorFetching) {
     return <>{children}</>
   }
 
