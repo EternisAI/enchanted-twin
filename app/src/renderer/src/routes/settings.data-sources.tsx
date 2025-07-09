@@ -15,13 +15,13 @@ export const Route = createFileRoute('/settings/data-sources')({
 function ImportDataSettings() {
   return (
     <SettingsContent>
-      <div className="flex flex-row gap-2 w-full items-center justify-between">
-        <h2 className="text-4xl font-semibold">Data Sources</h2>
-        <div className="block md:hidden">
-          <ConnectMCPServerButton onSuccess={() => {}} />
-        </div>
-      </div>
       <Tabs defaultValue="available">
+        <div className="flex flex-row gap-2 w-full items-center justify-between">
+          <h2 className="text-4xl font-semibold">Data Sources</h2>
+          <div className="block md:hidden">
+            <ConnectMCPServerButton onSuccess={() => {}} />
+          </div>
+        </div>
         <div className="flex flex-row gap-2 w-full items-center justify-between pt-5 pb-10">
           <TabsList>
             <TabsTrigger value="available">
