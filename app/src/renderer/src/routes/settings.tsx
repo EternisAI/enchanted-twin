@@ -55,7 +55,7 @@ function SettingsLayout() {
 
   // Default to appearance tab if on base settings route
   const isBaseSettingsRoute = location.pathname === '/settings'
-  
+
   if (isBaseSettingsRoute) {
     return <Navigate to={DEFAULT_SETTINGS_ROUTE} replace />
   }
@@ -71,7 +71,7 @@ function SettingsLayout() {
       </div>
       <div className="flex-1 flex flex-col mt-8 overflow-hidden">
         <div className="p-4 border-b no-drag">
-          <Button variant="ghost" className="h-9 px-2" onClick={handleBackClick}>
+          <Button variant="outline" className="h-9 px-2" onClick={handleBackClick}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
@@ -86,7 +86,7 @@ function SettingsLayout() {
                   to={tab.path}
                   replace={true}
                   className={cn(
-                    'flex items-center gap-2 w-full p-2 rounded-md justify-start text-sm transition-colors',
+                    'flex items-center gap-2 w-full p-2 rounded-md justify-start text-base transition-colors',
                     'hover:bg-accent',
                     isActive && 'bg-accent'
                   )}

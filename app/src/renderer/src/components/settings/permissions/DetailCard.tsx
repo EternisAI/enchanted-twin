@@ -1,23 +1,8 @@
 'use client'
-import { Card } from '@renderer/components/ui/card'
 import { Button } from '@renderer/components/ui/button'
 import { LucideIcon, Settings } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
-
-// Helper function to map status text color to background color
-const getStatusBgColor = (textColor: string): string => {
-  switch (textColor) {
-    case 'text-green-500':
-      return 'bg-green-100'
-    case 'text-red-500':
-      return 'bg-red-100'
-    case 'text-yellow-500':
-      return 'bg-yellow-100'
-    case 'text-muted-foreground':
-    default:
-      return 'bg-muted'
-  }
-}
+import IconContainer from '@renderer/assets/icons/IconContainer'
 
 interface StatusInfo {
   icon: LucideIcon
@@ -47,19 +32,14 @@ export function DetailCard({
   grantedIcon = <Settings className="h-4 w-4" />
 }: DetailCardProps) {
   return (
-    <Card className="p-4 flex-col gap-3 flex items-start justify-between w-full">
+    <div className="p-3 pl-0 hover:bg-muted transition-colors duration-100 rounded-md flex-col gap-3 flex items-start justify-between w-full bg-transparent border-none">
       <div className="flex items-start gap-3 w-full">
-        <div
-          className={cn(
-            'h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0',
-            getStatusBgColor(statusInfo.color)
-          )}
-        >
-          <IconComponent className={cn('h-5 w-5', statusInfo.color)} />
-        </div>
+        <IconContainer className="bg-muted/50">
+          <IconComponent className={cn('h-7 w-7', statusInfo.color)} />
+        </IconContainer>
         <div className="flex flex-col gap-1 w-full">
           <div className="flex items-center justify-between gap-1">
-            <span className="font-medium capitalize pt-1">{title}</span>
+            <span className="font-semibold capitalize text-lg">{title}</span>
             <Button
               variant="outline"
               size="sm"
@@ -72,9 +52,11 @@ export function DetailCard({
                 : buttonLabel}
             </Button>
           </div>
-          {explanation && <p className="text-xs text-muted-foreground mt-1">{explanation}</p>}
+          {explanation && (
+            <p className="text-sm text-muted-foreground mt-1 text-balance">{explanation}</p>
+          )}
         </div>
       </div>
-    </Card>
+    </div>
   )
 }

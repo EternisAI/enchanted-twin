@@ -84,10 +84,10 @@ export default function AdminPanel() {
   return (
     <div className="w-full h-full flex justify-center">
       <div className="w-4xl">
-        <Card className="grid grid-cols-1 gap-4 w-full p-6">
+        <Card className="">
           <Button
             variant="outline"
-            className="flex items-center justify-start h-14"
+            className="flex items-center justify-start"
             onClick={openLogsFolder}
             disabled={isLoading.logs}
           >
@@ -97,7 +97,7 @@ export default function AdminPanel() {
 
           <Button
             variant="outline"
-            className="flex items-center justify-start h-14"
+            className="flex items-center justify-start"
             onClick={openAppFolder}
             disabled={isLoading.app}
           >
@@ -107,7 +107,7 @@ export default function AdminPanel() {
 
           <Button
             variant="destructive"
-            className="flex items-center justify-start h-14"
+            className="flex items-center justify-start"
             onClick={deleteAppData}
             disabled={isLoading.data}
           >
@@ -116,7 +116,7 @@ export default function AdminPanel() {
           </Button>
           <Button
             variant="outline"
-            className="flex items-center justify-start h-14"
+            className="flex items-center justify-start"
             onClick={signOut}
             disabled={isLoading.data}
           >

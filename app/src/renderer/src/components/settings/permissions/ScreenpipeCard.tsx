@@ -1,8 +1,9 @@
-import { Card, CardHeader } from '@renderer/components/ui/card'
-import { Play, StopCircle, AlertCircle, Download } from 'lucide-react'
+import { Play, StopCircle, AlertCircle, Download, Monitor } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { Alert, AlertDescription } from '@renderer/components/ui/alert'
+import { toast } from 'sonner'
+import IconContainer from '@renderer/assets/icons/IconContainer'
 
 type MediaStatusType =
   | 'granted'
@@ -102,8 +103,10 @@ export default function ScreenpipePanel() {
     try {
       await window.api.screenpipe.stop()
       await fetchStatus()
+      toast.success('Screenpipe stopped')
     } catch (err: unknown) {
       setError(`Failed to stop Screenpipe: ${err}`)
+      toast.error('Failed to stop Screenpipe')
     } finally {
       setIsLoading(false)
     }
@@ -122,9 +125,12 @@ export default function ScreenpipePanel() {
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader className="text-lg font-semibold flex items-center justify-between">
-        <span>Screenpipe</span>
+    <div className="w-full bg-transparent border-none">
+      <div className="text-lg font-semibold flex items-center gap-2">
+        <IconContainer className="bg-muted/50">
+          <Monitor className="h-7 w-7" />
+        </IconContainer>
+        <span className="text-lg font-semibold">Screenpipe</span>
         <div className="flex gap-2">
           {autoStart && (
             <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-800">
@@ -139,8 +145,8 @@ export default function ScreenpipePanel() {
             {status.isRunning ? 'Running' : 'Stopped'}
           </span>
         </div>
-      </CardHeader>
-      <div className="flex flex-col gap-4 px-6">
+      </div>
+      <div className="flex flex-col gap-4 pt-4">
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -203,6 +209,6 @@ export default function ScreenpipePanel() {
           )}
         </div>
       </div>
-    </Card>
+    </div>
   )
 }

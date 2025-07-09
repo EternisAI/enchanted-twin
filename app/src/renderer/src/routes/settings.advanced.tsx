@@ -12,10 +12,7 @@ function AdvancedSettings() {
   return (
     <SettingsContent className="max-w-full w-fit">
       <div className="flex flex-col gap-4 w-full">
-        <h3 className="text-xl font-semibold">Advanced Settings</h3>
-        <p className="text-sm text-muted-foreground">
-          Configure advanced application settings and preferences.
-        </p>
+        <h3 className="text-3xl font-semibold">Developer</h3>
         <div className="flex flex-wrap gap-4 w-full">
           <div className="mt-4 flex flex-col gap-4 max-w-md">
             <AdminPanel />
