@@ -17,7 +17,6 @@ type JinaAIEmbeddingModel struct {
 }
 
 func NewJinaAIEmbeddingModel(modelDir string, onnxLib string) (*JinaAIEmbeddingModel, error) {
-
 	tokenizerPath := modelDir + "/tokenizer.json"
 	configPath := modelDir + "/config.json"
 	modelPath := modelDir + "/model.onnx"
