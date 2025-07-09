@@ -24,11 +24,11 @@ export const EXPORT_INSTRUCTIONS: Record<string, ExportInstructions> = {
     steps: [
       'Option 1: Upload .mbox file directly (if you have one)',
       'Option 2: Export from Google Takeout:',
-      '  • Go to Google Takeout (takeout.google.com)',
-      '  • Sign in with your Google account',
-      '  • Deselect all services, select only "Mail"',
-      '  • Click "Next" and choose export options',
-      '  • Click "Create Export" and wait for completion'
+      'Go to Google Takeout (takeout.google.com)',
+      'Sign in with your Google account',
+      'Deselect all services, select only "Mail"',
+      'Click "Next" and choose export options',
+      'Click "Create Export" and wait for completion'
     ],
     link: 'https://takeout.google.com'
   },
@@ -49,20 +49,14 @@ export const EXPORT_INSTRUCTIONS: Record<string, ExportInstructions> = {
     steps: [
       'Option 1: Upload JSON file directly (if you have conversations.json)',
       'Option 2: Export from ChatGPT:',
-      '  • Open ChatGPT → Settings → Data Controls',
-      '  • Click "Export Data" and follow the prompts',
-      '  • Wait 5-10 minutes for the export to complete',
-      '  • Check your email for ZIP file or extract conversations.json'
+      'Open ChatGPT → Settings → Data Controls',
+      'Click "Export Data" and follow the prompts',
+      'Wait 5-10 minutes for the export to complete',
+      'Check your email for ZIP file or extract conversations.json'
     ],
     link: 'https://chatgpt.com/#settings/DataControls'
   },
   Files: {
-    timeEstimate: '1-2 minutes',
-    steps: [
-      'Upload your files',
-      'Select the files you want to import',
-      'Click "Import"',
-      'Wait for the import to complete'
-    ]
+    timeEstimate: '1-2 minutes'
   }
 }
