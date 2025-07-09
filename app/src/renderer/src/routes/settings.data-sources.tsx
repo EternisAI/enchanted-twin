@@ -3,8 +3,7 @@ import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesP
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
 import ConnectMCPServerButton from '@renderer/components/oauth/MCPConnectServerButton'
-import LocalFilesTab from '@renderer/components/data-sources/LocalFilesTab'
-import { FolderIcon, NetworkIcon, PlugIcon } from 'lucide-react'
+import { FolderSyncIcon, NetworkIcon, PlugIcon } from 'lucide-react'
 import LocalFolderSync from '@renderer/components/data-sources/LocalFolderSync'
 import { SettingsContent } from '@renderer/components/settings/SettingsContent'
 
@@ -28,7 +27,7 @@ function ImportDataSettings() {
               <NetworkIcon className="w-4 h-4" /> Available
             </TabsTrigger>
             <TabsTrigger value="local-files">
-              <FolderIcon className="w-4 h-4" /> Local Files
+              <FolderSyncIcon className="w-4 h-4" /> Synced Folders
             </TabsTrigger>
             <TabsTrigger value="connected">
               <PlugIcon className="w-4 h-4" /> Connected
@@ -45,10 +44,7 @@ function ImportDataSettings() {
           </div>
         </TabsContent>
         <TabsContent value="local-files">
-          <div className="flex flex-col gap-15">
-            <LocalFilesTab />
-            <LocalFolderSync />
-          </div>
+          <LocalFolderSync />
         </TabsContent>
         <TabsContent value="connected">
           <DataSourcesPanel header={false} />

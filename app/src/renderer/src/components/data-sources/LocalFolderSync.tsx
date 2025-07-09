@@ -151,7 +151,7 @@ export default function LocalFolderSync() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-semibold">Folders</h2>
+      <h2 className="text-2xl font-semibold">Synced Folders</h2>
 
       <div className="flex flex-col gap-4">
         <div
