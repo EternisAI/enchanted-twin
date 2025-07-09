@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, Navigate } from '@tanstack/react-router'
 import { Button } from '@renderer/components/ui/button'
 import { ArrowLeft, Info } from 'lucide-react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useRouterState, useRouter } from '@tanstack/react-router'
 import { Database, Settings2, Shield } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
@@ -51,10 +51,17 @@ const settingsTabs = [
 
 function SettingsLayout() {
   const { location } = useRouterState()
+  const router = useRouter()
 
   // Default to appearance tab if on base settings route
-  if (location.pathname === '/settings') {
-    return <Navigate to={DEFAULT_SETTINGS_ROUTE} />
+  const isBaseSettingsRoute = location.pathname === '/settings'
+  
+  if (isBaseSettingsRoute) {
+    return <Navigate to={DEFAULT_SETTINGS_ROUTE} replace />
+  }
+
+  const handleBackClick = () => {
+    router.history.back()
   }
 
   return (
@@ -64,12 +71,10 @@ function SettingsLayout() {
       </div>
       <div className="flex-1 flex flex-col mt-8 overflow-hidden">
         <div className="p-4 border-b no-drag">
-          <Link to="/">
-            <Button variant="ghost" className="h-9 px-2">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </Link>
+          <Button variant="ghost" className="h-9 px-2" onClick={handleBackClick}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
         </div>
         <div className="flex-1 flex overflow-y-auto">
           <div className="w-[240px] bg-muted/50 p-4 flex flex-col gap-1 border-r">
@@ -79,6 +84,7 @@ function SettingsLayout() {
                 <Link
                   key={tab.value}
                   to={tab.path}
+                  replace={true}
                   className={cn(
                     'flex items-center gap-2 w-full p-2 rounded-md justify-start text-sm transition-colors',
                     'hover:bg-accent',
@@ -91,13 +97,11 @@ function SettingsLayout() {
               )
             })}
           </div>
-          <div className="flex-1 relative w-full">
-            <ScrollArea className="h-full">
-              <ErrorBoundary>
-                <Outlet />
-              </ErrorBoundary>
-            </ScrollArea>
-          </div>
+          <ScrollArea className="h-full w-full">
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
+          </ScrollArea>
         </div>
       </div>
     </div>
