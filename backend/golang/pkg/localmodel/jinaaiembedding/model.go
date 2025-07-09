@@ -3,6 +3,7 @@ package jinaaiembedding
 import (
 	"context"
 	"math"
+	"path/filepath"
 
 	ort "github.com/yalue/onnxruntime_go"
 
@@ -17,10 +18,11 @@ type JinaAIEmbeddingModel struct {
 }
 
 func NewJinaAIEmbeddingModel(appDataPath string, sharedLibraryPath string) (*JinaAIEmbeddingModel, error) {
-	tokenizerPath := appDataPath + "/models/jina-embeddings-v2-base-en/tokenizer.json"
-	configPath := appDataPath + "/models/jina-embeddings-v2-base-en/config.json"
-	modelPath := appDataPath + "/models/jina-embeddings-v2-base-en/model.onnx"
-	onnxLibPath := sharedLibraryPath + "/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"
+	modelDir := filepath.Join(appDataPath, "models", "jina-embeddings-v2-base-en")
+	tokenizerPath := filepath.Join(modelDir, "tokenizer.json")
+	configPath := filepath.Join(modelDir, "config.json")
+	modelPath := filepath.Join(modelDir, "model.onnx")
+	onnxLibPath := filepath.Join(sharedLibraryPath, "onnxruntime-linux-x64-1.22.0", "lib", "libonnxruntime.so")
 
 	tk := NewSentencePieceTokenizer()
 	err := tk.LoadFromLocal(tokenizerPath, configPath)
