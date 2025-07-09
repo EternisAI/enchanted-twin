@@ -47,7 +47,7 @@ function ImportDataSettings() {
           <LocalFolderSync />
         </TabsContent>
         <TabsContent value="connected">
-          <DataSourcesPanel header={false} />
+          <DataSourcesPanel />
         </TabsContent>
       </Tabs>
     </SettingsContent>
