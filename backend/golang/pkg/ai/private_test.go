@@ -589,3 +589,97 @@ func TestPrivateCompletionsE2EWithToolCalls(t *testing.T) {
 	t.Log("  5. Replacement rules preserved for full round-trip")
 	t.Log("  6. Tool calls work correctly with anonymization/deanonymization")
 }
+
+func TestMockAnonymizerLongerReplacementFirst(t *testing.T) {
+	logger := log.New(nil)
+
+	// Reset singleton to ensure clean state
+	ResetMockAnonymizerForTesting()
+
+	// Create custom replacements where shorter string is subset of longer string
+	customReplacements := map[string]string{
+		"Ivan":        "ANON_2",
+		"Ivan Ivanov": "ANON_1",
+		"John":        "PERSON_001",
+		"John Smith":  "PERSON_002",
+	}
+
+	// Create mock anonymizer with custom replacements
+	mockAnonymizer := &MockAnonymizer{
+		Delay:                  0,
+		PredefinedReplacements: customReplacements,
+		requestChan:            make(chan anonymizationRequest, 10),
+		done:                   make(chan struct{}),
+		logger:                 logger,
+	}
+
+	// Start processor
+	go mockAnonymizer.processRequests()
+	defer mockAnonymizer.Shutdown()
+
+	ctx := context.Background()
+	interruptChan := make(chan struct{})
+	defer close(interruptChan)
+
+	// Test anonymization with longer string first
+	testCases := []struct {
+		input    string
+		expected string
+	}{
+		{
+			input:    "Hello Ivan Ivanov, this is from Ivan",
+			expected: "Hello ANON_1, this is from ANON_2",
+		},
+		{
+			input:    "Meet John Smith and John",
+			expected: "Meet PERSON_002 and PERSON_001",
+		},
+		{
+			input:    "Ivan Ivanov and Ivan work together",
+			expected: "ANON_1 and ANON_2 work together",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.input, func(t *testing.T) {
+			messages := []openai.ChatCompletionMessageParamUnion{
+				openai.UserMessage(tc.input),
+			}
+
+			anonymizedMessages, rules, err := mockAnonymizer.AnonymizeMessages(ctx, messages, interruptChan)
+			if err != nil {
+				t.Fatalf("Anonymization failed: %v", err)
+			}
+
+			// Extract anonymized content
+			messageBytes, err := json.Marshal(anonymizedMessages[0])
+			if err != nil {
+				t.Fatalf("Failed to marshal anonymized message: %v", err)
+			}
+
+			var messageMap map[string]interface{}
+			if err := json.Unmarshal(messageBytes, &messageMap); err != nil {
+				t.Fatalf("Failed to unmarshal anonymized message: %v", err)
+			}
+
+			anonymizedContent, ok := messageMap["content"].(string)
+			if !ok {
+				t.Fatalf("Expected string content in message")
+			}
+			if anonymizedContent != tc.expected {
+				t.Errorf("Expected: %q, got: %q", tc.expected, anonymizedContent)
+			}
+
+			// Test de-anonymization
+			deAnonymized := mockAnonymizer.DeAnonymize(anonymizedContent, rules)
+			if deAnonymized != tc.input {
+				t.Errorf("De-anonymization failed. Expected: %q, got: %q", tc.input, deAnonymized)
+			}
+
+			t.Logf("Input: %s", tc.input)
+			t.Logf("Anonymized: %s", anonymizedContent)
+			t.Logf("De-anonymized: %s", deAnonymized)
+			t.Logf("Rules: %v", rules)
+		})
+	}
+}
