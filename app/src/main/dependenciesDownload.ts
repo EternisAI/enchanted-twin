@@ -8,33 +8,35 @@ import tar from 'tar'
 import { windowManager } from './windows'
 import { DependencyName, DependencyStatus } from './types/dependencies'
 
-const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'Enchanted', 'models')
+const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'Enchanted')
 
-const DEPENDENCIES_CONFIGS: Record<DependencyName, { url: string; name: string }> = {
+const DEPENDENCIES_CONFIGS: Record<DependencyName, { url: string; name: string; dir: string }> = {
   embeddings: {
     url: 'https://d3o88a4htgfnky.cloudfront.net/models/jina-embeddings-v2-base-en.zip',
-    name: 'embeddings'
+    name: 'embeddings',
+    dir: path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
   },
   anonymizer: {
     url: 'https://d3o88a4htgfnky.cloudfront.net/models/jina-embeddings-v2-base-en.zip',
-    name: 'anonymizer'
+    name: 'anonymizer',
+    dir: path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
   },
   onnx: {
     url:
       process.platform === 'darwin' && process.arch === 'arm64'
         ? 'https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-osx-arm64-1.22.0.tgz'
         : 'https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz',
-    name: 'onnx'
+    name: 'onnx',
+    dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib')
   }
 }
 
 export function hasDependenciesDownloaded(): DependencyStatus {
-  const embeddingsDir = path.join(DEPENDENCIES_DIR, 'embeddings')
-  const anonymizerDir = path.join(DEPENDENCIES_DIR, 'anonymizer')
-  const onnxDir = path.join(DEPENDENCIES_DIR, 'onnx')
+  const modelsDir = path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
+  const onnxDir = path.join(DEPENDENCIES_DIR, 'shared', 'lib')
 
-  const embeddingsExists = fs.existsSync(embeddingsDir) && fs.readdirSync(embeddingsDir).length > 0
-  const anonymizerExists = fs.existsSync(anonymizerDir) && fs.readdirSync(anonymizerDir).length > 0
+  const embeddingsExists = fs.existsSync(modelsDir) && fs.readdirSync(modelsDir).length > 0
+  const anonymizerExists = fs.existsSync(modelsDir) && fs.readdirSync(modelsDir).length > 0
   const onnxExists = fs.existsSync(onnxDir) && fs.readdirSync(onnxDir).length > 0
 
   return {
@@ -53,7 +55,7 @@ export async function downloadDependency(dependencyName: DependencyName) {
 
   console.log(`[downloadDependencies] Dependency config found:`, { name: cfg.name, url: cfg.url })
 
-  const dependencyDir = path.join(DEPENDENCIES_DIR, cfg.name)
+  const dependencyDir = cfg.dir
 
   if (!fs.existsSync(dependencyDir)) {
     fs.mkdirSync(dependencyDir, { recursive: true })
