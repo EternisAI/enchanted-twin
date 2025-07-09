@@ -27,8 +27,18 @@ func TestJinaAIEmbeddingModel(t *testing.T) {
 
 	t.Logf("Embedding: %v", vector[:10])
 
-	inputTexts := []string{}
-	_, err = model.Embeddings(context.Background(), inputTexts, "jina-embeddings-v2-base-en")
+	inputTexts := []string{
+		"This is an apple",
+		"This is a banana",
+	}
+	vectors, err := model.Embeddings(context.Background(), inputTexts, "jina-embeddings-v2-base-en")
 	assert.NoError(t, err)
-	// assert.NotEmpty(t, vectors)
+	assert.NotEmpty(t, vectors)
+	assert.Len(t, vectors, len(inputTexts))
+
+	for i, vector := range vectors {
+		assert.NotEmpty(t, vector, "Vector %d should not be empty", i)
+		assert.Len(t, vector, 768, "Vector %d should have 768 dimensions", i)
+		t.Logf("Vector %d (first 10): %v", i, vector[:10])
+	}
 }
