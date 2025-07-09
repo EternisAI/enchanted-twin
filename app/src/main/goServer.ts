@@ -3,16 +3,16 @@ import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import { createErrorWindow, waitForBackend, createSplashWindow } from './helpers'
+import { createErrorWindow, waitForBackend } from './helpers'
 import { BrowserWindow } from 'electron'
 import split2 from 'split2'
 
 let goServerProcess: ChildProcess | null = null
-let splashWindow: BrowserWindow | null = null
+// let splashWindow: BrowserWindow | null = null
 
 export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND_PORT: number) {
   // Create and show splash screen
-  splashWindow = createSplashWindow()
+  // splashWindow = createSplashWindow()
 
   const userDataPath = app.getPath('userData')
   const dbDir = join(userDataPath, 'db')
@@ -36,19 +36,17 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
 
   if (IS_PRODUCTION) {
     const success = await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
-    // Close splash screen after Go server is ready
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      splashWindow.close()
-      splashWindow = null
-    }
+    // if (splashWindow && !splashWindow.isDestroyed()) {
+    //   splashWindow.close()
+    //   splashWindow = null
+    // }
     return success
   } else {
     log.info('Running in development mode - packaged Go server not started')
-    // Close splash screen in development mode
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      splashWindow.close()
-      splashWindow = null
-    }
+    // if (splashWindow && !splashWindow.isDestroyed()) {
+    //   splashWindow.close()
+    //   splashWindow = null
+    // }
     return true
   }
 }
@@ -138,6 +136,10 @@ export function cleanupGoServer() {
     }
     goServerProcess = null
   }
+}
+
+export function isGoServerRunning(): boolean {
+  return goServerProcess !== null && !goServerProcess.killed
 }
 
 function forward(stream: NodeJS.ReadableStream, source: 'stdout' | 'stderr') {

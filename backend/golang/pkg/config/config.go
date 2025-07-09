@@ -20,6 +20,7 @@ type Config struct {
 	EmbeddingsModel    string
 	DBPath             string
 	AppDataPath        string
+	WatchDirectoryPath string
 	TelegramToken      string
 	TelegramChatServer string
 	ContainerRuntime   string

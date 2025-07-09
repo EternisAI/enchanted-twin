@@ -17,13 +17,13 @@ import { registerIpcHandlers, registerShortcut } from './ipcHandlers'
 import { setupMenu } from './menuSetup'
 import { setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
-import { cleanupGoServer, initializeGoServer } from './goServer'
+import { cleanupGoServer } from './goServer'
 // import { startKokoro, cleanupKokoro } from './kokoroManager'
 import { startLiveKitSetup, cleanupLiveKitAgent } from './livekitManager'
 import { initializeAnalytics } from './analytics'
 import { keyboardShortcutsStore } from './stores'
 
-const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
+// const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
 
 // Check if running in production using environment variable
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
@@ -46,13 +46,10 @@ for (const [key, val] of Object.entries(typeof __APP_ENV__ === 'object' ? __APP_
 // Function to register global shortcuts from store
 function registerStoredShortcuts() {
   try {
-    // First, unregister all existing shortcuts
     globalShortcut.unregisterAll()
     log.info('Unregistered all existing global shortcuts')
-    
-    // Get shortcuts from store (electron-store handles defaults automatically)
+
     const shortcuts = keyboardShortcutsStore.get('shortcuts')
-    log.info('Loading keyboard shortcuts from store:', JSON.stringify(shortcuts, null, 2))
 
     // Register each shortcut
     Object.entries(shortcuts).forEach(([action, shortcut]) => {
@@ -68,7 +65,7 @@ function registerStoredShortcuts() {
 app.whenReady().then(async () => {
   log.info(`App version: ${app.getVersion()}`)
 
-  await initializeGoServer(IS_PRODUCTION, DEFAULT_BACKEND_PORT)
+  // await initializeGoServer(IS_PRODUCTION, DEFAULT_BACKEND_PORT)
 
   const mainWindow = windowManager.createMainWindow()
   registerNotificationIpc(mainWindow)
@@ -82,13 +79,10 @@ app.whenReady().then(async () => {
   setupAutoUpdater()
   setupMenu()
 
-  // Register global shortcuts from store
   registerStoredShortcuts()
 
-  // Setup LiveKit cleanup on renderer issues
   setupLiveKitCleanup(mainWindow)
 
-  // startKokoro(mainWindow)
   startLiveKitSetup(mainWindow)
   autoStartScreenpipeIfEnabled()
 
