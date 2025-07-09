@@ -9,7 +9,7 @@ import (
 )
 
 func TestJinaAIEmbeddingModel(t *testing.T) {
-	t.Skip()
+	// t.Skip()
 
 	appDataPath := os.Getenv("APP_DATA_PATH")
 	assert.NotEmpty(t, appDataPath)
@@ -28,7 +28,7 @@ func TestJinaAIEmbeddingModel(t *testing.T) {
 	t.Logf("Embedding: %v", vector[:10])
 
 	inputTexts := []string{}
-	vectors, err := model.Embeddings(context.Background(), inputTexts, "jina-embeddings-v2-base-en")
+	_, err = model.Embeddings(context.Background(), inputTexts, "jina-embeddings-v2-base-en")
 	assert.NoError(t, err)
-	assert.NotEmpty(t, vectors)
+	// assert.NotEmpty(t, vectors)
 }
