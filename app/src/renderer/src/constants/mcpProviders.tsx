@@ -5,7 +5,7 @@ import XformerlyTwitter from '@renderer/assets/icons/x'
 import IconContainer from '@renderer/assets/icons/IconContainer'
 import { ComputerIcon, PlugIcon } from 'lucide-react'
 import enchantedIcon from '@resources/icon.png'
-import freysaIcon from '@resources/freysa.jpg'
+import freysaIcon from '@resources/freysa.png'
 
 export const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
   GOOGLE: {
