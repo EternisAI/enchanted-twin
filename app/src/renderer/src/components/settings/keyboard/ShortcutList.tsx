@@ -124,7 +124,9 @@ export function ShortcutList() {
                   )}
                   <div className="font-medium text-base">{item.label}</div>
                 </div>
-                <div className="text-xs text-muted-foreground">{item.description}</div>
+                {item.description && (
+                  <div className="text-xs text-muted-foreground">{item.description}</div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <ShortcutRecorder
