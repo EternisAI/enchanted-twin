@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"path/filepath"
+	"runtime"
 
 	ort "github.com/yalue/onnxruntime_go"
 
@@ -22,7 +23,7 @@ func NewEmbedding(appDataPath string, sharedLibraryPath string) (*JinaAIEmbeddin
 	tokenizerPath := filepath.Join(modelDir, "tokenizer.json")
 	configPath := filepath.Join(modelDir, "config.json")
 	modelPath := filepath.Join(modelDir, "model.onnx")
-	onnxLibPath := filepath.Join(sharedLibraryPath, "onnxruntime-linux-x64-1.22.0", "lib", "libonnxruntime.so")
+	onnxLibPath := getONNXLibraryPath(sharedLibraryPath)
 
 	tk := NewSentencePieceTokenizer()
 	err := tk.LoadFromLocal(tokenizerPath, configPath)
@@ -169,4 +170,28 @@ func l2Normalize(embeddings []float32, batchSize, embedDim int) []float32 {
 		}
 	}
 	return result
+}
+
+func getONNXLibraryPath(sharedLibraryPath string) string {
+	var libName string
+	var platformDir string
+	
+	arch := "x64"
+	if runtime.GOARCH == "arm64" {
+		arch = "arm64"
+	}
+
+	switch runtime.GOOS {
+	case "windows":
+		libName = "onnxruntime.dll"
+		platformDir = "onnxruntime-win-" + arch + "-1.22.0"
+	case "darwin":
+		libName = "libonnxruntime.dylib"
+		platformDir = "onnxruntime-osx-" + arch + "-1.22.0"
+	default:
+		libName = "libonnxruntime.so"
+		platformDir = "onnxruntime-linux-" + arch + "-1.22.0"
+	}
+
+	return filepath.Join(sharedLibraryPath, platformDir, "lib", libName)
 }
