@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { useEffect, useMemo } from 'react'
 import { Skeleton } from '@renderer/components/ui/skeleton'
 import { motion } from 'framer-motion'
+import { PROVIDER_CONFIG } from '@renderer/constants/mcpProviders'
 
 export default function MCPPanel() {
   const { data: toolsData } = useQuery(GetToolsDocument)
@@ -67,18 +68,28 @@ export default function MCPPanel() {
   }, [allMcpServers])
 
   const serverTypes = useMemo(() => {
-    return Object.keys(serversByType).map((type) => {
-      const servers = serversByType[type as McpServerType]
-      const connectedServers = servers.filter((s) => s.connected)
-      const templateServer = servers[0] // Use first server as template for type info
+    return Object.keys(serversByType)
+      .map((type) => {
+        const servers = serversByType[type as McpServerType]
+        const connectedServers = servers.filter((s) => s.connected)
+        const templateServer = servers[0] // Use first server as template for type info
+        const serverType = type as McpServerType
+        const providerConfig = PROVIDER_CONFIG[serverType]
 
-      return {
-        type: type as McpServerType,
-        templateServer,
-        connectedServers,
-        totalServers: servers.length
-      }
-    })
+        return {
+          type: serverType,
+          templateServer,
+          connectedServers,
+          totalServers: servers.length,
+          supportsMultipleConnections: providerConfig.supportsMultipleConnections
+        }
+      })
+      .filter((serverType) => {
+        // Show servers that either:
+        // 1. Have no connections yet, OR
+        // 2. Support multiple connections
+        return serverType.connectedServers.length === 0 || serverType.supportsMultipleConnections
+      })
   }, [serversByType])
 
   console.log('toolsData', toolsData)
