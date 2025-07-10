@@ -40,7 +40,40 @@ export default function ConnectedMCPServerItem({ server, onDisconnect }: Connect
           <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center">
             {PROVIDER_ICON_MAP[server.type]}
           </div>
-          <span className="font-semibold text-lg leading-none">{server.name}</span>
+          <div className="flex flex-col gap-1">
+            <span className="font-semibold text-lg leading-none">{server.name}</span>
+            {server.connected && (
+              <div className="flex flex-wrap gap-1">
+                {/* Extract connection identifier from envs */}
+                {(() => {
+                  const getConnectionIdentifier = () => {
+                    if (!server.envs) return server.name
+                    
+                    // Look for common identifier keys
+                    const identifierKeys = ['email', 'username', 'user', 'account', 'handle', 'workspace']
+                    for (const key of identifierKeys) {
+                      const env = server.envs.find(e => e.key.toLowerCase().includes(key))
+                      if (env) return env.value
+                    }
+                    
+                    // Fallback to first env value or name
+                    return server.envs[0]?.value || server.name
+                  }
+                  
+                  const identifier = getConnectionIdentifier()
+                  // Only show if it's different from server name and looks like an email or meaningful identifier
+                  if (identifier !== server.name && (identifier.includes('@') || identifier.includes('.'))) {
+                    return (
+                      <span className="text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-1 rounded-full">
+                        {identifier}
+                      </span>
+                    )
+                  }
+                  return null
+                })()}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 relative">
           {/* Connected status - always present but fades out on hover */}

@@ -27,11 +27,12 @@ import { PROVIDER_MAP, PROVIDER_ICON_MAP } from '@renderer/constants/mcpProvider
 
 interface MCPServerItemProps {
   server: McpServerDefinition
+  connectedServers?: McpServerDefinition[]
   onConnect: () => void
   onRemove?: () => void
 }
 
-export default function MCPServerItem({ server, onConnect, onRemove }: MCPServerItemProps) {
+export default function MCPServerItem({ server, connectedServers = [], onConnect, onRemove }: MCPServerItemProps) {
   const [showEnvInputs, setShowEnvInputs] = useState(false)
   const [authStateId, setAuthStateId] = useState<string | null>(null)
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false)
@@ -160,70 +161,48 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
           <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center">
             {PROVIDER_ICON_MAP[server.type]}
           </div>
-          <span className="font-semibold text-lg leading-none">{server.name}</span>
+          <div className="flex flex-col gap-1">
+            <span className="font-semibold text-lg leading-none">{server.name}</span>
+            {connectedServers.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {connectedServers.map((connectedServer) => {
+                  // Extract connection identifier from envs
+                  const getConnectionIdentifier = () => {
+                    if (!connectedServer.envs) return connectedServer.name
+                    
+                    // Look for common identifier keys
+                    const identifierKeys = ['email', 'username', 'user', 'account', 'handle', 'workspace']
+                    for (const key of identifierKeys) {
+                      const env = connectedServer.envs.find(e => e.key.toLowerCase().includes(key))
+                      if (env) return env.value
+                    }
+                    
+                    // Fallback to first env value or name
+                    return connectedServer.envs[0]?.value || connectedServer.name
+                  }
+                  
+                  return (
+                    <span
+                      key={connectedServer.id}
+                      className="text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-1 rounded-full"
+                    >
+                      {getConnectionIdentifier()}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          {server.connected ? (
-            <>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Check className="w-6 h-6 text-green-600 dark:text-green-400 bg-green-500/20 rounded-full p-1" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Connected</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleEnableToolsToggle(!showEnvInputs)}
-            >
-              {/* TODO: replace with Phosphor PlugChargingIcon */}
-              <PlugIcon className="w-4 h-4" />
-              Connect
-            </Button>
-          )}
-          {(server.type === McpServerType.Other || server.connected) && onRemove && (
-            <AlertDialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
-              <AlertDialogTrigger asChild>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive rounded-full"
-                        onClick={() => setIsRemoveDialogOpen(true)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Remove connection</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remove server connection</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. It will permanently remove the server.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Do not delete</AlertDialogCancel>
-                  <Button variant="destructive" onClick={handleRemove}>
-                    Delete
-                  </Button>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleEnableToolsToggle(!showEnvInputs)}
+          >
+            <PlugIcon className="w-4 h-4" />
+            Connect
+          </Button>
         </div>
       </div>
     </div>
