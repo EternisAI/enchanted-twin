@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/shared/constant"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
@@ -45,48 +46,30 @@ type LlamaResponse struct {
 	TokensGenerated int    `json:"tokens_generated"`
 }
 
-// Usage on binary:.
 func NewLlamaModel(
-	binaryPath string,
-	modelDir string,
-) *LlamaModel {
-	return &LlamaModel{
-		binaryPath:      binaryPath,
-		modelDir:        modelDir,
-		tokenizerName:   "meta-llama/Llama-3.2-1B",
-		interactiveMode: false,
-		sessionTimeout:  5 * time.Minute,
-		maxTokens:       1000,
-		temperature:     0.7,
-	}
-}
-
-func NewInteractiveLlamaModel(
+	ctx context.Context,
 	binaryPath string,
 	modelDir string,
 	tokenizerName string,
-) *LlamaModel {
-	return &LlamaModel{
+	interactiveMode bool,
+) (*LlamaModel, error) {
+	model := &LlamaModel{
 		binaryPath:      binaryPath,
 		modelDir:        modelDir,
 		tokenizerName:   tokenizerName,
-		interactiveMode: true,
+		interactiveMode: interactiveMode,
 		sessionTimeout:  5 * time.Minute,
 		maxTokens:       1000,
 		temperature:     0.7,
 	}
-}
 
-func (m *LlamaModel) SetMaxTokens(tokens int) {
-	m.maxTokens = tokens
-}
+	if interactiveMode {
+		if err := model.startInteractiveSession(ctx, ""); err != nil {
+			return nil, fmt.Errorf("failed to start interactive session: %w", err)
+		}
+	}
 
-func (m *LlamaModel) SetTemperature(temp float64) {
-	m.temperature = temp
-}
-
-func (m *LlamaModel) SetSessionTimeout(timeout time.Duration) {
-	m.sessionTimeout = timeout
+	return model, nil
 }
 
 func (m *LlamaModel) Close() error {
@@ -118,7 +101,7 @@ func (m *LlamaModel) completionsOneTime(ctx context.Context, messages []openai.C
 	}
 
 	response := openai.ChatCompletionMessage{
-		Role:    "assistant",
+		Role:    constant.Assistant("assistant"),
 		Content: output,
 	}
 
@@ -126,18 +109,16 @@ func (m *LlamaModel) completionsOneTime(ctx context.Context, messages []openai.C
 }
 
 func (m *LlamaModel) completionsInteractive(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion) (openai.ChatCompletionMessage, error) {
-	m.sessionMutex.Lock()
-	defer m.sessionMutex.Unlock()
+	m.sessionMutex.RLock()
+	defer m.sessionMutex.RUnlock()
+
+	if m.session == nil {
+		return openai.ChatCompletionMessage{}, fmt.Errorf("interactive session not initialized")
+	}
 
 	systemPrompt, userPrompt, err := m.extractPrompts(messages)
 	if err != nil {
 		return openai.ChatCompletionMessage{}, fmt.Errorf("failed to extract prompts: %w", err)
-	}
-
-	if m.session == nil {
-		if err := m.startInteractiveSession(ctx, systemPrompt); err != nil {
-			return openai.ChatCompletionMessage{}, fmt.Errorf("failed to start interactive session: %w", err)
-		}
 	}
 
 	output, err := m.sendInteractiveMessage(ctx, systemPrompt, userPrompt)
@@ -146,7 +127,7 @@ func (m *LlamaModel) completionsInteractive(ctx context.Context, messages []open
 	}
 
 	response := openai.ChatCompletionMessage{
-		Role:    "assistant",
+		Role:    constant.Assistant("assistant"),
 		Content: output,
 	}
 
@@ -167,7 +148,6 @@ func (m *LlamaModel) extractPrompts(messages []openai.ChatCompletionMessageParam
 		}
 	}
 
-	// Combine conversation history into user prompt
 	userPrompt := strings.Join(conversationHistory, "\n")
 
 	return systemPrompt, userPrompt, nil
@@ -225,8 +205,6 @@ func (m *LlamaModel) closeSession() error {
 	m.session.cancel()
 	_ = m.session.stdin.Close()
 	_ = m.session.stdout.Close()
-
-	// Wait for process to terminate, but don't return error since termination is expected
 	_ = m.session.cmd.Wait()
 
 	m.session = nil
