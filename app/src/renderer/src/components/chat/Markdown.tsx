@@ -1,6 +1,63 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
+import rehypeHighlight from 'rehype-highlight'
+import * as React from 'react'
+import { cn } from '@renderer/lib/utils'
+import { useCallback } from 'react'
+import { CopyButton } from '../ui/CopyButton'
+
+interface CodeBlockProps {
+  children: React.ReactNode
+  className?: string
+  language?: string
+}
+
+function CodeBlock({ children, className, language }: CodeBlockProps) {
+  const codeRef = React.useRef<HTMLElement>(null)
+
+  const extractText = useCallback((node: React.ReactNode): string => {
+    if (typeof node === 'string') return node
+    if (typeof node === 'number') return node.toString()
+    if (Array.isArray(node)) return node.map(extractText).join('')
+    if (node && typeof node === 'object' && 'props' in node) {
+      const element = node as React.ReactElement & { props: { children?: React.ReactNode } }
+      return extractText(element.props.children)
+    }
+    return ''
+  }, [])
+
+  const codeText = React.useMemo(() => {
+    let codeText = ''
+    if (codeRef.current) {
+      codeText = codeRef.current.textContent || ''
+    }
+    if (!codeText) {
+      codeText = extractText(children)
+    }
+    return codeText
+  }, [children, extractText])
+
+  return (
+    <div className="relative group/codeblock">
+      {language && (
+        <div className="flex items-center justify-between bg-muted px-4 py-2 pb-0 rounded-t-md">
+          <span className="text-xs font-mono text-muted-foreground uppercase">{language}</span>
+          <CopyButton showLabel text={codeText} />
+        </div>
+      )}
+      <pre
+        className={cn(
+          `w-full p-4 bg-muted max-w-full overflow-x-auto font-mono`,
+          language ? 'rounded-t-none rounded-b-md' : 'rounded-md',
+          className
+        )}
+      >
+        <code ref={codeRef}>{children}</code>
+      </pre>
+    </div>
+  )
+}
 
 export default function Markdown({ children }: { children: string; isChat?: boolean }) {
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -12,7 +69,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeRaw]}
+      rehypePlugins={[rehypeRaw, rehypeHighlight]}
       components={{
         p: ({ children, ...props }) => (
           <p className="text-base font-normal leading-normal mb-2" {...props}>
@@ -24,31 +81,34 @@ export default function Markdown({ children }: { children: string; isChat?: bool
             {children}
           </strong>
         ),
-        img: ({ ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-          <img
-            {...props}
-            style={{
-              maxWidth: '100%',
-              height: '200px',
-              borderRadius: '0.5rem'
-            }}
-            alt={props.alt || 'markdown image'}
-          />
+        img: ({ alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+          <img {...props} alt={alt || 'markdown image'} className="w-full h-auto rounded-md" />
         ),
-        pre: ({ className, children, ...props }) => (
-          <pre
-            className={`w-full bg-muted/40 max-w-full overflow-x-auto rounded-md border border-border p-2 ${className || ''}`}
-            {...props}
-          >
-            {children}
-          </pre>
-        ),
-        code: ({ className, children, ...props }) => {
+        pre: ({ className, children, ...props }) => {
+          const codeElement = Array.isArray(children) ? children[0] : children
+          const codeProps = (codeElement as React.ReactElement)?.props as { className?: string }
+          const language = codeProps?.className?.match(/language-(\w+)/)?.[1]
+
           return (
-            <code
-              className={`rounded bg-muted/40 px-1 py-0.5 text-sm ${className || ''}`}
-              {...props}
-            >
+            <CodeBlock className={className} language={language} {...props}>
+              {children}
+            </CodeBlock>
+          )
+        },
+        code: ({ className, children, ...props }) => {
+          const match = /language-(\w+)/.exec(className || '')
+          const isInline = !match
+
+          if (isInline) {
+            return (
+              <code className={cn(`rounded bg-muted px-1 py-0.5 text-sm`, className)} {...props}>
+                {children}
+              </code>
+            )
+          }
+
+          return (
+            <code className={cn(`text-sm`, className)} {...props}>
               {children}
             </code>
           )
@@ -86,7 +146,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
           </div>
         ),
         thead: ({ children, ...props }) => (
-          <thead className="bg-muted/40" {...props}>
+          <thead className="bg-muted" {...props}>
             {children}
           </thead>
         ),
