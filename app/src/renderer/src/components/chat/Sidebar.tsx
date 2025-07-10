@@ -194,7 +194,9 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           </div>
           {shortcuts.newChat?.keys && (
             <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
-              <kbd className="rounded bg-muted px-1.5 py-0.5">{formatShortcutForDisplay(shortcuts.newChat.keys)}</kbd>
+              <kbd className="rounded bg-muted px-1.5 py-0.5">
+                {formatShortcutForDisplay(shortcuts.newChat.keys)}
+              </kbd>
             </div>
           )}
         </Button>
@@ -259,7 +261,9 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
             </div>
             {shortcuts.openSettings?.keys && (
               <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
-                <kbd className="rounded bg-muted px-1.5 py-0.5">{formatShortcutForDisplay(shortcuts.openSettings.keys)}</kbd>
+                <kbd className="rounded bg-muted px-1.5 py-0.5">
+                  {formatShortcutForDisplay(shortcuts.openSettings.keys)}
+                </kbd>
               </div>
             )}
           </Button>
