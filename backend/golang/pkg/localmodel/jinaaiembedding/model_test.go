@@ -7,9 +7,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/charmbracelet/log"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 func TestJinaAIEmbeddingModel(t *testing.T) {
@@ -77,7 +78,7 @@ func TestCosineSimilarityWithVariousWords(t *testing.T) {
 	words := []string{
 		"cat", "dog", "kitty", "puppy", "feline", "canine",
 		"automobile", "spaceship", "mathematics", "quantum", "refrigerator",
-		"bureaucracy", "molecule", "telescope", "archaeology", "philosophy",
+		"bureaucracy", "molecule", "telescope", "archeology", "philosophy",
 	}
 	vectors, err := model.Embeddings(context.Background(), words, "jina-embeddings-v2-base-en")
 	assert.NoError(t, err)
