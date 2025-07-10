@@ -15,11 +15,10 @@ export function ContinueSetupButton() {
   return (
     <Button
       onClick={handleContinueSetup}
-      size="sm"
-      variant="ghost"
-      className="flex items-center gap-2 h-7 bg-transparent"
+      variant="outline"
+      className="flex items-center justify-start"
     >
-      <Sparkles className="w-3.5 h-3.5" />
+      <Sparkles className="w-3.5 h-3.5 " />
       Continue Setup
     </Button>
   )

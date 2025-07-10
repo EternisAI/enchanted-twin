@@ -82,50 +82,46 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="w-full h-full flex justify-center">
-      <div className="w-4xl">
-        <Card className="">
-          <Button
-            variant="outline"
-            className="flex items-center justify-start"
-            onClick={openLogsFolder}
-            disabled={isLoading.logs}
-          >
-            <FolderOpen className="mr-2" />
-            {isLoading.logs ? 'Opening...' : 'Open Logs Folder'}
-          </Button>
+    <div className="flex flex-col gap-4 justify-center">
+      <Button
+        variant="outline"
+        className="flex items-center justify-start"
+        onClick={openLogsFolder}
+        disabled={isLoading.logs}
+      >
+        <FolderOpen className="mr-2" />
+        {isLoading.logs ? 'Opening...' : 'Open Logs Folder'}
+      </Button>
 
-          <Button
-            variant="outline"
-            className="flex items-center justify-start"
-            onClick={openAppFolder}
-            disabled={isLoading.app}
-          >
-            <FolderOpen className="mr-2" />
-            {isLoading.app ? 'Opening...' : 'Open Application Folder'}
-          </Button>
+      <Button
+        variant="outline"
+        className="flex items-center justify-start"
+        onClick={openAppFolder}
+        disabled={isLoading.app}
+      >
+        <FolderOpen className="mr-2" />
+        {isLoading.app ? 'Opening...' : 'Open Application Folder'}
+      </Button>
 
-          <Button
-            variant="destructive"
-            className="flex items-center justify-start"
-            onClick={deleteAppData}
-            disabled={isLoading.data}
-          >
-            <Trash2 className="mr-2" />
-            {isLoading.data ? 'Deleting...' : 'Delete App Data'}
-          </Button>
-          <Button
-            variant="outline"
-            className="flex items-center justify-start"
-            onClick={signOut}
-            disabled={isLoading.data}
-          >
-            <UsersRoundIcon className="mr-2" />
-            Sign Out
-          </Button>
-          {process.env.NODE_ENV === 'development' && <ContinueSetupButton />}
-        </Card>
-      </div>
+      <Button
+        variant="destructive"
+        className="flex items-center justify-start"
+        onClick={deleteAppData}
+        disabled={isLoading.data}
+      >
+        <Trash2 className="mr-2" />
+        {isLoading.data ? 'Deleting...' : 'Delete App Data'}
+      </Button>
+      <Button
+        variant="outline"
+        className="flex items-center justify-start"
+        onClick={signOut}
+        disabled={isLoading.data}
+      >
+        <UsersRoundIcon className="mr-2" />
+        Sign Out
+      </Button>
+      {process.env.NODE_ENV === 'development' && <ContinueSetupButton />}
     </div>
   )
 }
