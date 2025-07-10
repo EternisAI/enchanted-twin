@@ -12,11 +12,15 @@ import {
   Volume2,
   VolumeOff
 } from 'lucide-react'
-import { extractReasoningAndReply, getToolConfig } from './config'
-import { Badge } from '../ui/badge'
+import { extractReasoningAndReply, getToolConfig } from '@renderer/components/chat/config'
+import { Badge } from '@renderer/components/ui/badge'
 import ImagePreview from './ImagePreview'
-import Markdown from './Markdown'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
+import Markdown from '@renderer/components/chat/messages/Markdown'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@renderer/components/ui/collapsible'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { useMemo, useState } from 'react'
 
@@ -76,7 +80,7 @@ export function UserMessageBubble({
               )}
             </button>
           )}
-          <div className="text-xs text-muted-foreground pl-1">
+          <div className="text-xs text-muted-foreground">
             {new Date(message.createdAt).toLocaleTimeString()}
           </div>
         </div>
