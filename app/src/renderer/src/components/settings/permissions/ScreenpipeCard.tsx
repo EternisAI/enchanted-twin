@@ -15,11 +15,25 @@ import ScreenpipeConnectionModal from './ScreenpipeConnectionModal'
 import { DetailCard } from './DetailCard'
 import { useScreenpipeConnection } from '@renderer/hooks/useScreenpipeConnection'
 import { getSafeScreenRecordingPermission } from '@renderer/lib/utils/permissionUtils'
+import { useSearch } from '@tanstack/react-router'
 
 export default function ScreenpipePanel() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [autoStart, setAutoStart] = useState<boolean>(false)
+
+  // Safely get search parameters
+  let shouldShowModalFromSearch = false
+  try {
+    const searchParams = useSearch({ from: '/settings/permissions' })
+    if (searchParams && 'screenpipe' in searchParams) {
+      // Handle both string "true" and boolean true
+      shouldShowModalFromSearch =
+        searchParams.screenpipe === 'true' || searchParams.screenpipe === true
+    }
+  } catch {
+    // Ignore errors accessing search params
+  }
 
   const {
     status,
@@ -32,7 +46,7 @@ export default function ScreenpipePanel() {
     handleRequestPermission,
     handleStartScreenpipe,
     fetchStatus
-  } = useScreenpipeConnection()
+  } = useScreenpipeConnection({ shouldShowModalFromSearch })
 
   useEffect(() => {
     const fetchAutoStart = async () => {
@@ -195,7 +209,6 @@ export default function ScreenpipePanel() {
   }
 
   const statusInfo = getStatusInfo()
-
 
   return (
     <>
