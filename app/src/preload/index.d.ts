@@ -128,6 +128,10 @@ interface IApi {
     cleanup: () => Promise<{ success: boolean; error?: string }>
     getStatus: () => Promise<{ success: boolean; isRunning: boolean; message: string }>
   }
+  clipboard: {
+    writeText: (text: string) => Promise<{ success: boolean; error?: string }>
+    readText: () => Promise<{ success: boolean; text?: string; error?: string }>
+  }
 }
 
 declare global {
