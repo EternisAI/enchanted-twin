@@ -11,19 +11,12 @@ import {
 import { useEffect, useState } from 'react'
 import { Button } from '../ui/button'
 import { toast } from 'sonner'
+import { PlugIcon } from 'lucide-react'
 import {
-  AlertDialog,
-  AlertDialogTrigger,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel
-} from '../ui/alert-dialog'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
-import { Check, PlugIcon, Trash2 } from 'lucide-react'
-import { PROVIDER_MAP, PROVIDER_ICON_MAP } from '@renderer/constants/mcpProviders'
+  PROVIDER_MAP,
+  PROVIDER_ICON_MAP,
+  PROVIDER_DESCRIPTION_MAP
+} from '@renderer/constants/mcpProviders'
 
 interface MCPServerItemProps {
   server: McpServerDefinition
@@ -32,21 +25,17 @@ interface MCPServerItemProps {
   onRemove?: () => void
 }
 
-export default function MCPServerItem({ server, connectedServers = [], onConnect, onRemove }: MCPServerItemProps) {
+export default function MCPServerItem({
+  server,
+  connectedServers = [],
+  onConnect
+}: MCPServerItemProps) {
   const [showEnvInputs, setShowEnvInputs] = useState(false)
   const [authStateId, setAuthStateId] = useState<string | null>(null)
-  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false)
 
   const [startOAuthFlow] = useMutation(StartOAuthFlowDocument)
   const [completeOAuthFlow] = useMutation(CompleteOAuthFlowDocument)
   const [connectMCPServer] = useMutation(ConnectMcpServerDocument)
-
-  const handleRemove = () => {
-    if (onRemove) {
-      onRemove()
-      setIsRemoveDialogOpen(false)
-    }
-  }
 
   const handleConnectMcpServer = async () => {
     const { data } = await connectMCPServer({
@@ -156,31 +145,43 @@ export default function MCPServerItem({ server, connectedServers = [], onConnect
 
   return (
     <div className="p-4 w-full hover:bg-muted rounded-md">
-      <div className="font-semibold text-lg flex flex-wrap items-center justify-between flex-row gap-5">
-        <div className="flex items-center gap-5">
-          <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center">
+      <div className="font-semibold text-lg flex items-center justify-between flex-row gap-5">
+        <div className="flex items-center gap-5 flex-1 min-w-0">
+          <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center flex-shrink-0">
             {PROVIDER_ICON_MAP[server.type]}
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
             <span className="font-semibold text-lg leading-none">{server.name}</span>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {PROVIDER_DESCRIPTION_MAP[server.type]}
+            </p>
             {connectedServers.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {connectedServers.map((connectedServer) => {
                   // Extract connection identifier from envs
                   const getConnectionIdentifier = () => {
                     if (!connectedServer.envs) return connectedServer.name
-                    
+
                     // Look for common identifier keys
-                    const identifierKeys = ['email', 'username', 'user', 'account', 'handle', 'workspace']
+                    const identifierKeys = [
+                      'email',
+                      'username',
+                      'user',
+                      'account',
+                      'handle',
+                      'workspace'
+                    ]
                     for (const key of identifierKeys) {
-                      const env = connectedServer.envs.find(e => e.key.toLowerCase().includes(key))
+                      const env = connectedServer.envs.find((e) =>
+                        e.key.toLowerCase().includes(key)
+                      )
                       if (env) return env.value
                     }
-                    
+
                     // Fallback to first env value or name
                     return connectedServer.envs[0]?.value || connectedServer.name
                   }
-                  
+
                   return (
                     <span
                       key={connectedServer.id}
@@ -194,7 +195,7 @@ export default function MCPServerItem({ server, connectedServers = [], onConnect
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <Button
             variant="outline"
             size="sm"

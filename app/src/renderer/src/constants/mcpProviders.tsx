@@ -28,6 +28,16 @@ export const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: stri
   FREYSA: { provider: 'freysa', scope: '' }
 }
 
+export const PROVIDER_DESCRIPTION_MAP: Record<McpServerType, string> = {
+  GOOGLE: 'Access Gmail, Google Drive, and Calendar',
+  SLACK: 'Read messages and communicate with your team',
+  TWITTER: 'Read and write tweets, manage bookmarks',
+  SCREENPIPE: 'Record screen activity for AI context',
+  OTHER: 'Connect custom MCP servers',
+  ENCHANTED: 'Enhanced AI capabilities and tools',
+  FREYSA: 'Generate videos with popular templates or create your own'
+}
+
 export const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
   GOOGLE: <Google className="w-10 h-10" />,
   SLACK: <Slack className="w-10 h-10" />,

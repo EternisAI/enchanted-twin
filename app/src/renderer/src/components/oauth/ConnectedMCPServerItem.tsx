@@ -13,7 +13,7 @@ import {
 } from '../ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { Check, Unplug } from 'lucide-react'
-import { PROVIDER_ICON_MAP } from '@renderer/constants/mcpProviders'
+import { PROVIDER_ICON_MAP, PROVIDER_DESCRIPTION_MAP } from '@renderer/constants/mcpProviders'
 
 interface ConnectedMCPServerItemProps {
   server: McpServerDefinition
@@ -35,13 +35,16 @@ export default function ConnectedMCPServerItem({ server, onDisconnect }: Connect
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="font-semibold text-lg flex flex-wrap items-center justify-between flex-row gap-5">
-        <div className="flex items-center gap-5">
-          <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center">
+      <div className="font-semibold text-lg flex items-center justify-between flex-row gap-5">
+        <div className="flex items-center gap-5 flex-1 min-w-0">
+          <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center flex-shrink-0">
             {PROVIDER_ICON_MAP[server.type]}
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
             <span className="font-semibold text-lg leading-none">{server.name}</span>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {PROVIDER_DESCRIPTION_MAP[server.type]}
+            </p>
             {server.connected && (
               <div className="flex flex-wrap gap-1">
                 {/* Extract connection identifier from envs */}
@@ -75,7 +78,7 @@ export default function ConnectedMCPServerItem({ server, onDisconnect }: Connect
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 relative">
+        <div className="flex items-center gap-2 relative flex-shrink-0">
           {/* Connected status - always present but fades out on hover */}
           <TooltipProvider>
             <Tooltip>
