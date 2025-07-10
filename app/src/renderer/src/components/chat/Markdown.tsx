@@ -1,11 +1,15 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import rehypeRaw from 'rehype-raw'
 import rehypeHighlight from 'rehype-highlight'
+import rehypeKatex from 'rehype-katex'
 import * as React from 'react'
 import { cn } from '@renderer/lib/utils'
 import { useCallback } from 'react'
 import { CopyButton } from '../ui/CopyButton'
+import { useTheme } from '@renderer/lib/theme'
+import 'katex/dist/katex.min.css'
 
 interface CodeBlockProps {
   children: React.ReactNode
@@ -15,6 +19,7 @@ interface CodeBlockProps {
 
 function CodeBlock({ children, className, language }: CodeBlockProps) {
   const codeRef = React.useRef<HTMLElement>(null)
+  const { theme } = useTheme()
 
   const extractText = useCallback((node: React.ReactNode): string => {
     if (typeof node === 'string') return node
@@ -39,7 +44,7 @@ function CodeBlock({ children, className, language }: CodeBlockProps) {
   }, [children, extractText])
 
   return (
-    <div className="relative group/codeblock">
+    <div className={cn('relative group/codeblock', theme === 'dark' && 'dark')}>
       {language && (
         <div className="flex items-center justify-between bg-muted px-4 py-2 pb-0 rounded-t-md">
           <span className="text-xs font-mono text-muted-foreground uppercase">{language}</span>
@@ -66,10 +71,23 @@ export default function Markdown({ children }: { children: string; isChat?: bool
     window.open(href, '_blank', 'noopener,noreferrer')
   }
 
+  // Convert LaTeX delimiters from \( \) to $ $ and \[ \] to $$ $$
+  const processLatexDelimiters = (content: string): string => {
+    return (
+      content
+        // Convert \( ... \) to $ ... $
+        .replace(/\\\((.*?)\\\)/g, '$$$1$$')
+        // Convert \[ ... \] to $$ ... $$
+        .replace(/\\\[(.*?)\\\]/gs, '$$$$$$1$$$$$$')
+        // Also handle the case where they're wrapped in parentheses like ( \frac{a}{b} )
+        .replace(/\(\s*\\([^)]+)\s*\)/g, '$$$$$1$$$')
+    )
+  }
+
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeRaw, rehypeHighlight]}
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
       components={{
         p: ({ children, ...props }) => (
           <p className="text-base font-normal leading-normal mb-2" {...props}>
@@ -210,7 +228,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
         )
       }}
     >
-      {children}
+      {processLatexDelimiters(children)}
     </ReactMarkdown>
   )
 }

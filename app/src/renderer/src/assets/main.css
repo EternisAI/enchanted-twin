@@ -1,10 +1,12 @@
 @import 'tailwindcss';
 @import './base.css';
 @import 'tw-animate-css';
-@import 'highlight.js/styles/github.css';
-@import 'highlight.js/styles/github-dark.css';
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(.light *));
+
+@import 'highlight.js/styles/github.css';
+@import 'highlight.js/styles/github-dark.css';
 
 ::view-transition-old(page-content) {
   animation: slide-out 0.5s cubic-bezier(0.86, 0, 0.07, 1) forwards;
