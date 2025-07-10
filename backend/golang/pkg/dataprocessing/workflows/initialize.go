@@ -312,7 +312,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 
 		// TODO: systematically decide batching strategy
 		batchSize := 20
-		if dataSourceDB.Name == constants.ProcessorWhatsapp.String() || dataSourceDB.Name == constants.ProcessorTelegram.String() {
+		if strings.ToLower(dataSourceDB.Name) == constants.ProcessorWhatsapp.String() || strings.ToLower(dataSourceDB.Name) == constants.ProcessorTelegram.String() {
 			batchSize = 3
 		}
 		fmt.Println("Indexing batch size", dataSourceDB.Name, batchSize)
