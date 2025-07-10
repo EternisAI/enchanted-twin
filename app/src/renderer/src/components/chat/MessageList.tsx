@@ -1,5 +1,5 @@
 import { Message, Role } from '@renderer/graphql/generated/graphql'
-import { AssistantMessageBubble, UserMessageBubble } from './Message'
+import { AssistantMessageBubble, UserMessageBubble } from './messages/Message'
 import { motion } from 'framer-motion'
 
 type MessageListProps = {

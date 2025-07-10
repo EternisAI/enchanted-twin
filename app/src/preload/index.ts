@@ -195,6 +195,10 @@ const api = {
     initialize: () => ipcRenderer.invoke('go-server:initialize'),
     cleanup: () => ipcRenderer.invoke('go-server:cleanup'),
     getStatus: () => ipcRenderer.invoke('go-server:status')
+  },
+  clipboard: {
+    writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
+    readText: () => ipcRenderer.invoke('clipboard:readText')
   }
 }
 
@@ -205,12 +209,14 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
+    console.log('Preload: APIs exposed via contextBridge')
   } catch (error) {
-    console.error(error)
+    console.error('Preload: Failed to expose APIs:', error)
   }
 } else {
   // @ts-ignore (define in dts)
   window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
+  console.log('Preload: APIs exposed directly to window')
 }
