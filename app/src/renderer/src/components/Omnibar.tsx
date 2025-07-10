@@ -189,7 +189,7 @@ export const Omnibar = () => {
                           handleSubmit(e as React.FormEvent)
                         }
                       }}
-                      placeholder="What's up?"
+                      placeholder="What's on your mind?"
                       className="flex-1 !text-base !bg-transparent text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-hidden min-h-0 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
                       rows={1}
                     />
