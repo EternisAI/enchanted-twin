@@ -46,16 +46,40 @@ export default function MCPPanel() {
     }
   }, [allMcpServers, hasGoogleConnected, deleteMcpServer])
 
-  const mcpServers = useMemo(
-    () =>
-      allMcpServers.filter((server) => {
-        if (server.type === McpServerType.Enchanted && !hasGoogleConnected) {
-          return false
+  const serversByType = useMemo(() => {
+    const grouped = allMcpServers.reduce(
+      (acc, server) => {
+        if (!acc[server.type]) {
+          acc[server.type] = []
         }
-        return true
-      }),
-    [allMcpServers, hasGoogleConnected]
-  )
+        acc[server.type].push(server)
+        return acc
+      },
+      {} as Record<McpServerType, typeof allMcpServers>
+    )
+
+    // Filter out Enchanted servers when Google isn't connected
+    // if (!hasGoogleConnected && grouped[McpServerType.Enchanted]) {
+    //   delete grouped[McpServerType.Enchanted]
+    // }
+
+    return grouped
+  }, [allMcpServers])
+
+  const serverTypes = useMemo(() => {
+    return Object.keys(serversByType).map((type) => {
+      const servers = serversByType[type as McpServerType]
+      const connectedServers = servers.filter((s) => s.connected)
+      const templateServer = servers[0] // Use first server as template for type info
+
+      return {
+        type: type as McpServerType,
+        templateServer,
+        connectedServers,
+        totalServers: servers.length
+      }
+    })
+  }, [serversByType])
 
   console.log('toolsData', toolsData)
 
@@ -74,9 +98,9 @@ export default function MCPPanel() {
   return (
     <div className="flex flex-col gap-4">
       <header className="flex flex-col gap-2 border-b pb-3">
-        <h2 className="text-2xl font-bold leading-none">Quick Connect</h2>
+        <h2 className="text-2xl font-bold leading-none">Available Servers</h2>
         <p className="text-muted-foreground leading-none text-sm">
-          Takes under 30 seconds to connect.
+          Connect to MCP servers to extend your capabilities.
         </p>
       </header>
       <motion.div
@@ -113,9 +137,9 @@ export default function MCPPanel() {
           </motion.div>
         ) : (
           <>
-            {mcpServers.map((server) => (
+            {serverTypes.map((serverType) => (
               <motion.div
-                key={server.id}
+                key={serverType.type}
                 variants={{
                   hidden: { opacity: 0 },
                   visible: { opacity: 1 }
@@ -123,16 +147,17 @@ export default function MCPPanel() {
                 transition={{ duration: 0.2, ease: 'easeOut' }}
               >
                 <MCPServerItem
-                  server={server}
+                  server={serverType.templateServer}
+                  connectedServers={serverType.connectedServers}
                   onConnect={refetch}
                   onRemove={() => {
-                    deleteMcpServer({ variables: { id: server.id } })
+                    deleteMcpServer({ variables: { id: serverType.templateServer.id } })
                     refetch()
                   }}
                 />
               </motion.div>
             ))}
-            {mcpServers.length === 0 && (
+            {serverTypes.length === 0 && (
               <motion.div
                 className="text-center text-muted-foreground py-8 border rounded-lg"
                 variants={{
@@ -141,7 +166,7 @@ export default function MCPPanel() {
                 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
               >
-                No MCP servers configured
+                No MCP servers available
               </motion.div>
             )}
           </>
