@@ -401,7 +401,7 @@ export function Home() {
                           key={chat.id}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          transition={{ duration: 0.15, delay: index * 0.03 }}
+                          transition={{ duration: 0.15, delay: index * 0.07 }}
                           type="button"
                           onClick={() => {
                             navigate({ to: `/chat/${chat.id}` })
@@ -421,17 +421,17 @@ export function Home() {
                     <>
                       {suggestions.map((chat, index) => {
                         const Icon = 'icon' in chat ? chat.icon : Brain
-                        const isEmphasized = 'emphasized' in chat && chat.emphasized
+                        const isEmphasized = 'emphasized' in chat && chat.emphasized === true
                         return (
                           <motion.button
                             key={chat.id}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            transition={{ duration: 0.15, delay: index * 0.03 }}
+                            transition={{ duration: 0.15, delay: index * 0.07 }}
                             type="button"
                             onClick={() => {
                               if (chat.id.startsWith('dummy')) {
-                                handleSuggestionClick(chat)
+                                handleSuggestionClick(chat as (typeof dummySuggestions)[0])
                               } else {
                                 navigate({ to: `/chat/${chat.id}` })
                                 setQuery('')

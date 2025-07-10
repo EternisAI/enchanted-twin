@@ -7,7 +7,7 @@ import rehypeKatex from 'rehype-katex'
 import * as React from 'react'
 import { cn } from '@renderer/lib/utils'
 import { useCallback } from 'react'
-import { CopyButton } from '../ui/CopyButton'
+import { CopyButton } from '../../ui/CopyButton'
 import { useTheme } from '@renderer/lib/theme'
 import 'katex/dist/katex.min.css'
 
@@ -44,9 +44,9 @@ function CodeBlock({ children, className, language }: CodeBlockProps) {
   }, [children, extractText])
 
   return (
-    <div className={cn('relative group/codeblock', theme === 'dark' && 'dark')}>
+    <div className={cn('relative group/codeblock mt-2 mb-4', theme === 'dark' && 'dark')}>
       {language && (
-        <div className="flex items-center justify-between bg-muted px-4 py-2 pb-0 rounded-t-md">
+        <div className="flex select-none items-center justify-between bg-muted px-4 py-2 pb-0 rounded-t-md">
           <span className="text-xs font-mono text-muted-foreground uppercase">{language}</span>
           <CopyButton showLabel text={codeText} />
         </div>
@@ -90,7 +90,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
       rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
       components={{
         p: ({ children, ...props }) => (
-          <p className="text-base font-normal leading-normal mb-2" {...props}>
+          <p className="text-base font-normal leading-relaxed mb-3" {...props}>
             {children}
           </p>
         ),
@@ -142,17 +142,20 @@ export default function Markdown({ children }: { children: string; isChat?: bool
           </a>
         ),
         ul: ({ children, ...props }) => (
-          <ul className="list-disc pl-6 my-2" {...props}>
+          <ul
+            className="list-disc pl-6 my-3 space-y-1 [&_ul]:list-[circle] [&_ul_ul]:list-[square] [&_ul]:mt-1 [&_ul]:mb-0"
+            {...props}
+          >
             {children}
           </ul>
         ),
         ol: ({ children, ...props }) => (
-          <ol className="list-decimal pl-6 my-2" {...props}>
+          <ol className="list-decimal pl-6 my-3 space-y-1" {...props}>
             {children}
           </ol>
         ),
         li: ({ children, ...props }) => (
-          <li className="mb-2" {...props}>
+          <li className="leading-relaxed" {...props}>
             {children}
           </li>
         ),
@@ -189,40 +192,40 @@ export default function Markdown({ children }: { children: string; isChat?: bool
         ),
         blockquote: ({ children, ...props }) => (
           <blockquote
-            className="pl-4 border-l-4 border-accent italic my-2 text-muted-foreground"
+            className="pl-4 border-l-4 border-accent italic my-4 text-muted-foreground leading-relaxed"
             {...props}
           >
             {children}
           </blockquote>
         ),
-        hr: (props) => <hr className="my-4 border-t border-border" {...props} />,
+        hr: (props) => <hr className="my-6 border-t border-border" {...props} />,
         h1: ({ children, ...props }) => (
-          <h1 className="text-2xl font-bold mt-6 mb-4" {...props}>
+          <h1 className="text-2xl font-bold mt-8 mb-4 leading-tight" {...props}>
             {children}
           </h1>
         ),
         h2: ({ children, ...props }) => (
-          <h2 className="text-xl font-bold mt-5 mb-3" {...props}>
+          <h2 className="text-xl font-bold mt-6 mb-3 leading-tight" {...props}>
             {children}
           </h2>
         ),
         h3: ({ children, ...props }) => (
-          <h3 className="text-lg font-bold mt-4 mb-2" {...props}>
+          <h3 className="text-lg font-bold mt-5 mb-2 leading-tight" {...props}>
             {children}
           </h3>
         ),
         h4: ({ children, ...props }) => (
-          <h4 className="text-base font-bold mt-3 mb-2" {...props}>
+          <h4 className="text-base font-bold mt-4 mb-2 leading-tight" {...props}>
             {children}
           </h4>
         ),
         h5: ({ children, ...props }) => (
-          <h5 className="text-sm font-bold mt-3 mb-2" {...props}>
+          <h5 className="text-sm font-bold mt-4 mb-2 leading-tight" {...props}>
             {children}
           </h5>
         ),
         h6: ({ children, ...props }) => (
-          <h6 className="text-xs font-bold mt-3 mb-2" {...props}>
+          <h6 className="text-xs font-bold mt-4 mb-2 leading-tight" {...props}>
             {children}
           </h6>
         )
