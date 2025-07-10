@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ElectronAPI } from '@electron-toolkit/preload'
 
 interface IApi {
@@ -109,10 +110,8 @@ interface IApi {
     resetAll: () => Promise<{ success: boolean; error?: string }>
   }
   models: {
-    hasModelsDownloaded: () => Promise<{ embeddings: boolean; anonymizer: boolean; onnx: boolean }>
-    downloadModels: (
-      modelName: 'embeddings' | 'anonymizer' | 'onnx'
-    ) => Promise<{ success: boolean; path: string }>
+    hasModelsDownloaded: () => Promise<Record<DependencyName, boolean>>
+    downloadModels: (modelName: DependencyName) => Promise<{ success: boolean; path: string }>
     onProgress: (
       callback: (data: {
         modelName: string

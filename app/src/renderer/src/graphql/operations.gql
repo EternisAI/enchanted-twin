@@ -374,6 +374,7 @@ query GetThreads($network: String, $first: Int! = 10, $offset: Int! = 0) {
       createdAt
       isDelivered
       actions
+      state
     }
     actions
     views
@@ -402,6 +403,7 @@ query GetThread($network: String, $id: ID!) {
       createdAt
       isDelivered
       actions
+      state
     }
     actions
     views

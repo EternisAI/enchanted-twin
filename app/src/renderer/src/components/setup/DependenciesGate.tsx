@@ -3,54 +3,10 @@ import { Check, Loader, RefreshCw } from 'lucide-react'
 
 import { useTheme } from '@renderer/lib/theme'
 import { useGoServer } from '@renderer/hooks/useGoServer'
-import { formatBytes, initialDownloadState } from './util'
+import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES } from './util'
 import { Button } from '../ui/button'
 
-const handleModelDownload = (
-  modelName: 'embeddings' | 'anonymizer' | 'onnx',
-  isDownloaded: boolean,
-  setDownloadState: React.Dispatch<React.SetStateAction<DownloadState>>,
-  onError?: (error: Error) => void
-): boolean => {
-  if (!isDownloaded) {
-    window.api.models.downloadModels(modelName).catch((error) => {
-      setDownloadState((prev) => ({
-        ...prev,
-        [modelName]: {
-          ...prev[modelName],
-          downloading: false,
-          error: error instanceof Error ? error.message : 'Download failed'
-        }
-      }))
-      onError?.(error)
-    })
-
-    setDownloadState((prev) => ({
-      ...prev,
-      [modelName]: {
-        downloading: true,
-        percentage: 0,
-        completed: false,
-        totalBytes: 0,
-        downloadedBytes: 0
-      }
-    }))
-
-    return true
-  } else {
-    setDownloadState((prev) => ({
-      ...prev,
-      [modelName]: {
-        ...prev[modelName],
-        completed: true,
-        downloading: false,
-        percentage: 100
-      }
-    }))
-
-    return false
-  }
-}
+export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLMCLI'
 
 interface ModelDownloadItemProps {
   name: string
@@ -64,8 +20,8 @@ interface ModelDownloadItemProps {
   onRetry?: () => void
 }
 
-type DownloadState = Record<
-  'embeddings' | 'anonymizer' | 'onnx',
+export type DownloadState = Record<
+  DependencyName,
   {
     downloading: boolean
     percentage: number
@@ -75,21 +31,69 @@ type DownloadState = Record<
     error?: string
   }
 >
+const handleDependencyDownload = (
+  dependencyName: DependencyName,
+  isDownloaded: boolean,
+  setDownloadState: React.Dispatch<React.SetStateAction<DownloadState>>,
+  onError?: (error: Error) => void
+): boolean => {
+  if (!isDownloaded) {
+    window.api.models.downloadModels(dependencyName).catch((error) => {
+      setDownloadState((prev) => ({
+        ...prev,
+        [dependencyName]: {
+          ...prev[dependencyName as keyof typeof prev],
+          downloading: false,
+          error: error instanceof Error ? error.message : 'Download failed'
+        }
+      }))
+      onError?.(error)
+    })
+
+    setDownloadState((prev) => ({
+      ...prev,
+      [dependencyName]: {
+        downloading: true,
+        percentage: 0,
+        completed: false,
+        totalBytes: 0,
+        downloadedBytes: 0
+      }
+    }))
+
+    return true
+  } else {
+    setDownloadState((prev) => ({
+      ...prev,
+      [dependencyName]: {
+        ...prev[dependencyName as keyof typeof prev],
+        completed: true,
+        downloading: false,
+        percentage: 100
+      }
+    }))
+
+    return false
+  }
+}
 
 export default function DependenciesGate({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme()
-  const [hasModelsDownloaded, setHasModelsDownloaded] = useState<{
-    embeddings: boolean
-    anonymizer: boolean
-    onnx: boolean
-  }>({ embeddings: false, anonymizer: false, onnx: false })
-
+  const [hasModelsDownloaded, setHasModelsDownloaded] = useState<Record<DependencyName, boolean>>(
+    DEPENDENCY_NAMES.reduce(
+      (acc, dep) => {
+        acc[dep] = false
+        return acc
+      },
+      {} as Record<DependencyName, boolean>
+    )
+  )
   const [downloadState, setDownloadState] = useState<DownloadState>(initialDownloadState)
 
   const { state: goServerState, initializeIfNeeded, retry: retryGoServer } = useGoServer()
   const hasInitializedGoServer = useRef(false)
 
-  const retryModel = useCallback(async (modelName: 'embeddings' | 'anonymizer' | 'onnx') => {
+  const retryDownload = useCallback(async (modelName: DependencyName) => {
     setDownloadState((prev) => ({
       ...prev,
       [modelName]: {
@@ -137,8 +141,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
           }
         }
 
-        const allCompleted =
-          newState.embeddings.completed && newState.anonymizer.completed && newState.onnx.completed
+        const allCompleted = Object.values(newState).every((dependency) => dependency.completed)
 
         if (allCompleted && !hasInitializedGoServer.current) {
           hasInitializedGoServer.current = true
@@ -165,19 +168,15 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
 
       let needsDownload = false
 
-      const needsEmbeddings = handleModelDownload(
-        'embeddings',
-        hasModelsDownloaded.embeddings,
-        setDownloadState
+      const downloadNeeds = DEPENDENCY_NAMES.map((dependencyName) =>
+        handleDependencyDownload(
+          dependencyName,
+          hasModelsDownloaded[dependencyName],
+          setDownloadState
+        )
       )
-      const needsAnonymizer = handleModelDownload(
-        'anonymizer',
-        hasModelsDownloaded.anonymizer,
-        setDownloadState
-      )
-      const needsOnnx = handleModelDownload('onnx', hasModelsDownloaded.onnx, setDownloadState)
 
-      needsDownload = needsEmbeddings || needsAnonymizer || needsOnnx
+      needsDownload = downloadNeeds.some(Boolean)
 
       if (!needsDownload && !hasInitializedGoServer.current) {
         hasInitializedGoServer.current = true
@@ -192,9 +191,8 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
   }, [])
 
   const allDependenciesCompleted =
-    downloadState.anonymizer.completed &&
-    downloadState.embeddings.completed &&
-    downloadState.onnx.completed
+    Object.values(hasModelsDownloaded).every((dependency) => dependency) ||
+    Object.values(downloadState).every((dependency) => dependency.completed)
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>
@@ -227,45 +225,25 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
           <div className="flex flex-col gap-4">
             {!allDependenciesCompleted ? (
               <>
-                <ModelDownloadItem
-                  name="Embeddings model"
-                  description="Helps Enchanted make sense of your content"
-                  completed={hasModelsDownloaded.embeddings || downloadState.embeddings.completed}
-                  downloading={downloadState.embeddings.downloading}
-                  percentage={downloadState.embeddings.percentage}
-                  totalBytes={downloadState.embeddings.totalBytes}
-                  downloadedBytes={downloadState.embeddings.downloadedBytes}
-                  error={downloadState.embeddings.error}
-                  onRetry={() => retryModel('embeddings')}
-                />
-
-                <div className="h-px bg-white/35"></div>
-
-                <ModelDownloadItem
-                  name="Anonymizer model"
-                  description="Helps you keep your things private"
-                  completed={hasModelsDownloaded.anonymizer || downloadState.anonymizer.completed}
-                  downloading={downloadState.anonymizer.downloading}
-                  percentage={downloadState.anonymizer.percentage}
-                  totalBytes={downloadState.anonymizer.totalBytes}
-                  downloadedBytes={downloadState.anonymizer.downloadedBytes}
-                  error={downloadState.anonymizer.error}
-                  onRetry={() => retryModel('anonymizer')}
-                />
-
-                <div className="h-px bg-white/35"></div>
-
-                <ModelDownloadItem
-                  name="Inference engine"
-                  description=""
-                  completed={hasModelsDownloaded.onnx || downloadState.onnx.completed}
-                  downloading={downloadState.onnx.downloading}
-                  percentage={downloadState.onnx.percentage}
-                  totalBytes={downloadState.onnx.totalBytes}
-                  downloadedBytes={downloadState.onnx.downloadedBytes}
-                  error={downloadState.onnx.error}
-                  onRetry={() => retryModel('onnx')}
-                />
+                {DEPENDENCY_NAMES.map((dependencyName, index) => (
+                  <React.Fragment key={dependencyName}>
+                    {index > 0 && <div className="h-px bg-white/35"></div>}
+                    <ModelDownloadItem
+                      name={DEPENDENCY_CONFIG[dependencyName].name}
+                      description={DEPENDENCY_CONFIG[dependencyName].description}
+                      completed={
+                        hasModelsDownloaded[dependencyName] ||
+                        downloadState[dependencyName].completed
+                      }
+                      downloading={downloadState[dependencyName].downloading}
+                      percentage={downloadState[dependencyName].percentage}
+                      totalBytes={downloadState[dependencyName].totalBytes}
+                      downloadedBytes={downloadState[dependencyName].downloadedBytes}
+                      error={downloadState[dependencyName].error}
+                      onRetry={() => retryDownload(dependencyName)}
+                    />
+                  </React.Fragment>
+                ))}
               </>
             ) : (
               <GoServerSetup
