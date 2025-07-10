@@ -210,7 +210,7 @@ function OmnibarOverlay() {
                   }
                 }}
                 placeholder="What would you like to discuss?"
-                className="flex-1 !h-full !min-h-full flex justify-center items-center !text-base !rounded-none transparent text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+                className="flex-1 !bg-transparent !h-full !min-h-full flex justify-center items-center !text-base !rounded-none transparent text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 rows={1}
               />
@@ -255,7 +255,7 @@ function OmnibarOverlay() {
                         type="button"
                         onClick={() => handleOpenChat(chat.id)}
                         className={cn(
-                          'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
+                          'flex w-full items-center justify-between px-3 py-2 text-left text-sm text-muted-foreground',
                           'hover:bg-muted/80',
                           selectedIndex === index && 'bg-primary/10 text-primary rounded-md'
                         )}
@@ -269,7 +269,7 @@ function OmnibarOverlay() {
                         type="button"
                         onClick={handleCreateChat}
                         className={cn(
-                          'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
+                          'flex text-muted-foreground w-full items-center justify-between px-3 py-2 text-left text-sm',
                           'hover:bg-muted/80',
                           selectedIndex === filteredChats.length &&
                             'bg-primary/10 text-primary rounded-md'

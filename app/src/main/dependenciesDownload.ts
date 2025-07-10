@@ -17,9 +17,9 @@ const DEPENDENCIES_CONFIGS: Record<DependencyName, { url: string; name: string; 
     dir: path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
   },
   anonymizer: {
-    url: 'https://d3o88a4htgfnky.cloudfront.net/models/jina-embeddings-v2-base-en.zip',
+    url: 'https://d3o88a4htgfnky.cloudfront.net/models/Llama-3.2-1B-Instruct-CoreML.zip',
     name: 'anonymizer',
-    dir: path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
+    dir: path.join(DEPENDENCIES_DIR, 'models', 'Llama-3.2-1B-Instruct-CoreML')
   },
   onnx: {
     url:
@@ -32,11 +32,12 @@ const DEPENDENCIES_CONFIGS: Record<DependencyName, { url: string; name: string; 
 }
 
 export function hasDependenciesDownloaded(): DependencyStatus {
-  const modelsDir = path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
+  const embeddingsDir = path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
+  const anonymizerDir = path.join(DEPENDENCIES_DIR, 'models', 'Llama-3.2-1B-Instruct-CoreML')
   const onnxDir = path.join(DEPENDENCIES_DIR, 'shared', 'lib')
 
-  const embeddingsExists = fs.existsSync(modelsDir) && fs.readdirSync(modelsDir).length > 0
-  const anonymizerExists = fs.existsSync(modelsDir) && fs.readdirSync(modelsDir).length > 0
+  const embeddingsExists = fs.existsSync(embeddingsDir) && fs.readdirSync(embeddingsDir).length > 0
+  const anonymizerExists = fs.existsSync(anonymizerDir) && fs.readdirSync(anonymizerDir).length > 0
   const onnxExists = fs.existsSync(onnxDir) && fs.readdirSync(onnxDir).length > 0
 
   return {
