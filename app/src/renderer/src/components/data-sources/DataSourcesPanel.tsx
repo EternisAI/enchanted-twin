@@ -354,7 +354,7 @@ export function DataSourcesPanel({
       <header className="flex flex-col gap-2 border-b pb-3">
         <h2 className="text-2xl font-bold leading-none">Imports & Takeouts</h2>
         <p className="text-sm text-muted-foreground">
-          Export data from your services and import it into Enchanted.
+          It&apos;s easy, but takes multiple steps to connect & get data from external sources.
         </p>
       </header>
       <div className="flex flex-col gap-4">

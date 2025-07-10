@@ -31,6 +31,7 @@ export default function LocalFolderSync() {
       }
     } catch (error) {
       console.error('Error selecting directory:', error)
+      toast.error('Failed to connect folder')
     } finally {
       setIsSelecting(false)
     }
@@ -56,9 +57,11 @@ export default function LocalFolderSync() {
         }
       })
       console.log(`Successfully added folder: ${folderPath}`)
+      toast.success('Folder connected')
       refetch()
     } catch (error) {
       console.error('Error adding tracked folder:', error)
+      toast.error('Failed to connect folder')
     }
   }
 
