@@ -210,7 +210,7 @@ function RootComponent() {
               {sidebarOpen && isCompleted && (
                 <motion.div
                   key="sidebar"
-                  initial={false}
+                  initial={{ width: 0, opacity: 0, marginRight: 0 }}
                   animate={{ width: 256, opacity: 1, marginRight: 16 }}
                   exit={{ width: 0, opacity: 0, marginRight: 0 }}
                   transition={{ type: 'spring', stiffness: 350, damping: 55 }}
