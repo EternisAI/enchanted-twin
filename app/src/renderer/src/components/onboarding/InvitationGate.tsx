@@ -10,6 +10,7 @@ import { OnboardingVoiceAnimation } from './voice/Animations'
 import { useTheme } from '@renderer/lib/theme'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import GoogleSignInButton from '../oauth/GoogleSignInButton'
+import XSignInButton from '../oauth/XSignInButton'
 
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')
@@ -83,11 +84,12 @@ export default function InvitationGate({ children }: { children: React.ReactNode
       <InvitationWrapper showTitlebar showAnimation showPrivacyText>
         <OnboardingLayout
           title="Beta Access"
-          subtitle="Login with Google for Beta access."
+          subtitle="Login for Beta access."
           className="text-white"
         >
-          <div className="flex flex-col gap-6 items-center ">
+          <div className="flex flex-col gap-4 items-center ">
             <GoogleSignInButton />
+            <XSignInButton />
           </div>
         </OnboardingLayout>
       </InvitationWrapper>
