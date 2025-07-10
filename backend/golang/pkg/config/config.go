@@ -27,6 +27,7 @@ type Config struct {
 	WeaviatePort       string
 	EnchantedMcpURL    string
 	ProxyTeeURL        string
+	UseLocalModel      string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -69,6 +70,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
+		UseLocalModel:      getEnv("USE_LOCAL_MODEL", "", printEnv),
 	}
 	return conf, nil
 }
