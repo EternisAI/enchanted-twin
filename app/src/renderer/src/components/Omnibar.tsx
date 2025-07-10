@@ -170,7 +170,7 @@ export const Omnibar = () => {
                 <motion.div
                   layoutId="message-input-container"
                   className={cn(
-                    'flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-2xl',
+                    'flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-xl',
                     'max-h-[50vh]'
                   )}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
