@@ -16,7 +16,7 @@ export default function ScreenpipeConnectionButton({
   onConnectionSuccess,
   buttonText = 'Connect',
   variant = 'outline',
-  size = 'sm',
+  size = 'default',
   className
 }: ScreenpipeConnectionButtonProps) {
   const {
@@ -43,18 +43,13 @@ export default function ScreenpipeConnectionButton({
   }
 
   const handleStartScreenpipeWithCallback = async () => {
-    try {
-      await handleStartScreenpipe()
-      // Check if connection is complete after starting
-      if (!needsConnection) {
-        setShowConnectionModal(false)
-        onConnectionSuccess?.()
-      }
-    } catch (error) {
-      throw error
+    await handleStartScreenpipe()
+    // Check if connection is complete after starting
+    if (!needsConnection) {
+      setShowConnectionModal(false)
+      onConnectionSuccess?.()
     }
   }
-
 
   return (
     <>

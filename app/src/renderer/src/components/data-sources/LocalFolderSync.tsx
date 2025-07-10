@@ -194,7 +194,7 @@ export default function LocalFolderSync() {
           </div>
 
           <div className="flex flex-row gap-2 justify-center">
-            <Button onClick={handleSelectDirectory} disabled={isSelecting}>
+            <Button variant="outline" onClick={handleSelectDirectory} disabled={isSelecting}>
               {isSelecting ? 'Selecting...' : 'Select Folder'}
             </Button>
           </div>

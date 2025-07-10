@@ -117,12 +117,12 @@ export function ShortcutList() {
             >
               <div className="flex-1">
                 <div className="flex items-center gap-2">
+                  <div className="font-medium text-base">{item.label}</div>
                   {shortcut?.global && (
                     <span className="text-sm px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
                       Global
                     </span>
                   )}
-                  <div className="font-medium text-base">{item.label}</div>
                 </div>
                 {item.description && (
                   <div className="text-xs text-muted-foreground">{item.description}</div>

@@ -71,7 +71,7 @@ export const UnifiedDataSourceCard = ({
 
   return (
     <div className="p-4 w-full hover:bg-muted rounded-md">
-      <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-5">
+      <div className="font-semibold text-lg flex flex-wrap items-center justify-between flex-row gap-5">
         <div className="flex items-center gap-5">
           {source.icon}
           <span className="font-semibold text-lg leading-none">{source.label}</span>
@@ -112,7 +112,6 @@ export const UnifiedDataSourceCard = ({
           {/* Action button */}
           <Button
             variant={pendingSource ? 'default' : 'outline'}
-            size="sm"
             onClick={pendingSource ? onStartImport : () => onSelect(source)}
             disabled={!canImport}
           >
