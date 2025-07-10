@@ -206,11 +206,7 @@ export default function MCPServerItem({
               buttonText="Connect"
             />
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleEnableToolsToggle(!showEnvInputs)}
-            >
+            <Button variant="outline" onClick={() => handleEnableToolsToggle(!showEnvInputs)}>
               <PlugIcon className="w-4 h-4" />
               Connect
             </Button>

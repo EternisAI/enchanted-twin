@@ -32,9 +32,9 @@ export function DetailCard({
   grantedIcon = <Settings className="h-4 w-4" />
 }: DetailCardProps) {
   return (
-    <div className="p-3 pl-0 hover:bg-muted transition-colors duration-100 rounded-md flex-col gap-3 flex items-start justify-between w-full bg-transparent border-none">
-      <div className="flex items-start gap-3 w-full">
-        <IconContainer className="bg-muted/50">
+    <div className="p-2 hover:bg-muted transition-colors duration-100 rounded-md flex-col gap-3 flex items-center justify-between w-full bg-transparent border-none">
+      <div className="flex items-start gap-4 w-full">
+        <IconContainer className="bg-transparent">
           <IconComponent className={cn('h-7 w-7', statusInfo.color)} />
         </IconContainer>
         <div className="flex flex-col gap-1 w-full">

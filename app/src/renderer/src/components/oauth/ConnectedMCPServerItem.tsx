@@ -20,7 +20,10 @@ interface ConnectedMCPServerItemProps {
   onDisconnect: () => void
 }
 
-export default function ConnectedMCPServerItem({ server, onDisconnect }: ConnectedMCPServerItemProps) {
+export default function ConnectedMCPServerItem({
+  server,
+  onDisconnect
+}: ConnectedMCPServerItemProps) {
   const [isDisconnectDialogOpen, setIsDisconnectDialogOpen] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
 
@@ -30,7 +33,7 @@ export default function ConnectedMCPServerItem({ server, onDisconnect }: Connect
   }
 
   return (
-    <div 
+    <div
       className="p-4 w-full hover:bg-muted rounded-md group"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -51,21 +54,31 @@ export default function ConnectedMCPServerItem({ server, onDisconnect }: Connect
                 {(() => {
                   const getConnectionIdentifier = () => {
                     if (!server.envs) return server.name
-                    
+
                     // Look for common identifier keys
-                    const identifierKeys = ['email', 'username', 'user', 'account', 'handle', 'workspace']
+                    const identifierKeys = [
+                      'email',
+                      'username',
+                      'user',
+                      'account',
+                      'handle',
+                      'workspace'
+                    ]
                     for (const key of identifierKeys) {
-                      const env = server.envs.find(e => e.key.toLowerCase().includes(key))
+                      const env = server.envs.find((e) => e.key.toLowerCase().includes(key))
                       if (env) return env.value
                     }
-                    
+
                     // Fallback to first env value or name
                     return server.envs[0]?.value || server.name
                   }
-                  
+
                   const identifier = getConnectionIdentifier()
                   // Only show if it's different from server name and looks like an email or meaningful identifier
-                  if (identifier !== server.name && (identifier.includes('@') || identifier.includes('.'))) {
+                  if (
+                    identifier !== server.name &&
+                    (identifier.includes('@') || identifier.includes('.'))
+                  ) {
                     return (
                       <span className="text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-1 rounded-full">
                         {identifier}
@@ -83,14 +96,16 @@ export default function ConnectedMCPServerItem({ server, onDisconnect }: Connect
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Check className={`w-6 h-6 text-green-600 dark:text-green-400 bg-green-500/20 rounded-full p-1 transition-opacity duration-200 ${isHovered ? 'opacity-0' : 'opacity-100'}`} />
+                <Check
+                  className={`w-6 h-6 text-green-600 dark:text-green-400 bg-green-500/20 rounded-full p-1 transition-opacity duration-200 ${isHovered ? 'opacity-0' : 'opacity-100'}`}
+                />
               </TooltipTrigger>
               <TooltipContent>
                 <p>Connected</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          
+
           {/* Disconnect button - fades in on hover */}
           <AlertDialog open={isDisconnectDialogOpen} onOpenChange={setIsDisconnectDialogOpen}>
             <AlertDialogTrigger asChild>
@@ -99,7 +114,6 @@ export default function ConnectedMCPServerItem({ server, onDisconnect }: Connect
                   <TooltipTrigger asChild>
                     <Button
                       variant="outline"
-                      size="sm"
                       className={`absolute right-0 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                       onClick={() => setIsDisconnectDialogOpen(true)}
                     >
@@ -117,7 +131,8 @@ export default function ConnectedMCPServerItem({ server, onDisconnect }: Connect
               <AlertDialogHeader>
                 <AlertDialogTitle>Disconnect server</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will disconnect the server from your application. You can reconnect it later from the Available tab.
+                  This will disconnect the server from your application. You can reconnect it later
+                  from the Available tab.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
