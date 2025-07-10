@@ -38,6 +38,7 @@ export default function ChatInputBox({
   return (
     <motion.div
       layoutId="message-input-container"
+      transition={{ type: 'spring', stiffness: 350, damping: 55 }}
       className="relative z-50 flex items-center gap-2 w-full border border-border rounded-lg px-2.5 py-0 focus-within:shadow-xl dark:focus-within:border-primary/25 transition-all duration-200"
     >
       <Textarea
