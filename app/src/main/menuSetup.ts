@@ -8,10 +8,10 @@ export function updateMenu() {
 
 export function setupMenu() {
   const isMac = process.platform === 'darwin'
-  
+
   // Get current keyboard shortcuts from store
   const shortcuts = keyboardShortcutsStore.get('shortcuts')
-  
+
   // Format shortcuts for menu accelerators
   const formatAccelerator = (keys: string): string => {
     if (!keys) return ''
@@ -30,7 +30,9 @@ export function setupMenu() {
               { type: 'separator' as const },
               {
                 label: 'Preferences...',
-                accelerator: formatAccelerator(shortcuts.openSettings?.keys || 'CommandOrControl+,'),
+                accelerator: formatAccelerator(
+                  shortcuts.openSettings?.keys || 'CommandOrControl+,'
+                ),
                 click: () => {
                   if (!windowManager.mainWindow || windowManager.mainWindow.isDestroyed()) {
                     windowManager.createMainWindow()
@@ -81,7 +83,9 @@ export function setupMenu() {
           ? [
               {
                 label: 'Settings',
-                accelerator: formatAccelerator(shortcuts.openSettings?.keys || 'CommandOrControl+,'),
+                accelerator: formatAccelerator(
+                  shortcuts.openSettings?.keys || 'CommandOrControl+,'
+                ),
                 click: () => {
                   if (!windowManager.mainWindow || windowManager.mainWindow.isDestroyed()) {
                     windowManager.createMainWindow()

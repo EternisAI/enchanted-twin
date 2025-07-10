@@ -39,6 +39,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.27
 	github.com/weaviate/weaviate v1.30.3
 	github.com/weaviate/weaviate-go-client/v5 v5.1.0
+	github.com/yalue/onnxruntime_go v1.21.0
 	github.com/zalando/go-keyring v0.2.6
 	go.mau.fi/whatsmeow v0.0.0-20250501130609-4c93ee4e6efa
 	go.temporal.io/sdk v1.34.0
