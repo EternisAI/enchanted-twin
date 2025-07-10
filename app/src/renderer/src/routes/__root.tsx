@@ -207,7 +207,7 @@ function RootComponent() {
                   </TooltipProvider>
                 </motion.div>
               )}
-              {sidebarOpen && isCompleted && location.pathname !== '/settings' && (
+              {sidebarOpen && isCompleted && (
                 <motion.div
                   key="sidebar"
                   initial={false}

@@ -7,6 +7,7 @@ import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
 import { ErrorBoundary } from '@renderer/components/ui/error-boundary'
+import { motion } from 'framer-motion'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsLayout
@@ -65,7 +66,13 @@ function SettingsLayout() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen text-foreground pt-8 relative bg-background">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5, ease: 'easeInOut' }}
+      className="flex flex-col h-screen w-screen text-foreground pt-8 relative bg-background"
+    >
       <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm drag">
         Settings
       </div>
@@ -104,6 +111,6 @@ function SettingsLayout() {
           </ScrollArea>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
