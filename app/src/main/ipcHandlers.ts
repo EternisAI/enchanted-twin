@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, nativeTheme, shell, globalShortcut } from 'electron'
+import { app, dialog, ipcMain, nativeTheme, shell, globalShortcut, clipboard } from 'electron'
 import log from 'electron-log/main'
 import path from 'path'
 import fs from 'fs'
@@ -91,6 +91,26 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('get-app-version', () => {
     return app.getVersion()
+  })
+
+  // Clipboard handlers
+  ipcMain.handle('clipboard:writeText', async (_event, text: string) => {
+    try {
+      clipboard.writeText(text)
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to write to clipboard:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('clipboard:readText', async () => {
+    try {
+      return { success: true, text: clipboard.readText() }
+    } catch (error) {
+      log.error('Failed to read from clipboard:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
   })
 
   nativeTheme.on('updated', () => {
