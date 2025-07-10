@@ -1,6 +1,7 @@
 import { Mic } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import useMicrophonePermission from '@renderer/hooks/useMicrophonePermission'
+import microphoneAccessImage from '../../../../../../public/assets/microphoneAccess.png'
 
 interface EnableMicrophoneProps {
   onGrantPermission?: () => void
@@ -22,14 +23,12 @@ export default function EnableMicrophone({ onGrantPermission, onSkip }: EnableMi
   }
 
   return (
-    <div className="w-full max-w-3xl flex flex-col gap-6 p-10 bg-white/5 rounded-xl border border-white/50">
+    <div className="w-full max-w-2xl flex flex-col gap-6 p-10 bg-white/5 rounded-xl border border-white/50">
       <div className="flex items-center gap-2">
         <Mic className="w-12 h-12 text-white" />
         <div className="flex flex-col gap-1.5">
           <h2 className="text-lg text-white font-normal">Enable Microphone</h2>
-          <p className="text-sm text-white/75">
-            To talk to Enchanted, you&apos;ll need to allow microphone access.
-          </p>
+          <p className="text-sm text-white/75">To use Enchanted, please allow Microphone Access.</p>
         </div>
       </div>
 
@@ -49,7 +48,7 @@ export default function EnableMicrophone({ onGrantPermission, onSkip }: EnableMi
           </ul>
         </div>
         <div className="flex flex-col gap-2">
-          <p className="text-white font-bold text-sm">Why provice access:</p>
+          <p className="text-white font-bold text-sm">Why provide access:</p>
           <ul className="text-white/80 text-sm list-disc pl-4">
             <li>
               <p>Voice to text transcription</p>
@@ -65,8 +64,8 @@ export default function EnableMicrophone({ onGrantPermission, onSkip }: EnableMi
       </div>
 
       <div>
-        <div className="w-full h-34 bg-gray-300 flex items-center justify-center rounded-xl">
-          <span className="text-gray-600">Image Placeholder</span>
+        <div className="w-full h-34 flex items-center justify-center rounded-xl mt-4">
+          <img src={microphoneAccessImage} alt="Microphone" width="100%" height="100%" />
         </div>
       </div>
 
