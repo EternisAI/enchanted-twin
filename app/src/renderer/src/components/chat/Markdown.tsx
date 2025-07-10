@@ -15,19 +15,12 @@ export default function Markdown({ children }: { children: string; isChat?: bool
       rehypePlugins={[rehypeRaw]}
       components={{
         p: ({ children, ...props }) => (
-          <p
-            style={{
-              marginBottom: '0.5rem',
-              fontSize: '1rem',
-              lineHeight: '1.5'
-            }}
-            {...props}
-          >
+          <p className="text-base font-normal leading-normal mb-2" {...props}>
             {children}
           </p>
         ),
         strong: ({ children, ...props }) => (
-          <strong style={{ fontWeight: 'bold' }} {...props}>
+          <strong className="font-bold" {...props}>
             {children}
           </strong>
         ),
@@ -44,7 +37,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
         ),
         pre: ({ className, children, ...props }) => (
           <pre
-            className={`w-full max-w-full overflow-x-auto rounded-2xl border border-border bg-background p-2 ${className || ''}`}
+            className={`w-full bg-muted/40 max-w-full overflow-x-auto rounded-md border border-border p-2 ${className || ''}`}
             {...props}
           >
             {children}
@@ -53,7 +46,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
         code: ({ className, children, ...props }) => {
           return (
             <code
-              className={`rounded bg-gray-100 px-1 py-0.5 text-sm ${className || ''}`}
+              className={`rounded bg-muted/40 px-1 py-0.5 text-sm ${className || ''}`}
               {...props}
             >
               {children}
@@ -81,7 +74,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
           </ol>
         ),
         li: ({ children, ...props }) => (
-          <li className="mb-1" {...props}>
+          <li className="mb-2" {...props}>
             {children}
           </li>
         ),
@@ -93,7 +86,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
           </div>
         ),
         thead: ({ children, ...props }) => (
-          <thead className="bg-gray-100" {...props}>
+          <thead className="bg-muted/40" {...props}>
             {children}
           </thead>
         ),
@@ -118,7 +111,7 @@ export default function Markdown({ children }: { children: string; isChat?: bool
         ),
         blockquote: ({ children, ...props }) => (
           <blockquote
-            className="pl-4 border-l-4 border-gray-300 italic my-2 text-gray-700"
+            className="pl-4 border-l-4 border-accent italic my-2 text-muted-foreground"
             {...props}
           >
             {children}
@@ -146,12 +139,12 @@ export default function Markdown({ children }: { children: string; isChat?: bool
           </h4>
         ),
         h5: ({ children, ...props }) => (
-          <h5 className="text-sm font-bold mt-3 mb-1" {...props}>
+          <h5 className="text-sm font-bold mt-3 mb-2" {...props}>
             {children}
           </h5>
         ),
         h6: ({ children, ...props }) => (
-          <h6 className="text-xs font-bold mt-3 mb-1" {...props}>
+          <h6 className="text-xs font-bold mt-3 mb-2" {...props}>
             {children}
           </h6>
         )
