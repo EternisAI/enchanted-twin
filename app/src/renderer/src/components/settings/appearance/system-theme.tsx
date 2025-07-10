@@ -1,6 +1,6 @@
 import { Button } from '@renderer/components/ui/button'
 import { useTheme } from '@renderer/lib/theme'
-import { Sun, Moon, Monitor } from 'lucide-react'
+import { Sun, Moon, Wand2Icon } from 'lucide-react'
 
 export default function SystemTheme() {
   const { theme, setTheme } = useTheme()
@@ -12,7 +12,7 @@ export default function SystemTheme() {
         className="flex-1"
         onClick={() => setTheme('light')}
       >
-        <Sun className="mr-2" />
+        <Sun />
         Light
       </Button>
       <Button
@@ -20,7 +20,7 @@ export default function SystemTheme() {
         className="flex-1"
         onClick={() => setTheme('dark')}
       >
-        <Moon className="mr-2" />
+        <Moon />
         Dark
       </Button>
       <Button
@@ -28,8 +28,8 @@ export default function SystemTheme() {
         className="flex-1"
         onClick={() => setTheme('system')}
       >
-        <Monitor className="mr-2" />
-        System
+        <Wand2Icon />
+        Auto
       </Button>
     </div>
   )
