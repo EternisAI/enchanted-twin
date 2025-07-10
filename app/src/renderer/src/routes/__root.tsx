@@ -210,10 +210,10 @@ function RootComponent() {
               {sidebarOpen && isCompleted && location.pathname !== '/settings' && (
                 <motion.div
                   key="sidebar"
-                  initial={{ width: 0, opacity: 0, marginRight: 0 }}
+                  initial={false}
                   animate={{ width: 256, opacity: 1, marginRight: 16 }}
                   exit={{ width: 0, opacity: 0, marginRight: 0 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30, duration: 0.2 }}
+                  transition={{ type: 'spring', stiffness: 350, damping: 55 }}
                   className="h-full overflow-y-auto"
                 >
                   <Sidebar chats={chats} setSidebarOpen={setSidebarOpen} shortcuts={shortcuts} />
@@ -223,7 +223,7 @@ function RootComponent() {
             <motion.div
               className="flex-1 flex flex-col overflow-hidden"
               layout
-              transition={{ type: 'spring', stiffness: 300, damping: 30, duration: 0.2 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 55 }}
             >
               <motion.div className="flex-1 flex overflow-hidden relative justify-center">
                 <Outlet />

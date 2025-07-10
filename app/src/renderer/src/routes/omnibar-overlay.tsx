@@ -189,7 +189,7 @@ function OmnibarOverlay() {
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: -5 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 280 }}
+        transition={{ type: 'spring', damping: 55, stiffness: 350, opacity: { duration: 0.2 } }}
         className="w-full h-full "
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >

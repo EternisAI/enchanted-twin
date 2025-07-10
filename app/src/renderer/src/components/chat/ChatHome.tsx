@@ -273,7 +273,7 @@ export function Home() {
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 55 }}
       className="flex flex-col w-full max-w-2xl mx-auto px-4 h-full justify-center"
     >
       {!isVoiceMode && (

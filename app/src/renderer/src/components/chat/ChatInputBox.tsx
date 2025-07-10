@@ -38,7 +38,7 @@ export default function ChatInputBox({
   return (
     <motion.div
       layoutId="message-input-container"
-      className="flex items-center gap-2 w-full border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-0"
+      className="relative z-50 flex items-center gap-2 w-full border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-0"
     >
       <Textarea
         ref={textareaRef}
@@ -50,7 +50,7 @@ export default function ChatInputBox({
             handleSubmit(e)
           }
         }}
-        placeholder="What are you thinking?"
+        placeholder="What's on your mind?"
         className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[50px] bg-transparent"
         rows={1}
       />

@@ -23,7 +23,7 @@ export default function MessageInput({
   isReasonSelected,
   onReasonToggle,
   voiceMode = false,
-  placeholder = 'What are you thinking?'
+  placeholder = "What's on your mind?"
 }: MessageInputProps) {
   const [text, setText] = useState('')
 
@@ -72,9 +72,9 @@ export default function MessageInput({
     <motion.div
       layoutId="message-input-container"
       className={cn(
-        'flex flex-col gap-3 rounded-xl border border-border bg-card px-4 py-2.25 shadow-xl w-full'
+        'relative z-50 flex flex-col gap-3 rounded-xl border border-border bg-card px-4 py-2.25 shadow-xl w-full'
       )}
-      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 55 }}
       onClick={handleClickContainer}
     >
       <div className="flex items-center gap-3 w-full">
@@ -86,7 +86,7 @@ export default function MessageInput({
           rows={1}
           autoFocus
           placeholder={placeholder}
-          className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none overflow-y-auto max-h-[12rem]"
+          className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
         />
         <div className="flex justify-end items-center gap-3">
           {!voiceMode && (
@@ -97,7 +97,7 @@ export default function MessageInput({
                   className={cn(
                     'rounded-full transition-all shadow-none hover:shadow-lg !px-2.25 active:shadow-sm',
                     isReasonSelected
-                      ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
+                      ? 'text-orange-500 hover:text-orange-500 hover:!bg-orange-100/50 dark:hover:!bg-orange-300/20 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
                       : ''
                   )}
                   variant="outline"
