@@ -41,7 +41,7 @@ function AboutSettings() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.15 }}
         transition={{ duration: 2, ease: 'easeOut', delay: 1 }}
-        className="absolute inset-0 z-0 opacity-15 h-screen isolate bg-gradient-to-b from-[#667eea] to-[#764ba2]"
+        className="absolute inset-0 z-0 opacity-15 h-screen isolate bg-radial from-[#667eea] to-[#764ba2]"
       >
         <Brain />
       </motion.div>
