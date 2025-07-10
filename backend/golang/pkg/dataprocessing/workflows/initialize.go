@@ -15,6 +15,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/constants"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -311,7 +312,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 
 		// TODO: systematically decide batching strategy
 		batchSize := 20
-		if dataSourceDB.Name == "Whatsapp" || dataSourceDB.Name == "Telegram" {
+		if strings.ToLower(dataSourceDB.Name) == constants.ProcessorWhatsapp.String() || strings.ToLower(dataSourceDB.Name) == constants.ProcessorTelegram.String() {
 			batchSize = 3
 		}
 		fmt.Println("Indexing batch size", dataSourceDB.Name, batchSize)
@@ -600,7 +601,7 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
 
 	if isNewFormat {
-		// New format processors (misc, telegram, whatsapp, etc.) store documents directly in memory
+		// New format processors (telegram, whatsapp, etc.) store documents directly in memory
 		// No file is created, so we use a special marker path
 		success, err := dataprocessingService.ProcessSource(
 			ctx,
@@ -839,12 +840,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 
 // isNewFormatProcessor checks if the data source uses the new ConversationDocument format.
 func (w *DataProcessingWorkflows) isNewFormatProcessor(dataSourceName string) bool {
-	switch strings.ToLower(dataSourceName) {
-	case "telegram", "whatsapp", "gmail", "chatgpt", "misc":
-		return true
-	default:
-		return false
-	}
+	return constants.IsNewFormatProcessor(dataSourceName)
 }
 
 // readNewFormatBatch reads a batch from either JSON array format or JSONL format (ConversationDocument[]).
