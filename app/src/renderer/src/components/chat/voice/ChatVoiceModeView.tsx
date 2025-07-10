@@ -5,7 +5,7 @@ import { Mic, MicOff, X } from 'lucide-react'
 
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import VoiceVisualizer from './VoiceVisualizer'
-import { UserMessageBubble } from '../Message'
+import { UserMessageBubble } from '../messages/Message'
 import ToolCallCenter from './toolCallCenter/ToolCallCenter'
 import { getToolConfig } from '../config'
 import { Tooltip } from '@renderer/components/ui/tooltip'

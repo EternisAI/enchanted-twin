@@ -136,7 +136,11 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   const handleEnableToolsToggle = async (enabled: boolean) => {
-    if (server.type === McpServerType.Enchanted || server.type === McpServerType.Screenpipe || server.type === McpServerType.Freysa) {
+    if (
+      server.type === McpServerType.Enchanted ||
+      server.type === McpServerType.Screenpipe ||
+      server.type === McpServerType.Freysa
+    ) {
       handleConnectMcpServer()
       return
     }

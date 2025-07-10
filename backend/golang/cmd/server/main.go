@@ -49,6 +49,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
+	"github.com/EternisAI/enchanted-twin/pkg/localmodel/jinaaiembedding"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
@@ -129,12 +130,25 @@ func main() {
 		aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
 	}
 
-	var aiEmbeddingsService *ai.Service
-	if envs.ProxyTeeURL != "" {
-		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
-		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
+	var aiEmbeddingsService ai.Embedding
+	if envs.UseLocalModel == "true" {
+		logger.Info("Using local embedding model")
+		sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
+		localEmbeddingModel, err := jinaaiembedding.NewEmbedding(envs.AppDataPath, sharedLibPath)
+		if err != nil {
+			logger.Error("Failed to create local embedding model", "error", err)
+			panic(errors.Wrap(err, "Failed to create local embedding model"))
+		}
+		aiEmbeddingsService = localEmbeddingModel
 	} else {
-		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+		var openAIEmbeddingsService *ai.Service
+		if envs.ProxyTeeURL != "" {
+			logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
+			openAIEmbeddingsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
+		} else {
+			openAIEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+		}
+		aiEmbeddingsService = openAIEmbeddingsService
 	}
 
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
