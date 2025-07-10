@@ -17,6 +17,7 @@ import (
 	"github.com/ledongthuc/pdf"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/constants"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -29,10 +30,6 @@ type TextDocumentProcessor struct {
 	store     *db.Store
 	logger    *log.Logger
 }
-
-const (
-	MemorySourceName = "synced-document"
-)
 
 func NewTextDocumentProcessor(store *db.Store, logger *log.Logger) (*TextDocumentProcessor, error) {
 	if store == nil {
@@ -51,7 +48,7 @@ func NewTextDocumentProcessor(store *db.Store, logger *log.Logger) (*TextDocumen
 }
 
 func (s *TextDocumentProcessor) Name() string {
-	return "synced-document"
+	return constants.ProcessorSyncedDocument.String()
 }
 
 // IsHumanReadableContent determines if the content is human-readable text.
@@ -574,7 +571,7 @@ func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath 
 			FieldContent:   chunk,
 			FieldTimestamp: &timestamp,
 			FieldSource:    s.Name(),
-			FieldTags:      []string{"misc", "file", "document", ext},
+			FieldTags:      []string{"synced-document", "file", "document", ext},
 			FieldMetadata: map[string]string{
 				"filename": fileName,
 				"path":     filePath,
