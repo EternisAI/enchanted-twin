@@ -138,7 +138,14 @@ func StoreToken(ctx context.Context, logger *log.Logger, store *db.Store, token 
 			return fmt.Errorf("no subject (sub) found in token claims")
 		}
 		logger.Info("claims", "claims", claims)
-		username = claims.Email
+		// email if available, sub otherwise, useful for providers like Twitter
+		if claims.Email != "" {
+			username = claims.Email
+		} else if claims.Sub != "" {
+			username = claims.Sub
+		} else {
+			return fmt.Errorf("no email or sub found in token claims for username")
+		}
 		logger.Info("got username from token", "username", username)
 	}
 

@@ -22,7 +22,7 @@ export default function GoogleSignInButton() {
       <Button
         onClick={handleSignIn}
         disabled={loading || isSigningIn}
-        className="flex items-center space-x-3 px-6 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        className="flex items-center space-x-3 px-6 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 w-[200px]"
       >
         <svg className="w-5 h-5" viewBox="0 0 24 24">
           <path
