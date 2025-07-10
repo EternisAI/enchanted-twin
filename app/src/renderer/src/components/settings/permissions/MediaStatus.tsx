@@ -31,7 +31,7 @@ const typeConfig: Record<MediaType, { icon: LucideIcon; title: string }> = {
 
 const explanations: Record<MediaType, string> = {
   camera: 'Capture your facial expressions. (coming soon)',
-  microphone: 'Speak with your Twin naturally. (coming soon)',
+  microphone: 'Speak with your Twin naturally.',
   screen: 'Twin understands and remembers your activity.'
 }
 
