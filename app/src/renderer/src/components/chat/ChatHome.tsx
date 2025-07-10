@@ -271,9 +271,9 @@ export function Home() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 350, damping: 55 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3, ease: 'linear' }}
       className="flex flex-col w-full max-w-2xl mx-auto px-4 h-full justify-center"
     >
       {!isVoiceMode && (
@@ -282,7 +282,7 @@ export function Home() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.3, ease: 'linear' }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
           className="flex flex-col items-center gap-4 w-full py-8"
         >
           {isEditingName ? (

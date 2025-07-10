@@ -38,7 +38,7 @@ export default function ChatInputBox({
   return (
     <motion.div
       layoutId="message-input-container"
-      className="relative z-50 flex items-center gap-2 w-full border border-border rounded-lg px-2.5 py-0 focus-within:shadow-lg focus-within:border-primary/25"
+      className="relative z-50 flex items-center gap-2 w-full border border-border rounded-lg px-2.5 py-0 focus-within:shadow-xl dark:focus-within:border-primary/25 transition-all duration-200"
     >
       <Textarea
         ref={textareaRef}
@@ -105,7 +105,7 @@ function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps
         <Button
           onClick={onClick}
           className={cn(
-            '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
+            '!px-2.5 rounded-full transition-all duration-200 shadow-none hover:shadow-lg active:shadow-sm border-none',
             isSelected
               ? '!text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
               : '!bg-muted/50 dark:!bg-muted'
