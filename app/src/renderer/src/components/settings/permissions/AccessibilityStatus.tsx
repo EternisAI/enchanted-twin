@@ -62,7 +62,7 @@ export default function AccessibilityStatus() {
       case 'denied':
         return {
           icon: XCircle,
-          color: 'text-red-500',
+          color: 'text-neutral-500',
           label: 'Denied'
         }
       case 'unavailable':
@@ -75,7 +75,7 @@ export default function AccessibilityStatus() {
       default:
         return {
           icon: XCircle,
-          color: 'text-red-500',
+          color: 'text-neutral-500',
           label: 'Error'
         }
     }
