@@ -1,9 +1,11 @@
-import { Play, StopCircle, AlertCircle, Download, Monitor } from 'lucide-react'
+import { Play, StopCircle, AlertCircle, Download, Monitor, Link } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { Alert, AlertDescription } from '@renderer/components/ui/alert'
 import { toast } from 'sonner'
 import IconContainer from '@renderer/assets/icons/IconContainer'
+import ScreenpipeConnectionModal from './ScreenpipeConnectionModal'
+import { useSearch } from '@tanstack/react-router'
 
 type MediaStatusType =
   | 'granted'
@@ -28,6 +30,8 @@ export default function ScreenpipePanel() {
     microphone: 'loading',
     accessibility: 'loading'
   })
+  const [showConnectionModal, setShowConnectionModal] = useState(false)
+  const searchParams = useSearch({ from: '/settings/permissions' })
 
   const fetchStatus = async () => {
     try {
@@ -62,6 +66,12 @@ export default function ScreenpipePanel() {
       clearInterval(fetchStatusInterval)
     }
   }, [])
+
+  useEffect(() => {
+    if (searchParams && 'screenpipe' in searchParams && searchParams.screenpipe === 'true') {
+      setShowConnectionModal(true)
+    }
+  }, [searchParams])
 
   const handleInstall = async () => {
     setIsLoading(true)
@@ -124,6 +134,37 @@ export default function ScreenpipePanel() {
     return messages
   }
 
+  const handleConnect = () => {
+    setShowConnectionModal(true)
+  }
+
+  const handleRequestPermission = async () => {
+    try {
+      await window.api.screenpipe.storeRestartIntent('/settings/permissions', true)
+      await window.api.requestMediaAccess('screen')
+    } catch (error) {
+      console.error('Error requesting screen permission:', error)
+      throw error
+    }
+  }
+
+  const handleStartScreenpipe = async () => {
+    try {
+      const result = await window.api.screenpipe.start()
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to start Screenpipe')
+      }
+      await fetchStatus()
+      toast.success('Screenpipe started successfully')
+    } catch (error) {
+      console.error('Error starting Screenpipe:', error)
+      toast.error('Failed to start Screenpipe')
+      throw error
+    }
+  }
+
+  const needsConnection = !hasAllPermissions() || !status.isRunning
+
   return (
     <div className="w-full bg-transparent border-none">
       <div className="text-lg font-semibold flex items-center gap-2">
@@ -137,13 +178,13 @@ export default function ScreenpipePanel() {
               Auto-start
             </span>
           )}
-          <span
+          {/* <span
             className={`text-sm font-medium px-2 py-1 rounded-full ${
-              status.isRunning ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              status.isRunning ? 'bg-green-100 text-green-800' : 'bg-neutral-100 text-neutral-800'
             }`}
           >
             {status.isRunning ? 'Running' : 'Stopped'}
-          </span>
+          </span> */}
         </div>
       </div>
       <div className="flex flex-col gap-4 pt-4">
@@ -155,7 +196,7 @@ export default function ScreenpipePanel() {
         )}
         {!hasAllPermissions() &&
           Object.values(permissions).every((status) => status !== 'loading') && (
-            <Alert variant="destructive">
+            <Alert variant="default">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 Please enable the following permissions to use Screenpipe:{' '}
@@ -187,6 +228,17 @@ export default function ScreenpipePanel() {
             </Button>
           ) : (
             <>
+              {needsConnection && (
+                <Button
+                  onClick={handleConnect}
+                  disabled={isLoading}
+                  variant="default"
+                  className="flex items-center gap-1"
+                >
+                  <Link className="w-4 h-4" />
+                  Connect
+                </Button>
+              )}
               <Button
                 onClick={handleStart}
                 disabled={isLoading || status.isRunning || !hasAllPermissions()}
@@ -209,6 +261,22 @@ export default function ScreenpipePanel() {
           )}
         </div>
       </div>
+
+      <ScreenpipeConnectionModal
+        isOpen={showConnectionModal}
+        onClose={() => setShowConnectionModal(false)}
+        screenRecordingPermission={
+          permissions.screen as
+            | 'granted'
+            | 'denied'
+            | 'not-determined'
+            | 'restricted'
+            | 'unavailable'
+        }
+        isScreenpipeRunning={status.isRunning}
+        onRequestPermission={handleRequestPermission}
+        onStartScreenpipe={handleStartScreenpipe}
+      />
     </div>
   )
 }

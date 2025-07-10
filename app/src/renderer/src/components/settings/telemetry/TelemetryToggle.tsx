@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 const getStatusConfig = (status: boolean) => {
   return {
     label: status ? 'Enabled' : 'Disabled',
-    color: status ? 'text-green-500' : 'text-red-500',
+    color: status ? 'text-green-500' : 'text-neutral-500',
     icon: status ? Telescope : Telescope
   }
 }

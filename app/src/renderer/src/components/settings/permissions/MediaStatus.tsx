@@ -58,7 +58,7 @@ const getStatusConfig = (status: MediaStatusType) => {
     case 'denied':
       return {
         icon: XCircle,
-        color: 'text-red-500',
+        color: 'text-neutral-500',
         label: 'Denied'
       }
     case 'restricted':
@@ -70,7 +70,7 @@ const getStatusConfig = (status: MediaStatusType) => {
     case 'unavailable':
       return {
         icon: XCircle,
-        color: 'text-red-500',
+        color: 'text-neutral-500',
         label: 'Unavailable'
       }
     default:
