@@ -76,7 +76,7 @@ type DownloadState = Record<
   }
 >
 
-export default function AppSetupGate({ children }: { children: React.ReactNode }) {
+export default function DependenciesGate({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme()
   const [hasModelsDownloaded, setHasModelsDownloaded] = useState<{
     embeddings: boolean

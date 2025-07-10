@@ -14,7 +14,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { routeTree } from '@renderer/routeTree.gen'
 import InvitationGate from './components/onboarding/InvitationGate'
 import UpdateNotification from './components/UpdateNotification'
-import AppSetupGate from './components/setup/AppSetupGate'
+import DependenciesGate from './components/setup/DependenciesGate'
 import AppInitialize from './components/setup/AppInitialize'
 
 export const router = createRouter({
@@ -47,12 +47,12 @@ function App() {
             <AuthProvider>
               <AppInitialize>
                 <div className="flex flex-col h-full w-full">
-                  <AppSetupGate>
+                  <DependenciesGate>
                     <InvitationGate>
                       <UpdateNotification />
                       <RouterProvider router={router} />
                     </InvitationGate>
-                  </AppSetupGate>
+                  </DependenciesGate>
                 </div>
               </AppInitialize>
             </AuthProvider>
