@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesPanel'
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
+import ConnectedMCPPanel from '@renderer/components/oauth/ConnectedMCPPanel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
 import ConnectMCPServerButton from '@renderer/components/oauth/MCPConnectServerButton'
 import { FolderSyncIcon, NetworkIcon, PlugIcon } from 'lucide-react'
@@ -47,7 +48,7 @@ function ImportDataSettings() {
           <LocalFolderSync />
         </TabsContent>
         <TabsContent value="connected">
-          <DataSourcesPanel />
+          <ConnectedMCPPanel />
         </TabsContent>
       </Tabs>
     </SettingsContent>
