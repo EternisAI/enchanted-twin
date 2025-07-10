@@ -64,6 +64,12 @@ function AboutSettings() {
           <motion.div variants={itemVariants}>
             <Versions />
           </motion.div>
+          <motion.p className="text-sm text-muted-foreground" variants={itemVariants}>
+            Made with 💚 by{' '}
+            <a href="https://www.freysa.ai" target="_blank" rel="noopener noreferrer">
+              Freysa
+            </a>
+          </motion.p>
         </motion.div>
       </SettingsContent>
     </div>
