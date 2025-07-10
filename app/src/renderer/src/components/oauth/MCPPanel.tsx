@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from '@apollo/client'
 import {
   GetMcpServersDocument,
-  GetToolsDocument,
   RemoveMcpServerDocument,
   McpServerType
 } from '@renderer/graphql/generated/graphql'
@@ -25,7 +24,6 @@ const MCPServerSkeleton = () => (
 )
 
 export default function MCPPanel() {
-  const { data: toolsData } = useQuery(GetToolsDocument)
   const { data, loading, error, refetch } = useQuery(GetMcpServersDocument, {
     fetchPolicy: 'network-only'
   })
@@ -103,8 +101,6 @@ export default function MCPPanel() {
         return serverType.connectedServers.length === 0 || serverType.supportsMultipleConnections
       })
   }, [serversByType])
-
-  console.log('toolsData', toolsData)
 
   return (
     <div className="flex flex-col gap-4">
