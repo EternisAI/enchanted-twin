@@ -600,7 +600,7 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
 
 	if isNewFormat {
-		// New format processors (misc, telegram, whatsapp, etc.) store documents directly in memory
+		// New format processors (telegram, whatsapp, etc.) store documents directly in memory
 		// No file is created, so we use a special marker path
 		success, err := dataprocessingService.ProcessSource(
 			ctx,
@@ -840,7 +840,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 // isNewFormatProcessor checks if the data source uses the new ConversationDocument format.
 func (w *DataProcessingWorkflows) isNewFormatProcessor(dataSourceName string) bool {
 	switch strings.ToLower(dataSourceName) {
-	case "telegram", "whatsapp", "gmail", "chatgpt", "misc":
+	case "telegram", "whatsapp", "gmail", "chatgpt", "synced-document":
 		return true
 	default:
 		return false
