@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/constants"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -82,8 +83,9 @@ func TestSimpleConversationProcessing(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, records, 1, "Expected 1 conversation record")
 
+	// Test the document field source
 	doc := records[0]
-	assert.Equal(t, "chatgpt", doc.FieldSource)
+	assert.Equal(t, constants.ProcessorChatGPT.String(), doc.FieldSource)
 
 	// Verify conversation structure
 	assert.Equal(t, "Test Conversation", doc.FieldMetadata["title"])

@@ -16,6 +16,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/constants"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -391,7 +392,7 @@ func (dw *DirectoryWatcher) processNewFile(filePath string) error {
 		return errors.Wrap(err, "failed to check file existence")
 	}
 
-	dataSourceName := "synced-document"
+	dataSourceName := constants.ProcessorSyncedDocument.String()
 	dataSourceID, err := dw.store.CreateDataSourceFromFile(ctx, &db.CreateDataSourceFromFileInput{
 		Name: dataSourceName,
 		Path: absPath,
@@ -571,8 +572,8 @@ func (dw *DirectoryWatcher) processRenameEventWithNewPath(oldPath, newPath strin
 		return dw.processNewFile(newAbsPath)
 	}
 
-	if matchingSource.Name != "synced-document" {
-		dw.logger.Warn("Data source type mismatch, treating as replacement", "oldType", matchingSource.Name, "newType", "synced-document")
+	if matchingSource.Name != constants.ProcessorSyncedDocument.String() {
+		dw.logger.Warn("Data source type mismatch, treating as replacement", "oldType", matchingSource.Name, "newType", constants.ProcessorSyncedDocument.String())
 		if err := dw.processRemovedFile(oldAbsPath); err != nil {
 			dw.logger.Error("Failed to process old file as removed", "error", err, "oldPath", oldAbsPath)
 		}
@@ -633,7 +634,7 @@ func (dw *DirectoryWatcher) couldBeRenamedFile(oldPath, newPath, dataSourceType 
 		return false
 	}
 
-	if dataSourceType != "synced-document" {
+	if dataSourceType != constants.ProcessorSyncedDocument.String() {
 		return false
 	}
 

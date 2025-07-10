@@ -220,7 +220,7 @@ func TestPowerPointIntegration(t *testing.T) {
 	doc := textDocuments[0]
 	assert.NotEmpty(t, doc.FieldID)
 	assert.NotEmpty(t, doc.FieldContent)
-	assert.Equal(t, "misc", doc.FieldSource)
+	assert.Equal(t, "synced-document", doc.FieldSource)
 
 	t.Logf("Document ID: %s", doc.FieldID)
 	t.Logf("Document content length: %d", len(doc.FieldContent))
