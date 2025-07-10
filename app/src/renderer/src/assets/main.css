@@ -1,11 +1,13 @@
+@import url('highlight.js/styles/github-dark.css') screen and (prefers-color-scheme: dark);
+@import url('highlight.js/styles/github.css') screen and (prefers-color-scheme: light);
 @import 'tailwindcss';
 @import './base.css';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
 
-@view-transition {
-}
+@custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(.light *));
+
 
 ::view-transition-old(page-content) {
   animation: slide-out 0.5s cubic-bezier(0.86, 0, 0.07, 1) forwards;
@@ -226,6 +228,12 @@
   h2 {
     /* font-family: var(--font-sans); */
     @apply font-semibold;
+  }
+
+  /* Syntax highlighting styles */
+  .hljs {
+    background: transparent !important;
+    padding: 0 !important;
   }
 }
 
