@@ -26,13 +26,7 @@ function ImportDataSettings() {
   return (
     <SettingsContent>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex flex-row gap-2 w-full items-center justify-between">
-          <h2 className="text-4xl font-semibold">Data Sources</h2>
-          <div className="block md:hidden">
-            <ConnectMCPServerButton onSuccess={() => {}} />
-          </div>
-        </div>
-        <div className="flex flex-row gap-2 w-full items-center justify-between pt-5 pb-10">
+        <div className="flex flex-col sm:flex-row gap-2 w-full items-center justify-between  pb-10">
           <TabsList>
             <TabsTrigger value="available">
               <NetworkIcon className="w-4 h-4" /> Available
@@ -44,9 +38,7 @@ function ImportDataSettings() {
               <PlugIcon className="w-4 h-4" /> Connected
             </TabsTrigger>
           </TabsList>
-          <div className="hidden md:block">
-            <ConnectMCPServerButton onSuccess={() => {}} />
-          </div>
+          <ConnectMCPServerButton onSuccess={() => {}} />
         </div>
         <AnimatePresence mode="wait">
           <TabsContent value="available" key="available">

@@ -78,38 +78,38 @@ function SettingsLayout() {
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-4 border-b no-drag">
-          <Button variant="outline" className="h-9 px-2" onClick={handleBackClick}>
+          <Button variant="outline" className="h-9 px-2 absolute left-4" onClick={handleBackClick}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-        </div>
-        <div className="flex-1 flex overflow-y-auto">
-          <div className="w-[240px] bg-muted/50 p-4 flex flex-col gap-1 border-r">
-            {settingsTabs.map((tab) => {
-              const isActive = location.pathname === tab.path
-              return (
-                <Link
-                  key={tab.value}
-                  to={tab.path}
-                  replace={true}
-                  className={cn(
-                    'flex items-center gap-2 w-full p-2 rounded-md justify-start text-base transition-colors',
-                    'hover:bg-accent',
-                    isActive && 'bg-accent'
-                  )}
-                >
-                  <tab.icon className="h-4 w-4" />
-                  {tab.label}
-                </Link>
-              )
-            })}
+          <div className="no-drag flex items-center justify-center">
+            <div className="flex items-center gap-6">
+              {settingsTabs.map((tab) => {
+                const isActive = location.pathname === tab.path
+                return (
+                  <Link
+                    key={tab.value}
+                    to={tab.path}
+                    replace={true}
+                    className={cn(
+                      'flex flex-col items-center gap-1 p-3 rounded-lg transition-colors min-w-[80px]',
+                      'hover:bg-accent',
+                      isActive && 'bg-muted font-bold'
+                    )}
+                  >
+                    <tab.icon className="h-5 w-5" />
+                    <span className="text-xs">{tab.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
           </div>
-          <ScrollArea className="h-full w-full">
-            <ErrorBoundary>
-              <Outlet />
-            </ErrorBoundary>
-          </ScrollArea>
         </div>
+        <ScrollArea className="h-full w-full">
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
+        </ScrollArea>
       </div>
     </motion.div>
   )
