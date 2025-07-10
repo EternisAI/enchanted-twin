@@ -226,7 +226,7 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
           <span>{toolNameCompleted}</span>
         </Badge>
       ) : (
-        <Badge variant="outline" className="border-gray-300">
+        <Badge variant="outline" className="border-border">
           <LoaderIcon className="h-4 w-4 animate-spin" />
           <span>{toolNameInProgress}...</span>
         </Badge>
