@@ -4,7 +4,7 @@ import { SettingsContent } from '@renderer/components/settings/SettingsContent'
 import { z } from 'zod'
 
 const searchSchema = z.object({
-  screenpipe: z.string().optional()
+  screenpipe: z.union([z.string(), z.boolean()]).optional()
 })
 
 export const Route = createFileRoute('/settings/permissions')({

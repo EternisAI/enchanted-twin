@@ -14,7 +14,11 @@ interface ScreenpipeStatus {
   isInstalled: boolean
 }
 
-export function useScreenpipeConnection() {
+interface UseScreenpipeConnectionOptions {
+  shouldShowModalFromSearch?: boolean
+}
+
+export function useScreenpipeConnection(options: UseScreenpipeConnectionOptions = {}) {
   const [status, setStatus] = useState<ScreenpipeStatus>({ isRunning: false, isInstalled: true })
   const [permissions, setPermissions] = useState<Record<string, MediaStatusType>>({
     screen: 'loading',
@@ -22,7 +26,6 @@ export function useScreenpipeConnection() {
     accessibility: 'loading'
   })
   const [showConnectionModal, setShowConnectionModal] = useState(false)
-  const router = useRouter()
 
   const fetchStatus = async () => {
     try {
@@ -94,18 +97,10 @@ export function useScreenpipeConnection() {
   }, [])
 
   useEffect(() => {
-    // Safely check for screenpipe parameter in current location
-    try {
-      const currentLocation = router.state.location
-      const searchParams = new URLSearchParams(currentLocation.search)
-      if (searchParams.get('screenpipe') === 'true') {
-        setShowConnectionModal(true)
-      }
-    } catch (error) {
-      // Silently handle router state access errors
-      console.debug('Could not access router search params:', error)
+    if (options.shouldShowModalFromSearch) {
+      setShowConnectionModal(true)
     }
-  }, [router.state.location])
+  }, [options.shouldShowModalFromSearch])
 
   return {
     status,
