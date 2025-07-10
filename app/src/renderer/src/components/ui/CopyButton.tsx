@@ -63,16 +63,16 @@ export function CopyButton({
     await copy(text)
   }
 
-  // useEffect(() => {
-  //   if (copied) {
-  //     setIsAnimating(true)
-  //   } else if (isAnimating) {
-  //     const timer = setTimeout(() => {
-  //       setIsAnimating(false)
-  //     }, 200)
-  //     return () => clearTimeout(timer)
-  //   }
-  // }, [copied, isAnimating])
+  useEffect(() => {
+    if (copied) {
+      setIsAnimating(true)
+    } else if (isAnimating) {
+      const timer = setTimeout(() => {
+        setIsAnimating(false)
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+  }, [copied, isAnimating])
 
   const showSuccess = copied || isAnimating
 
