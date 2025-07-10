@@ -17,13 +17,15 @@ import { Button } from '@renderer/components/ui/button'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { useTitlebarColor } from '@renderer/hooks/useTitlebarColor'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
-import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { Mic } from 'lucide-react'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
 import { getMockFrequencyData } from '@renderer/lib/utils'
 import { UserMessageBubble } from '@renderer/components/chat/messages/Message'
+import { VoiceModeInput } from '@renderer/components/chat/voice/VoiceModeInput'
+import useMicrophonePermission from '@renderer/hooks/useMicrophonePermission'
+import EnableMicrophone from './EnableMicrophone'
 
 export default function VoiceOnboardingContainer() {
   const navigate = useNavigate()
@@ -31,6 +33,7 @@ export default function VoiceOnboardingContainer() {
   const { isCompleted } = useOnboardingStore()
   const { updateTitlebarColor } = useTitlebarColor()
   const { stopVoiceMode } = useVoiceStore()
+  const { microphoneStatus } = useMicrophonePermission()
 
   useEffect(() => {
     if (isCompleted) {
@@ -57,7 +60,7 @@ export default function VoiceOnboardingContainer() {
 
   return (
     <div
-      className="w-full h-full"
+      className="w-full h-full flex flex-col justify-center items-center"
       style={{
         background:
           theme === 'light'
@@ -65,17 +68,13 @@ export default function VoiceOnboardingContainer() {
             : 'linear-gradient(180deg, #18181B 0%, #000 100%)'
       }}
     >
-      <VoiceOnboarding />
+      {microphoneStatus === 'granted' ? <VoiceOnboarding /> : <EnableMicrophone />}
     </div>
   )
 }
 
 function VoiceOnboarding() {
   const navigate = useNavigate()
-  // const { speak, stop, isSpeaking, getFreqData, speakWithEvents } = useTTS()
-
-  // const [stepIdx, setStepIdx] = useState(0)
-  // const [answers, setAnswers] = useState<string[]>([])
 
   const [lastMessage, setLastMessage] = useState<Message | null>(null)
   const [lastAgentMessage, setLastAgentMessage] = useState<Message | null>({
@@ -95,8 +94,9 @@ function VoiceOnboarding() {
   const [createChat] = useMutation(CreateChatDocument)
   const [updateProfile] = useMutation(UpdateProfileDocument)
   const [deleteChat] = useMutation(DeleteChatDocument)
-  const { isLiveKitSessionReady } = useDependencyStatus()
-  const { isAgentSpeaking } = useVoiceAgent()
+  const { isAgentSpeaking, isSessionReady } = useVoiceAgent()
+
+  console.log('isSessionReady on this page', isSessionReady)
 
   useEffect(() => {
     const initiateVoiceOnboarding = async () => {
@@ -106,6 +106,7 @@ function VoiceOnboarding() {
           category: ChatCategory.Voice
         }
       })
+      console.log('calling thisss')
       setChatId(chat.data?.createChat.id || '')
       startVoiceMode(chat.data?.createChat.id || '', true)
     }
@@ -181,7 +182,7 @@ function VoiceOnboarding() {
         <OnboardingVoiceAnimation run={isAgentSpeaking} getFreqData={getMockFrequencyData} />
       </motion.div>
 
-      {isLiveKitSessionReady ? (
+      {isSessionReady ? (
         <>
           {lastAgentMessage && (
             <div className="w-full flex flex-col items-center gap-6">
@@ -214,7 +215,9 @@ function VoiceOnboarding() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: 'easeOut', delay: 0.8 }}
               className="z-1 relative"
-            ></motion.div>
+            >
+              <VoiceModeInput />
+            </motion.div>
           </div>
         </>
       ) : (
@@ -249,26 +252,3 @@ function VoiceOnboarding() {
     </div>
   )
 }
-
-// Progress is 0 to 1
-// function MiddleProgressBar({ progress = 0.2 }: { progress: number }) {
-//   const progressPercent = `${progress * 50}%`
-
-//   return (
-//     <div className="w-full h-[2px] bg-white/8 relative">
-//       <motion.div
-//         className="absolute top-0 left-1/2 h-full bg-white/70 origin-left"
-//         style={{ transform: 'translateX(-100%)' }}
-//         initial={{ width: 0 }}
-//         animate={{ width: progressPercent }}
-//         transition={{ duration: 0.5, ease: 'easeOut' }}
-//       />
-//       <motion.div
-//         className="absolute top-0 left-1/2 h-full bg-white/70 origin-left"
-//         initial={{ width: 0 }}
-//         animate={{ width: progressPercent }}
-//         transition={{ duration: 0.5, ease: 'easeOut' }}
-//       />
-//     </div>
-//   )
-// }
