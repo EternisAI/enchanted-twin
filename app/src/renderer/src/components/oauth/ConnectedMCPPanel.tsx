@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import ConnectedMCPServerItem from './ConnectedMCPServerItem'
+import { Skeleton } from '@renderer/components/ui/skeleton'
 
 export default function ConnectedMCPPanel() {
   const { data, loading, error, refetch } = useQuery(GetMcpServersDocument, {
@@ -28,13 +29,17 @@ export default function ConnectedMCPPanel() {
     return (data?.getMCPServers || []).filter((server: McpServerDefinition) => server.connected)
   }, [data])
 
-  if (loading) return <div className="py-4 text-center">Loading connected servers...</div>
-  if (error)
-    return (
-      <div className="py-4 text-center text-destructive">
-        Error loading connected servers: {error.message}
+  const ConnectedServerSkeleton = () => (
+    <div className="p-4 w-full rounded-md">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-5">
+          <Skeleton className="w-10 h-10 rounded-md" />
+          <Skeleton className="h-6 w-32" />
+        </div>
+        <Skeleton className="h-6 w-6 rounded-full" />
       </div>
-    )
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-4">
@@ -53,34 +58,47 @@ export default function ConnectedMCPPanel() {
           }
         }}
       >
-        {connectedServers.map((server) => (
-          <motion.div
-            key={server.id}
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0 }
-            }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-          >
-            <ConnectedMCPServerItem
-              server={server}
-              onDisconnect={() => {
-                deleteMcpServer({ variables: { id: server.id } })
-              }}
-            />
-          </motion.div>
-        ))}
-        {connectedServers.length === 0 && (
-          <motion.div
-            className="text-center text-muted-foreground py-8 border rounded-lg"
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0 }
-            }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-          >
-            No connected MCP servers. Connect some servers from the Available tab.
-          </motion.div>
+        {loading ? (
+          <>
+            <ConnectedServerSkeleton />
+            <ConnectedServerSkeleton />
+          </>
+        ) : error ? (
+          <div className="py-4 text-center text-destructive">
+            Error loading connected servers: {error.message}
+          </div>
+        ) : (
+          <>
+            {connectedServers.map((server) => (
+              <motion.div
+                key={server.id}
+                variants={{
+                  hidden: { opacity: 0, y: 20 },
+                  visible: { opacity: 1, y: 0 }
+                }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+              >
+                <ConnectedMCPServerItem
+                  server={server}
+                  onDisconnect={() => {
+                    deleteMcpServer({ variables: { id: server.id } })
+                  }}
+                />
+              </motion.div>
+            ))}
+            {connectedServers.length === 0 && (
+              <motion.div
+                className="text-center text-muted-foreground py-8 border rounded-lg"
+                variants={{
+                  hidden: { opacity: 0, y: 20 },
+                  visible: { opacity: 1, y: 0 }
+                }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+              >
+                No connected MCP servers. Connect some servers from the Available tab.
+              </motion.div>
+            )}
+          </>
         )}
       </motion.div>
     </div>
