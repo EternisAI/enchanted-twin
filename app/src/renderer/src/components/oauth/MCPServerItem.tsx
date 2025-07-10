@@ -17,6 +17,7 @@ import {
   PROVIDER_ICON_MAP,
   PROVIDER_DESCRIPTION_MAP
 } from '@renderer/constants/mcpProviders'
+import ScreenpipeConnectionButton from '../settings/permissions/ScreenpipeConnectionButton'
 
 interface MCPServerItemProps {
   server: McpServerDefinition
@@ -196,14 +197,24 @@ export default function MCPServerItem({
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleEnableToolsToggle(!showEnvInputs)}
-          >
-            <PlugIcon className="w-4 h-4" />
-            Connect
-          </Button>
+          {server.type === McpServerType.Screenpipe ? (
+            <ScreenpipeConnectionButton
+              onConnectionSuccess={() => {
+                handleConnectMcpServer()
+                onConnect()
+              }}
+              buttonText="Connect"
+            />
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleEnableToolsToggle(!showEnvInputs)}
+            >
+              <PlugIcon className="w-4 h-4" />
+              Connect
+            </Button>
+          )}
         </div>
       </div>
     </div>
