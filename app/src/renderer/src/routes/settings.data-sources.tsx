@@ -7,15 +7,25 @@ import ConnectMCPServerButton from '@renderer/components/oauth/MCPConnectServerB
 import { FolderSyncIcon, NetworkIcon, PlugIcon } from 'lucide-react'
 import LocalFolderSync from '@renderer/components/data-sources/LocalFolderSync'
 import { SettingsContent } from '@renderer/components/settings/SettingsContent'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useState } from 'react'
 
 export const Route = createFileRoute('/settings/data-sources')({
   component: ImportDataSettings
 })
 
 function ImportDataSettings() {
+  const [activeTab, setActiveTab] = useState('available')
+
+  const tabVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1 },
+    exit: { opacity: 0 }
+  }
+
   return (
     <SettingsContent>
-      <Tabs defaultValue="available">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex flex-row gap-2 w-full items-center justify-between">
           <h2 className="text-4xl font-semibold">Data Sources</h2>
           <div className="block md:hidden">
@@ -38,18 +48,49 @@ function ImportDataSettings() {
             <ConnectMCPServerButton onSuccess={() => {}} />
           </div>
         </div>
-        <TabsContent value="available">
-          <div className="flex flex-col gap-15">
-            <MCPPanel />
-            <DataSourcesPanel />
-          </div>
-        </TabsContent>
-        <TabsContent value="local-files">
-          <LocalFolderSync />
-        </TabsContent>
-        <TabsContent value="connected">
-          <ConnectedMCPPanel />
-        </TabsContent>
+        <AnimatePresence mode="wait">
+          <TabsContent value="available" key="available">
+            {activeTab === 'available' && (
+              <motion.div
+                className="flex flex-col gap-15"
+                variants={tabVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+              >
+                <MCPPanel />
+                <DataSourcesPanel />
+              </motion.div>
+            )}
+          </TabsContent>
+          <TabsContent value="local-files" key="local-files">
+            {activeTab === 'local-files' && (
+              <motion.div
+                variants={tabVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+              >
+                <LocalFolderSync />
+              </motion.div>
+            )}
+          </TabsContent>
+          <TabsContent value="connected" key="connected">
+            {activeTab === 'connected' && (
+              <motion.div
+                variants={tabVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+              >
+                <ConnectedMCPPanel />
+              </motion.div>
+            )}
+          </TabsContent>
+        </AnimatePresence>
       </Tabs>
     </SettingsContent>
   )

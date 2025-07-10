@@ -10,6 +10,8 @@ import {
 
 import { Button } from '../ui/button'
 import { cn } from '@renderer/lib/utils'
+import IconContainer from '@renderer/assets/icons/IconContainer'
+import { toast } from 'sonner'
 
 export default function LocalFolderSync() {
   const { data, refetch } = useQuery(GetTrackedFoldersDocument)
@@ -130,18 +132,12 @@ export default function LocalFolderSync() {
       await deleteTrackedFolder({
         variables: { id }
       })
+      toast.success('Folder disconnected')
       refetch()
     } catch (error) {
       console.error('Error deleting tracked folder:', error)
+      toast.error('Failed to disconnect folder')
     }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
   }
 
   const truncatePath = (path: string, maxLength: number = 50) => {
@@ -151,8 +147,6 @@ export default function LocalFolderSync() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-semibold">Synced Folders</h2>
-
       <div className="flex flex-col gap-4">
         <div
           className={cn(
@@ -211,11 +205,11 @@ export default function LocalFolderSync() {
             {data.getTrackedFolders.map((folder) => (
               <div
                 key={folder.id}
-                className="flex items-center gap-4 justify-between p-4 rounded-lg bg-card hover:bg-accent/80 transition-colors"
+                className="flex items-center gap-4 justify-between p-4 rounded-lg bg-card hover:bg-muted/50 transition-colors "
               >
-                <div className="flex items-center bg-gray-200 rounded-mg p-2.25">
+                <IconContainer>
                   <FolderOpen className="h-6 w-6 text-muted-foreground flex-shrink-0" />
-                </div>
+                </IconContainer>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="font-medium truncate">
@@ -226,21 +220,7 @@ export default function LocalFolderSync() {
                       </Badge> */}
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm text-muted-foreground mb-2">
-                      {truncatePath(folder.path)}
-                    </p>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="2"
-                      height="2"
-                      viewBox="0 0 2 2"
-                      fill="none"
-                    >
-                      <circle cx="1" cy="1" r="1" fill="#71717A" />
-                    </svg>
-                    <span className="text-xs text-muted-foreground">
-                      Connected: {formatDate(folder.createdAt)}
-                    </span>
+                    <p className="text-sm text-muted-foreground">{truncatePath(folder.path)}</p>
                   </div>
 
                   {/* <div className="flex items-center gap-4 text-xs text-muted-foreground">

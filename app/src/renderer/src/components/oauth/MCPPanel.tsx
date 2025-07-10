@@ -8,6 +8,8 @@ import {
 import MCPServerItem from './MCPServerItem'
 import { toast } from 'sonner'
 import { useEffect, useMemo } from 'react'
+import { Skeleton } from '@renderer/components/ui/skeleton'
+import { motion } from 'framer-motion'
 
 export default function MCPPanel() {
   const { data: toolsData } = useQuery(GetToolsDocument)
@@ -57,13 +59,17 @@ export default function MCPPanel() {
 
   console.log('toolsData', toolsData)
 
-  if (loading) return <div className="py-4 text-center">Loading MCP servers...</div>
-  if (error)
-    return (
-      <div className="py-4 text-center text-destructive">
-        Error loading MCP servers: {error.message}
+  const MCPServerSkeleton = () => (
+    <div className="p-4 w-full rounded-md">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-5">
+          <Skeleton className="w-10 h-10 rounded-md" />
+          <Skeleton className="h-6 w-32" />
+        </div>
+        <Skeleton className="h-8 w-20" />
       </div>
-    )
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-4">
@@ -73,24 +79,74 @@ export default function MCPPanel() {
           Takes under 30 seconds to connect.
         </p>
       </header>
-      <div className="flex flex-col gap-4 w-full">
-        {mcpServers.map((server) => (
-          <MCPServerItem
-            key={server.id}
-            server={server}
-            onConnect={refetch}
-            onRemove={() => {
-              deleteMcpServer({ variables: { id: server.id } })
-              refetch()
+      <motion.div
+        className="flex flex-col gap-4 w-full"
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: { opacity: 0 },
+          visible: {
+            opacity: 1,
+            transition: {
+              staggerChildren: 0.1,
+              delayChildren: 0.1
+            }
+          }
+        }}
+      >
+        {loading ? (
+          <>
+            <MCPServerSkeleton />
+            <MCPServerSkeleton />
+            <MCPServerSkeleton />
+          </>
+        ) : error ? (
+          <motion.div
+            className="py-4 text-center text-destructive"
+            variants={{
+              hidden: { opacity: 0, y: 20 },
+              visible: { opacity: 1, y: 0 }
             }}
-          />
-        ))}
-        {mcpServers.length === 0 && (
-          <div className="text-center text-muted-foreground py-8 border rounded-lg">
-            No MCP servers configured
-          </div>
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+          >
+            Error loading MCP servers: {error.message}
+          </motion.div>
+        ) : (
+          <>
+            {mcpServers.map((server) => (
+              <motion.div
+                key={server.id}
+                variants={{
+                  hidden: { opacity: 0 },
+                  visible: { opacity: 1 }
+                }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+              >
+                <MCPServerItem
+                  server={server}
+                  onConnect={refetch}
+                  onRemove={() => {
+                    deleteMcpServer({ variables: { id: server.id } })
+                    refetch()
+                  }}
+                />
+              </motion.div>
+            ))}
+            {mcpServers.length === 0 && (
+              <motion.div
+                className="text-center text-muted-foreground py-8 border rounded-lg"
+                variants={{
+                  hidden: { opacity: 0 },
+                  visible: { opacity: 1 }
+                }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+              >
+                No MCP servers configured
+              </motion.div>
+            )}
+          </>
         )}
-      </div>
+      </motion.div>
     </div>
   )
 }
