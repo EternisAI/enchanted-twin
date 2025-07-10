@@ -36,7 +36,10 @@ export default function ChatInputBox({
   onVoiceModeChange
 }: ChatInputBoxProps) {
   return (
-    <div className="flex items-center gap-2 w-full border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-0">
+    <motion.div
+      layoutId="message-input-container"
+      className="flex items-center gap-2 w-full border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-0"
+    >
       <Textarea
         ref={textareaRef}
         value={query}
@@ -85,7 +88,7 @@ export default function ChatInputBox({
           />
         )}
       </motion.div>
-    </div>
+    </motion.div>
   )
 }
 
