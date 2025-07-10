@@ -90,8 +90,8 @@ export function CopyButton({
             key="success"
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -20, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
             className="flex items-center text-emerald-600 dark:text-emerald-500"
           >
             {successIcon || <Check className="h-4 w-4" />}
@@ -112,7 +112,7 @@ export function CopyButton({
             key="default"
             initial={{ y: 0, opacity: 1 }}
             exit={{ y: -20, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
             className="flex items-center"
           >
             {icon || <Copy className="h-4 w-4" />}
