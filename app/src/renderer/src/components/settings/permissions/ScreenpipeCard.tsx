@@ -12,74 +12,42 @@ import { Button } from '@renderer/components/ui/button'
 import { Alert, AlertDescription } from '@renderer/components/ui/alert'
 import { toast } from 'sonner'
 import ScreenpipeConnectionModal from './ScreenpipeConnectionModal'
-import { useSearch } from '@tanstack/react-router'
 import { DetailCard } from './DetailCard'
-
-type MediaStatusType =
-  | 'granted'
-  | 'not-determined'
-  | 'denied'
-  | 'restricted'
-  | 'unavailable'
-  | 'loading'
-
-interface ScreenpipeStatus {
-  isRunning: boolean
-  isInstalled: boolean
-}
+import { useScreenpipeConnection } from '@renderer/hooks/useScreenpipeConnection'
+import { getSafeScreenRecordingPermission } from '@renderer/lib/utils/permissionUtils'
 
 export default function ScreenpipePanel() {
-  const [status, setStatus] = useState<ScreenpipeStatus>({ isRunning: false, isInstalled: true })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [autoStart, setAutoStart] = useState<boolean>(false)
-  const [permissions, setPermissions] = useState<Record<string, MediaStatusType>>({
-    screen: 'loading',
-    microphone: 'loading',
-    accessibility: 'loading'
-  })
-  const [showConnectionModal, setShowConnectionModal] = useState(false)
-  const searchParams = useSearch({ from: '/settings/permissions' })
 
-  const fetchStatus = async () => {
-    try {
-      const status = await window.api.screenpipe.getStatus()
-      const autoStartSetting = await window.api.screenpipe.getAutoStart()
-      setStatus(status)
-      setAutoStart(autoStartSetting)
-    } catch (err: unknown) {
-      setError(`Failed to fetch screenpipe status: ${err}`)
-    }
-  }
+  const {
+    status,
+    permissions,
+    showConnectionModal,
+    setShowConnectionModal,
+    hasAllPermissions,
+    needsConnection,
+    handleConnect,
+    handleRequestPermission,
+    handleStartScreenpipe,
+    fetchStatus
+  } = useScreenpipeConnection()
 
   useEffect(() => {
-    fetchStatus()
-    const fetchStatusInterval = setInterval(fetchStatus, 5000)
-
-    const checkPermissions = async () => {
-      const screenStatus = await window.api.queryMediaStatus('screen')
-      const micStatus = await window.api.queryMediaStatus('microphone')
-      const accessibilityStatus = await window.api.accessibility.getStatus()
-
-      setPermissions({
-        screen: screenStatus as MediaStatusType,
-        microphone: micStatus as MediaStatusType,
-        accessibility: accessibilityStatus as MediaStatusType
-      })
+    const fetchAutoStart = async () => {
+      try {
+        const autoStartSetting = await window.api.screenpipe.getAutoStart()
+        setAutoStart(autoStartSetting)
+      } catch (err: unknown) {
+        setError(`Failed to fetch auto-start setting: ${err}`)
+      }
     }
-    checkPermissions()
-    const interval = setInterval(checkPermissions, 5000)
-    return () => {
-      clearInterval(interval)
-      clearInterval(fetchStatusInterval)
-    }
+
+    fetchAutoStart()
+    const interval = setInterval(fetchAutoStart, 5000)
+    return () => clearInterval(interval)
   }, [])
-
-  useEffect(() => {
-    if (searchParams && 'screenpipe' in searchParams && searchParams.screenpipe === 'true') {
-      setShowConnectionModal(true)
-    }
-  }, [searchParams])
 
   const handleInstall = async () => {
     setIsLoading(true)
@@ -130,10 +98,6 @@ export default function ScreenpipePanel() {
     }
   }
 
-  const hasAllPermissions = () => {
-    return Object.values(permissions).every((status) => status === 'granted')
-  }
-
   const getPermissionMessages = (): string[] => {
     const messages: string[] = []
     if (permissions.screen !== 'granted') messages.push('Screen Recording')
@@ -142,42 +106,11 @@ export default function ScreenpipePanel() {
     return messages
   }
 
-  const handleConnect = () => {
-    setShowConnectionModal(true)
-  }
-
-  const handleRequestPermission = async () => {
-    try {
-      await window.api.screenpipe.storeRestartIntent('/settings/permissions', true)
-      await window.api.requestMediaAccess('screen')
-    } catch (error) {
-      console.error('Error requesting screen permission:', error)
-      throw error
-    }
-  }
-
-  const handleStartScreenpipe = async () => {
-    try {
-      const result = await window.api.screenpipe.start()
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to start Screenpipe')
-      }
-      await fetchStatus()
-      toast.success('Screenpipe started successfully')
-    } catch (error) {
-      console.error('Error starting Screenpipe:', error)
-      toast.error('Failed to start Screenpipe')
-      throw error
-    }
-  }
-
-  const needsConnection = !hasAllPermissions() || !status.isRunning
-
   const getStatusInfo = () => {
     if (!status.isInstalled) {
       return {
         icon: Download,
-        color: 'text-orange-500',
+        color: 'text-orange-500 dark:text-orange-400',
         label: 'Not Installed'
       }
     }
@@ -185,7 +118,7 @@ export default function ScreenpipePanel() {
     if (!hasAllPermissions()) {
       return {
         icon: XCircle,
-        color: 'text-red-500',
+        color: 'text-neutral-500 dark:text-neutral-400',
         label: 'Permissions Required'
       }
     }
@@ -193,14 +126,14 @@ export default function ScreenpipePanel() {
     if (status.isRunning) {
       return {
         icon: CheckCircle2,
-        color: 'text-green-500',
+        color: 'text-green-500 dark:text-green-400',
         label: 'Running'
       }
     }
 
     return {
       icon: XCircle,
-      color: 'text-neutral-500',
+      color: 'text-neutral-500 dark:text-neutral-400',
       label: 'Stopped'
     }
   }
@@ -263,6 +196,7 @@ export default function ScreenpipePanel() {
 
   const statusInfo = getStatusInfo()
 
+
   return (
     <>
       {error && (
@@ -286,14 +220,7 @@ export default function ScreenpipePanel() {
       <ScreenpipeConnectionModal
         isOpen={showConnectionModal}
         onClose={() => setShowConnectionModal(false)}
-        screenRecordingPermission={
-          permissions.screen as
-            | 'granted'
-            | 'denied'
-            | 'not-determined'
-            | 'restricted'
-            | 'unavailable'
-        }
+        screenRecordingPermission={getSafeScreenRecordingPermission(permissions.screen)}
         isScreenpipeRunning={status.isRunning}
         onRequestPermission={handleRequestPermission}
         onStartScreenpipe={handleStartScreenpipe}

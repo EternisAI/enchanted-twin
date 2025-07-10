@@ -46,7 +46,7 @@ const getStatusConfig = (status: MediaStatusType) => {
     case 'granted':
       return {
         icon: CheckCircle2,
-        color: 'text-green-500',
+        color: 'text-green-500 dark:text-green-400',
         label: 'Granted'
       }
     case 'not-determined':
@@ -58,19 +58,19 @@ const getStatusConfig = (status: MediaStatusType) => {
     case 'denied':
       return {
         icon: XCircle,
-        color: 'text-neutral-500',
+        color: 'text-neutral-500 dark:text-neutral-400',
         label: 'Denied'
       }
     case 'restricted':
       return {
         icon: AlertCircle,
-        color: 'text-yellow-500',
+        color: 'text-yellow-500 dark:text-yellow-400',
         label: 'Restricted'
       }
     case 'unavailable':
       return {
         icon: XCircle,
-        color: 'text-neutral-500',
+        color: 'text-neutral-500 dark:text-neutral-400',
         label: 'Unavailable'
       }
     default:
