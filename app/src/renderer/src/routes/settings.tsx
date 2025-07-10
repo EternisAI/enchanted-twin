@@ -78,7 +78,7 @@ function SettingsLayout() {
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-4 border-b no-drag">
-          <Button variant="outline" className="h-9 px-2 absolute left-4" onClick={handleBackClick}>
+          <Button variant="ghost" className="h-9 px-2 absolute left-4" onClick={handleBackClick}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
