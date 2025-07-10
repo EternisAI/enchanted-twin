@@ -652,7 +652,7 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 	}
 
 	var whitelistResp struct {
-		Email       string `json:"email"`
+		UserID      string `json:"userID"`
 		Whitelisted bool   `json:"whitelisted"`
 	}
 
@@ -667,7 +667,7 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 		logger.Error("failed to close whitelist response body", "error", closeErr)
 	}
 
-	logger.Debug("whitelist check result", "email", whitelistResp.Email, "whitelisted", whitelistResp.Whitelisted)
+	logger.Debug("whitelist check result", "user", whitelistResp.UserID, "whitelisted", whitelistResp.Whitelisted)
 
 	if whitelistResp.Whitelisted {
 		return true, nil
