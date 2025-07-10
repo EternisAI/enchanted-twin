@@ -98,9 +98,9 @@ export default function MCPPanel() {
   return (
     <div className="flex flex-col gap-4">
       <header className="flex flex-col gap-2 border-b pb-3">
-        <h2 className="text-2xl font-bold leading-none">Available Servers</h2>
+        <h2 className="text-2xl font-bold leading-none">Quick Connect</h2>
         <p className="text-muted-foreground leading-none text-sm">
-          Connect to MCP servers to extend your capabilities.
+          Takes under 30 seconds to connect.
         </p>
       </header>
       <motion.div
