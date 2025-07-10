@@ -61,7 +61,7 @@ export function registerIpcHandlers() {
       return { success: true, loginUrl }
     } catch (error) {
       log.error('[Main] Failed to start Firebase OAuth server:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
 
@@ -72,7 +72,7 @@ export function registerIpcHandlers() {
       return { success: true }
     } catch (error) {
       log.error('[Main] Failed to cleanup OAuth server:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
 
