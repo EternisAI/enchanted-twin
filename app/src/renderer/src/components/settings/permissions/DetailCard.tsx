@@ -42,7 +42,6 @@ export function DetailCard({
             <span className="font-semibold capitalize text-lg">{title}</span>
             <Button
               variant="outline"
-              size="sm"
               onClick={onButtonClick}
               disabled={isLoading}
               className="py-1 h-fit w-fit px-2"
