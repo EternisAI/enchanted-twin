@@ -369,7 +369,7 @@ export function Home() {
               animate={{ opacity: 1, height: 296 }}
               exit={{ opacity: 0, height: 0 }}
               transition={{
-                opacity: { duration: 0.2 },
+                opacity: { duration: 0.2, delay: 0.4 },
                 height: { duration: 0.3, ease: 'easeOut' }
               }}
               className="relative w-full overflow-hidden"
@@ -401,7 +401,7 @@ export function Home() {
                           key={chat.id}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          transition={{ duration: 0.15, delay: index * 0.07 }}
+                          transition={{ duration: 0.15, delay: index * 0.07 + 0.4 }}
                           type="button"
                           onClick={() => {
                             navigate({ to: `/chat/${chat.id}` })

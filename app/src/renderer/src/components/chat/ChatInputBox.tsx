@@ -38,7 +38,7 @@ export default function ChatInputBox({
   return (
     <motion.div
       layoutId="message-input-container"
-      className="relative z-50 flex items-center gap-2 w-full border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-0"
+      className="relative z-50 flex items-center gap-2 w-full border border-border rounded-lg px-2.5 py-0 focus-within:shadow-lg focus-within:border-primary/25"
     >
       <Textarea
         ref={textareaRef}
@@ -51,7 +51,7 @@ export default function ChatInputBox({
           }
         }}
         placeholder="What's on your mind?"
-        className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[50px] bg-transparent"
+        className="!text-base !bg-transparent flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[50px]"
         rows={1}
       />
 
@@ -107,8 +107,8 @@ function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps
           className={cn(
             '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
             isSelected
-              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-              : '!bg-gray-200 dark:!bg-gray-800'
+              ? '!text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
+              : '!bg-muted/50 dark:!bg-muted'
           )}
           variant="outline"
           disabled={disabled}
