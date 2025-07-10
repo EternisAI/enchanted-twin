@@ -31,35 +31,3 @@ func IsNewFormatProcessor(processorName string) bool {
 		return false
 	}
 }
-
-// GetAllProcessors returns all processor types.
-func GetAllProcessors() []ProcessorType {
-	return []ProcessorType{
-		ProcessorTelegram,
-		ProcessorWhatsapp,
-		ProcessorGmail,
-		ProcessorChatGPT,
-		ProcessorSyncedDocument,
-		ProcessorSlack,
-		ProcessorX,
-	}
-}
-
-// GetNewFormatProcessors returns all new format processors.
-func GetNewFormatProcessors() []ProcessorType {
-	return []ProcessorType{
-		ProcessorTelegram,
-		ProcessorWhatsapp,
-		ProcessorGmail,
-		ProcessorChatGPT,
-		ProcessorSyncedDocument,
-	}
-}
-
-// GetOldFormatProcessors returns all old format processors.
-func GetOldFormatProcessors() []ProcessorType {
-	return []ProcessorType{
-		ProcessorSlack,
-		ProcessorX,
-	}
-}
