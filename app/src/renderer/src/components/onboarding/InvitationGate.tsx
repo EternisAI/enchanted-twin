@@ -11,21 +11,21 @@ import { useTheme } from '@renderer/lib/theme'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import GoogleSignInButton from '../oauth/GoogleSignInButton'
 import XSignInButton from '../oauth/XSignInButton'
+import Loading from '../Loading'
 
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const { user, authError, loading: authLoading, waitingForLogin, whitelist } = useAuth()
+
   const {
-    user,
-    authError,
-    loading: authLoading,
-    waitingForLogin,
-    whitelistLoading,
-    whitelistError,
-    isWhitelisted,
+    loading: whitelistLoading,
+    status: isWhitelisted,
+    error: whitelistError,
+    called: whitelistCalled,
     activateInviteCode
-  } = useAuth()
+  } = whitelist
 
   const errorFetching = whitelistError || authError
 
@@ -53,6 +53,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   }
 
   if (waitingForLogin) {
+    console.log('waitingForLogin', waitingForLogin)
     return (
       <div className="flex justify-center py-8 w-full">
         <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">
@@ -67,15 +68,17 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     )
   }
 
-  if (whitelistLoading || authLoading) {
+  if (whitelistLoading || authLoading || (user && !whitelistCalled)) {
+    console.log('whitelistLoading', whitelistLoading, authLoading)
     return (
-      <div className="flex justify-center py-8 w-full">
-        <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">
-          <div className="flex justify-center py-0 w-full text-primary">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        </OnboardingLayout>
-      </div>
+      <Loading />
+      // <div className="flex justify-center py-8 w-full">
+      //   <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">
+      //     <div className="flex justify-center py-0 w-full text-primary">
+      //       <Loader2 className="h-8 w-8 animate-spin" />
+      //     </div>
+      //   </OnboardingLayout>
+      // </div>
     )
   }
 

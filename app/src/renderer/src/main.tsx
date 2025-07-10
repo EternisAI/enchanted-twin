@@ -44,18 +44,18 @@ function App() {
       <TTSProvider>
         <ApolloClientProvider>
           <GoLogsProvider>
-            <AuthProvider>
-              <AppInitialize>
-                <div className="flex flex-col h-full w-full">
-                  <DependenciesGate>
-                    <InvitationGate>
-                      <UpdateNotification />
-                      <RouterProvider router={router} />
-                    </InvitationGate>
-                  </DependenciesGate>
-                </div>
-              </AppInitialize>
-            </AuthProvider>
+            {/* <AppInitialize> */}
+            <div className="flex flex-col h-full w-full">
+              <DependenciesGate>
+                <AuthProvider>
+                  <InvitationGate>
+                    <UpdateNotification />
+                    <RouterProvider router={router} />
+                  </InvitationGate>
+                </AuthProvider>
+              </DependenciesGate>
+            </div>
+            {/* </AppInitialize> */}
           </GoLogsProvider>
         </ApolloClientProvider>
       </TTSProvider>

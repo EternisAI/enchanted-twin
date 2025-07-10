@@ -34,6 +34,7 @@ export default function VoiceOnboardingContainer() {
   const { updateTitlebarColor } = useTitlebarColor()
   const { stopVoiceMode } = useVoiceStore()
   const { microphoneStatus } = useMicrophonePermission()
+  const [isVoiceOnboardingEnabled, setIsVoiceOnboardingEnabled] = useState(false)
 
   useEffect(() => {
     if (isCompleted) {
@@ -58,6 +59,10 @@ export default function VoiceOnboardingContainer() {
     }
   }, [stopVoiceMode])
 
+  const onSkipMicrophoneAccess = () => {
+    setIsVoiceOnboardingEnabled(true)
+  }
+
   return (
     <div
       className="w-full h-full flex flex-col justify-center items-center"
@@ -68,12 +73,19 @@ export default function VoiceOnboardingContainer() {
             : 'linear-gradient(180deg, #18181B 0%, #000 100%)'
       }}
     >
-      {microphoneStatus === 'granted' ? <VoiceOnboarding /> : <EnableMicrophone />}
+      {isVoiceOnboardingEnabled || microphoneStatus === 'granted' ? (
+        <Onboarding isVoiceModeEnabled={isVoiceOnboardingEnabled} />
+      ) : (
+        <EnableMicrophone onSkip={onSkipMicrophoneAccess} />
+      )}
     </div>
   )
 }
+type OnboardingProps = {
+  isVoiceModeEnabled: boolean
+}
 
-function VoiceOnboarding() {
+function Onboarding({ isVoiceModeEnabled }: OnboardingProps) {
   const navigate = useNavigate()
 
   const [lastMessage, setLastMessage] = useState<Message | null>(null)

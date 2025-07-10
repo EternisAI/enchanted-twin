@@ -25,12 +25,14 @@ interface AuthContextType {
   signInWithX: () => Promise<void>
   authError: string | null
   hasUpdatedToken: boolean
-  // Whitelist related
-  whitelistStatus: boolean | null
-  whitelistLoading: boolean
-  whitelistError: string | null
-  activateInviteCode: (inviteCode: string) => Promise<void>
-  isWhitelisted: boolean
+  whitelist: {
+    isWhitelisted: boolean
+    status: boolean | null
+    loading: boolean
+    called: boolean
+    error: string | null
+    activateInviteCode: (inviteCode: string) => Promise<void>
+  }
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -48,15 +50,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   })
 
+  // @TODO: Move whitelist logic to InvitationGate
   const {
     data: whitelistData,
     loading: whitelistLoading,
     error: whitelistError,
+    called: whitelistCalled,
     refetch: refetchWhitelist
   } = useQuery(GetWhitelistStatusDocument, {
     fetchPolicy: 'network-only',
     skip: !user || !hasUpdatedToken
   })
+
+  console.log('whitelistCalled', { whitelistCalled, whitelistLoading })
 
   const [activateInviteCodeMutation] = useMutation(ActivateInviteCodeDocument, {
     onCompleted: async () => {
@@ -265,11 +271,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         signInWithGoogle,
         authError,
-        whitelistStatus,
-        whitelistLoading,
-        whitelistError: whitelistError?.message || null,
-        activateInviteCode,
-        isWhitelisted,
+        whitelist: {
+          status: whitelistStatus,
+          loading: whitelistLoading,
+          error: whitelistError?.message || null,
+          called: whitelistCalled,
+          isWhitelisted,
+          activateInviteCode
+        },
         signInWithX
       }}
     >
