@@ -142,10 +142,8 @@ interface IApi {
     resetAll: () => Promise<{ success: boolean; error?: string }>
   }
   models: {
-    hasModelsDownloaded: () => Promise<{ embeddings: boolean; anonymizer: boolean; onnx: boolean }>
-    downloadModels: (
-      modelName: 'embeddings' | 'anonymizer' | 'onnx'
-    ) => Promise<{ success: boolean; error?: string }>
+    hasModelsDownloaded: () => Promise<Record<DependencyName, boolean>>
+    downloadModels: (modelName: DependencyName) => Promise<{ success: boolean; error?: string }>
     onProgress: (
       callback: (data: {
         modelName: string

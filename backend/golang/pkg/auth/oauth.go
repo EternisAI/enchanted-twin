@@ -138,7 +138,14 @@ func StoreToken(ctx context.Context, logger *log.Logger, store *db.Store, token 
 			return fmt.Errorf("no subject (sub) found in token claims")
 		}
 		logger.Info("claims", "claims", claims)
-		username = claims.Email
+		// email if available, sub otherwise, useful for providers like Twitter
+		if claims.Email != "" {
+			username = claims.Email
+		} else if claims.Sub != "" {
+			username = claims.Sub
+		} else {
+			return fmt.Errorf("no email or sub found in token claims for username")
+		}
 		logger.Info("got username from token", "username", username)
 	}
 
@@ -652,7 +659,7 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 	}
 
 	var whitelistResp struct {
-		Email       string `json:"email"`
+		UserID      string `json:"userID"`
 		Whitelisted bool   `json:"whitelisted"`
 	}
 
@@ -667,7 +674,7 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 		logger.Error("failed to close whitelist response body", "error", closeErr)
 	}
 
-	logger.Debug("whitelist check result", "email", whitelistResp.Email, "whitelisted", whitelistResp.Whitelisted)
+	logger.Debug("whitelist check result", "user", whitelistResp.UserID, "whitelisted", whitelistResp.Whitelisted)
 
 	if whitelistResp.Whitelisted {
 		return true, nil

@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -58,24 +57,8 @@ import (
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
-// customLogWriter routes logs to stderr if they contain "err" or "error", otherwise to stdout.
-type customLogWriter struct{}
-
-func (w *customLogWriter) Write(p []byte) (n int, err error) {
-	logContent := strings.ToLower(string(p))
-	if strings.Contains(logContent, "err") || strings.Contains(logContent, "error") || strings.Contains(logContent, "failed") {
-		return os.Stderr.Write(p)
-	}
-	return os.Stdout.Write(p)
-}
-
 func main() {
-	logger := log.NewWithOptions(&customLogWriter{}, log.Options{
-		ReportCaller:    true,
-		ReportTimestamp: true,
-		Level:           log.DebugLevel,
-		TimeFormat:      time.Kitchen,
-	})
+	logger := bootstrap.NewLogger()
 
 	envs, _ := config.LoadConfig(false)
 	logger.Debug("Config loaded", "envs", envs)
