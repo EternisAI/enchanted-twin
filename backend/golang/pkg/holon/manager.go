@@ -103,6 +103,7 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 		fetcherService = NewFetcherService(store, fetcherConfig, effectiveLogger)
 		if fetcherService == nil {
 			effectiveLogger.Error("Failed to create FetcherService - store is nil")
+			cancel()
 			return nil
 		}
 	}
