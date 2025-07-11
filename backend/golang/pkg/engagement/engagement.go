@@ -8,8 +8,6 @@
 package engagement
 
 import (
-	"time"
-
 	"github.com/charmbracelet/log"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -18,7 +16,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 )
@@ -69,24 +66,26 @@ func NewFriendService(config FriendServiceConfig) *FriendService {
 }
 
 func (s *FriendService) RegisterWorkflowsAndActivities(worker *worker.Worker, temporalClient client.Client) {
-	(*worker).RegisterWorkflow(s.FriendWorkflow)
-	(*worker).RegisterActivity(s.FetchMemory)
-	(*worker).RegisterActivity(s.FetchRandomMemory)
-	(*worker).RegisterActivity(s.FetchIdentity)
-	(*worker).RegisterActivity(s.GeneratePokeMessage)
-	(*worker).RegisterActivity(s.SendPokeMessage)
-	(*worker).RegisterActivity(s.GenerateMemoryPicture)
-	(*worker).RegisterActivity(s.SendMemoryPicture)
-	(*worker).RegisterActivity(s.TrackUserResponse)
-	(*worker).RegisterActivity(s.GenerateRandomWait)
-	(*worker).RegisterActivity(s.SelectRandomActivity)
-	(*worker).RegisterActivity(s.StoreSentMessage)
-	(*worker).RegisterActivity(s.CheckForSimilarFriendMessages)
-	(*worker).RegisterActivity(s.GetRandomQuestion)
-	(*worker).RegisterActivity(s.SendQuestion)
+	s.logger.Info("Friend workflow disabled for now")
 
-	err := helpers.CreateScheduleIfNotExists(s.logger, temporalClient, "friend-workflow", 1*time.Hour, s.FriendWorkflow, []any{&FriendWorkflowInput{}})
-	if err != nil {
-		s.logger.Error("Failed to create friend workflow schedule", "error", err)
-	}
+	// (*worker).RegisterWorkflow(s.FriendWorkflow)
+	// (*worker).RegisterActivity(s.FetchMemory)
+	// (*worker).RegisterActivity(s.FetchRandomMemory)
+	// (*worker).RegisterActivity(s.FetchIdentity)
+	// (*worker).RegisterActivity(s.GeneratePokeMessage)
+	// (*worker).RegisterActivity(s.SendPokeMessage)
+	// (*worker).RegisterActivity(s.GenerateMemoryPicture)
+	// (*worker).RegisterActivity(s.SendMemoryPicture)
+	// (*worker).RegisterActivity(s.TrackUserResponse)
+	// (*worker).RegisterActivity(s.GenerateRandomWait)
+	// (*worker).RegisterActivity(s.SelectRandomActivity)
+	// (*worker).RegisterActivity(s.StoreSentMessage)
+	// (*worker).RegisterActivity(s.CheckForSimilarFriendMessages)
+	// (*worker).RegisterActivity(s.GetRandomQuestion)
+	// (*worker).RegisterActivity(s.SendQuestion)
+
+	// err := helpers.CreateScheduleIfNotExists(s.logger, temporalClient, "friend-workflow", 1*time.Hour, s.FriendWorkflow, []any{&FriendWorkflowInput{}})
+	// if err != nil {
+	// 	s.logger.Error("Failed to create friend workflow schedule", "error", err)
+	// }
 }

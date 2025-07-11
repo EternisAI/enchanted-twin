@@ -44,6 +44,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/directorywatcher"
+	"github.com/EternisAI/enchanted-twin/pkg/engagement"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
@@ -536,16 +537,16 @@ func bootstrapTemporalWorker(
 	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
 	identityActivities.RegisterWorkflowsAndActivities(w)
 
-	// friendService := engagement.NewFriendService(engagement.FriendServiceConfig{
-	// 	Logger:          input.logger,
-	// 	MemoryService:   input.memory,
-	// 	IdentityService: identity.NewIdentityService(input.temporalClient),
-	// 	TwinchatService: input.twinchatService,
-	// 	AiService:       input.aiCompletionsService,
-	// 	ToolRegistry:    input.toolsRegistry,
-	// 	Store:           input.store,
-	// })
-	// friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
+	friendService := engagement.NewFriendService(engagement.FriendServiceConfig{
+		Logger:          input.logger,
+		MemoryService:   input.memory,
+		IdentityService: identity.NewIdentityService(input.temporalClient),
+		TwinchatService: input.twinchatService,
+		AiService:       input.aiCompletionsService,
+		ToolRegistry:    input.toolsRegistry,
+		Store:           input.store,
+	})
+	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
 
 	// Register holon sync activities
 	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
