@@ -55,7 +55,7 @@ func NewFetcherService(store *db.Store, config FetcherConfig, logger *clog.Logge
 	if store == nil {
 		return nil
 	}
-	
+
 	ctx := context.Background()
 
 	// Create authenticated API client with OAuth token
