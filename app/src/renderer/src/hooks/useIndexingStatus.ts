@@ -1,37 +1,56 @@
-import { useEffect } from 'react'
-import { useSubscription } from '@apollo/client'
-import { IndexingStatusDocument } from '@renderer/graphql/generated/graphql'
-import { useIndexingStore } from '@renderer/stores/indexingStore'
+import { useEffect, useState } from 'react'
+import { useQuery, useSubscription } from '@apollo/client'
+import {
+  GetDataSourcesDocument,
+  IndexingStatusDocument,
+  IndexingState,
+  type IndexingStatus as GeneratedIndexingStatus,
+  type DataSource as GeneratedDataSource
+} from '@renderer/graphql/generated/graphql'
+
+interface ExtendedDataSource extends GeneratedDataSource {
+  startTime: number
+}
+
+interface ExtendedIndexingStatus extends GeneratedIndexingStatus {
+  globalStartTime: number
+  dataSources: ExtendedDataSource[]
+}
+
+interface IndexingStatusType {
+  status: IndexingState
+  dataSources: (Omit<ExtendedDataSource, 'path' | 'updatedAt'> & {
+    path?: string
+    updatedAt?: string
+  })[]
+  globalStartTime: number
+}
 
 export function useIndexingStatus() {
+  const { data: sourcesData } = useQuery(GetDataSourcesDocument)
   const { data: subscriptionData, loading, error } = useSubscription(IndexingStatusDocument)
-  const { indexingStatus, updateIndexingStatus } = useIndexingStore()
+  const [indexingStatus, setIndexingStatus] = useState<IndexingStatusType | null>(null)
 
-  // Update the store whenever we receive new subscription data
   useEffect(() => {
     if (subscriptionData?.indexingStatus) {
-      updateIndexingStatus({
-        status: subscriptionData.indexingStatus.status,
-        dataSources: subscriptionData.indexingStatus.dataSources?.map((ds) => ({
-          id: ds.id,
-          name: ds.name,
-          isProcessed: ds.isProcessed,
-          isIndexed: ds.isIndexed,
-          indexProgress: ds.indexProgress,
-          hasError: ds.hasError,
-          startTime: undefined // Will be set by the store's updateIndexingStatus method
-          // Note: The subscription doesn't include all DataSource fields (e.g., path, updatedAt)
-          // These are only available from the getDataSources query
-        }))
+      const subStatus = subscriptionData.indexingStatus as ExtendedIndexingStatus
+      const mergedSources =
+        subStatus.dataSources?.map((ds) => ({
+          ...ds,
+          path: sourcesData?.getDataSources.find((s) => s.id === ds.id)?.path,
+          updatedAt: sourcesData?.getDataSources.find((s) => s.id === ds.id)?.updatedAt
+        })) || []
+
+      setIndexingStatus({
+        status: subStatus.status,
+        dataSources: mergedSources,
+        globalStartTime: subStatus.globalStartTime
       })
     }
-  }, [subscriptionData, updateIndexingStatus])
-
-  // Return the most recent data (either from subscription or store)
-  const currentStatus = subscriptionData?.indexingStatus || indexingStatus
+  }, [subscriptionData, sourcesData])
 
   return {
-    data: currentStatus ? { indexingStatus: currentStatus } : undefined,
+    data: indexingStatus ? { indexingStatus } : undefined,
     loading,
     error
   }
