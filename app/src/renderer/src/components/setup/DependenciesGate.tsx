@@ -31,7 +31,6 @@ export type DownloadState = Record<
     error?: string
   }
 >
-
 const handleDependencyDownload = (
   dependencyName: DependencyName,
   isDownloaded: boolean,
@@ -78,7 +77,7 @@ const handleDependencyDownload = (
   }
 }
 
-export default function AppSetupGate({ children }: { children: React.ReactNode }) {
+export default function DependenciesGate({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme()
   const [hasModelsDownloaded, setHasModelsDownloaded] = useState<Record<DependencyName, boolean>>(
     DEPENDENCY_NAMES.reduce(
@@ -90,8 +89,6 @@ export default function AppSetupGate({ children }: { children: React.ReactNode }
     )
   )
   const [downloadState, setDownloadState] = useState<DownloadState>(initialDownloadState)
-
-  console.log('hasModelsDownloaded', hasModelsDownloaded, downloadState)
 
   const { state: goServerState, initializeIfNeeded, retry: retryGoServer } = useGoServer()
   const hasInitializedGoServer = useRef(false)
@@ -165,6 +162,8 @@ export default function AppSetupGate({ children }: { children: React.ReactNode }
     const cleanup = window.api.models.onProgress(handleProgress)
 
     window.api.models.hasModelsDownloaded().then((hasModelsDownloaded) => {
+      console.log('hasModelsDownloaded', hasModelsDownloaded)
+
       setHasModelsDownloaded(hasModelsDownloaded)
 
       let needsDownload = false
