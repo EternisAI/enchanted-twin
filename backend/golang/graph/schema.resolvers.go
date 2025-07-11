@@ -16,12 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/lnquy/cron"
-	nats "github.com/nats-io/nats.go"
-	common "go.temporal.io/api/common/v1"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -30,6 +24,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	"github.com/google/uuid"
+	"github.com/lnquy/cron"
+	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -619,6 +618,32 @@ func (r *queryResolver) GetOAuthStatus(ctx context.Context) ([]*model.OAuthStatu
 	return results, nil
 }
 
+// GetConnectedAccounts is the resolver for the getConnectedAccounts field.
+func (r *queryResolver) GetConnectedAccounts(ctx context.Context) ([]*model.OAuthAccount, error) {
+	// Get all OAuth tokens from the database
+	allTokens, err := r.Store.GetAllOAuthTokens(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
+	}
+
+	// Convert to OAuthAccount model
+	accounts := make([]*model.OAuthAccount, 0, len(allTokens))
+	for _, token := range allTokens {
+		// Check if token is still active (not expired and not in error state)
+		isActive := !token.Error && (token.ExpiresAt.IsZero() || token.ExpiresAt.After(time.Now()))
+
+		account := &model.OAuthAccount{
+			Provider:  token.Provider,
+			Username:  token.Username,
+			ExpiresAt: token.ExpiresAt.Format(time.RFC3339),
+			IsActive:  isActive,
+		}
+		accounts = append(accounts, account)
+	}
+
+	return accounts, nil
+}
+
 // GetChatSuggestions is the resolver for the getChatSuggestions field.
 func (r *queryResolver) GetChatSuggestions(ctx context.Context, chatID string) ([]*model.ChatSuggestionsCategory, error) {
 	return r.TwinChatService.GetChatSuggestions(ctx, chatID)
@@ -868,7 +893,8 @@ func (r *queryResolver) GetDirectoryWatcherStatus(ctx context.Context) (*model.D
 	// Check if DirectoryWatcher exists
 	if r.DirectoryWatcher == nil {
 		r.Logger.Warn("⚠️ DirectoryWatcher is nil")
-		status.ErrorMessage = stringPtr("DirectoryWatcher is not initialized")
+		errorMsg := "DirectoryWatcher is not initialized"
+		status.ErrorMessage = &errorMsg
 		return status, nil
 	}
 
@@ -876,7 +902,8 @@ func (r *queryResolver) GetDirectoryWatcherStatus(ctx context.Context) (*model.D
 	dbFolders, err := r.Store.GetTrackedFolders(ctx)
 	if err != nil {
 		r.Logger.Error("❌ Failed to get tracked folders from database", "error", err)
-		status.ErrorMessage = stringPtr(fmt.Sprintf("Database error: %v", err))
+		errorMsg := fmt.Sprintf("Database error: %v", err)
+		status.ErrorMessage = &errorMsg
 		return status, nil
 	}
 
@@ -901,11 +928,6 @@ func (r *queryResolver) GetDirectoryWatcherStatus(ctx context.Context) (*model.D
 	}
 
 	return status, nil
-}
-
-// Helper function to create string pointer.
-func stringPtr(s string) *string {
-	return &s
 }
 
 // MessageAdded is the resolver for the messageAdded field.
@@ -1356,3 +1378,36 @@ type (
 	subscriptionResolver struct{ *Resolver }
 	userProfileResolver  struct{ *Resolver }
 )
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	func (r *queryResolver) GetAccounts(ctx context.Context) ([]*model.OAuthAccount, error) {
+	// Get all OAuth tokens from the database
+	allTokens, err := r.Store.GetAllOAuthTokens(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
+	}
+
+	// Convert to OAuthAccount model
+	accounts := make([]*model.OAuthAccount, 0, len(allTokens))
+	for _, token := range allTokens {
+		// Check if token is still active (not expired and not in error state)
+		isActive := !token.Error && (token.ExpiresAt.IsZero() || token.ExpiresAt.After(time.Now()))
+
+		account := &model.OAuthAccount{
+			Provider:  token.Provider,
+			Username:  token.Username,
+			ExpiresAt: token.ExpiresAt.Format(time.RFC3339),
+			IsActive:  isActive,
+		}
+		accounts = append(accounts, account)
+	}
+
+	return accounts, nil
+}
+*/
