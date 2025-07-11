@@ -26,6 +26,7 @@ type HolonZeroClient interface {
 type FetcherService struct {
 	client     HolonZeroClient
 	repository *Repository
+	store      *db.Store
 	config     FetcherConfig
 	logger     *clog.Logger
 	stopChan   chan struct{}
@@ -48,6 +49,13 @@ type FetcherConfig struct {
 
 // NewFetcherService creates a new HolonZero API fetcher service.
 func NewFetcherService(store *db.Store, config FetcherConfig, logger *clog.Logger) *FetcherService {
+	if logger != nil && store == nil {
+		logger.Error("Cannot create FetcherService with nil store")
+	}
+	if store == nil {
+		return nil
+	}
+
 	ctx := context.Background()
 
 	// Create authenticated API client with OAuth token
@@ -73,6 +81,7 @@ func NewFetcherService(store *db.Store, config FetcherConfig, logger *clog.Logge
 	fetcher := &FetcherService{
 		client:     client,
 		repository: NewRepository(store.DB()),
+		store:      store,
 		config:     config,
 		logger:     logger,
 		stopChan:   make(chan struct{}),
@@ -641,7 +650,7 @@ func (f *FetcherService) PushPendingReplies(ctx context.Context) error {
 	participantID := f.participantID
 	if participantID == nil {
 		// Try to authenticate to get participant ID
-		if err := f.authenticateForDeduplication(ctx, nil); err != nil {
+		if err := f.authenticateForDeduplication(ctx, f.store); err != nil {
 			f.logError("Failed to authenticate for reply pushing", err)
 			return fmt.Errorf("authentication required for pushing replies: %w", err)
 		}

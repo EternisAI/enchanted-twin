@@ -187,7 +187,7 @@ func (s *Service) SendMessage(
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
+	s.logger.Debug("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
@@ -268,6 +268,15 @@ func (s *Service) SendMessage(
 	s.logger.Info("Executing agent", "reasoning", isReasoning)
 	response, err := s.Execute(ctx, messageHistory, preToolCallback, postToolCallback, onDelta, isReasoning)
 	if err != nil {
+		// send message to stop progress indicator
+		payload := model.MessageStreamPayload{
+			MessageID:  assistantMessageId,
+			Chunk:      "",
+			Role:       model.RoleAssistant,
+			IsComplete: true,
+			CreatedAt:  &createdAt,
+		}
+		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 		return nil, err
 	}
 	s.logger.Debug(
@@ -354,18 +363,11 @@ func (s *Service) SendMessage(
 					return
 				}
 
-				subject := fmt.Sprintf("chat.%s.privacy_dict", chatID)
-				err = s.nc.Publish(subject, updateData)
-				if err != nil {
-					s.logger.Error("failed to publish privacy dict update", "error", err)
-				} else {
-					s.logger.Debug("published privacy dict update", "chat_id", chatID)
-				}
+				_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.privacy_dict", chatID), updateData)
 			}()
 		}
 	}
 
-	// Publish to NATS
 	userNatsMsg := model.Message{
 		ID:        userMsgID,
 		Text:      &message,
@@ -373,19 +375,7 @@ func (s *Service) SendMessage(
 		CreatedAt: createdAt,
 		Role:      model.RoleUser,
 	}
-
-	userNatsMsgJSON, err := json.Marshal(userNatsMsg)
-	if err != nil {
-		s.logger.Error("failed to marshal user NATS message", "error", err)
-		// Continue anyway - db storage succeeded
-	} else {
-		// Publish on the chat channel
-		subject := fmt.Sprintf("chat.%s", chatID)
-		if err := s.nc.Publish(subject, userNatsMsgJSON); err != nil {
-			s.logger.Error("failed to publish user message to NATS", "error", err)
-			// Continue anyway - db storage succeeded
-		}
-	}
+	_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s", chatID), userNatsMsg)
 
 	// assistant message
 	assistantMessageDb := repository.Message{

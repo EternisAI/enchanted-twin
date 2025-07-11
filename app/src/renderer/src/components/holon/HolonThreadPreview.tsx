@@ -5,6 +5,7 @@ import { Thread } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
 import { cn } from '@renderer/lib/utils'
 import { useChatActions } from '@renderer/contexts/ChatContext'
+import Markdown from '@renderer/components/chat/messages/Markdown'
 
 export default function HolonThreadPreview({
   thread
@@ -130,7 +131,7 @@ export default function HolonThreadPreview({
           </div>
         ) : (
           <div className="group relative">
-            <p className="text-foreground whitespace-pre-wrap">{editedContent}</p>
+            <Markdown>{editedContent}</Markdown>
           </div>
         )}
 
