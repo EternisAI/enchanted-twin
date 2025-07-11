@@ -2,6 +2,7 @@ package llama1b
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -45,7 +46,14 @@ func TestLlamaModel_InteractiveMode(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, constant.Assistant("assistant"), response.Role)
 	assert.NotEmpty(t, response.Content)
-	t.Logf("Response: %s", response.Content)
+
+	var anonymizeMap map[string]string
+	if err := json.Unmarshal([]byte(response.Content), &anonymizeMap); err != nil {
+		t.Log("Fail to parse response, the response is not in Json map of string to string format")
+	}
+
+	t.Logf("Original Response: %s", response.Content)
+	t.Logf("Anonymize Map: %v", anonymizeMap)
 	t.Logf("Completions Inferencing time: %v", elapsed)
 
 	// Second Inferencing
