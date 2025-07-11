@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 )
@@ -155,7 +156,10 @@ func (a *LlamaAnonymizer) sendInteractiveMessage(ctx context.Context, input stri
 		return "", fmt.Errorf("no active interactive session")
 	}
 
-	if _, err := fmt.Fprintf(a.session.stdin, "%s\n", input); err != nil {
+	sanitizedInput := strings.ReplaceAll(input, "\n", " ")
+	sanitizedInput = strings.ReplaceAll(sanitizedInput, "\r", " ")
+
+	if _, err := fmt.Fprintf(a.session.stdin, "%s\n", sanitizedInput); err != nil {
 		return "", fmt.Errorf("failed to send input to interactive session: %w", err)
 	}
 
