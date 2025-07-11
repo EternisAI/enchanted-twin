@@ -78,6 +78,7 @@ This is a sophisticated Electron application with multi-language runtime coordin
 ## Code Conventions
 
 Follow the established patterns from `.cursor/rules/common.mdc`:
+Use alias absolute imports for all components, hooks, and anything else when possible.
 
 ### React/TypeScript
 

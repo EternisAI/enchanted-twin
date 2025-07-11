@@ -40,7 +40,7 @@ export default function NotificationStatusCard() {
 
     return {
       icon: osNotificationEnabled ? CheckCircle2 : XCircle,
-      color: osNotificationEnabled ? 'text-green-500' : 'text-red-500',
+      color: osNotificationEnabled ? 'text-green-500' : 'text-neutral-500',
       label: osNotificationEnabled ? 'Enabled' : 'Disabled'
     }
   }
