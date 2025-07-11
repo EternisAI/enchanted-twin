@@ -291,6 +291,8 @@ subscription MessageStream($chatId: ID!) {
     isComplete
     createdAt
     imageUrls
+    accumulatedMessage
+    deanonymizedAccumulatedMessage
   }
 }
 
