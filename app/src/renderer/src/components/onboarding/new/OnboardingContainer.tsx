@@ -32,7 +32,6 @@ import { useProcessMessageHistoryStream } from '@renderer/hooks/useProcessMessag
 
 type OnboardingType = 'VOICE' | 'TEXT'
 
-// Custom hook for shared onboarding chat logic
 function useOnboardingChat() {
   const navigate = useNavigate()
   const { completeOnboarding } = useOnboardingStore()
@@ -49,6 +48,7 @@ function useOnboardingChat() {
   })
   const [chatId, setChatId] = useState('')
   const [triggerAnimation, setTriggerAnimation] = useState(false)
+  const [assistantMessageStack, setAssistantMessageStack] = useState<Set<string>>(new Set())
 
   const [createChat] = useMutation(CreateChatDocument)
   const [updateProfile] = useMutation(UpdateProfileDocument)
@@ -66,6 +66,21 @@ function useOnboardingChat() {
     return newChatId
   }
 
+  const cleanupChat = async () => {
+    if (chatId) {
+      console.log('Cleaning up onboarding chat:', chatId)
+      try {
+        await deleteChat({
+          variables: {
+            chatId: chatId
+          }
+        })
+      } catch (error) {
+        console.error('Error deleting onboarding chat:', error)
+      }
+    }
+  }
+
   useMessageSubscription(chatId, (message) => {
     if (message.role === Role.User) {
       setLastMessage(message)
@@ -73,8 +88,9 @@ function useOnboardingChat() {
         tools: message.toolCalls.map((tool) => tool.name)
       })
     } else {
-      if (message.text !== lastAgentMessage?.text) {
+      if (message.text && !assistantMessageStack.has(message.id)) {
         setLastAgentMessage(message)
+        setAssistantMessageStack((prev) => new Set(prev).add(message.id))
       }
     }
   })
@@ -96,19 +112,25 @@ function useOnboardingChat() {
 
       setTimeout(() => {
         setTriggerAnimation(true)
-        deleteChat({
-          variables: {
-            chatId: chatId
-          }
-        })
+        cleanupChat()
       }, 14000)
     }
   })
 
-  const skipOnboarding = () => {
+  const skipOnboarding = async () => {
+    await cleanupChat()
     completeOnboarding()
     navigate({ to: '/' })
   }
+
+  // Cleanup chat on unmount
+  useEffect(() => {
+    return () => {
+      if (chatId) {
+        cleanupChat()
+      }
+    }
+  }, [chatId])
 
   return {
     lastMessage,
@@ -116,11 +138,11 @@ function useOnboardingChat() {
     chatId,
     triggerAnimation,
     createOnboardingChat,
-    skipOnboarding
+    skipOnboarding,
+    cleanupChat
   }
 }
 
-// Base component for shared onboarding UI
 function OnboardingBase({
   children,
   isAnimationRunning,
@@ -156,7 +178,6 @@ function OnboardingBase({
   )
 }
 
-// Shared message display component
 function MessageDisplay({
   lastAgentMessage,
   lastMessage,
@@ -407,9 +428,16 @@ function VoiceOnboarding() {
     initializeVoiceOnboarding()
   }, [])
 
-  const handleSkip = () => {
+  useEffect(() => {
+    return () => {
+      console.log('VoiceOnboarding unmounting, stopping voice mode')
+      stopVoiceMode()
+    }
+  }, [stopVoiceMode])
+
+  const handleSkip = async () => {
     stopVoiceMode()
-    skipOnboarding()
+    await skipOnboarding()
   }
 
   return (
