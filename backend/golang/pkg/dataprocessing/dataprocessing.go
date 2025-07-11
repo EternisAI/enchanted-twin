@@ -586,12 +586,6 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
 	}
-
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
 }
 
 func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType string, records []types.Record) ([]memory.Document, error) {
