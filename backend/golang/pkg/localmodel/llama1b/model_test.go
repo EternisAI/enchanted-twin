@@ -27,15 +27,17 @@ func TestLlamaModel_InteractiveMode(t *testing.T) {
 		tokenizerName = "meta-llama/Llama-3.2-1B"
 	}
 
-	model, err := NewLlamaModel(context.Background(), binaryPath, modelDir, tokenizerName, true)
+	systemPrompt := "Find names in the input text. For each name found, create a JSON mapping where the original name is the key and a completely different, unrelated name is the value. The replacement name must be different from the original. Return only JSON."
+
+	model, err := NewLlamaModel(context.Background(), binaryPath, modelDir, tokenizerName, true, systemPrompt)
 	assert.NoError(t, err)
 	defer func() { _ = model.Close() }()
 
 	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage("You are a helpful assistant."),
-		openai.UserMessage("Say hello"),
+		openai.UserMessage("I am John"),
 	}
 
+	// First Inferencing
 	start := time.Now()
 	response, err := model.Completions(context.Background(), messages, nil, "llama-1b")
 	elapsed := time.Since(start)
@@ -43,6 +45,16 @@ func TestLlamaModel_InteractiveMode(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, constant.Assistant("assistant"), response.Role)
 	assert.NotEmpty(t, response.Content)
+	t.Logf("Response: %s", response.Content)
+	t.Logf("Completions Inferencing time: %v", elapsed)
+
+	// Second Inferencing
+	messages = []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("I am Emily"),
+	}
+	start = time.Now()
+	response, err = model.Completions(context.Background(), messages, nil, "llama-1b")
+	elapsed = time.Since(start)
 	t.Logf("Response: %s", response.Content)
 	t.Logf("Completions Inferencing time: %v", elapsed)
 }

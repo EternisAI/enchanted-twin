@@ -52,6 +52,7 @@ func NewLlamaModel(
 	modelDir string,
 	tokenizerName string,
 	interactiveMode bool,
+	preloadedSystemPrompt string,
 ) (*LlamaModel, error) {
 	model := &LlamaModel{
 		binaryPath:      binaryPath,
@@ -64,7 +65,7 @@ func NewLlamaModel(
 	}
 
 	if interactiveMode {
-		if err := model.startInteractiveSession(ctx, ""); err != nil {
+		if err := model.startInteractiveSession(ctx, preloadedSystemPrompt); err != nil {
 			return nil, fmt.Errorf("failed to start interactive session: %w", err)
 		}
 	}
