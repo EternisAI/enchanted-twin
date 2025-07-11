@@ -271,50 +271,69 @@ export function Home() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 55 }}
       className="flex flex-col w-full max-w-2xl mx-auto px-4 h-full justify-center"
     >
       {!isVoiceMode && (
         <motion.div
           key="header"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.3, ease: 'linear' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 350, damping: 55 }}
           className="flex flex-col items-center gap-4 w-full py-8"
         >
-          {isEditingName ? (
-            <motion.div
-              layout
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="w-full"
-            >
-              <Input
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                onKeyDown={handleNameEditKeyDown}
-                onBlur={handleNameUpdate}
-                autoFocus
-                className="!text-2xl font-bold text-center"
-              />
-            </motion.div>
-          ) : (
-            <motion.h1
-              layout
-              className="text-2xl font-bold cursor-pointer hover:text-gray-600 transition-all text-center"
-              onClick={() => {
-                setEditedName(twinName)
-                setIsEditingName(true)
-              }}
-            >
-              {twinName}
-            </motion.h1>
-          )}
-          <motion.div layout>
+          <motion.div layout="position" className="w-full max-w-md">
+            <AnimatePresence mode="wait">
+              {isEditingName ? (
+                <motion.div
+                  key="name-input"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{
+                    duration: 0.2,
+                    ease: [0.4, 0, 0.2, 1],
+                    layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+                  }}
+                  layout="position"
+                  className="w-full"
+                >
+                  <Input
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    onKeyDown={handleNameEditKeyDown}
+                    onBlur={handleNameUpdate}
+                    autoFocus
+                    className="!text-2xl font-bold text-center min-h-10 w-full mx-auto"
+                  />
+                </motion.div>
+              ) : (
+                <motion.h1
+                  key="name-display"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{
+                    duration: 0.2,
+                    ease: [0.4, 0, 0.2, 1],
+                    layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+                  }}
+                  layout="position"
+                  className="text-2xl font-bold cursor-pointer hover:bg-muted/50 rounded-lg transition-all text-center w-fit mx-auto min-h-10 flex items-center justify-center px-4"
+                  onClick={() => {
+                    setEditedName(twinName)
+                    setIsEditingName(true)
+                  }}
+                >
+                  {twinName}
+                </motion.h1>
+              )}
+            </AnimatePresence>
+          </motion.div>
+          <motion.div layout="position">
             <ContextCard />
           </motion.div>
         </motion.div>
@@ -323,10 +342,10 @@ export function Home() {
       {isVoiceMode && (
         <motion.div
           key="voice-visualizer"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-          transition={{ duration: 0.3, ease: 'linear' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 350, damping: 55 }}
           className="flex-1 w-full flex items-center justify-center min-h-[300px]"
         >
           <VoiceVisualizer
@@ -337,46 +356,41 @@ export function Home() {
         </motion.div>
       )}
 
-      <motion.div
-        layout="position"
-        transition={{
-          layout: { duration: 0.3, ease: 'linear' }
-        }}
-        className="relative w-full"
-      >
+      <div className="relative w-full">
         {isVoiceMode ? (
           <VoiceModeInput onStop={stopVoiceMode} />
         ) : (
-          <ChatInputBox
-            isVoiceReady={isVoiceReady}
-            query={query}
-            textareaRef={textareaRef}
-            isReasonSelected={isReasonSelected}
-            isVoiceMode={isVoiceMode}
-            onVoiceModeChange={handleToggleToVoiceMode}
-            onInputChange={setQuery}
-            handleSubmit={handleSubmit}
-            setIsReasonSelected={setIsReasonSelected}
-            handleCreateChat={handleCreateChat}
-          />
+          <motion.div layout="position">
+            <ChatInputBox
+              isVoiceReady={isVoiceReady}
+              query={query}
+              textareaRef={textareaRef}
+              isReasonSelected={isReasonSelected}
+              isVoiceMode={isVoiceMode}
+              onVoiceModeChange={handleToggleToVoiceMode}
+              onInputChange={setQuery}
+              handleSubmit={handleSubmit}
+              setIsReasonSelected={setIsReasonSelected}
+              handleCreateChat={handleCreateChat}
+            />
+          </motion.div>
         )}
 
         <AnimatePresence mode="wait">
           {!isVoiceMode && (
             <motion.div
               key="suggestions"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 296 }}
-              exit={{ opacity: 0, height: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{
-                opacity: { duration: 0.2 },
-                height: { duration: 0.3, ease: 'easeOut' }
+                opacity: { duration: 0.2, delay: 0.4 }
               }}
               className="relative w-full overflow-hidden"
+              layout="position"
             >
-              <div className="h-4" />
               <div className="bg-background/90 backdrop-blur-sm">
-                <ScrollArea className="h-[280px]">
+                <ScrollArea className="h-[280px] mt-4 pr-4">
                   {debouncedQuery ? (
                     <>
                       <motion.button
@@ -401,7 +415,7 @@ export function Home() {
                           key={chat.id}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          transition={{ duration: 0.15, delay: index * 0.07 }}
+                          transition={{ duration: 0.15, delay: index * 0.07 + 0.4 }}
                           type="button"
                           onClick={() => {
                             navigate({ to: `/chat/${chat.id}` })
@@ -471,7 +485,7 @@ export function Home() {
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </div>
     </motion.div>
   )
 }

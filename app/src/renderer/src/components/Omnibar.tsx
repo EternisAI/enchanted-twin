@@ -154,7 +154,7 @@ export const Omnibar = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 280 }}
+            transition={{ type: 'spring', damping: 55, stiffness: 350 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-card pointer-events-auto"
             onClick={closeOmnibar}
           >
@@ -162,7 +162,7 @@ export const Omnibar = () => {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 280 }}
+              transition={{ type: 'spring', damping: 55, stiffness: 350 }}
               className="w-full max-w-xl px-4"
               onClick={(e) => e.stopPropagation()}
             >
@@ -170,8 +170,7 @@ export const Omnibar = () => {
                 <motion.div
                   layoutId="message-input-container"
                   className={cn(
-                    'flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-2xl',
-                    'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary',
+                    'flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-xl',
                     'max-h-[50vh]'
                   )}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
@@ -190,8 +189,8 @@ export const Omnibar = () => {
                           handleSubmit(e as React.FormEvent)
                         }
                       }}
-                      placeholder="What would you like to discuss?"
-                      className="flex-1 !text-base bg-transparent text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-hidden min-h-0 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+                      placeholder="What's on your mind?"
+                      className="flex-1 !text-base !bg-transparent text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-hidden min-h-0 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
                       rows={1}
                     />
                     <AnimatePresence mode="wait">
