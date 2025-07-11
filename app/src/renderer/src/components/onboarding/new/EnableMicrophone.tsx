@@ -28,11 +28,13 @@ export default function EnableMicrophone({ onGrantPermission, onSkip }: EnableMi
         <Mic className="w-12 h-12 text-white" />
         <div className="flex flex-col gap-1.5">
           <h2 className="text-lg text-white font-normal">Enable Microphone</h2>
-          <p className="text-sm text-white/75">To use Enchanted, please allow Microphone Access.</p>
+          <p className="text-sm text-white/75">
+            Talk, transcribe and command the app with your voice.
+          </p>
         </div>
       </div>
 
-      <div className="flex gap-12">
+      {/* <div className="flex gap-12">
         <div className="flex flex-col gap-2">
           <p className="text-white font-bold text-sm">How to Grant Access</p>
           <ul className="text-white/80 text-sm">
@@ -61,11 +63,11 @@ export default function EnableMicrophone({ onGrantPermission, onSkip }: EnableMi
             </li>
           </ul>
         </div>
-      </div>
+      </div> */}
 
       <div>
         <div className="w-full h-34 flex items-center justify-center rounded-xl mt-4">
-          <img src={microphoneAccessImage} alt="Microphone" width="100%" height="100%" />
+          {/* <img src={microphoneAccessImage} alt="Microphone" width="100%" height="100%" /> */}
         </div>
       </div>
 
