@@ -313,6 +313,21 @@ subscription PrivacyDictUpdated($chatId: ID!) {
   }
 }
 
+subscription ProcessMessageHistoryStream(
+  $chatId: ID!
+  $messages: [MessageInput!]!
+  $isOnboarding: Boolean!
+) {
+  processMessageHistoryStream(chatId: $chatId, messages: $messages, isOnboarding: $isOnboarding) {
+    messageId
+    chunk
+    role
+    isComplete
+    createdAt
+    imageUrls
+  }
+}
+
 mutation AddDataSource($name: String!, $path: String!) {
   addDataSource(name: $name, path: $path)
 }
@@ -378,6 +393,7 @@ query GetThreads($network: String, $first: Int! = 10, $offset: Int! = 0) {
       createdAt
       isDelivered
       actions
+      state
     }
     actions
     views
@@ -406,6 +422,7 @@ query GetThread($network: String, $id: ID!) {
       createdAt
       isDelivered
       actions
+      state
     }
     actions
     views

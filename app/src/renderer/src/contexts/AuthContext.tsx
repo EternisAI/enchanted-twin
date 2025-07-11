@@ -8,8 +8,13 @@ import {
   signInWithCredential
 } from 'firebase/auth'
 import { auth, firebaseConfig } from '@renderer/lib/firebase'
-import { useMutation } from '@apollo/client'
-import { StoreTokenDocument } from '@renderer/graphql/generated/graphql'
+import { useMutation, useQuery } from '@apollo/client'
+import {
+  StoreTokenDocument,
+  GetWhitelistStatusDocument,
+  ActivateInviteCodeDocument
+} from '@renderer/graphql/generated/graphql'
+import { toast } from 'sonner'
 
 interface AuthContextType {
   user: User | null
@@ -20,6 +25,14 @@ interface AuthContextType {
   signInWithX: () => Promise<void>
   authError: string | null
   hasUpdatedToken: boolean
+  whitelist: {
+    isWhitelisted: boolean
+    status: boolean | null
+    loading: boolean
+    called: boolean
+    error: string | null
+    activateInviteCode: (inviteCode: string) => Promise<void>
+  }
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -36,6 +49,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('[Auth] Failed to store token:', error)
     }
   })
+
+  // @TODO: Move whitelist logic to InvitationGate
+  const {
+    data: whitelistData,
+    loading: whitelistLoading,
+    error: whitelistError,
+    called: whitelistCalled,
+    refetch: refetchWhitelist
+  } = useQuery(GetWhitelistStatusDocument, {
+    fetchPolicy: 'network-only',
+    skip: !user || !hasUpdatedToken
+  })
+
+  console.log('whitelistCalled', { whitelistCalled, whitelistLoading })
+
+  const [activateInviteCodeMutation] = useMutation(ActivateInviteCodeDocument, {
+    onCompleted: async () => {
+      toast.success('Invite code activated successfully!')
+      await refetchWhitelist()
+    },
+    onError: (error) => {
+      console.error('[Auth] Failed to activate invite code:', error)
+      toast.error(`Failed to activate invite code: ${error.message}`)
+      throw error
+    }
+  })
+
+  const activateInviteCode = async (inviteCode: string) => {
+    if (!inviteCode.trim()) {
+      throw new Error('Please enter an invite code')
+    }
+
+    await activateInviteCodeMutation({
+      variables: { inviteCode: inviteCode.trim() }
+    })
+  }
+
+  const whitelistStatus = whitelistData?.whitelistStatus || null
+  const isWhitelisted = Boolean(whitelistStatus || whitelistError)
 
   useEffect(() => {
     if (!user) return
@@ -218,8 +270,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasUpdatedToken,
         signOut,
         signInWithGoogle,
-        signInWithX,
-        authError
+        authError,
+        whitelist: {
+          status: whitelistStatus,
+          loading: whitelistLoading,
+          error: whitelistError?.message || null,
+          called: whitelistCalled,
+          isWhitelisted,
+          activateInviteCode
+        },
+        signInWithX
       }}
     >
       {children}
