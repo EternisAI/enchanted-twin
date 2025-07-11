@@ -327,20 +327,46 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 
 	switch constants.ProcessorType(strings.ToLower(sourceType)) {
 	case constants.ProcessorTelegram:
+		s.logger.Info("ProcessSource: Processing Telegram data source",
+			"inputPath", inputPath,
+			"outputPath", outputPath)
+
 		processor, err := telegram.NewTelegramProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		// Telegram uses the new direct approach - skip the records step
+
 		documents, err := processor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
-		// Save using memory package helper (JSONL format)
-		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
-			return false, err
+
+		if outputPath == "" {
+			s.logger.Info("ProcessSource: Storing Telegram documents directly in memory",
+				"documentCount", len(documents))
+
+			var memoryDocs []memory.Document
+			for _, doc := range documents {
+				docCopy := doc
+				memoryDocs = append(memoryDocs, &docCopy)
+			}
+
+			progressCallback := func(processed, total int) {
+				s.logger.Info("Processing documents", "processed", processed, "total", total)
+			}
+
+			if err := s.memory.Store(ctx, memoryDocs, progressCallback); err != nil {
+				return false, fmt.Errorf("failed to store documents: %w", err)
+			}
+
+			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			return true, nil
+		} else {
+			if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+				return false, err
+			}
+			return true, nil
 		}
-		return true, nil
 	case constants.ProcessorSlack:
 		source, err := slack.NewSlackProcessor(s.store, s.logger)
 		if err != nil {
@@ -359,10 +385,33 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
-			return false, err
+
+		// Check if outputPath is empty (direct memory storage)
+		if outputPath == "" {
+			// Store directly in memory
+			var memoryDocs []memory.Document
+			for _, doc := range documents {
+				docCopy := doc
+				memoryDocs = append(memoryDocs, &docCopy)
+			}
+
+			progressCallback := func(processed, total int) {
+				s.logger.Info("Processing documents", "processed", processed, "total", total)
+			}
+
+			if err := s.memory.Store(ctx, memoryDocs, progressCallback); err != nil {
+				return false, fmt.Errorf("failed to store documents: %w", err)
+			}
+
+			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			return true, nil
+		} else {
+			// Save to file for backward compatibility
+			if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+				return false, err
+			}
+			return true, nil
 		}
-		return true, nil
 	case constants.ProcessorX:
 		source, err := x.NewXProcessor(s.store, s.logger)
 		if err != nil {
@@ -382,11 +431,33 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		// For now, save as JSON instead of records
-		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
-			return false, err
+
+		// Check if outputPath is empty (direct memory storage)
+		if outputPath == "" {
+			// Store directly in memory
+			var memoryDocs []memory.Document
+			for _, doc := range documents {
+				docCopy := doc
+				memoryDocs = append(memoryDocs, &docCopy)
+			}
+
+			progressCallback := func(processed, total int) {
+				s.logger.Info("Processing documents", "processed", processed, "total", total)
+			}
+
+			if err := s.memory.Store(ctx, memoryDocs, progressCallback); err != nil {
+				return false, fmt.Errorf("failed to store documents: %w", err)
+			}
+
+			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			return true, nil
+		} else {
+			// Save to file for backward compatibility
+			if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+				return false, err
+			}
+			return true, nil
 		}
-		return true, nil
 	case constants.ProcessorChatGPT:
 		processor, err := chatgpt.NewChatGPTProcessor(s.store, s.logger)
 		if err != nil {
@@ -397,11 +468,33 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		// For now, save as JSON instead of records
-		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
-			return false, err
+
+		// Check if outputPath is empty (direct memory storage)
+		if outputPath == "" {
+			// Store directly in memory
+			var memoryDocs []memory.Document
+			for _, doc := range documents {
+				docCopy := doc
+				memoryDocs = append(memoryDocs, &docCopy)
+			}
+
+			progressCallback := func(processed, total int) {
+				s.logger.Info("Processing documents", "processed", processed, "total", total)
+			}
+
+			if err := s.memory.Store(ctx, memoryDocs, progressCallback); err != nil {
+				return false, fmt.Errorf("failed to store documents: %w", err)
+			}
+
+			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			return true, nil
+		} else {
+			// Save to file for backward compatibility
+			if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+				return false, err
+			}
+			return true, nil
 		}
-		return true, nil
 	case constants.ProcessorSyncedDocument:
 		source, err := misc.NewTextDocumentProcessor(s.store, s.logger)
 		if err != nil {

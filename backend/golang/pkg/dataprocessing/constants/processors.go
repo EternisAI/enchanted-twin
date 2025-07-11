@@ -1,5 +1,7 @@
 package constants
 
+import "strings"
+
 // ProcessorType represents the type of data processor.
 type ProcessorType string
 
@@ -24,7 +26,7 @@ func (p ProcessorType) String() string {
 
 // IsNewFormatProcessor checks if a processor uses the new format (direct memory storage).
 func IsNewFormatProcessor(processorName string) bool {
-	switch ProcessorType(processorName) {
+	switch ProcessorType(strings.ToLower(processorName)) {
 	case ProcessorTelegram, ProcessorWhatsapp, ProcessorGmail, ProcessorChatGPT, ProcessorSyncedDocument:
 		return true
 	default:
