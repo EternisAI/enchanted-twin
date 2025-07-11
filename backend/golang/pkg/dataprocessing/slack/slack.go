@@ -15,8 +15,6 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -35,7 +33,7 @@ type SlackProcessor struct {
 	logger *log.Logger
 }
 
-func NewSlackProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+func NewSlackProcessor(store *db.Store, logger *log.Logger) (*SlackProcessor, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store is nil")
 	}
@@ -50,7 +48,8 @@ func (s *SlackProcessor) Name() string {
 	return "slack"
 }
 
-func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
+// ProcessFile processes a single Slack channel file and returns ConversationDocument
+func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.ConversationDocument, error) {
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -65,37 +64,87 @@ func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]ty
 	// Expected format: .../channel-name/YYYY-MM-DD.json
 	channelName := filepath.Base(filepath.Dir(filePath))
 
-	var records []types.Record
+	// Group messages by channel into a single conversation
+	var conversationMessages []memory.ConversationMessage
+	var people []string
+	peopleMap := make(map[string]bool)
+
+	var firstMessage, lastMessage time.Time
+	messageCount := 0
+
 	for _, message := range messages {
+		if message.Text == "" {
+			continue
+		}
+
 		timestamp, err := parseTimestamp(message.Timestamp)
 		if err != nil {
 			s.logger.Warn("Failed to parse message timestamp in file", "filePath", filePath, "error", err)
 			continue
 		}
 
-		messageData := map[string]any{
-			"text":        message.Text,
-			"username":    message.UserProfile.Name,
-			"channelName": channelName,
-			"myMessage":   strings.EqualFold(message.UserProfile.Name, ""),
+		username := message.UserProfile.Name
+		if username == "" {
+			username = "unknown"
 		}
 
-		record := types.Record{
-			Data:      messageData,
-			Timestamp: timestamp,
-			Source:    s.Name(),
+		// Track people in the conversation
+		if !peopleMap[username] {
+			peopleMap[username] = true
+			people = append(people, username)
 		}
 
-		if message.Text != "" {
-			records = append(records, record)
+		// Track time range
+		if messageCount == 0 {
+			firstMessage = timestamp
+			lastMessage = timestamp
+		} else {
+			if timestamp.Before(firstMessage) {
+				firstMessage = timestamp
+			}
+			if timestamp.After(lastMessage) {
+				lastMessage = timestamp
+			}
 		}
+
+		conversationMessages = append(conversationMessages, memory.ConversationMessage{
+			Speaker: username,
+			Content: message.Text,
+			Time:    timestamp,
+		})
+		messageCount++
 	}
 
-	return records, nil
+	if len(conversationMessages) == 0 {
+		return []memory.ConversationDocument{}, nil
+	}
+
+	// Create document ID using channel name and date range
+	docID := fmt.Sprintf("slack-channel-%s-%d-%d", channelName, firstMessage.Unix(), lastMessage.Unix())
+
+	conversationDoc := memory.ConversationDocument{
+		FieldID:      docID,
+		FieldSource:  "slack",
+		FieldTags:    []string{"social", "chat", "work"},
+		People:       people,
+		User:         "", // We don't have user identification in Slack exports
+		Conversation: conversationMessages,
+		FieldMetadata: map[string]string{
+			"type":         "conversation",
+			"channelName":  channelName,
+			"messageCount": fmt.Sprintf("%d", messageCount),
+		},
+	}
+
+	return []memory.ConversationDocument{conversationDoc}, nil
 }
 
-func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
-	var allRecords []types.Record
+// ProcessDirectory processes all Slack channel files in a directory
+func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]memory.ConversationDocument, error) {
+	var allDocuments []memory.ConversationDocument
+	channelMap := make(map[string][]memory.ConversationMessage)
+	channelPeople := make(map[string]map[string]bool)
+	channelMetadata := make(map[string]map[string]string)
 
 	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -106,77 +155,124 @@ func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string)
 			return nil
 		}
 
+		// Skip non-JSON files
 		if filepath.Ext(path) != ".json" {
 			return nil
 		}
 
-		records, err := s.ProcessFile(ctx, path)
+		// Skip macOS system files and artifacts
+		filename := filepath.Base(path)
+		if shouldSkipFile(path, filename) {
+			s.logger.Debug("Skipping system file", "path", path)
+			return nil
+		}
+
+		documents, err := s.ProcessFile(ctx, path)
 		if err != nil {
 			s.logger.Warn("Failed to process file", "path", path, "error", err)
 			return nil
 		}
 
-		allRecords = append(allRecords, records...)
+		// Group messages by channel across all files
+		for _, doc := range documents {
+			channelName := doc.FieldMetadata["channelName"]
+			if channelMap[channelName] == nil {
+				channelMap[channelName] = []memory.ConversationMessage{}
+				channelPeople[channelName] = make(map[string]bool)
+				channelMetadata[channelName] = make(map[string]string)
+			}
+
+			// Merge conversations from the same channel
+			channelMap[channelName] = append(channelMap[channelName], doc.Conversation...)
+
+			// Track all people in the channel
+			for _, person := range doc.People {
+				channelPeople[channelName][person] = true
+			}
+		}
+
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return allRecords, nil
-}
-
-func (s *SlackProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	textDocuments := make([]memory.TextDocument, 0, len(records))
-
-	for _, record := range records {
-		getString := func(key string) string {
-			if val, ok := record.Data[key]; ok {
-				if strVal, ok := val.(string); ok {
-					return strVal
-				}
-			}
-			return ""
-		}
-
-		message := getString("text")
-		authorUsername := getString("username")
-		channelName := getString("channelName")
-
-		// Skip records with missing required fields
-		if message == "" || authorUsername == "" || channelName == "" {
+	// Create final conversation documents per channel
+	for channelName, messages := range channelMap {
+		if len(messages) == 0 {
 			continue
 		}
 
-		message = fmt.Sprintf("From %s in channel %s: %s", authorUsername, channelName, message)
+		// Convert people map to slice
+		var people []string
+		for person := range channelPeople[channelName] {
+			people = append(people, person)
+		}
 
-		// Generate unique document ID using channel + timestamp + author
-		docID := fmt.Sprintf("slack-msg-%s-%s-%d", channelName, authorUsername, record.Timestamp.Unix())
+		// Sort messages by timestamp
+		// Simple bubble sort for timestamp ordering
+		for i := 0; i < len(messages); i++ {
+			for j := i + 1; j < len(messages); j++ {
+				if messages[i].Time.After(messages[j].Time) {
+					messages[i], messages[j] = messages[j], messages[i]
+				}
+			}
+		}
 
-		textDocuments = append(textDocuments, memory.TextDocument{
-			FieldID:        docID,
-			FieldSource:    "slack",
-			FieldContent:   message,
-			FieldTimestamp: &record.Timestamp,
-			FieldTags:      []string{"social", "chat"},
+		// Create final document ID
+		firstTime := messages[0].Time
+		lastTime := messages[len(messages)-1].Time
+		docID := fmt.Sprintf("slack-channel-%s-%d-%d", channelName, firstTime.Unix(), lastTime.Unix())
+
+		conversationDoc := memory.ConversationDocument{
+			FieldID:      docID,
+			FieldSource:  "slack",
+			FieldTags:    []string{"social", "chat", "work"},
+			People:       people,
+			User:         "", // We don't have user identification in Slack exports
+			Conversation: messages,
 			FieldMetadata: map[string]string{
-				"type":           "message",
-				"channelName":    channelName,
-				"authorUsername": authorUsername,
+				"type":         "conversation",
+				"channelName":  channelName,
+				"messageCount": fmt.Sprintf("%d", len(messages)),
 			},
-		})
+		}
+
+		allDocuments = append(allDocuments, conversationDoc)
 	}
 
-	var documents []memory.Document
-	for _, document := range textDocuments {
-		documents = append(documents, &document)
-	}
-
-	return documents, nil
+	return allDocuments, nil
 }
 
-func (s *SlackProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
-	return nil, false, fmt.Errorf("sync operation not supported for Slack")
+// shouldSkipFile determines if a file should be skipped during processing
+func shouldSkipFile(path, filename string) bool {
+	// Skip macOS system files and artifacts
+	if strings.Contains(path, "__MACOSX") {
+		return true
+	}
+
+	// Skip dot-underscore files (macOS resource forks)
+	if strings.HasPrefix(filename, "._") {
+		return true
+	}
+
+	// Skip other common system files
+	if strings.HasPrefix(filename, ".DS_Store") {
+		return true
+	}
+
+	// Skip Thumbs.db (Windows)
+	if strings.HasPrefix(filename, "Thumbs.db") {
+		return true
+	}
+
+	// Skip common Slack metadata files that aren't message data
+	switch filename {
+	case "users.json", "channels.json", "dms.json", "groups.json", "mpims.json", "integration_logs.json":
+		return true
+	}
+
+	return false
 }
 
 func parseTimestamp(ts string) (time.Time, error) {

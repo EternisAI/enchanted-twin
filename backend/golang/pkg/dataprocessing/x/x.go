@@ -19,7 +19,6 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -32,11 +31,12 @@ const (
 )
 
 type XProcessor struct {
-	store  *db.Store
-	logger *log.Logger
+	store    *db.Store
+	logger   *log.Logger
+	username string // Store the extracted username for conversation documents
 }
 
-func NewXProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+func NewXProcessor(store *db.Store, logger *log.Logger) (*XProcessor, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store is nil")
 	}
@@ -51,7 +51,7 @@ func (s *XProcessor) Name() string {
 	return "x"
 }
 
-func (s *XProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
+func (s *XProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.ConversationDocument, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -84,9 +84,10 @@ func (s *XProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.
 			return nil, err
 		}
 		s.logger.Info("Successfully processed account file")
-		return []types.Record{}, nil
+		return []memory.ConversationDocument{}, nil
 	}
 
+	// Get records using the existing parsing logic
 	records, err := parseTwitterFileSimple(content, fileType)
 	if err != nil {
 		s.logger.Warn("Simple parser failed, trying regex parser", "error", err)
@@ -97,8 +98,183 @@ func (s *XProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.
 		}
 	}
 
-	s.logger.Info("Successfully processed", "fileType", fileType, "records", len(records))
-	return records, nil
+	// Convert records to conversation documents
+	documents := s.recordsToConversationDocuments(records, fileType)
+
+	s.logger.Info("Successfully processed", "fileType", fileType, "documents", len(documents))
+	return documents, nil
+}
+
+// recordsToConversationDocuments converts old format records to new format conversation documents
+func (s *XProcessor) recordsToConversationDocuments(records []types.Record, fileType string) []memory.ConversationDocument {
+	var documents []memory.ConversationDocument
+
+	switch fileType {
+	case TypeDirectMessage:
+		// Group direct messages by conversation ID
+		conversationMap := make(map[string][]memory.ConversationMessage)
+		conversationPeople := make(map[string]map[string]bool)
+
+		for _, record := range records {
+			conversationID := getStringFromRecord(record, "conversationId")
+			senderID := getStringFromRecord(record, "senderId")
+			recipientID := getStringFromRecord(record, "recipientId")
+			text := getStringFromRecord(record, "text")
+
+			if conversationID == "" || text == "" {
+				continue
+			}
+
+			if conversationMap[conversationID] == nil {
+				conversationMap[conversationID] = []memory.ConversationMessage{}
+				conversationPeople[conversationID] = make(map[string]bool)
+			}
+
+			// Use sender ID as speaker (could be enhanced with username lookup)
+			speaker := senderID
+			if speaker == "" {
+				speaker = "unknown"
+			}
+
+			conversationMap[conversationID] = append(conversationMap[conversationID], memory.ConversationMessage{
+				Speaker: speaker,
+				Content: text,
+				Time:    record.Timestamp,
+			})
+
+			// Track people in conversation
+			conversationPeople[conversationID][senderID] = true
+			conversationPeople[conversationID][recipientID] = true
+		}
+
+		// Create conversation documents for each DM thread
+		for conversationID, messages := range conversationMap {
+			if len(messages) == 0 {
+				continue
+			}
+
+			// Sort messages by timestamp
+			sort.Slice(messages, func(i, j int) bool {
+				return messages[i].Time.Before(messages[j].Time)
+			})
+
+			// Convert people map to slice
+			var people []string
+			for person := range conversationPeople[conversationID] {
+				if person != "" {
+					people = append(people, person)
+				}
+			}
+
+			docID := fmt.Sprintf("x-dm-%s", conversationID)
+			documents = append(documents, memory.ConversationDocument{
+				FieldID:      docID,
+				FieldSource:  "x",
+				FieldTags:    []string{"social", "direct_message"},
+				People:       people,
+				User:         s.username,
+				Conversation: messages,
+				FieldMetadata: map[string]string{
+					"type":           "conversation",
+					"conversationId": conversationID,
+					"messageCount":   fmt.Sprintf("%d", len(messages)),
+				},
+			})
+		}
+
+	case TypeTweet:
+		// Group all tweets as a single conversation (user's tweet timeline)
+		var tweetMessages []memory.ConversationMessage
+
+		for _, record := range records {
+			fullText := getStringFromRecord(record, "fullText")
+
+			if fullText == "" {
+				continue
+			}
+
+			tweetMessages = append(tweetMessages, memory.ConversationMessage{
+				Speaker: s.username,
+				Content: fullText,
+				Time:    record.Timestamp,
+			})
+		}
+
+		if len(tweetMessages) > 0 {
+			// Sort by timestamp
+			sort.Slice(tweetMessages, func(i, j int) bool {
+				return tweetMessages[i].Time.Before(tweetMessages[j].Time)
+			})
+
+			docID := fmt.Sprintf("x-tweets-%s", s.username)
+			documents = append(documents, memory.ConversationDocument{
+				FieldID:      docID,
+				FieldSource:  "x",
+				FieldTags:    []string{"social", "tweet"},
+				People:       []string{s.username},
+				User:         s.username,
+				Conversation: tweetMessages,
+				FieldMetadata: map[string]string{
+					"type":       "conversation",
+					"tweetCount": fmt.Sprintf("%d", len(tweetMessages)),
+				},
+			})
+		}
+
+	case TypeLike:
+		// Group all likes as a single conversation (user's liked content)
+		var likeMessages []memory.ConversationMessage
+
+		for _, record := range records {
+			fullText := getStringFromRecord(record, "fullText")
+
+			if fullText == "" {
+				continue
+			}
+
+			// Format like as a message showing what was liked
+			content := fmt.Sprintf("Liked: %s", fullText)
+
+			likeMessages = append(likeMessages, memory.ConversationMessage{
+				Speaker: s.username,
+				Content: content,
+				Time:    record.Timestamp,
+			})
+		}
+
+		if len(likeMessages) > 0 {
+			// Sort by timestamp
+			sort.Slice(likeMessages, func(i, j int) bool {
+				return likeMessages[i].Time.Before(likeMessages[j].Time)
+			})
+
+			docID := fmt.Sprintf("x-likes-%s", s.username)
+			documents = append(documents, memory.ConversationDocument{
+				FieldID:      docID,
+				FieldSource:  "x",
+				FieldTags:    []string{"social", "like"},
+				People:       []string{s.username},
+				User:         s.username,
+				Conversation: likeMessages,
+				FieldMetadata: map[string]string{
+					"type":      "conversation",
+					"likeCount": fmt.Sprintf("%d", len(likeMessages)),
+				},
+			})
+		}
+	}
+
+	return documents
+}
+
+// Helper function to extract string values from record data
+func getStringFromRecord(record types.Record, key string) string {
+	if val, ok := record.Data[key]; ok {
+		if strVal, ok := val.(string); ok {
+			return strVal
+		}
+	}
+	return ""
 }
 
 func ParseTwitterTimestamp(timestampStr string) (time.Time, error) {
@@ -122,10 +298,42 @@ func ParseTwitterTimestamp(timestampStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", timestampStr)
 }
 
-func (s *XProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
-	var allRecords []types.Record
+func (s *XProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]memory.ConversationDocument, error) {
+	var allDocuments []memory.ConversationDocument
 
+	// First, process account file to get username
 	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		fileName := filepath.Base(path)
+		if fileName == "account.js" {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				s.logger.Warn("Failed to read account file", "path", path, "error", err)
+				return nil
+			}
+
+			err = s.processAccountFile(ctx, content)
+			if err != nil {
+				s.logger.Warn("Failed to process account file", "path", path, "error", err)
+				return nil
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Then process all other files
+	err = filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -143,20 +351,25 @@ func (s *XProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]
 			return nil
 		}
 
-		records, err := s.ProcessFile(ctx, path)
+		// Skip account file as it was already processed
+		if fileName == "account.js" {
+			return nil
+		}
+
+		documents, err := s.ProcessFile(ctx, path)
 		if err != nil {
 			s.logger.Warn("Failed to process file", "path", path, "error", err)
 			return nil
 		}
 
-		allRecords = append(allRecords, records...)
+		allDocuments = append(allDocuments, documents...)
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return allRecords, nil
+	return allDocuments, nil
 }
 
 func isXDataFile(fileName string) bool {
@@ -250,85 +463,6 @@ type Account struct {
 	} `json:"account"`
 }
 
-func (s *XProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	documents := make([]memory.TextDocument, 0, len(records))
-	for _, record := range records {
-		content := ""
-		metadata := map[string]string{}
-		tags := []string{"social"}
-		var docID string
-
-		getString := func(key string) string {
-			if val, ok := record.Data[key]; ok {
-				if strVal, ok := val.(string); ok {
-					return strVal
-				}
-			}
-			return ""
-		}
-
-		recordType := getString("type")
-		switch recordType {
-		case "like":
-			content = getString("fullText")
-			tweetId := getString("tweetId")
-			docID = fmt.Sprintf("x-like-%s", tweetId)
-			metadata = map[string]string{
-				"type": "like",
-				"id":   tweetId,
-				"url":  getString("expandedUrl"),
-			}
-			tags = append(tags, "like")
-
-		case "tweet":
-			content = getString("fullText")
-			id := getString("id")
-			docID = fmt.Sprintf("x-tweet-%s", id)
-			favoriteCount := getString("favoriteCount")
-			retweetCount := getString("retweetCount")
-			metadata = map[string]string{
-				"type":          "tweet",
-				"id":            id,
-				"favoriteCount": favoriteCount,
-				"retweetCount":  retweetCount,
-			}
-			tags = append(tags, "tweet")
-
-		case "directMessage":
-			content = getString("text")
-			conversationId := getString("conversationId")
-			senderId := getString("senderId")
-			// Use conversation + sender + timestamp for unique DM ID
-			docID = fmt.Sprintf("x-dm-%s-%s-%d", conversationId, senderId, record.Timestamp.Unix())
-			metadata = map[string]string{
-				"type": "direct_message",
-			}
-			tags = append(tags, "direct_message")
-		}
-
-		// Fallback ID if none was set
-		if docID == "" {
-			docID = fmt.Sprintf("x-%s-%d", recordType, record.Timestamp.Unix())
-		}
-
-		documents = append(documents, memory.TextDocument{
-			FieldID:        docID,
-			FieldSource:    "x",
-			FieldContent:   content,
-			FieldTimestamp: &record.Timestamp,
-			FieldTags:      tags,
-			FieldMetadata:  metadata,
-		})
-	}
-
-	var documents_ []memory.Document
-	for _, document := range documents {
-		documents_ = append(documents_, &document)
-	}
-
-	return documents_, nil
-}
-
 func (s *XProcessor) extractUsername(ctx context.Context, account Account) (string, error) {
 	extractedUsername := ""
 	if account.Account.Username != "" {
@@ -358,6 +492,7 @@ func (s *XProcessor) extractUsername(ctx context.Context, account Account) (stri
 		}
 
 		extractedUsername = account.Account.Username
+		s.username = extractedUsername // Store for use in conversation documents
 	}
 
 	return extractedUsername, nil

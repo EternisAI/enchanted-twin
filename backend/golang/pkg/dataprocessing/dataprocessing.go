@@ -368,13 +368,45 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return true, nil
 		}
 	case constants.ProcessorSlack:
-		source, err := slack.NewSlackProcessor(s.store, s.logger)
+		s.logger.Info("ProcessSource: Processing Slack data source",
+			"inputPath", inputPath,
+			"outputPath", outputPath)
+
+		processor, err := slack.NewSlackProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessDirectory(ctx, inputPath)
+
+		documents, err := processor.ProcessDirectory(ctx, inputPath)
 		if err != nil {
 			return false, err
+		}
+
+		if outputPath == "" {
+			s.logger.Info("ProcessSource: Storing Slack documents directly in memory",
+				"documentCount", len(documents))
+
+			var memoryDocs []memory.Document
+			for _, doc := range documents {
+				docCopy := doc
+				memoryDocs = append(memoryDocs, &docCopy)
+			}
+
+			progressCallback := func(processed, total int) {
+				s.logger.Info("Processing documents", "processed", processed, "total", total)
+			}
+
+			if err := s.memory.Store(ctx, memoryDocs, progressCallback); err != nil {
+				return false, fmt.Errorf("failed to store documents: %w", err)
+			}
+
+			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			return true, nil
+		} else {
+			if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+				return false, err
+			}
+			return true, nil
 		}
 	case constants.ProcessorGmail:
 		processor, err := gmail.NewGmailProcessor(s.store, s.logger)
@@ -413,13 +445,45 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return true, nil
 		}
 	case constants.ProcessorX:
-		source, err := x.NewXProcessor(s.store, s.logger)
+		s.logger.Info("ProcessSource: Processing X/Twitter data source",
+			"inputPath", inputPath,
+			"outputPath", outputPath)
+
+		processor, err := x.NewXProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessDirectory(ctx, inputPath)
+
+		documents, err := processor.ProcessDirectory(ctx, inputPath)
 		if err != nil {
 			return false, err
+		}
+
+		if outputPath == "" {
+			s.logger.Info("ProcessSource: Storing X documents directly in memory",
+				"documentCount", len(documents))
+
+			var memoryDocs []memory.Document
+			for _, doc := range documents {
+				docCopy := doc
+				memoryDocs = append(memoryDocs, &docCopy)
+			}
+
+			progressCallback := func(processed, total int) {
+				s.logger.Info("Processing documents", "processed", processed, "total", total)
+			}
+
+			if err := s.memory.Store(ctx, memoryDocs, progressCallback); err != nil {
+				return false, fmt.Errorf("failed to store documents: %w", err)
+			}
+
+			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			return true, nil
+		} else {
+			if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+				return false, err
+			}
+			return true, nil
 		}
 	case constants.ProcessorWhatsapp:
 		processor, err := whatsapp.NewWhatsappProcessor(s.store, s.logger)
@@ -551,14 +615,8 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 			return nil, err
 		}
 	case constants.ProcessorSlack:
-		slackProcessor, err := slack.NewSlackProcessor(s.store, s.logger)
-		if err != nil {
-			return nil, err
-		}
-		documents, err = slackProcessor.ToDocuments(ctx, records)
-		if err != nil {
-			return nil, err
-		}
+		// Slack processor has been upgraded to new DocumentProcessor interface - use ProcessDirectory directly
+		return nil, fmt.Errorf("slack processor has been upgraded to new DocumentProcessor interface - use ProcessDirectory directly")
 	case constants.ProcessorGmail:
 		// Gmail no longer supports ToDocuments - use direct ProcessFile interface instead
 		return nil, fmt.Errorf("gmail processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
@@ -572,14 +630,8 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 			return nil, err
 		}
 	case constants.ProcessorX:
-		xProcessor, err := x.NewXProcessor(s.store, s.logger)
-		if err != nil {
-			return nil, err
-		}
-		documents, err = xProcessor.ToDocuments(ctx, records)
-		if err != nil {
-			return nil, err
-		}
+		// X processor has been upgraded to new DocumentProcessor interface - use ProcessDirectory directly
+		return nil, fmt.Errorf("x processor has been upgraded to new DocumentProcessor interface - use ProcessDirectory directly")
 	case constants.ProcessorSyncedDocument:
 		// Misc processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly
 		return nil, fmt.Errorf("misc processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
