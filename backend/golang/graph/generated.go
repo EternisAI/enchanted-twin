@@ -159,12 +159,14 @@ type ComplexityRoot struct {
 	}
 
 	MessageStreamPayload struct {
-		Chunk      func(childComplexity int) int
-		CreatedAt  func(childComplexity int) int
-		ImageUrls  func(childComplexity int) int
-		IsComplete func(childComplexity int) int
-		MessageID  func(childComplexity int) int
-		Role       func(childComplexity int) int
+		AccumulatedMessage             func(childComplexity int) int
+		Chunk                          func(childComplexity int) int
+		CreatedAt                      func(childComplexity int) int
+		DeanonymizedAccumulatedMessage func(childComplexity int) int
+		ImageUrls                      func(childComplexity int) int
+		IsComplete                     func(childComplexity int) int
+		MessageID                      func(childComplexity int) int
+		Role                           func(childComplexity int) int
 	}
 
 	Mutation struct {
@@ -906,6 +908,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Message.ToolResults(childComplexity), true
 
+	case "MessageStreamPayload.accumulatedMessage":
+		if e.complexity.MessageStreamPayload.AccumulatedMessage == nil {
+			break
+		}
+
+		return e.complexity.MessageStreamPayload.AccumulatedMessage(childComplexity), true
+
 	case "MessageStreamPayload.chunk":
 		if e.complexity.MessageStreamPayload.Chunk == nil {
 			break
@@ -919,6 +928,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.MessageStreamPayload.CreatedAt(childComplexity), true
+
+	case "MessageStreamPayload.deanonymizedAccumulatedMessage":
+		if e.complexity.MessageStreamPayload.DeanonymizedAccumulatedMessage == nil {
+			break
+		}
+
+		return e.complexity.MessageStreamPayload.DeanonymizedAccumulatedMessage(childComplexity), true
 
 	case "MessageStreamPayload.imageUrls":
 		if e.complexity.MessageStreamPayload.ImageUrls == nil {
@@ -6601,6 +6617,94 @@ func (ec *executionContext) fieldContext_MessageStreamPayload_imageUrls(_ contex
 	return fc, nil
 }
 
+func (ec *executionContext) _MessageStreamPayload_accumulatedMessage(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MessageStreamPayload_accumulatedMessage(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AccumulatedMessage, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MessageStreamPayload_accumulatedMessage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MessageStreamPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MessageStreamPayload_deanonymizedAccumulatedMessage(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MessageStreamPayload_deanonymizedAccumulatedMessage(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DeanonymizedAccumulatedMessage, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MessageStreamPayload_deanonymizedAccumulatedMessage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MessageStreamPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_startOAuthFlow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_startOAuthFlow(ctx, field)
 	if err != nil {
@@ -10051,6 +10155,10 @@ func (ec *executionContext) fieldContext_Subscription_messageStream(ctx context.
 				return ec.fieldContext_MessageStreamPayload_createdAt(ctx, field)
 			case "imageUrls":
 				return ec.fieldContext_MessageStreamPayload_imageUrls(ctx, field)
+			case "accumulatedMessage":
+				return ec.fieldContext_MessageStreamPayload_accumulatedMessage(ctx, field)
+			case "deanonymizedAccumulatedMessage":
+				return ec.fieldContext_MessageStreamPayload_deanonymizedAccumulatedMessage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type MessageStreamPayload", field.Name)
 		},
@@ -10134,6 +10242,10 @@ func (ec *executionContext) fieldContext_Subscription_processMessageHistoryStrea
 				return ec.fieldContext_MessageStreamPayload_createdAt(ctx, field)
 			case "imageUrls":
 				return ec.fieldContext_MessageStreamPayload_imageUrls(ctx, field)
+			case "accumulatedMessage":
+				return ec.fieldContext_MessageStreamPayload_accumulatedMessage(ctx, field)
+			case "deanonymizedAccumulatedMessage":
+				return ec.fieldContext_MessageStreamPayload_deanonymizedAccumulatedMessage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type MessageStreamPayload", field.Name)
 		},
@@ -15415,6 +15527,16 @@ func (ec *executionContext) _MessageStreamPayload(ctx context.Context, sel ast.S
 			out.Values[i] = ec._MessageStreamPayload_createdAt(ctx, field, obj)
 		case "imageUrls":
 			out.Values[i] = ec._MessageStreamPayload_imageUrls(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "accumulatedMessage":
+			out.Values[i] = ec._MessageStreamPayload_accumulatedMessage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deanonymizedAccumulatedMessage":
+			out.Values[i] = ec._MessageStreamPayload_deanonymizedAccumulatedMessage(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

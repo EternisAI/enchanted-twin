@@ -140,12 +140,14 @@ type MessageInput struct {
 }
 
 type MessageStreamPayload struct {
-	MessageID  string   `json:"messageId"`
-	Chunk      string   `json:"chunk"`
-	Role       Role     `json:"role"`
-	IsComplete bool     `json:"isComplete"`
-	CreatedAt  *string  `json:"createdAt,omitempty"`
-	ImageUrls  []string `json:"imageUrls"`
+	MessageID                      string   `json:"messageId"`
+	Chunk                          string   `json:"chunk"`
+	Role                           Role     `json:"role"`
+	IsComplete                     bool     `json:"isComplete"`
+	CreatedAt                      *string  `json:"createdAt,omitempty"`
+	ImageUrls                      []string `json:"imageUrls"`
+	AccumulatedMessage             string   `json:"accumulatedMessage"`
+	DeanonymizedAccumulatedMessage string   `json:"deanonymizedAccumulatedMessage"`
 }
 
 type Mutation struct {

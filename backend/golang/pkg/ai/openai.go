@@ -4,6 +4,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
@@ -102,6 +103,82 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 func (s *Service) EnablePrivateCompletions(privateCompletions PrivateCompletions, defaultPriority Priority) {
 	s.privateCompletions = privateCompletions
 	s.defaultPriority = defaultPriority
+}
+
+// CompletionsStreamWithPrivacy provides streaming with private completions support.
+func (s *Service) CompletionsStreamWithPrivacy(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
+	// Always use private completions if available
+	if s.privateCompletions != nil {
+		return s.privateCompletions.CompletionsStream(ctx, messages, tools, model, s.defaultPriority, onDelta)
+	}
+
+	// Fallback to regular streaming (without anonymization)
+	stream := s.CompletionsStream(ctx, messages, tools, model)
+
+	var accumulatedContent strings.Builder
+	var finalMessage openai.ChatCompletionMessage
+	var toolCalls []openai.ChatCompletionMessageToolCall
+
+fallbackLoop:
+	for {
+		select {
+		case delta, ok := <-stream.Content:
+			if !ok {
+				stream.Content = nil
+			} else {
+				accumulatedContent.WriteString(delta.ContentDelta)
+				currentAccumulated := accumulatedContent.String()
+
+				// Call onDelta with regular content (no anonymization)
+				if onDelta != nil {
+					onDelta(StreamDelta{
+						ContentDelta:                   delta.ContentDelta,
+						IsCompleted:                    delta.IsCompleted,
+						AccumulatedAnonymizedMessage:   currentAccumulated, // Same content
+						AccumulatedDeanonymizedMessage: currentAccumulated, // Same content
+					})
+				}
+
+				if delta.IsCompleted {
+					finalMessage.Content = currentAccumulated
+					finalMessage.Role = "assistant"
+				}
+			}
+
+		case toolCall, ok := <-stream.ToolCalls:
+			if !ok {
+				stream.ToolCalls = nil
+			} else {
+				toolCalls = append(toolCalls, toolCall)
+			}
+
+		case err, ok := <-stream.Err:
+			if !ok {
+				stream.Err = nil
+			} else {
+				if err != nil {
+					return PrivateCompletionResult{}, err
+				}
+			}
+
+		case <-ctx.Done():
+			return PrivateCompletionResult{}, ctx.Err()
+		}
+
+		// Check if all channels are closed
+		if stream.Content == nil && stream.ToolCalls == nil && stream.Err == nil {
+			break fallbackLoop
+		}
+	}
+
+	if len(toolCalls) > 0 {
+		finalMessage.ToolCalls = toolCalls
+	}
+
+	return PrivateCompletionResult{
+		Message:          finalMessage,
+		ReplacementRules: make(map[string]string), // Empty rules when not using private completions
+	}, nil
 }
 
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {

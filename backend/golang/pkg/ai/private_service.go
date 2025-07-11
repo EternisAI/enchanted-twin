@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
@@ -19,6 +20,7 @@ type PrivateCompletionsService struct {
 
 type CompletionsService interface {
 	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error)
+	CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream
 }
 
 type PrivateCompletionsConfig struct {
@@ -180,4 +182,102 @@ func (s *PrivateCompletionsService) deAnonymizeMessage(message openai.ChatComple
 	}
 
 	return result
+}
+
+func (s *PrivateCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
+	// Call new method with empty conversation ID (memory-only mode)
+	return s.CompletionsStreamWithContext(ctx, "", messages, tools, model, priority, onDelta)
+}
+
+func (s *PrivateCompletionsService) CompletionsStreamWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
+	s.logger.Debug("Starting private completion streaming", "model", model, "conversationID", conversationID, "messageCount", len(messages), "toolCount", len(tools))
+
+	// 1. Anonymize input messages
+	anonymizedMessages, allRules, err := s.scheduleAnonymization(ctx, conversationID, messages, priority)
+	if err != nil {
+		return PrivateCompletionResult{}, fmt.Errorf("failed to anonymize messages: %w", err)
+	}
+
+	// 2. Set up streaming with accumulation
+	var accumulatedContent strings.Builder
+	var finalMessage openai.ChatCompletionMessage
+	var toolCalls []openai.ChatCompletionMessageToolCall
+
+	// 3. Start streaming from the underlying service
+	stream := s.completionsService.CompletionsStream(ctx, anonymizedMessages, tools, model)
+
+	// 4. Process streaming chunks
+streamLoop:
+	for {
+		select {
+		case delta, ok := <-stream.Content:
+			if !ok {
+				// Content channel closed, mark as nil
+				stream.Content = nil
+			} else {
+				// Accumulate the anonymized content
+				accumulatedContent.WriteString(delta.ContentDelta)
+				currentAccumulated := accumulatedContent.String()
+
+				// Deanonymize the entire accumulated content
+				deanonymizedAccumulated := s.anonymizer.DeAnonymize(currentAccumulated, allRules)
+
+				// Call user's onDelta with both versions
+				if onDelta != nil {
+					onDelta(StreamDelta{
+						ContentDelta:                   delta.ContentDelta,
+						IsCompleted:                    delta.IsCompleted,
+						AccumulatedAnonymizedMessage:   currentAccumulated,
+						AccumulatedDeanonymizedMessage: deanonymizedAccumulated,
+					})
+				}
+
+				if delta.IsCompleted {
+					finalMessage.Content = currentAccumulated
+					finalMessage.Role = "assistant"
+				}
+			}
+
+		case toolCall, ok := <-stream.ToolCalls:
+			if !ok {
+				// Tool calls channel closed, mark as nil
+				stream.ToolCalls = nil
+			} else {
+				toolCalls = append(toolCalls, toolCall)
+			}
+
+		case err, ok := <-stream.Err:
+			if !ok {
+				// Error channel closed, mark as nil
+				stream.Err = nil
+			} else {
+				if err != nil {
+					return PrivateCompletionResult{}, fmt.Errorf("streaming error: %w", err)
+				}
+			}
+
+		case <-ctx.Done():
+			return PrivateCompletionResult{}, fmt.Errorf("context canceled during streaming: %w", ctx.Err())
+		}
+
+		// Check if all channels are closed
+		if stream.Content == nil && stream.ToolCalls == nil && stream.Err == nil {
+			break streamLoop
+		}
+	}
+
+	// 5. Handle tool calls if any
+	if len(toolCalls) > 0 {
+		finalMessage.ToolCalls = toolCalls
+	}
+
+	// 6. Deanonymize the final message
+	deanonymizedMessage := s.deAnonymizeMessage(finalMessage, allRules)
+
+	s.logger.Debug("Private completion streaming complete", "originalRulesCount", len(allRules))
+
+	return PrivateCompletionResult{
+		Message:          deanonymizedMessage,
+		ReplacementRules: allRules,
+	}, nil
 }
