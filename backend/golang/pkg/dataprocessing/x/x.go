@@ -105,7 +105,7 @@ func (s *XProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory
 	return documents, nil
 }
 
-// recordsToConversationDocuments converts old format records to new format conversation documents
+// recordsToConversationDocuments converts old format records to new format conversation documents.
 func (s *XProcessor) recordsToConversationDocuments(records []types.Record, fileType string) []memory.ConversationDocument {
 	var documents []memory.ConversationDocument
 
@@ -267,7 +267,7 @@ func (s *XProcessor) recordsToConversationDocuments(records []types.Record, file
 	return documents
 }
 
-// Helper function to extract string values from record data
+// Helper function to extract string values from record data.
 func getStringFromRecord(record types.Record, key string) string {
 	if val, ok := record.Data[key]; ok {
 		if strVal, ok := val.(string); ok {

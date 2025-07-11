@@ -118,9 +118,10 @@ func TestProcessDirectory(t *testing.T) {
 	for i := range docs {
 		if docs[i].FieldMetadata["type"] == "conversation" {
 			if len(docs[i].FieldTags) > 0 {
-				if docs[i].FieldTags[1] == "tweet" {
+				switch docs[i].FieldTags[1] {
+				case "tweet":
 					tweetsDoc = &docs[i]
-				} else if docs[i].FieldTags[1] == "like" {
+				case "like":
 					likesDoc = &docs[i]
 				}
 			}

@@ -48,7 +48,7 @@ func (s *SlackProcessor) Name() string {
 	return "slack"
 }
 
-// ProcessFile processes a single Slack channel file and returns ConversationDocument
+// ProcessFile processes a single Slack channel file and returns ConversationDocument.
 func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.ConversationDocument, error) {
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
@@ -139,7 +139,7 @@ func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]me
 	return []memory.ConversationDocument{conversationDoc}, nil
 }
 
-// ProcessDirectory processes all Slack channel files in a directory
+// ProcessDirectory processes all Slack channel files in a directory.
 func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]memory.ConversationDocument, error) {
 	var allDocuments []memory.ConversationDocument
 	channelMap := make(map[string][]memory.ConversationMessage)
@@ -244,7 +244,7 @@ func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string)
 	return allDocuments, nil
 }
 
-// shouldSkipFile determines if a file should be skipped during processing
+// shouldSkipFile determines if a file should be skipped during processing.
 func shouldSkipFile(path, filename string) bool {
 	// Skip macOS system files and artifacts
 	if strings.Contains(path, "__MACOSX") {
