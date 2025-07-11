@@ -535,16 +535,12 @@ export function DataSourcesPanel({
             sources: []
           }
         }
-        acc[groupName].sources.push({
-          ...source,
-          indexProgress: indexingData?.indexingStatus?.dataSources?.find((s) => s.id === source.id)
-            ?.indexProgress
-        })
+        acc[groupName].sources.push(source)
         return acc
       },
       {} as Record<string, { title: string; icon: ReactNode; sources: IndexedDataSource[] }>
     )
-  }, [data?.getDataSources, indexingData?.indexingStatus?.dataSources])
+  }, [data?.getDataSources])
 
   return (
     <Card className="flex flex-col gap-6 p-6 max-w-4xl">

@@ -297,18 +297,21 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			continue
 		}
 
-		// Ensure we release the claim in case of any error
-		defer func(dsID string, idx int) {
-			releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
-				DataSourceID: dsID,
-				WorkflowID:   workflowID,
-			}).Get(ctx, nil)
-			if releaseErr != nil {
-				workflow.GetLogger(ctx).Error("Failed to release data source claim after indexing",
-					"error", releaseErr,
-					"dataSource", dsID)
+		// Track if we need to release the claim (will be set to false on successful completion)
+		needsRelease := true
+		defer func(dsID string, needsReleasePtr *bool) {
+			if *needsReleasePtr {
+				releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
+					DataSourceID: dsID,
+					WorkflowID:   workflowID,
+				}).Get(ctx, nil)
+				if releaseErr != nil {
+					workflow.GetLogger(ctx).Error("Failed to release data source claim after indexing",
+						"error", releaseErr,
+						"dataSource", dsID)
+				}
 			}
-		}(dataSourceDB.ID, i)
+		}(dataSourceDB.ID, &needsRelease)
 
 		// TODO: systematically decide batching strategy
 		batchSize := 20
@@ -343,6 +346,31 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				result.IndexingStatus = "completed"
 				result.IsIndexed = true
 				result.DocumentsStored = 0
+			}
+
+			// Update database state and release claim for no-batch completion
+			updateStateInput := UpdateDataSourceStateActivityInput{
+				DataSourceID: dataSourceDB.ID,
+				IsIndexed:    true,
+				HasError:     false,
+			}
+			err = workflow.ExecuteActivity(ctx, w.UpdateDataSourceStateActivity, updateStateInput).Get(ctx, nil)
+			if err != nil {
+				workflow.GetLogger(ctx).Error("Failed to update data source state for no-batch completion", "error", err)
+			} else {
+				// Release the claim after successful database update
+				releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
+					DataSourceID: dataSourceDB.ID,
+					WorkflowID:   workflowID,
+				}).Get(ctx, nil)
+				if releaseErr != nil {
+					workflow.GetLogger(ctx).Error("Failed to release data source claim after no-batch completion",
+						"error", releaseErr,
+						"dataSource", dataSourceDB.Name)
+				} else {
+					// Successfully released, prevent defer from running
+					needsRelease = false
+				}
 			}
 			continue
 		}
@@ -465,6 +493,20 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				err = workflow.ExecuteActivity(ctx, w.UpdateDataSourceStateActivity, updateStateInput).Get(ctx, nil)
 				if err != nil {
 					workflow.GetLogger(ctx).Error("Failed to update data source state", "error", err)
+				} else {
+					// Release the claim after successful database update
+					releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
+						DataSourceID: dataSourceDB.ID,
+						WorkflowID:   workflowID,
+					}).Get(ctx, nil)
+					if releaseErr != nil {
+						workflow.GetLogger(ctx).Error("Failed to release data source claim after successful indexing",
+							"error", releaseErr,
+							"dataSource", dataSourceDB.Name)
+					} else {
+						// Successfully released, prevent defer from running
+						needsRelease = false
+					}
 				}
 			}
 		}
