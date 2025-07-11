@@ -101,6 +101,26 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 	}, nil
 }
 
+// RawCompletions bypasses private completions and calls the underlying completion service directly.
+// This is used internally by the private completions service to avoid circular dependencies.
+func (s *Service) RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error) {
+	// Always call the raw completion method, bypassing private completions
+	message, err := s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
+		Messages:    messages,
+		Model:       model,
+		Tools:       tools,
+		Temperature: param.Opt[float64]{Value: 1.0},
+	})
+	if err != nil {
+		return PrivateCompletionResult{}, err
+	}
+
+	return PrivateCompletionResult{
+		Message:          message,
+		ReplacementRules: make(map[string]string), // Empty rules when not using private completions
+	}, nil
+}
+
 // EnablePrivateCompletions configures the service to use private completions.
 func (s *Service) EnablePrivateCompletions(privateCompletions PrivateCompletions, defaultPriority Priority) {
 	s.privateCompletions = privateCompletions

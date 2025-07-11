@@ -81,11 +81,24 @@ func (s *PrivateCompletionsService) CompletionsWithContext(ctx context.Context, 
 	}
 
 	s.logger.Debug("Calling underlying completions service with anonymized content")
-	result, err := s.completionsService.Completions(ctx, anonymizedMessages, tools, model, priority)
-	if err != nil {
-		return PrivateCompletionResult{}, fmt.Errorf("underlying completions service failed: %w", err)
+
+	var completionMessage openai.ChatCompletionMessage
+
+	// Cast to *Service to access the RawCompletions method that bypasses private completions
+	if rawService, ok := s.completionsService.(*Service); ok {
+		result, err := rawService.RawCompletions(ctx, anonymizedMessages, tools, model)
+		if err != nil {
+			return PrivateCompletionResult{}, fmt.Errorf("underlying completions service failed: %w", err)
+		}
+		completionMessage = result.Message
+	} else {
+		// Fallback to regular Completions method (for tests or other implementations)
+		result, err := s.completionsService.Completions(ctx, anonymizedMessages, tools, model, priority)
+		if err != nil {
+			return PrivateCompletionResult{}, fmt.Errorf("underlying completions service failed: %w", err)
+		}
+		completionMessage = result.Message
 	}
-	completionMessage := result.Message
 
 	deAnonymizedMessage := s.deAnonymizeMessage(completionMessage, allRules)
 
