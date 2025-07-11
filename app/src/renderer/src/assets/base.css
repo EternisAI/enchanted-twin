@@ -1,9 +1,9 @@
 body {
-  height: 100vh;
-  width: 100%;
-  color: var(--color-text);
-  background: var(--color-background);
-  line-height: 1.6rem;
+  /* height: 100vh; */
+  /* width: 100%; */
+  /* color: var(--color-text); */
+  /* background: var(--color-background); */
+  /* line-height: 1.6rem; */
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

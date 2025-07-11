@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import AdminPanel from '@renderer/components/admin/AdminPanel'
 import InstallationStatus from '@renderer/components/InstallationStatus'
 import GoLogsViewer from '@renderer/components/admin/GoLogsViewer'
+import { SettingsContent } from '@renderer/components/settings/SettingsContent'
 
 export const Route = createFileRoute('/settings/advanced')({
   component: AdvancedSettings
@@ -9,13 +10,10 @@ export const Route = createFileRoute('/settings/advanced')({
 
 function AdvancedSettings() {
   return (
-    <div className="p-8">
+    <SettingsContent className="max-w-full w-fit">
       <div className="flex flex-col gap-4 w-full">
-        <h3 className="text-xl font-semibold">Advanced Settings</h3>
-        <p className="text-sm text-muted-foreground">
-          Configure advanced application settings and preferences.
-        </p>
-        <div className="flex gap-4 w-full">
+        <h3 className="text-3xl font-semibold">Developer</h3>
+        <div className="flex flex-wrap gap-4 w-full">
           <div className="mt-4 flex flex-col gap-4 max-w-md">
             <AdminPanel />
             <InstallationStatus />
@@ -23,6 +21,6 @@ function AdvancedSettings() {
           <GoLogsViewer />
         </div>
       </div>
-    </div>
+    </SettingsContent>
   )
 }

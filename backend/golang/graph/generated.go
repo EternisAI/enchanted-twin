@@ -192,6 +192,13 @@ type ComplexityRoot struct {
 		UpdateTrackedFolder       func(childComplexity int, id string, input model.UpdateTrackedFolderInput) int
 	}
 
+	OAuthAccount struct {
+		ExpiresAt func(childComplexity int) int
+		IsActive  func(childComplexity int) int
+		Provider  func(childComplexity int) int
+		Username  func(childComplexity int) int
+	}
+
 	OAuthFlow struct {
 		AuthURL     func(childComplexity int) int
 		RedirectURI func(childComplexity int) int
@@ -215,6 +222,7 @@ type ComplexityRoot struct {
 		GetChat                   func(childComplexity int, id string) int
 		GetChatSuggestions        func(childComplexity int, chatID string) int
 		GetChats                  func(childComplexity int, first int32, offset int32) int
+		GetConnectedAccounts      func(childComplexity int) int
 		GetDataSources            func(childComplexity int) int
 		GetDirectoryWatcherStatus func(childComplexity int) int
 		GetHolons                 func(childComplexity int, userID string) int
@@ -305,6 +313,7 @@ type ComplexityRoot struct {
 		ConnectedDataSources func(childComplexity int) int
 		IndexingStatus       func(childComplexity int) int
 		Name                 func(childComplexity int) int
+		Username             func(childComplexity int) int
 	}
 
 	WhatsAppQRCodeUpdate struct {
@@ -361,6 +370,7 @@ type QueryResolver interface {
 	GetChat(ctx context.Context, id string) (*model.Chat, error)
 	GetDataSources(ctx context.Context) ([]*model.DataSource, error)
 	GetOAuthStatus(ctx context.Context) ([]*model.OAuthStatus, error)
+	GetConnectedAccounts(ctx context.Context) ([]*model.OAuthAccount, error)
 	GetChatSuggestions(ctx context.Context, chatID string) ([]*model.ChatSuggestionsCategory, error)
 	GetMCPServers(ctx context.Context) ([]*model.MCPServerDefinition, error)
 	GetTools(ctx context.Context) ([]*model.Tool, error)
@@ -1197,6 +1207,34 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.UpdateTrackedFolder(childComplexity, args["id"].(string), args["input"].(model.UpdateTrackedFolderInput)), true
 
+	case "OAuthAccount.expiresAt":
+		if e.complexity.OAuthAccount.ExpiresAt == nil {
+			break
+		}
+
+		return e.complexity.OAuthAccount.ExpiresAt(childComplexity), true
+
+	case "OAuthAccount.isActive":
+		if e.complexity.OAuthAccount.IsActive == nil {
+			break
+		}
+
+		return e.complexity.OAuthAccount.IsActive(childComplexity), true
+
+	case "OAuthAccount.provider":
+		if e.complexity.OAuthAccount.Provider == nil {
+			break
+		}
+
+		return e.complexity.OAuthAccount.Provider(childComplexity), true
+
+	case "OAuthAccount.username":
+		if e.complexity.OAuthAccount.Username == nil {
+			break
+		}
+
+		return e.complexity.OAuthAccount.Username(childComplexity), true
+
 	case "OAuthFlow.authURL":
 		if e.complexity.OAuthFlow.AuthURL == nil {
 			break
@@ -1302,6 +1340,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.GetChats(childComplexity, args["first"].(int32), args["offset"].(int32)), true
+
+	case "Query.getConnectedAccounts":
+		if e.complexity.Query.GetConnectedAccounts == nil {
+			break
+		}
+
+		return e.complexity.Query.GetConnectedAccounts(childComplexity), true
 
 	case "Query.getDataSources":
 		if e.complexity.Query.GetDataSources == nil {
@@ -1788,6 +1833,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.UserProfile.Name(childComplexity), true
+
+	case "UserProfile.username":
+		if e.complexity.UserProfile.Username == nil {
+			break
+		}
+
+		return e.complexity.UserProfile.Username(childComplexity), true
 
 	case "WhatsAppQRCodeUpdate.event":
 		if e.complexity.WhatsAppQRCodeUpdate.Event == nil {
@@ -7862,6 +7914,182 @@ func (ec *executionContext) fieldContext_Mutation_updateTrackedFolder(ctx contex
 	return fc, nil
 }
 
+func (ec *executionContext) _OAuthAccount_provider(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAccount) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OAuthAccount_provider(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Provider, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OAuthAccount_provider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthAccount",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthAccount_username(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAccount) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OAuthAccount_username(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Username, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OAuthAccount_username(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthAccount",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthAccount_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAccount) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OAuthAccount_expiresAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ExpiresAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNDateTime2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OAuthAccount_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthAccount",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthAccount_isActive(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAccount) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OAuthAccount_isActive(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsActive, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OAuthAccount_isActive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthAccount",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _OAuthFlow_authURL(ctx context.Context, field graphql.CollectedField, obj *model.OAuthFlow) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_OAuthFlow_authURL(ctx, field)
 	if err != nil {
@@ -8301,6 +8529,8 @@ func (ec *executionContext) fieldContext_Query_profile(_ context.Context, field 
 				return ec.fieldContext_UserProfile_name(ctx, field)
 			case "bio":
 				return ec.fieldContext_UserProfile_bio(ctx, field)
+			case "username":
+				return ec.fieldContext_UserProfile_username(ctx, field)
 			case "indexingStatus":
 				return ec.fieldContext_UserProfile_indexingStatus(ctx, field)
 			case "connectedDataSources":
@@ -8571,6 +8801,60 @@ func (ec *executionContext) fieldContext_Query_getOAuthStatus(_ context.Context,
 				return ec.fieldContext_OAuthStatus_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OAuthStatus", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getConnectedAccounts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getConnectedAccounts(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetConnectedAccounts(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.OAuthAccount)
+	fc.Result = res
+	return ec.marshalNOAuthAccount2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthAccountᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_getConnectedAccounts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "provider":
+				return ec.fieldContext_OAuthAccount_provider(ctx, field)
+			case "username":
+				return ec.fieldContext_OAuthAccount_username(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_OAuthAccount_expiresAt(ctx, field)
+			case "isActive":
+				return ec.fieldContext_OAuthAccount_isActive(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OAuthAccount", field.Name)
 		},
 	}
 	return fc, nil
@@ -11827,6 +12111,47 @@ func (ec *executionContext) _UserProfile_bio(ctx context.Context, field graphql.
 }
 
 func (ec *executionContext) fieldContext_UserProfile_bio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserProfile_username(ctx context.Context, field graphql.CollectedField, obj *model.UserProfile) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UserProfile_username(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Username, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UserProfile_username(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "UserProfile",
 		Field:      field,
@@ -15637,6 +15962,60 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 	return out
 }
 
+var oAuthAccountImplementors = []string{"OAuthAccount"}
+
+func (ec *executionContext) _OAuthAccount(ctx context.Context, sel ast.SelectionSet, obj *model.OAuthAccount) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oAuthAccountImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OAuthAccount")
+		case "provider":
+			out.Values[i] = ec._OAuthAccount_provider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "username":
+			out.Values[i] = ec._OAuthAccount_username(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._OAuthAccount_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isActive":
+			out.Values[i] = ec._OAuthAccount_isActive(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var oAuthFlowImplementors = []string{"OAuthFlow"}
 
 func (ec *executionContext) _OAuthFlow(ctx context.Context, sel ast.SelectionSet, obj *model.OAuthFlow) graphql.Marshaler {
@@ -15901,6 +16280,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_getOAuthStatus(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getConnectedAccounts":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getConnectedAccounts(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -16652,6 +17053,8 @@ func (ec *executionContext) _UserProfile(ctx context.Context, sel ast.SelectionS
 			out.Values[i] = ec._UserProfile_name(ctx, field, obj)
 		case "bio":
 			out.Values[i] = ec._UserProfile_bio(ctx, field, obj)
+		case "username":
+			out.Values[i] = ec._UserProfile_username(ctx, field, obj)
 		case "indexingStatus":
 			field := field
 
@@ -17821,6 +18224,60 @@ func (ec *executionContext) marshalNMessageStreamPayload2ᚖgithubᚗcomᚋEtern
 		return graphql.Null
 	}
 	return ec._MessageStreamPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOAuthAccount2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthAccountᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OAuthAccount) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNOAuthAccount2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthAccount(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOAuthAccount2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthAccount(ctx context.Context, sel ast.SelectionSet, v *model.OAuthAccount) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OAuthAccount(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNOAuthFlow2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthFlow(ctx context.Context, sel ast.SelectionSet, v model.OAuthFlow) graphql.Marshaler {

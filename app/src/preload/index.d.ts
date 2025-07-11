@@ -1,13 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ElectronAPI } from '@electron-toolkit/preload'
 
+interface FileDialogResult {
+  canceled: boolean
+  filePaths: string[]
+  fileSizes?: number[]
+}
+
 interface IApi {
   getPathForFile: (file: File) => string
   copyDroppedFiles: (paths: string[]) => Promise<string[]>
   selectDirectory: () => Promise<Electron.OpenDialogReturnValue>
   selectFiles: (options?: {
     filters?: { name: string; extensions: string[] }[]
-  }) => Promise<Electron.OpenDialogReturnValue>
+  }) => Promise<FileDialogResult>
   getNativeTheme: () => Promise<string>
   setNativeTheme: (theme: 'system' | 'light' | 'dark') => Promise<string>
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => void
@@ -43,6 +49,7 @@ interface IApi {
     stop: () => Promise<any>
     getAutoStart: () => Promise<boolean>
     setAutoStart: (enabled: boolean) => Promise<any>
+    storeRestartIntent: (route: string, showModal: boolean) => Promise<boolean>
   }
   launch: {
     onProgress: (
