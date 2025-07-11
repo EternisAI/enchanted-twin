@@ -357,13 +357,7 @@ func (s *Service) SendMessage(
 					PrivacyDictJSON: *privacyDictJson,
 				}
 
-				updateData, err := json.Marshal(privacyUpdate)
-				if err != nil {
-					s.logger.Error("failed to marshal privacy dict update", "error", err)
-					return
-				}
-
-				_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.privacy_dict", chatID), updateData)
+				_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.privacy_dict", chatID), privacyUpdate)
 			}()
 		}
 	}
