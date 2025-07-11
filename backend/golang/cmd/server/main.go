@@ -136,7 +136,7 @@ func main() {
 	}
 
 	var localAnonymizer *llama1b.LlamaAnonymizer
-	if envs.UseLocalAnonymizer == "true" {
+	if envs.AnonymizerType == "local" {
 		logger.Info("Using local anonymizer model")
 		sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
 
@@ -151,15 +151,31 @@ func main() {
 
 	// Initialize Private Completions Service
 	if envs.PrivateCompletionsEnabled {
-		// Parse anonymizer delay
-		delay, err := time.ParseDuration(envs.MockAnonymizerDelay)
-		if err != nil {
-			logger.Warn("Invalid anonymizer delay, using default", "delay", envs.MockAnonymizerDelay, "error", err)
-			delay = 10 * time.Millisecond
-		}
+		var anonymizer ai.Anonymizer
 
-		// Initialize singleton anonymizer
-		anonymizer := ai.InitMockAnonymizer(delay, envs.EnableMockAnonymizer, logger)
+		// Choose anonymizer based on configuration
+		switch envs.AnonymizerType {
+		case "local":
+			if localAnonymizer != nil {
+				logger.Info("Using local LLM anonymizer")
+				anonymizer = ai.NewLocalAnonymizer(localAnonymizer)
+			} else {
+				logger.Warn("Local anonymizer requested but not initialized, falling back to no-op")
+				anonymizer = ai.NewNoOpAnonymizer(logger)
+			}
+		case "mock":
+			// Parse anonymizer delay for mock anonymizer
+			delay, err := time.ParseDuration(envs.MockAnonymizerDelay)
+			if err != nil {
+				logger.Warn("Invalid anonymizer delay, using default", "delay", envs.MockAnonymizerDelay, "error", err)
+				delay = 10 * time.Millisecond
+			}
+			logger.Info("Using mock anonymizer", "delay", delay)
+			anonymizer = ai.InitMockAnonymizer(delay, true, logger)
+		default: // "no-op" or any other value
+			logger.Info("Using no-op anonymizer")
+			anonymizer = ai.NewNoOpAnonymizer(logger)
+		}
 
 		// Create private completions service instance
 		privateCompletions, err := ai.NewPrivateCompletionsService(ai.PrivateCompletionsConfig{
@@ -175,9 +191,14 @@ func main() {
 		// Enable private completions on the existing service
 		aiCompletionsService.EnablePrivateCompletions(privateCompletions, ai.Background)
 
+		anonymizerType := envs.AnonymizerType
+		if anonymizerType == "local" && localAnonymizer == nil {
+			anonymizerType = "no-op (local fallback)"
+		}
+
 		logger.Info("Private completions service initialized and enabled",
 			"workers", envs.PrivateCompletionsWorkers,
-			"mockAnonymizerDelay", delay)
+			"anonymizer", anonymizerType)
 	} else {
 		logger.Info("Private completions service disabled")
 	}
