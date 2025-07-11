@@ -146,12 +146,17 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
     }
   })
 
-  useMessageStreamSubscription(chat.id, (messageId, chunk, isComplete, imageUrls) => {
+  useMessageStreamSubscription(chat.id, (data) => {
+    const { messageId, accumulatedMessage, deanonymizedAccumulatedMessage, imageUrls } = data
     const existingMessage = messages.find((m) => m.id === messageId)
+    
+    // Use deanonymized content for display, fallback to accumulated if not available
+    const messageText = deanonymizedAccumulatedMessage || accumulatedMessage || ''
+    
     if (!existingMessage) {
       upsertMessage({
         id: messageId,
-        text: chunk ?? '',
+        text: messageText,
         role: Role.Assistant,
         createdAt: new Date().toISOString(),
         imageUrls: imageUrls ?? [],
@@ -162,7 +167,7 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
       const allImageUrls = existingMessage.imageUrls.concat(imageUrls ?? [])
       const updatedMessage = {
         ...existingMessage,
-        text: (existingMessage.text ?? '') + (chunk ?? ''),
+        text: messageText,
         imageUrls: allImageUrls
       }
       upsertMessage(updatedMessage)
