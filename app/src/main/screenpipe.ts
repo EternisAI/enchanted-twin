@@ -215,4 +215,10 @@ export function registerScreenpipeIpc(): void {
     log.info(`[Screenpipe] auto-start ${enabled ? 'enabled' : 'disabled'}`)
     return enabled
   })
+
+  ipcMain.handle('screenpipe:store-restart-intent', (_, route: string, showModal: boolean) => {
+    screenpipeStore.set('restartIntent', { route, showModal })
+    log.info(`[Screenpipe] stored restart intent: ${route}, modal: ${showModal}`)
+    return true
+  })
 }

@@ -54,14 +54,14 @@ func (a *HolonSyncActivities) SyncHolonDataActivity(ctx context.Context, input H
 	a.logger.Info("Starting holon data synchronization workflow")
 
 	// Step 1: Push any pending local content to HolonZero API (outbound sync)
-	a.logger.Info("Pushing pending content to HolonZero API")
+	a.logger.Debug("Pushing pending content to HolonZero API")
 	if err := a.pushPendingContent(ctx); err != nil {
 		result.Success = false
 		result.Error = fmt.Sprintf("failed to push pending content: %v", err)
 		a.logger.Error("Failed to push pending content", "error", err)
 		return result, err
 	}
-	a.logger.Info("Successfully pushed pending content to HolonZero API")
+	a.logger.Debug("Successfully pushed pending content to HolonZero API")
 
 	// Step 2: Fetch latest threads from HolonZero API (inbound sync)
 	a.logger.Info("Fetching threads from HolonZero API")
@@ -73,10 +73,10 @@ func (a *HolonSyncActivities) SyncHolonDataActivity(ctx context.Context, input H
 		return result, err
 	}
 	result.ThreadCount = len(threads)
-	a.logger.Info("Successfully synced threads", "count", len(threads))
+	a.logger.Debug("Successfully synced threads", "count", len(threads))
 
 	// Step 3: Fetch latest replies from HolonZero API (inbound sync)
-	a.logger.Info("Fetching replies from HolonZero API")
+	a.logger.Debug("Fetching replies from HolonZero API")
 	replies, err := a.manager.fetcherService.SyncReplies(ctx)
 	if err != nil {
 		result.Success = false
@@ -85,9 +85,9 @@ func (a *HolonSyncActivities) SyncHolonDataActivity(ctx context.Context, input H
 		return result, err
 	}
 	result.ReplyCount = len(replies)
-	a.logger.Info("Successfully synced replies", "count", len(replies))
+	a.logger.Debug("Successfully synced replies", "count", len(replies))
 
-	a.logger.Info("Holon data synchronization workflow completed successfully",
+	a.logger.Debug("Holon data synchronization workflow completed successfully",
 		"threads_synced", len(threads),
 		"replies_synced", len(replies))
 

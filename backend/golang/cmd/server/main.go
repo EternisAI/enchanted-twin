@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -45,7 +44,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/directorywatcher"
-	"github.com/EternisAI/enchanted-twin/pkg/engagement"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
@@ -58,24 +56,8 @@ import (
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
-// customLogWriter routes logs to stderr if they contain "err" or "error", otherwise to stdout.
-type customLogWriter struct{}
-
-func (w *customLogWriter) Write(p []byte) (n int, err error) {
-	logContent := strings.ToLower(string(p))
-	if strings.Contains(logContent, "err") || strings.Contains(logContent, "error") || strings.Contains(logContent, "failed") {
-		return os.Stderr.Write(p)
-	}
-	return os.Stdout.Write(p)
-}
-
 func main() {
-	logger := log.NewWithOptions(&customLogWriter{}, log.Options{
-		ReportCaller:    true,
-		ReportTimestamp: true,
-		Level:           log.DebugLevel,
-		TimeFormat:      time.Kitchen,
-	})
+	logger := bootstrap.NewLogger()
 
 	envs, _ := config.LoadConfig(false)
 	logger.Debug("Config loaded", "envs", envs)
@@ -553,17 +535,6 @@ func bootstrapTemporalWorker(
 	// Register identity activities
 	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
 	identityActivities.RegisterWorkflowsAndActivities(w)
-
-	friendService := engagement.NewFriendService(engagement.FriendServiceConfig{
-		Logger:          input.logger,
-		MemoryService:   input.memory,
-		IdentityService: identity.NewIdentityService(input.temporalClient),
-		TwinchatService: input.twinchatService,
-		AiService:       input.aiCompletionsService,
-		ToolRegistry:    input.toolsRegistry,
-		Store:           input.store,
-	})
-	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
 
 	// Register holon sync activities
 	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
