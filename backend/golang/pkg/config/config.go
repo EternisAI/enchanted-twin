@@ -32,6 +32,8 @@ type Config struct {
 	PrivateCompletionsWorkers int
 	EnableMockAnonymizer      bool
 	MockAnonymizerDelay       string
+	UseLocalModel             string
+	UseLocalAnonymizer        string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -72,6 +74,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EmbeddingsAPIKey:          getEnv("EMBEDDINGS_API_KEY", "", printEnv),
 		DBPath:                    getEnv("DB_PATH", "./output/sqlite/store.db", printEnv),
 		AppDataPath:               getEnv("APP_DATA_PATH", "./output", printEnv),
+		WatchDirectoryPath:        getEnv("WATCH_DIRECTORY_PATH", "", printEnv),
 		TelegramToken:             getEnv("TELEGRAM_TOKEN", "", printEnv),
 		TelegramChatServer:        getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 		ContainerRuntime:          getEnv("CONTAINER_RUNTIME", "podman", printEnv),
@@ -82,6 +85,8 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		PrivateCompletionsWorkers: privateCompletionsWorkers,
 		EnableMockAnonymizer:      enableMockAnonymizer,
 		MockAnonymizerDelay:       getEnv("MOCK_ANONYMIZER_DELAY", "10ms", printEnv),
+		UseLocalModel:             getEnv("USE_LOCAL_MODEL", "", printEnv),
+		UseLocalAnonymizer:        getEnv("USE_LOCAL_ANONYMIZER", "", printEnv),
 	}
 	return conf, nil
 }

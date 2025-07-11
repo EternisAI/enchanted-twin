@@ -3,7 +3,6 @@ import { useMutation } from '@apollo/client'
 import { motion } from 'framer-motion'
 import { useNavigate } from '@tanstack/react-router'
 
-import { UserMessageBubble } from '@renderer/components/chat/Message'
 import {
   ChatCategory,
   CreateChatDocument,
@@ -24,6 +23,7 @@ import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
 import { getMockFrequencyData } from '@renderer/lib/utils'
+import { UserMessageBubble } from '@renderer/components/chat/messages/Message'
 
 export default function VoiceOnboardingContainer() {
   const navigate = useNavigate()

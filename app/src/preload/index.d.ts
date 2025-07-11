@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ElectronAPI } from '@electron-toolkit/preload'
 
 interface IApi {
@@ -107,6 +108,28 @@ interface IApi {
     set: (action: string, keys: string) => Promise<{ success: boolean; error?: string }>
     reset: (action: string) => Promise<{ success: boolean; error?: string }>
     resetAll: () => Promise<{ success: boolean; error?: string }>
+  }
+  models: {
+    hasModelsDownloaded: () => Promise<Record<DependencyName, boolean>>
+    downloadModels: (modelName: DependencyName) => Promise<{ success: boolean; path: string }>
+    onProgress: (
+      callback: (data: {
+        modelName: string
+        pct: number
+        totalBytes: number
+        downloadedBytes: number
+        error?: string
+      }) => void
+    ) => () => void
+  }
+  goServer: {
+    initialize: () => Promise<{ success: boolean; error?: string }>
+    cleanup: () => Promise<{ success: boolean; error?: string }>
+    getStatus: () => Promise<{ success: boolean; isRunning: boolean; message: string }>
+  }
+  clipboard: {
+    writeText: (text: string) => Promise<{ success: boolean; error?: string }>
+    readText: () => Promise<{ success: boolean; text?: string; error?: string }>
   }
 }
 

@@ -19,7 +19,7 @@ interface IElectronAPI {
 }
 
 interface IApi {
-  getPathForFile: (file: string) => string
+  getPathForFile: (file: File) => string
   copyDroppedFiles: (paths: string[]) => Promise<string[]>
   selectDirectory: () => Promise<{ canceled: boolean; filePaths: string[] }>
   selectFiles: (options?: {
@@ -140,6 +140,24 @@ interface IApi {
     set: (action: string, keys: string) => Promise<{ success: boolean; error?: string }>
     reset: (action: string) => Promise<{ success: boolean; error?: string }>
     resetAll: () => Promise<{ success: boolean; error?: string }>
+  }
+  models: {
+    hasModelsDownloaded: () => Promise<Record<DependencyName, boolean>>
+    downloadModels: (modelName: DependencyName) => Promise<{ success: boolean; error?: string }>
+    onProgress: (
+      callback: (data: {
+        modelName: string
+        pct: number
+        totalBytes?: number
+        downloadedBytes?: number
+        error?: string
+      }) => void
+    ) => () => void
+  }
+  goServer: {
+    initialize: () => Promise<{ success: boolean; error?: string }>
+    cleanup: () => Promise<{ success: boolean; error?: string }>
+    getStatus: () => Promise<{ success: boolean; isRunning: boolean; message: string }>
   }
 }
 

@@ -25,11 +25,12 @@ type IntelligentMemoryStorage interface {
 // IntelligentQueryResult represents the structured result of intelligent querying.
 // This mirrors the structure from evolvingmemory to avoid circular imports.
 type IntelligentQueryResult struct {
-	Query                string        `json:"query"`
-	ConsolidatedInsights []MemoryFact  `json:"consolidated_insights"`
-	CitedEvidence        []MemoryFact  `json:"cited_evidence"`
-	AdditionalContext    []MemoryFact  `json:"additional_context"`
-	Metadata             QueryMetadata `json:"metadata"`
+	Query                string          `json:"query"`
+	ConsolidatedInsights []MemoryFact    `json:"consolidated_insights"`
+	CitedEvidence        []MemoryFact    `json:"cited_evidence"`
+	AdditionalContext    []MemoryFact    `json:"additional_context"`
+	DocumentChunks       []DocumentChunk `json:"document_chunks"`
+	Metadata             QueryMetadata   `json:"metadata"`
 }
 
 // QueryMetadata provides information about the query execution.
@@ -38,6 +39,7 @@ type QueryMetadata struct {
 	ConsolidatedInsightCount int    `json:"consolidated_insight_count"`
 	CitedEvidenceCount       int    `json:"cited_evidence_count"`
 	AdditionalContextCount   int    `json:"additional_context_count"`
+	DocumentChunkCount       int    `json:"document_chunk_count"`
 	TotalResults             int    `json:"total_results"`
 	QueryStrategy            string `json:"query_strategy"`
 }
@@ -117,7 +119,8 @@ func (t *MemorySearchTool) executeIntelligentQuery(ctx context.Context, intellig
 		"total_results", intelligentResult.Metadata.TotalResults,
 		"insights", intelligentResult.Metadata.ConsolidatedInsightCount,
 		"evidence", intelligentResult.Metadata.CitedEvidenceCount,
-		"context", intelligentResult.Metadata.AdditionalContextCount)
+		"context", intelligentResult.Metadata.AdditionalContextCount,
+		"chunks", intelligentResult.Metadata.DocumentChunkCount)
 
 	// Format results for LLM with clear structure
 	resultText := t.formatIntelligentResults(intelligentResult)
@@ -131,11 +134,12 @@ func (t *MemorySearchTool) executeIntelligentQuery(ctx context.Context, intellig
 // formatIntelligentResults formats the intelligent query results for LLM consumption.
 func (t *MemorySearchTool) formatIntelligentResults(result *IntelligentQueryResult) string {
 	resultText := fmt.Sprintf("🧠 Intelligent Memory Results for: \"%s\"\n", result.Query)
-	resultText += fmt.Sprintf("📊 Total: %d | 🔗 Insights: %d | 📋 Evidence: %d | 📄 Context: %d\n\n",
+	resultText += fmt.Sprintf("📊 Total: %d | 🔗 Insights: %d | 📋 Evidence: %d | 📄 Context: %d | 📁 Chunks: %d\n\n",
 		result.Metadata.TotalResults,
 		result.Metadata.ConsolidatedInsightCount,
 		result.Metadata.CitedEvidenceCount,
-		result.Metadata.AdditionalContextCount)
+		result.Metadata.AdditionalContextCount,
+		result.Metadata.DocumentChunkCount)
 
 	// Section 1: Consolidated Insights (highest priority)
 	if len(result.ConsolidatedInsights) > 0 {
@@ -180,6 +184,33 @@ func (t *MemorySearchTool) formatIntelligentResults(result *IntelligentQueryResu
 				fact.Subject,
 				fact.GenerateContent(),
 				fact.Timestamp.Format("Jan 2006"))
+		}
+		resultText += "\n"
+	}
+
+	// Section 4: Document Chunks (file content)
+	if len(result.DocumentChunks) > 0 {
+		resultText += "📁 DOCUMENT CHUNKS (File content):\n"
+		for i, chunk := range result.DocumentChunks {
+			if i >= 5 { // Limit chunks for brevity
+				resultText += fmt.Sprintf("  ... and %d more document chunks\n", len(result.DocumentChunks)-i)
+				break
+			}
+
+			// Show file path if available, otherwise show source
+			location := chunk.Source
+			if chunk.FilePath != "" {
+				location = chunk.FilePath
+			}
+
+			// Show the whole chunk content for LLM consumption
+			content := chunk.Content
+
+			resultText += fmt.Sprintf("  %d. [%s] %s [%s]\n",
+				i+1,
+				location,
+				content,
+				chunk.CreatedAt.Format("Jan 2006"))
 		}
 		resultText += "\n"
 	}

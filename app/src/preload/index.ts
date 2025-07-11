@@ -165,6 +165,40 @@ const api = {
       ipcRenderer.invoke('keyboard-shortcuts:set', action, keys),
     reset: (action: string) => ipcRenderer.invoke('keyboard-shortcuts:reset', action),
     resetAll: () => ipcRenderer.invoke('keyboard-shortcuts:reset-all')
+  },
+  models: {
+    hasModelsDownloaded: () => ipcRenderer.invoke('models:has-models-downloaded'),
+    downloadModels: (modelName: 'embeddings' | 'anonymizer') =>
+      ipcRenderer.invoke('models:download', modelName),
+    onProgress: (
+      callback: (data: {
+        modelName: string
+        pct: number
+        totalBytes: number
+        downloadedBytes: number
+      }) => void
+    ) => {
+      const listener = (
+        _: unknown,
+        data: {
+          modelName: string
+          pct: number
+          totalBytes: number
+          downloadedBytes: number
+        }
+      ) => callback(data)
+      ipcRenderer.on('models:progress', listener)
+      return () => ipcRenderer.removeListener('models:progress', listener)
+    }
+  },
+  goServer: {
+    initialize: () => ipcRenderer.invoke('go-server:initialize'),
+    cleanup: () => ipcRenderer.invoke('go-server:cleanup'),
+    getStatus: () => ipcRenderer.invoke('go-server:status')
+  },
+  clipboard: {
+    writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
+    readText: () => ipcRenderer.invoke('clipboard:readText')
   }
 }
 
@@ -175,12 +209,14 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
+    console.log('Preload: APIs exposed via contextBridge')
   } catch (error) {
-    console.error(error)
+    console.error('Preload: Failed to expose APIs:', error)
   }
 } else {
   // @ts-ignore (define in dts)
   window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
+  console.log('Preload: APIs exposed directly to window')
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/constants"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -72,7 +73,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		},
 	})
 
-	// Get workflow ID for claiming data sources
 	workflowID := workflow.GetInfo(ctx).WorkflowExecution.ID
 
 	indexingState := model.IndexingStateNotStarted
@@ -92,14 +92,12 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to set query handler")
 	}
 
-	// Cleanup stale processing data sources at the start
 	var cleanupResponse CleanupStaleProcessingResponse
 	err = workflow.ExecuteActivity(ctx, w.CleanupStaleProcessingActivity, CleanupStaleProcessingInput{
-		StaleAfterMinutes: 60, // Consider stale after 1 hour
+		StaleAfterMinutes: 60,
 	}).Get(ctx, &cleanupResponse)
 	if err != nil {
 		workflow.GetLogger(ctx).Warn("Failed to cleanup stale processing data sources", "error", err)
-		// Continue execution even if cleanup fails
 	} else if cleanupResponse.CleanedCount > 0 {
 		workflow.GetLogger(ctx).Info("Cleaned up stale processing data sources", "count", cleanupResponse.CleanedCount)
 	}
@@ -141,7 +139,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			HasError:    *dataSource.HasError,
 		})
 
-		// Initialize result tracking
 		dataSourceResults[dataSource.ID] = &DataSourceResult{
 			ID:               dataSource.ID,
 			Name:             dataSource.Name,
@@ -161,7 +158,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	for i, dataSource := range fetchDataSourcesResponse.DataSources {
 		w.publishIndexingStatus(ctx, indexingState, dataSources, nil)
 
-		// Try to claim this data source for processing
 		var claimResponse ClaimDataSourceResponse
 		err = workflow.ExecuteActivity(ctx, w.ClaimDataSourceForProcessingActivity, ClaimDataSourceInput{
 			DataSourceID: dataSource.ID,
@@ -173,7 +169,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				"dataSource", dataSource.Name)
 			dataSources[i].HasError = true
 			errMsg := err.Error()
-			// Update result tracking
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "failed"
 				result.HasError = true
@@ -186,16 +181,14 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		if !claimResponse.Claimed {
 			workflow.GetLogger(ctx).Info("Data source already claimed by another workflow",
 				"dataSource", dataSource.Name)
-			// Update result tracking
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "skipped"
 				result.ProcessingSkipped = true
 			}
-			// Skip this data source - it's being processed by another workflow
+
 			continue
 		}
 
-		// Process the data source
 		processDataActivityInput := ProcessDataActivityInput{
 			DataSourceName: dataSource.Name,
 			SourcePath:     dataSource.Path,
@@ -206,7 +199,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).
 			Get(ctx, &processDataResponse)
 
-		// RELEASE IMMEDIATELY after processing (success or failure)
 		releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
 			DataSourceID: dataSource.ID,
 			WorkflowID:   workflowID,
@@ -226,7 +218,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			dataSources[i].IsProcessed = false
 			dataSources[i].HasError = true
 			errMsg := err.Error()
-			// Update result tracking
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "failed"
 				result.IsProcessed = false
@@ -238,7 +229,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			dataSources[i].IsProcessed = true
 			dataSources[i].HasError = false
 			dataSources[i].IsIndexed = false
-			// Update result tracking
 			if result, exists := dataSourceResults[dataSource.ID]; exists {
 				result.ProcessingStatus = "completed"
 				result.IsProcessed = true
@@ -322,7 +312,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 
 		// TODO: systematically decide batching strategy
 		batchSize := 20
-		if dataSourceDB.Name == "Whatsapp" || dataSourceDB.Name == "Telegram" {
+		if strings.ToLower(dataSourceDB.Name) == constants.ProcessorWhatsapp.String() || strings.ToLower(dataSourceDB.Name) == constants.ProcessorTelegram.String() {
 			batchSize = 3
 		}
 		fmt.Println("Indexing batch size", dataSourceDB.Name, batchSize)
@@ -349,7 +339,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			workflow.GetLogger(ctx).Warn("No batches found for data source", "dataSource", dataSourceDB.Name)
 			dataSources[i].IsIndexed = true
 			dataSources[i].IndexProgress = 100
-			// Update result tracking
 			if result, exists := dataSourceResults[dataSourceDB.ID]; exists {
 				result.IndexingStatus = "completed"
 				result.IsIndexed = true
@@ -358,12 +347,18 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			continue
 		}
 
-		// Replace sequential processing with parallel batch processing
 		failedBatches := 0
 		successfulBatches := 0
 		totalDocumentsStored := 0
 
-		// Start all batch activities in parallel
+		indexBatchCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			StartToCloseTimeout:    30 * time.Minute,
+			ScheduleToStartTimeout: 10 * time.Minute,
+			RetryPolicy: &temporal.RetryPolicy{
+				MaximumAttempts: 1,
+			},
+		})
+
 		batchFutures := make([]workflow.Future, getBatchesResponse.TotalBatches)
 		for batchIndex := 0; batchIndex < getBatchesResponse.TotalBatches; batchIndex++ {
 			indexBatchInput := IndexBatchActivityInput{
@@ -375,8 +370,8 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				TotalBatches:   getBatchesResponse.TotalBatches,
 			}
 
-			// Start activity without blocking (no .Get())
-			batchFutures[batchIndex] = workflow.ExecuteActivity(ctx, w.IndexBatchActivity, indexBatchInput)
+			// Start activity without blocking (no .Get()) using the specific context
+			batchFutures[batchIndex] = workflow.ExecuteActivity(indexBatchCtx, w.IndexBatchActivity, indexBatchInput)
 
 			workflow.GetLogger(ctx).Info("Started batch processing",
 				"dataSource", dataSourceDB.Name,
@@ -601,36 +596,71 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 	ctx context.Context,
 	input ProcessDataActivityInput,
 ) (ProcessDataActivityResponse, error) {
-	outputPath := fmt.Sprintf(
-		"%s/%s_%s.jsonl",
-		w.Config.AppDataPath,
-		input.DataSourceName,
-		input.DataSourceID,
-	)
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
-	success, err := dataprocessingService.ProcessSource(
-		ctx,
-		input.DataSourceName,
-		input.SourcePath,
-		outputPath,
-	)
-	if err != nil {
-		w.Logger.Error(
-			"Failed to process data source",
-			"error",
-			err,
-			"dataSource",
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Memory, w.Logger)
+
+	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
+
+	if isNewFormat {
+		// New format processors (telegram, whatsapp, etc.) store documents directly in memory
+		// No file is created, so we use a special marker path
+		success, err := dataprocessingService.ProcessSource(
+			ctx,
 			input.DataSourceName,
+			input.SourcePath,
+			"", // Empty output path - no file will be created
 		)
-		return ProcessDataActivityResponse{}, err
-	}
+		if err != nil {
+			w.Logger.Error(
+				"Failed to process data source",
+				"error",
+				err,
+				"dataSource",
+				input.DataSourceName,
+			)
+			return ProcessDataActivityResponse{}, err
+		}
 
-	err = w.Store.UpdateDataSourceProcessedPath(ctx, input.DataSourceID, outputPath)
-	if err != nil {
-		return ProcessDataActivityResponse{}, err
-	}
+		// Use a special marker to indicate direct processing (no file)
+		processedPath := fmt.Sprintf("direct://%s_%s", input.DataSourceName, input.DataSourceID)
+		err = w.Store.UpdateDataSourceProcessedPath(ctx, input.DataSourceID, processedPath)
+		if err != nil {
+			return ProcessDataActivityResponse{}, err
+		}
 
-	return ProcessDataActivityResponse{Success: success}, nil
+		return ProcessDataActivityResponse{Success: success}, nil
+	} else {
+		// Old format processors create JSONL files
+		outputPath := fmt.Sprintf(
+			"%s/%s_%s.jsonl",
+			w.Config.AppDataPath,
+			input.DataSourceName,
+			input.DataSourceID,
+		)
+
+		success, err := dataprocessingService.ProcessSource(
+			ctx,
+			input.DataSourceName,
+			input.SourcePath,
+			outputPath,
+		)
+		if err != nil {
+			w.Logger.Error(
+				"Failed to process data source",
+				"error",
+				err,
+				"dataSource",
+				input.DataSourceName,
+			)
+			return ProcessDataActivityResponse{}, err
+		}
+
+		err = w.Store.UpdateDataSourceProcessedPath(ctx, input.DataSourceID, outputPath)
+		if err != nil {
+			return ProcessDataActivityResponse{}, err
+		}
+
+		return ProcessDataActivityResponse{Success: success}, nil
+	}
 }
 
 type UpdateDataSourceStateActivityInput struct {
@@ -679,6 +709,12 @@ func (w *DataProcessingWorkflows) GetBatchesActivity(
 	}
 	if input.ProcessedPath == "" {
 		return GetBatchesActivityResponse{}, errors.New("processed path cannot be empty")
+	}
+
+	// Check if this is a direct processing marker (documents already stored in memory)
+	if strings.HasPrefix(input.ProcessedPath, "direct://") {
+		// Documents were stored directly in memory during processing, no indexing needed
+		return GetBatchesActivityResponse{TotalBatches: 0}, nil
 	}
 
 	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
@@ -760,6 +796,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 			w.OpenAIService,
 			w.Config.CompletionsModel,
 			w.Store,
+			w.Memory,
 			w.Logger,
 		)
 
@@ -803,12 +840,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 
 // isNewFormatProcessor checks if the data source uses the new ConversationDocument format.
 func (w *DataProcessingWorkflows) isNewFormatProcessor(dataSourceName string) bool {
-	switch strings.ToLower(dataSourceName) {
-	case "telegram", "whatsapp", "gmail", "chatgpt":
-		return true
-	default:
-		return false
-	}
+	return constants.IsNewFormatProcessor(dataSourceName)
 }
 
 // readNewFormatBatch reads a batch from either JSON array format or JSONL format (ConversationDocument[]).

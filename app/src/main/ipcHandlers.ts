@@ -1,7 +1,9 @@
-import { app, dialog, ipcMain, nativeTheme, shell, globalShortcut } from 'electron'
+import { app, dialog, ipcMain, nativeTheme, shell, globalShortcut, clipboard } from 'electron'
 import log from 'electron-log/main'
 import path from 'path'
 import fs from 'fs'
+import { is } from '@electron-toolkit/utils'
+
 import { windowManager } from './windows'
 import { openOAuthWindow, startFirebaseOAuth, cleanupOAuthServer } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
@@ -18,6 +20,9 @@ import {
   unmuteLiveKitAgent,
   getCurrentAgentState
 } from './livekitManager'
+import { downloadDependency, hasDependenciesDownloaded } from './dependenciesDownload'
+import { DependencyName } from './types/dependencies'
+import { initializeGoServer, cleanupGoServer, isGoServerRunning } from './goServer'
 
 const PATHNAME = 'input_data'
 
@@ -56,7 +61,7 @@ export function registerIpcHandlers() {
       return { success: true, loginUrl }
     } catch (error) {
       log.error('[Main] Failed to start Firebase OAuth server:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
 
@@ -67,7 +72,7 @@ export function registerIpcHandlers() {
       return { success: true }
     } catch (error) {
       log.error('[Main] Failed to cleanup OAuth server:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
 
@@ -86,6 +91,26 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('get-app-version', () => {
     return app.getVersion()
+  })
+
+  // Clipboard handlers
+  ipcMain.handle('clipboard:writeText', async (_event, text: string) => {
+    try {
+      clipboard.writeText(text)
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to write to clipboard:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('clipboard:readText', async () => {
+    try {
+      return { success: true, text: clipboard.readText() }
+    } catch (error) {
+      log.error('Failed to read from clipboard:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
   })
 
   nativeTheme.on('updated', () => {
@@ -397,7 +422,6 @@ export function registerIpcHandlers() {
   ipcMain.handle('keyboard-shortcuts:get', () => {
     try {
       const shortcuts = keyboardShortcutsStore.get('shortcuts')
-      log.info('Getting keyboard shortcuts:', shortcuts)
       return shortcuts
     } catch (error) {
       log.error('Failed to get keyboard shortcuts:', error)
@@ -584,6 +608,62 @@ export function registerIpcHandlers() {
     } catch (error) {
       log.error('Failed to reset all keyboard shortcuts:', error)
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('models:has-models-downloaded', () => {
+    return hasDependenciesDownloaded()
+  })
+
+  ipcMain.handle('models:download', async (_, modelName: DependencyName) => {
+    return downloadDependency(modelName)
+  })
+
+  ipcMain.handle('go-server:initialize', async () => {
+    try {
+      const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
+      const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
+
+      log.info('Initializing Go server via IPC request')
+      const success = await initializeGoServer(IS_PRODUCTION, DEFAULT_BACKEND_PORT)
+
+      if (success) {
+        log.info('Go server initialized successfully via IPC')
+        return { success: true }
+      } else {
+        log.error('Failed to initialize Go server via IPC')
+        return { success: false, error: 'Failed to initialize Go server' }
+      }
+    } catch (error) {
+      log.error('Error initializing Go server via IPC:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('go-server:cleanup', async () => {
+    try {
+      log.info('Cleaning up Go server via IPC request')
+      cleanupGoServer()
+      log.info('Go server cleaned up successfully via IPC')
+      return { success: true }
+    } catch (error) {
+      log.error('Error cleaning up Go server via IPC:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('go-server:status', () => {
+    const isRunning = isGoServerRunning()
+    return {
+      success: true,
+      isRunning,
+      message: isRunning ? 'Go server is running' : 'Go server is not running'
     }
   })
 }

@@ -12,12 +12,15 @@ build:
 fresh-db:
 	@echo "Removing all Weaviate and SQLite data to restart with fresh schema..."
 	rm -rf ./output
+	find . -name "*.db" -not -path "./cmd/memory-processor-test/*" -not -path "./weaviate-test-memory/*" -delete 2>/dev/null || true
+	find . -name "*.db-wal" -delete 2>/dev/null || true  
+	find . -name "*.db-shm" -delete 2>/dev/null || true
 	@echo "All data will be recreated on next server startup."
 
 release:
-	GOOS=darwin GOARCH=amd64 go build -o bin/enchanted-twin-darwin-amd64 cmd/server/main.go
-	GOOS=darwin GOARCH=arm64 go build -o bin/enchanted-twin-darwin-arm64 cmd/server/main.go
-	GOOS=linux GOARCH=amd64 go build -o bin/enchanted-twin-linux-amd64 cmd/server/main.go
+	CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o bin/enchanted-twin-darwin-amd64 cmd/server/main.go
+	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o bin/enchanted-twin-darwin-arm64 cmd/server/main.go
+	# CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o bin/enchanted-twin-linux-amd64 cmd/server/main.go
 
 lint:
 	golangci-lint fmt

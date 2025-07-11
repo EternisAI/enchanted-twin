@@ -12,11 +12,15 @@ import {
   Volume2,
   VolumeOff
 } from 'lucide-react'
-import { extractReasoningAndReply, getToolConfig } from './config'
-import { Badge } from '../ui/badge'
+import { extractReasoningAndReply, getToolConfig } from '@renderer/components/chat/config'
+import { Badge } from '@renderer/components/ui/badge'
 import ImagePreview from './ImagePreview'
-import Markdown from './Markdown'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
+import Markdown from '@renderer/components/chat/messages/Markdown'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@renderer/components/ui/collapsible'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { useMemo, useState } from 'react'
 
@@ -76,7 +80,7 @@ export function UserMessageBubble({
               )}
             </button>
           )}
-          <div className="text-xs text-muted-foreground pl-1">
+          <div className="text-xs text-muted-foreground">
             {new Date(message.createdAt).toLocaleTimeString()}
           </div>
         </div>
@@ -93,6 +97,14 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
   )
 
   const isStillThinking = thinkingText?.trim() !== '' && !replyText
+
+  const shouldShowOriginalContent = useMemo(() => {
+    const hideContentForTools = ['preview_thread', 'send_to_holon']
+
+    return !message.toolCalls.some((toolCall) => {
+      return toolCall.isCompleted && hideContentForTools.includes(toolCall.name)
+    })
+  }, [message.toolCalls])
 
   return (
     <motion.div
@@ -143,7 +155,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
           </Collapsible>
         )}
 
-        {replyText && <Markdown>{replyText}</Markdown>}
+        {replyText && shouldShowOriginalContent && <Markdown>{replyText}</Markdown>}
         {message.imageUrls.length > 0 && (
           <div className="grid grid-cols-4 gap-y-4 my-2">
             {message.imageUrls.map((url, i) => (
