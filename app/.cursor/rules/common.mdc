@@ -6,7 +6,7 @@ alwaysApply: false
 - You are working in a monorepo with the frontend located in `app` and backend located in `backend/golang`
 - You are building an app with the stack: Electron, Vite, shadcn, TailWind, tanstack router, Apollo (graphql), zustand.
 - Do NOT add comments to explain every other line of your code. The code itself should be self-evident unless the code is exotic or solving a complex problem.
-
+- Use alias absolute imports for all components, hooks, and anything else when possible.
 
 - DO NOT GIVE ME HIGH LEVEL SHIT, IF I ASK FOR FIX OR EXPLANATION, I WANT ACTUAL CODE OR EXPLANATION! I DON'T WANT "Here's how you can blablabla"
 - Be casual unless otherwise specified

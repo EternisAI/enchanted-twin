@@ -1,11 +1,20 @@
 import { CheckCircle2, Loader2, Play, RefreshCw, Clock, AlertCircle, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
-import { Button } from '../ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
-import { Progress } from '../ui/progress'
-import { DataSource, PendingDataSource, IndexedDataSource } from './types'
-import { estimateRemainingTime } from './utils'
-import { useIndexingStore } from '@renderer/stores/indexingStore'
+import { Button } from '@renderer/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@renderer/components/ui/tooltip'
+import { Progress } from '@renderer/components/ui/progress'
+import { useIndexingStatus } from '@renderer/hooks/useIndexingStatus'
+import {
+  type DataSource,
+  type PendingDataSource,
+  type IndexedDataSource
+} from '@renderer/components/data-sources/types'
+import { estimateRemainingTime } from '@renderer/components/data-sources/utils'
 
 interface UnifiedDataSourceCardProps {
   source: DataSource
@@ -32,7 +41,7 @@ export const UnifiedDataSourceCard = ({
   onRemovePending,
   onStartImport
 }: UnifiedDataSourceCardProps) => {
-  const { getDataSourceProgress } = useIndexingStore()
+  const { data: indexingData } = useIndexingStatus()
 
   // Find the currently importing source
   const importingSource = indexedSources.find((s) => s.isProcessed && !s.isIndexed && !s.hasError)
@@ -50,16 +59,11 @@ export const UnifiedDataSourceCard = ({
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
 
   // Calculate progress
-  const progress = importingSource
-    ? importingSource.isProcessed
-      ? 10 + (importingSource.indexProgress ?? 0) * 0.9
-      : 5
-    : 0
-
-  // Get start time from the store
-  const startTimeMs = importingSource
-    ? getDataSourceProgress(importingSource.id)?.startTime
-    : undefined
+  const importingProgress = indexingData?.indexingStatus?.dataSources?.find(
+    (s: { id: string }) => s.id === importingSource?.id
+  )
+  const progress = importingProgress?.indexProgress ?? 0
+  const startTimeMs = importingProgress?.startTime // assume number
   const importStartTime = startTimeMs ? new Date(startTimeMs) : undefined
 
   const hasError = indexedSources.some((s) => s.hasError)

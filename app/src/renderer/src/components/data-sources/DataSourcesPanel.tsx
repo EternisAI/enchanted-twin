@@ -1,7 +1,6 @@
 import { useQuery, useMutation } from '@apollo/client'
 import { GetDataSourcesDocument, IndexingState } from '@renderer/graphql/generated/graphql'
 import { useIndexingStatus } from '@renderer/hooks/useIndexingStatus'
-import { useIndexingStore } from '@renderer/stores/indexingStore'
 import { useState, useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { DataSource, DataSourcesPanelProps, PendingDataSource, IndexedDataSource } from './types'
 import { toast } from 'sonner'
@@ -80,13 +79,15 @@ export function DataSourcesPanel({
 }) {
   const { data, refetch } = useQuery(GetDataSourcesDocument)
   const { data: indexingData } = useIndexingStatus()
-  const { clearStartTimes } = useIndexingStore()
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
   const [startIndexing] = useMutation(START_INDEXING)
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null)
   const [pendingDataSources, setPendingDataSources] = useState<Record<string, PendingDataSource>>(
     {}
   )
+
+  console.log('INDEXING data', indexingData)
+  console.log('DATASOURCES data', data)
   // Track which data sources are being initiated (waiting for backend confirmation)
   const [initiatingDataSources, dispatchInitiating] = useReducer(
     initiatingReducer,
@@ -112,16 +113,13 @@ export function DataSourcesPanel({
           grouped[source.name] = []
         }
         grouped[source.name].push({
-          ...source,
-          indexProgress:
-            indexingData?.indexingStatus?.dataSources?.find((s) => s.id === source.id)
-              ?.indexProgress ?? undefined
+          ...source
         })
       })
     }
 
     return grouped
-  }, [data?.getDataSources, indexingData?.indexingStatus?.dataSources])
+  }, [data?.getDataSources])
 
   // Check if any source is currently being imported
   const hasActiveImport = Object.values(groupedDataSources).some((sources) =>
@@ -306,7 +304,6 @@ export function DataSourcesPanel({
 
     if (isWorkflowComplete && initiatingDataSources.size > 0) {
       dispatchInitiating({ type: 'CLEAR' })
-      clearStartTimes()
     }
   }, [
     data?.getDataSources,
@@ -315,7 +312,6 @@ export function DataSourcesPanel({
     isProcessing,
     isNotStarted,
     initiatingDataSources.size,
-    clearStartTimes,
     initiatingDataSources
   ])
 
