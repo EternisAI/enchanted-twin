@@ -6,6 +6,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Thread } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
 import { cn } from '@renderer/lib/utils'
+import Markdown from '@renderer/components/chat/messages/Markdown'
 
 const USER_ALIAS = ['primaryUser', 'local-user']
 
@@ -80,7 +81,7 @@ export default function HolonFeedItem({
           </div>
         )}
 
-        <p className="text-foreground whitespace-pre-wrap">{thread.content}</p>
+        <Markdown>{thread.content}</Markdown>
         {collapsed && (
           <div className="pointer-events-none absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-card to-transparent" />
         )}
