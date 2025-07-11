@@ -149,7 +149,7 @@ export function registerIpcHandlers() {
         properties: ['openFile'],
         filters: options?.filters
       })
-      
+
       // Add file size information
       if (!result.canceled && result.filePaths.length > 0) {
         const fileSizes: number[] = []
@@ -167,7 +167,7 @@ export function registerIpcHandlers() {
           fileSizes
         }
       }
-      
+
       return result
     }
   )
