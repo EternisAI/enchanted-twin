@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
 )
 
@@ -22,9 +23,11 @@ func NewLogger() *log.Logger {
 	logger := log.NewWithOptions(&customLogWriter{}, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
-		Level:           log.InfoLevel,
+		Level:           log.DebugLevel,
 		TimeFormat:      time.Kitchen,
 	})
+
+	logger.SetColorProfile(lipgloss.ColorProfile())
 
 	return logger
 }
