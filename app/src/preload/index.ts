@@ -201,6 +201,10 @@ const api = {
   clipboard: {
     writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
     readText: () => ipcRenderer.invoke('clipboard:readText')
+  },
+  tts: {
+    generate: (text: string, firebaseToken: string) =>
+      ipcRenderer.invoke('tts:generate', text, firebaseToken)
   }
 }
 
