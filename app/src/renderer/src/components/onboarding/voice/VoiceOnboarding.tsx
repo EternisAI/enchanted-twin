@@ -3,7 +3,7 @@ import { useMutation } from '@apollo/client'
 import { motion } from 'framer-motion'
 import { useNavigate } from '@tanstack/react-router'
 
-import { UserMessageBubble } from '@renderer/components/chat/Message'
+import { UserMessageBubble } from '@renderer/components/chat/messages/Message'
 import {
   ChatCategory,
   CreateChatDocument,
