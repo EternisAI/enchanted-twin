@@ -10,17 +10,17 @@ import (
 )
 
 func TestLlamaAnonymizer(t *testing.T) {
-	binaryPath := os.Getenv("LLAMA_BINARY_PATH")
-	if binaryPath == "" {
-		t.Skip("LLAMA_BINARY_PATH not set")
+	appDataPath := os.Getenv("LLAMA_APP_DATA_PATH")
+	if appDataPath == "" {
+		t.Skip("LLAMA_APP_DATA_PATH not set")
 	}
 
-	modelPath := os.Getenv("LLAMA_MODEL_DIR")
-	if modelPath == "" {
-		t.Skip("LLAMA_MODEL_DIR not set")
+	sharedLibraryPath := os.Getenv("LLAMA_SHARED_LIB_PATH")
+	if sharedLibraryPath == "" {
+		t.Skip("LLAMA_SHARED_LIB_PATH not set")
 	}
 
-	anonymizer, err := NewLlamaAnonymizer(binaryPath, modelPath)
+	anonymizer, err := NewLlamaAnonymizer(appDataPath, sharedLibraryPath)
 	assert.NoError(t, err)
 	defer func() { _ = anonymizer.Close() }()
 
