@@ -171,13 +171,26 @@ func (a *LlamaAnonymizer) sendInteractiveMessage(ctx context.Context, input stri
 	errChan := make(chan error, 1)
 
 	go func() {
-		if a.session.scanner.Scan() {
-			responseChan <- a.session.scanner.Text()
-		} else {
-			if err := a.session.scanner.Err(); err != nil {
-				errChan <- fmt.Errorf("failed to read from interactive session: %w", err)
+		scanDone := make(chan struct{})
+		var scanResult bool
+
+		go func() {
+			scanResult = a.session.scanner.Scan()
+			close(scanDone)
+		}()
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-scanDone:
+			if scanResult {
+				responseChan <- a.session.scanner.Text()
 			} else {
-				errChan <- fmt.Errorf("interactive session closed unexpectedly")
+				if err := a.session.scanner.Err(); err != nil {
+					errChan <- fmt.Errorf("failed to read from interactive session: %w", err)
+				} else {
+					errChan <- fmt.Errorf("interactive session closed unexpectedly")
+				}
 			}
 		}
 	}()
