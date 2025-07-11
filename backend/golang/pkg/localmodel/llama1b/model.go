@@ -123,11 +123,14 @@ func (a *LlamaAnonymizer) startInteractiveSession(ctx context.Context) error {
 		return fmt.Errorf("failed to start interactive session: %w", err)
 	}
 
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 10*1024*1024), 10*1024*1024) // 10MB buffer for large JSON payloads
+
 	a.session = &interactiveSession{
 		cmd:     cmd,
 		stdin:   stdin,
 		stdout:  stdout,
-		scanner: bufio.NewScanner(stdout),
+		scanner: scanner,
 		cancel:  cancel,
 	}
 	return nil
