@@ -39,7 +39,7 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 		},
 	})
 
-	daysBefore := 365
+	daysBefore := 30
 	windowSizeDays := 7
 	limit := 10000
 
