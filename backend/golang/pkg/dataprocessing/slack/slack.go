@@ -44,10 +44,6 @@ func NewSlackProcessor(store *db.Store, logger *log.Logger) (*SlackProcessor, er
 	return &SlackProcessor{store: store, logger: logger}, nil
 }
 
-func (s *SlackProcessor) Name() string {
-	return "slack"
-}
-
 // ProcessFile processes a single Slack channel file and returns ConversationDocument.
 func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.ConversationDocument, error) {
 	jsonData, err := os.ReadFile(filePath)
