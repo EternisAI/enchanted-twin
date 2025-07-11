@@ -187,7 +187,7 @@ func (s *Service) SendMessage(
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
+	s.logger.Debug("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
