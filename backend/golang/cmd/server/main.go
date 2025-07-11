@@ -138,11 +138,10 @@ func main() {
 	var localAnonymizer *llama1b.LlamaAnonymizer
 	if envs.UseLocalAnonymizer == "true" {
 		logger.Info("Using local anonymizer model")
-		anonymizerBinaryPath := filepath.Join(envs.AppDataPath, "anonymizer", "binary")
-		anonymizerModelPath := filepath.Join(envs.AppDataPath, "anonymizer", "model")
+		sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
 
 		var err error
-		localAnonymizer, err = llama1b.NewLlamaAnonymizer(anonymizerBinaryPath, anonymizerModelPath)
+		localAnonymizer, err = llama1b.NewLlamaAnonymizer(envs.AppDataPath, sharedLibPath)
 		if err != nil {
 			logger.Error("Failed to create local anonymizer model", "error", err)
 			panic(errors.Wrap(err, "Failed to create local anonymizer model"))
