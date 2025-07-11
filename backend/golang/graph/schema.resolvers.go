@@ -814,7 +814,8 @@ func (r *queryResolver) GetDirectoryWatcherStatus(ctx context.Context) (*model.D
 	// Check if DirectoryWatcher exists
 	if r.DirectoryWatcher == nil {
 		r.Logger.Warn("⚠️ DirectoryWatcher is nil")
-		status.ErrorMessage = stringPtr("DirectoryWatcher is not initialized")
+		errorMsg := "DirectoryWatcher is not initialized"
+		status.ErrorMessage = &errorMsg
 		return status, nil
 	}
 
@@ -822,7 +823,8 @@ func (r *queryResolver) GetDirectoryWatcherStatus(ctx context.Context) (*model.D
 	dbFolders, err := r.Store.GetTrackedFolders(ctx)
 	if err != nil {
 		r.Logger.Error("❌ Failed to get tracked folders from database", "error", err)
-		status.ErrorMessage = stringPtr(fmt.Sprintf("Database error: %v", err))
+		errorMsg := fmt.Sprintf("Database error: %v", err)
+		status.ErrorMessage = &errorMsg
 		return status, nil
 	}
 
@@ -854,11 +856,6 @@ func (r *queryResolver) GetDirectoryWatcherStatus(ctx context.Context) (*model.D
 		"dbFoldersCount", len(status.TrackedFoldersFromDb))
 
 	return status, nil
-}
-
-// Helper function to create string pointer.
-func stringPtr(s string) *string {
-	return &s
 }
 
 // MessageAdded is the resolver for the messageAdded field.

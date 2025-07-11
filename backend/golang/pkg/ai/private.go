@@ -21,9 +21,19 @@ type PrivateCompletionResult struct {
 	ReplacementRules map[string]string            `json:"replacement_rules"`
 }
 
+type StreamDelta struct {
+	ContentDelta                   string
+	IsCompleted                    bool
+	ImageURLs                      []string
+	AccumulatedAnonymizedMessage   string
+	AccumulatedDeanonymizedMessage string
+}
+
 type PrivateCompletions interface {
 	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error)
 	CompletionsWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error)
+	CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error)
+	CompletionsStreamWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error)
 }
 
 type Anonymizer interface {

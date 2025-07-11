@@ -98,7 +98,7 @@ func (s *Service) Execute(
 	// Get the tool list from the registry
 	toolsList := s.toolRegistry.Excluding("send_to_chat").GetAll()
 
-	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta, reasoning)
+	response, err := agent.ExecuteStreamWithPrivacy(ctx, messageHistory, toolsList, onDelta, reasoning)
 	if err != nil {
 		return nil, err
 	}
@@ -253,12 +253,14 @@ func (s *Service) SendMessage(
 
 	onDelta := func(delta agent.StreamDelta) {
 		payload := model.MessageStreamPayload{
-			MessageID:  assistantMessageId,
-			ImageUrls:  delta.ImageURLs,
-			Chunk:      delta.ContentDelta,
-			Role:       model.RoleAssistant,
-			IsComplete: delta.IsCompleted,
-			CreatedAt:  &createdAt,
+			MessageID:                      assistantMessageId,
+			ImageUrls:                      delta.ImageURLs,
+			Chunk:                          delta.ContentDelta,
+			Role:                           model.RoleAssistant,
+			IsComplete:                     delta.IsCompleted,
+			CreatedAt:                      &createdAt,
+			AccumulatedMessage:             delta.AccumulatedAnonymizedMessage,
+			DeanonymizedAccumulatedMessage: delta.AccumulatedDeanonymizedMessage,
 		}
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 	}

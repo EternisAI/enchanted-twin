@@ -87,6 +87,8 @@ type MessageStreamPayload {
   isComplete: Boolean!
   createdAt: DateTime
   imageUrls: [String!]!
+  accumulatedMessage: String!
+  deanonymizedAccumulatedMessage: String!
 }
 
 type OAuthStatus {

@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -144,6 +145,35 @@ func (m *mockCompletionsService) Completions(ctx context.Context, messages []ope
 	}, nil
 }
 
+func (m *mockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream {
+	contentCh := make(chan StreamDelta, 1)
+	toolCh := make(chan openai.ChatCompletionMessageToolCall)
+	errCh := make(chan error, 1)
+
+	go func() {
+		defer close(contentCh)
+		defer close(toolCh)
+		defer close(errCh)
+
+		if m.err != nil {
+			errCh <- m.err
+			return
+		}
+
+		// Send content as single chunk
+		contentCh <- StreamDelta{
+			ContentDelta: m.response.Content,
+			IsCompleted:  true,
+		}
+	}()
+
+	return Stream{
+		Content:   contentCh,
+		ToolCalls: toolCh,
+		Err:       errCh,
+	}
+}
+
 // Enhanced mock that captures what was sent to the LLM.
 type capturingMockCompletionsService struct {
 	response         openai.ChatCompletionMessage
@@ -163,6 +193,39 @@ func (m *capturingMockCompletionsService) Completions(ctx context.Context, messa
 		Message:          m.response,
 		ReplacementRules: make(map[string]string),
 	}, nil
+}
+
+func (m *capturingMockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream {
+	// Capture what was sent to the LLM for verification
+	m.capturedMessages = make([]openai.ChatCompletionMessageParamUnion, len(messages))
+	copy(m.capturedMessages, messages)
+
+	contentCh := make(chan StreamDelta, 1)
+	toolCh := make(chan openai.ChatCompletionMessageToolCall)
+	errCh := make(chan error, 1)
+
+	go func() {
+		defer close(contentCh)
+		defer close(toolCh)
+		defer close(errCh)
+
+		if m.err != nil {
+			errCh <- m.err
+			return
+		}
+
+		// Send content as single chunk
+		contentCh <- StreamDelta{
+			ContentDelta: m.response.Content,
+			IsCompleted:  true,
+		}
+	}()
+
+	return Stream{
+		Content:   contentCh,
+		ToolCalls: toolCh,
+		Err:       errCh,
+	}
 }
 
 func TestNewPrivateCompletionsServiceValidation(t *testing.T) {
@@ -681,5 +744,515 @@ func TestMockAnonymizerLongerReplacementFirst(t *testing.T) {
 			t.Logf("De-anonymized: %s", deAnonymized)
 			t.Logf("Rules: %v", rules)
 		})
+	}
+}
+
+func TestPrivateCompletionsE2EStreamingAnonymizationFlow(t *testing.T) {
+	logger := log.New(nil)
+
+	// Reset singleton to ensure clean state
+	ResetMockAnonymizerForTesting()
+	anonymizer := InitMockAnonymizer(0, true, logger) // No delay for faster test
+
+	// Create streaming mock that will simulate chunks
+	mockLLM := &streamingMockCompletionsService{
+		chunks: []StreamDelta{
+			{ContentDelta: "Hello ", IsCompleted: false},
+			{ContentDelta: "PERSON_001! ", IsCompleted: false},
+			{ContentDelta: "I understand you work at ", IsCompleted: false},
+			{ContentDelta: "COMPANY_001 ", IsCompleted: false},
+			{ContentDelta: "in LOCATION_006. ", IsCompleted: false},
+			{ContentDelta: "That's great!", IsCompleted: true},
+		},
+	}
+
+	// Create private completions service with our mocks
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: mockLLM,
+		Anonymizer:         anonymizer,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create private service: %v", err)
+	}
+	defer privateService.Shutdown()
+
+	ctx := context.Background()
+
+	// Original user message containing sensitive information
+	originalMessage := "Hello John! I heard you work at OpenAI in San Francisco. Can you tell me about your projects?"
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(originalMessage),
+	}
+
+	// Capture streaming deltas
+	var streamingDeltas []StreamDelta
+	var finalAccumulatedAnonymized string
+	var finalAccumulatedDeanonymized string
+
+	onDelta := func(delta StreamDelta) {
+		streamingDeltas = append(streamingDeltas, delta)
+		finalAccumulatedAnonymized = delta.AccumulatedAnonymizedMessage
+		finalAccumulatedDeanonymized = delta.AccumulatedDeanonymizedMessage
+		t.Logf("Streaming delta - Chunk: '%s', Anonymized: '%s', Deanonymized: '%s'",
+			delta.ContentDelta,
+			delta.AccumulatedAnonymizedMessage,
+			delta.AccumulatedDeanonymizedMessage)
+	}
+
+	// Execute the full e2e streaming flow
+	result, err := privateService.CompletionsStream(ctx, messages, nil, "gpt-4", UI, onDelta)
+	if err != nil {
+		t.Fatalf("Private streaming completions failed: %v", err)
+	}
+
+	// === VERIFICATION 1: Input was anonymized before sending to LLM ===
+	anonymizedContent := strings.Join(mockLLM.capturedMessages, " ")
+
+	// Verify that sensitive information was NOT sent to the LLM
+	if strings.Contains(anonymizedContent, "John") {
+		t.Errorf("LLM received un-anonymized name 'John': %s", anonymizedContent)
+	}
+	if strings.Contains(anonymizedContent, "OpenAI") {
+		t.Errorf("LLM received un-anonymized company 'OpenAI': %s", anonymizedContent)
+	}
+	if strings.Contains(anonymizedContent, "San Francisco") {
+		t.Errorf("LLM received un-anonymized location 'San Francisco': %s", anonymizedContent)
+	}
+
+	// === VERIFICATION 2: Streaming chunks were progressively deanonymized ===
+	if len(streamingDeltas) == 0 {
+		t.Fatalf("Expected streaming deltas, got none")
+	}
+
+	// Check that we received the expected number of chunks
+	expectedChunks := len(mockLLM.chunks)
+	if len(streamingDeltas) != expectedChunks {
+		t.Errorf("Expected %d streaming deltas, got %d", expectedChunks, len(streamingDeltas))
+	}
+
+	// Verify progressive accumulation and deanonymization
+	var expectedAnonymized string
+	var expectedDeanonymized string
+	for i, delta := range streamingDeltas {
+		// Build expected accumulated content
+		expectedAnonymized += mockLLM.chunks[i].ContentDelta
+		expectedDeanonymized = anonymizer.DeAnonymize(expectedAnonymized, result.ReplacementRules)
+
+		// Verify accumulated anonymized message
+		if delta.AccumulatedAnonymizedMessage != expectedAnonymized {
+			t.Errorf("Delta %d: Expected accumulated anonymized '%s', got '%s'",
+				i, expectedAnonymized, delta.AccumulatedAnonymizedMessage)
+		}
+
+		// Verify accumulated deanonymized message
+		if delta.AccumulatedDeanonymizedMessage != expectedDeanonymized {
+			t.Errorf("Delta %d: Expected accumulated deanonymized '%s', got '%s'",
+				i, expectedDeanonymized, delta.AccumulatedDeanonymizedMessage)
+		}
+
+		// Verify chunk content
+		if delta.ContentDelta != mockLLM.chunks[i].ContentDelta {
+			t.Errorf("Delta %d: Expected chunk '%s', got '%s'",
+				i, mockLLM.chunks[i].ContentDelta, delta.ContentDelta)
+		}
+
+		// Verify completion status
+		if delta.IsCompleted != mockLLM.chunks[i].IsCompleted {
+			t.Errorf("Delta %d: Expected IsCompleted=%v, got %v",
+				i, mockLLM.chunks[i].IsCompleted, delta.IsCompleted)
+		}
+	}
+
+	// === VERIFICATION 3: Final accumulated messages are correct ===
+	expectedFinalAnonymized := "Hello PERSON_001! I understand you work at COMPANY_001 in LOCATION_006. That's great!"
+	if finalAccumulatedAnonymized != expectedFinalAnonymized {
+		t.Errorf("Final accumulated anonymized: Expected '%s', got '%s'",
+			expectedFinalAnonymized, finalAccumulatedAnonymized)
+	}
+
+	expectedFinalDeanonymized := "Hello John! I understand you work at OpenAI in San Francisco. That's great!"
+	if finalAccumulatedDeanonymized != expectedFinalDeanonymized {
+		t.Errorf("Final accumulated deanonymized: Expected '%s', got '%s'",
+			expectedFinalDeanonymized, finalAccumulatedDeanonymized)
+	}
+
+	// === VERIFICATION 4: Final result message is deanonymized ===
+	finalResponse := result.Message.Content
+	if strings.Contains(finalResponse, "PERSON_001") || strings.Contains(finalResponse, "COMPANY_001") || strings.Contains(finalResponse, "LOCATION_006") {
+		t.Errorf("Final response still contains anonymized tokens: %s", finalResponse)
+	}
+
+	if !strings.Contains(finalResponse, "John") || !strings.Contains(finalResponse, "OpenAI") || !strings.Contains(finalResponse, "San Francisco") {
+		t.Errorf("Final response missing original terms: %s", finalResponse)
+	}
+
+	// === VERIFICATION 5: Replacement rules were captured ===
+	if len(result.ReplacementRules) == 0 {
+		t.Error("Expected replacement rules to be returned, got none")
+	}
+
+	t.Log("E2E Streaming Privacy Verification PASSED:")
+	t.Logf("  Original message: %s", originalMessage)
+	t.Logf("  Anonymized sent to LLM: %s", mockLLM.capturedMessages)
+	t.Logf("  Final deanonymized response: %s", finalResponse)
+	t.Logf("  Streaming deltas processed: %d", len(streamingDeltas))
+	t.Logf("  Replacement rules: %v", result.ReplacementRules)
+}
+
+// streamingMockCompletionsService simulates chunk-by-chunk streaming.
+type streamingMockCompletionsService struct {
+	chunks           []StreamDelta
+	capturedMessages []string
+	err              error
+}
+
+func (m *streamingMockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+	// Capture what was sent to the LLM for verification
+	m.capturedMessages = make([]string, len(messages))
+	for i, msg := range messages {
+		if userMsg := msg.OfUser; userMsg != nil {
+			m.capturedMessages[i] = userMsg.Content.OfString.Value
+		}
+	}
+
+	if m.err != nil {
+		return PrivateCompletionResult{}, m.err
+	}
+
+	// Build full content from chunks
+	var fullContent string
+	for _, chunk := range m.chunks {
+		fullContent += chunk.ContentDelta
+	}
+
+	return PrivateCompletionResult{
+		Message: openai.ChatCompletionMessage{
+			Content: fullContent,
+			Role:    "assistant",
+		},
+		ReplacementRules: make(map[string]string),
+	}, nil
+}
+
+func (m *streamingMockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream {
+	// Capture what was sent to the LLM for verification
+	m.capturedMessages = make([]string, len(messages))
+	for i, msg := range messages {
+		if userMsg := msg.OfUser; userMsg != nil {
+			m.capturedMessages[i] = userMsg.Content.OfString.Value
+		}
+	}
+
+	contentCh := make(chan StreamDelta, len(m.chunks))
+	toolCh := make(chan openai.ChatCompletionMessageToolCall)
+	errCh := make(chan error, 1)
+
+	go func() {
+		defer close(contentCh)
+		defer close(toolCh)
+		defer close(errCh)
+
+		if m.err != nil {
+			errCh <- m.err
+			return
+		}
+
+		// Send chunks sequentially
+		for _, chunk := range m.chunks {
+			contentCh <- chunk
+		}
+	}()
+
+	return Stream{
+		Content:   contentCh,
+		ToolCalls: toolCh,
+		Err:       errCh,
+	}
+}
+
+func TestStreamingAccumulation(t *testing.T) {
+	logger := log.New(nil)
+
+	// Test that streaming properly accumulates content progressively
+	ResetMockAnonymizerForTesting()
+	anonymizer := InitMockAnonymizer(0, true, logger)
+
+	mockLLM := &streamingMockCompletionsService{
+		chunks: []StreamDelta{
+			{ContentDelta: "First ", IsCompleted: false},
+			{ContentDelta: "Second ", IsCompleted: false},
+			{ContentDelta: "Third", IsCompleted: true},
+		},
+	}
+
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: mockLLM,
+		Anonymizer:         anonymizer,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+	defer privateService.Shutdown()
+
+	ctx := context.Background()
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("Test message"),
+	}
+
+	var deltas []StreamDelta
+	onDelta := func(delta StreamDelta) {
+		deltas = append(deltas, delta)
+	}
+
+	result, err := privateService.CompletionsStream(ctx, messages, nil, "gpt-4", UI, onDelta)
+	if err != nil {
+		t.Fatalf("Streaming failed: %v", err)
+	}
+
+	// Verify progressive accumulation
+	expectedAccumulations := []string{
+		"First ",
+		"First Second ",
+		"First Second Third",
+	}
+
+	if len(deltas) != len(expectedAccumulations) {
+		t.Fatalf("Expected %d deltas, got %d", len(expectedAccumulations), len(deltas))
+	}
+
+	for i, delta := range deltas {
+		if delta.AccumulatedAnonymizedMessage != expectedAccumulations[i] {
+			t.Errorf("Delta %d: Expected '%s', got '%s'",
+				i, expectedAccumulations[i], delta.AccumulatedAnonymizedMessage)
+		}
+		if delta.AccumulatedDeanonymizedMessage != expectedAccumulations[i] {
+			t.Errorf("Delta %d: Expected deanonymized '%s', got '%s'",
+				i, expectedAccumulations[i], delta.AccumulatedDeanonymizedMessage)
+		}
+		if delta.IsCompleted != (i == len(deltas)-1) {
+			t.Errorf("Delta %d: Expected IsCompleted=%v, got %v",
+				i, i == len(deltas)-1, delta.IsCompleted)
+		}
+	}
+
+	// Verify final result
+	if result.Message.Content != "First Second Third" {
+		t.Errorf("Expected final content 'First Second Third', got '%s'", result.Message.Content)
+	}
+}
+
+func TestStreamingPatternSpanning(t *testing.T) {
+	logger := log.New(nil)
+
+	// Test patterns that span across multiple streaming chunks
+	ResetMockAnonymizerForTesting()
+	anonymizer := InitMockAnonymizer(0, true, logger)
+
+	// Create chunks that split names across boundaries
+	mockLLM := &streamingMockCompletionsService{
+		chunks: []StreamDelta{
+			{ContentDelta: "Hello J", IsCompleted: false},
+			{ContentDelta: "ohn! You work at Open", IsCompleted: false},
+			{ContentDelta: "AI in San Fran", IsCompleted: false},
+			{ContentDelta: "cisco.", IsCompleted: true},
+		},
+	}
+
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: mockLLM,
+		Anonymizer:         anonymizer,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+	defer privateService.Shutdown()
+
+	ctx := context.Background()
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("Hello John! You work at OpenAI in San Francisco."),
+	}
+
+	var deltas []StreamDelta
+	onDelta := func(delta StreamDelta) {
+		deltas = append(deltas, delta)
+	}
+
+	result, err := privateService.CompletionsStream(ctx, messages, nil, "gpt-4", UI, onDelta)
+	if err != nil {
+		t.Fatalf("Streaming failed: %v", err)
+	}
+
+	// Verify that the final accumulated message has all patterns correctly deanonymized
+	// even though they were split across chunks
+	lastDelta := deltas[len(deltas)-1]
+	if !strings.Contains(lastDelta.AccumulatedDeanonymizedMessage, "John") {
+		t.Errorf("Expected 'John' in final deanonymized message, got: %s", lastDelta.AccumulatedDeanonymizedMessage)
+	}
+	if !strings.Contains(lastDelta.AccumulatedDeanonymizedMessage, "OpenAI") {
+		t.Errorf("Expected 'OpenAI' in final deanonymized message, got: %s", lastDelta.AccumulatedDeanonymizedMessage)
+	}
+	if !strings.Contains(lastDelta.AccumulatedDeanonymizedMessage, "San Francisco") {
+		t.Errorf("Expected 'San Francisco' in final deanonymized message, got: %s", lastDelta.AccumulatedDeanonymizedMessage)
+	}
+
+	// Verify the final result is also correct
+	if result.Message.Content != "Hello John! You work at OpenAI in San Francisco." {
+		t.Errorf("Expected final content with original names, got: %s", result.Message.Content)
+	}
+
+	t.Logf("Pattern spanning test passed - final content: %s", result.Message.Content)
+}
+
+func TestStreamingErrorHandling(t *testing.T) {
+	logger := log.New(nil)
+
+	// Test error handling during streaming
+	ResetMockAnonymizerForTesting()
+	anonymizer := InitMockAnonymizer(0, true, logger)
+
+	// Create mock that returns an error during streaming
+	mockLLM := &streamingMockCompletionsService{
+		chunks: []StreamDelta{
+			{ContentDelta: "Hello ", IsCompleted: false},
+		},
+		err: fmt.Errorf("streaming error occurred"),
+	}
+
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: mockLLM,
+		Anonymizer:         anonymizer,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+	defer privateService.Shutdown()
+
+	ctx := context.Background()
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("Test message"),
+	}
+
+	var deltas []StreamDelta
+	onDelta := func(delta StreamDelta) {
+		deltas = append(deltas, delta)
+	}
+
+	// This should return an error
+	_, err = privateService.CompletionsStream(ctx, messages, nil, "gpt-4", UI, onDelta)
+	if err == nil {
+		t.Fatalf("Expected error from streaming, but got none")
+	}
+
+	if !strings.Contains(err.Error(), "streaming error occurred") {
+		t.Errorf("Expected error message to contain 'streaming error occurred', got: %s", err.Error())
+	}
+
+	t.Logf("Error handling test passed - error: %v", err)
+}
+
+func TestStreamingContextCancellation(t *testing.T) {
+	logger := log.New(nil)
+
+	// Test context cancellation during streaming
+	ResetMockAnonymizerForTesting()
+	anonymizer := InitMockAnonymizer(0, true, logger)
+
+	// Create mock with infinite streaming that we'll cancel
+	mockLLM := &infiniteStreamingMock{}
+
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: mockLLM,
+		Anonymizer:         anonymizer,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+	defer privateService.Shutdown()
+
+	// Create a context that will be canceled
+	ctx, cancel := context.WithCancel(context.Background())
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("Test message"),
+	}
+
+	var deltas []StreamDelta
+	onDelta := func(delta StreamDelta) {
+		deltas = append(deltas, delta)
+	}
+
+	// Start streaming in a goroutine
+	done := make(chan error, 1)
+	go func() {
+		_, err := privateService.CompletionsStream(ctx, messages, nil, "gpt-4", UI, onDelta)
+		done <- err
+	}()
+
+	// Cancel the context after a short delay
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	// Wait for the streaming to complete with error
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatalf("Expected error from context cancellation, but got none")
+		}
+		if !strings.Contains(err.Error(), "context canceled") {
+			t.Errorf("Expected error message to contain 'context canceled', got: %s", err.Error())
+		}
+		t.Logf("Context cancellation test passed - error: %v", err)
+	case <-time.After(1 * time.Second):
+		t.Fatalf("Streaming did not complete within timeout")
+	}
+}
+
+// infiniteStreamingMock simulates a streaming service that never completes.
+type infiniteStreamingMock struct{}
+
+func (m *infiniteStreamingMock) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+	return PrivateCompletionResult{
+		Message: openai.ChatCompletionMessage{
+			Content: "Test response",
+			Role:    "assistant",
+		},
+	}, nil
+}
+
+func (m *infiniteStreamingMock) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream {
+	contentCh := make(chan StreamDelta)
+	toolCh := make(chan openai.ChatCompletionMessageToolCall)
+	errCh := make(chan error)
+
+	go func() {
+		defer close(contentCh)
+		defer close(toolCh)
+		defer close(errCh)
+
+		// Keep sending chunks until context is canceled
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case contentCh <- StreamDelta{ContentDelta: "chunk", IsCompleted: false}:
+				time.Sleep(5 * time.Millisecond)
+			}
+		}
+	}()
+
+	return Stream{
+		Content:   contentCh,
+		ToolCalls: toolCh,
+		Err:       errCh,
 	}
 }

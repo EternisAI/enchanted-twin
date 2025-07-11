@@ -179,12 +179,14 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 	// Custom onDelta that sends to our stream channel
 	onDelta := func(delta agent.StreamDelta) {
 		payload := model.MessageStreamPayload{
-			MessageID:  assistantMessageId,
-			ImageUrls:  delta.ImageURLs,
-			Chunk:      delta.ContentDelta,
-			Role:       model.RoleAssistant,
-			IsComplete: false,
-			CreatedAt:  &createdAt,
+			MessageID:                      assistantMessageId,
+			ImageUrls:                      delta.ImageURLs,
+			Chunk:                          delta.ContentDelta,
+			Role:                           model.RoleAssistant,
+			IsComplete:                     delta.IsCompleted,
+			CreatedAt:                      &createdAt,
+			AccumulatedMessage:             delta.AccumulatedAnonymizedMessage,
+			DeanonymizedAccumulatedMessage: delta.AccumulatedDeanonymizedMessage,
 		}
 
 		// Send to our stream channel
@@ -226,7 +228,7 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 			toolsList = s.toolRegistry.Excluding("send_to_chat").GetAll()
 		}
 
-		response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta, false)
+		response, err := agent.ExecuteStreamWithPrivacy(ctx, messageHistory, toolsList, onDelta, false)
 		if err != nil {
 			s.logger.Error("Agent execution failed in stream", "error", err)
 			return

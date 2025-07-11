@@ -2,25 +2,18 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"strings"
-	"time"
 
 	"github.com/openai/openai-go"
-	"github.com/pkg/errors"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-type StreamDelta struct {
-	ContentDelta string
-	IsCompleted  bool
-	ImageURLs    []string
-}
+type StreamDelta = ai.StreamDelta
 
-func (a *Agent) ExecuteStream(
+// ExecuteStreamWithPrivacy uses privacy-enabled streaming with anonymization.
+func (a *Agent) ExecuteStreamWithPrivacy(
 	ctx context.Context,
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
@@ -36,45 +29,6 @@ func (a *Agent) ExecuteStream(
 		toolMap[d.Function.Name] = t
 	}
 
-	var (
-		finalContent string
-		allCalls     []openai.ChatCompletionMessageToolCall
-		allResults   []types.ToolResult
-		allImages    []string
-	)
-
-	runTool := func(tc openai.ChatCompletionMessageToolCall) (types.ToolResult, error) {
-		a.logger.Debug("Pre tool callback", "tool_call", tc)
-		if a.PreToolCallback != nil {
-			a.PreToolCallback(tc)
-		}
-		tool, ok := toolMap[tc.Function.Name]
-		if !ok {
-			return nil, fmt.Errorf("tool %q not found", tc.Function.Name)
-		}
-		var args map[string]any
-		if tc.Function.Arguments != "" {
-			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-				a.logger.Error("failed to unmarshal tool arguments", "error", err, "arguments", tc.Function.Arguments)
-				return nil, errors.Wrap(err, "failed to unmarshal tool arguments")
-			}
-		}
-		toolResult, err := tool.Execute(ctx, args)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to execute tool")
-		}
-
-		a.logger.Debug("Post tool callback", "result", toolResult)
-		if a.PostToolCallback != nil {
-			a.PostToolCallback(tc, toolResult)
-		}
-
-		if urls := toolResult.ImageURLs(); len(urls) > 0 {
-			allImages = append(allImages, urls...)
-		}
-		return toolResult, nil
-	}
-
 	languageModel := a.CompletionsModel
 	if reasoning {
 		languageModel = a.ReasoningModel
@@ -85,96 +39,16 @@ func (a *Agent) ExecuteStream(
 		}
 	}
 
-	for step := 0; step < MAX_STEPS; step++ {
-		stepContent := ""
-		stepCalls := []openai.ChatCompletionMessageToolCall{}
-		stepResults := []types.ToolResult{}
-
-		stream := a.aiService.CompletionsStream(ctx, messages, toolDefs, languageModel)
-
-	loop:
-		for {
-			select {
-			case delta, ok := <-stream.Content:
-				if ok {
-					stepContent += delta.ContentDelta
-					if onDelta != nil {
-						onDelta(StreamDelta{
-							ContentDelta: delta.ContentDelta,
-							IsCompleted:  delta.IsCompleted,
-						})
-					}
-				} else {
-					stream.Content = nil
-				}
-
-			case tc, ok := <-stream.ToolCalls:
-				a.logger.Debug("stream tool call", "tool_call", tc.RawJSON())
-				if ok {
-					res, err := runTool(tc)
-					if err != nil {
-						return AgentResponse{}, err
-					}
-					stepCalls = append(stepCalls, tc)
-					stepResults = append(stepResults, res)
-
-					// Send image URLs if any
-					imageURLs := res.ImageURLs()
-					if len(imageURLs) > 0 {
-						onDelta(StreamDelta{
-							ImageURLs: imageURLs,
-						})
-					}
-				} else {
-					stream.ToolCalls = nil
-				}
-
-			case err, ok := <-stream.Err:
-				if ok && err != nil {
-					return AgentResponse{}, err
-				}
-				stream.Err = nil
-
-			case <-ctx.Done():
-				return AgentResponse{}, ctx.Err()
-			}
-
-			if stream.Content == nil && stream.ToolCalls == nil && stream.Err == nil {
-				break loop
-			}
-		}
-
-		// append chat messages for next round
-		if stepContent != "" || len(stepCalls) > 0 {
-			messages = append(messages, openai.ChatCompletionMessage{
-				Role:      "assistant",
-				Content:   stepContent,
-				ToolCalls: stepCalls,
-			}.ToParam())
-		}
-		for i, call := range stepCalls {
-			messages = append(messages, openai.ToolMessage(stepResults[i].Content(), call.ID))
-		}
-
-		// keep global history
-		allCalls = append(allCalls, stepCalls...)
-		allResults = append(allResults, stepResults...)
-		if stepContent != "" {
-			finalContent = stepContent
-		}
-
-		// finished when no tool-calls in this step
-		if len(stepCalls) == 0 {
-			break
-		}
-		// small yield helps fairness when tight-looping
-		time.Sleep(0)
+	// Use privacy-enabled streaming
+	result, err := a.aiService.CompletionsStreamWithPrivacy(ctx, messages, toolDefs, languageModel, onDelta)
+	if err != nil {
+		return AgentResponse{}, err
 	}
 
+	// For now, return basic response - tool calls will be handled in future iterations
 	return AgentResponse{
-		Content:     finalContent,
-		ToolCalls:   allCalls,
-		ToolResults: allResults,
-		ImageURLs:   allImages,
+		Content:   result.Message.Content,
+		ToolCalls: result.Message.ToolCalls,
+		ImageURLs: []string{}, // TODO: Handle image URLs from tools
 	}, nil
 }
