@@ -49,6 +49,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/localmodel/jinaaiembedding"
+	"github.com/EternisAI/enchanted-twin/pkg/localmodel/llama1b"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
@@ -132,6 +133,21 @@ func main() {
 			openAIEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 		}
 		aiEmbeddingsService = openAIEmbeddingsService
+	}
+
+	var localAnonymizer *llama1b.LlamaAnonymizer
+	if envs.UseLocalAnonymizer == "true" {
+		logger.Info("Using local anonymizer model")
+		anonymizerBinaryPath := filepath.Join(envs.AppDataPath, "anonymizer", "binary")
+		anonymizerModelPath := filepath.Join(envs.AppDataPath, "anonymizer", "model")
+
+		var err error
+		localAnonymizer, err = llama1b.NewLlamaAnonymizer(anonymizerBinaryPath, anonymizerModelPath)
+		if err != nil {
+			logger.Error("Failed to create local anonymizer model", "error", err)
+			panic(errors.Wrap(err, "Failed to create local anonymizer model"))
+		}
+		logger.Info("Local anonymizer model initialized successfully")
 	}
 
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
@@ -462,6 +478,13 @@ func main() {
 
 	<-signalChan
 	logger.Info("Server shutting down...")
+
+	// Cleanup local anonymizer
+	if localAnonymizer != nil {
+		if err := localAnonymizer.Close(); err != nil {
+			logger.Error("Error closing local anonymizer", "error", err)
+		}
+	}
 }
 
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
