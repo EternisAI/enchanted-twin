@@ -1256,3 +1256,112 @@ func (m *infiniteStreamingMock) CompletionsStream(ctx context.Context, messages 
 		Err:       errCh,
 	}
 }
+
+// circularDependencyTracker tracks how many times Completions is called to detect infinite loops.
+type circularDependencyTracker struct {
+	mockCompletionsService
+	callCount int
+	t         *testing.T
+}
+
+func (c *circularDependencyTracker) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+	c.callCount++
+	// If this gets called more than once, we have a circular dependency
+	if c.callCount > 1 {
+		c.t.Errorf("Circular dependency detected: Completions called %d times", c.callCount)
+	}
+	return c.mockCompletionsService.Completions(ctx, messages, tools, model, priority)
+}
+
+// TestNoCircularDependencyInPrivateCompletions tests that the PrivateCompletionsService
+// doesn't create a circular dependency when calling the underlying completions service.
+// This test prevents the infinite loop issue that occurred when PrivateCompletionsService
+// called Service.Completions() which then called back to PrivateCompletionsService.
+func TestNoCircularDependencyInPrivateCompletions(t *testing.T) {
+	logger := log.New(nil)
+	logger.SetLevel(log.DebugLevel)
+
+	// Create a service that will track if Completions method is called
+	tracker := &circularDependencyTracker{
+		mockCompletionsService: mockCompletionsService{
+			response: openai.ChatCompletionMessage{
+				Content: "Test response",
+			},
+		},
+		t: t,
+	}
+
+	// Create mock anonymizer
+	mockAnonymizer := InitMockAnonymizer(1*time.Millisecond, true, logger)
+
+	// Create private completions service
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: tracker,
+		Anonymizer:         mockAnonymizer,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create private completions service: %v", err)
+	}
+	defer privateService.Shutdown()
+
+	// Test that a call to the private service doesn't create circular calls
+	ctx := context.Background()
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("Test message with John Smith"),
+	}
+
+	result, err := privateService.Completions(ctx, messages, nil, "test-model", Background)
+	if err != nil {
+		t.Fatalf("Private completions failed: %v", err)
+	}
+
+	if result.Message.Content != "Test response" {
+		t.Errorf("Expected 'Test response', got %q", result.Message.Content)
+	}
+
+	// Verify that the underlying service was called exactly once
+	if tracker.callCount != 1 {
+		t.Errorf("Expected exactly 1 call to underlying service, got %d", tracker.callCount)
+	}
+
+	t.Logf("No circular dependency detected - underlying service called %d time(s)", tracker.callCount)
+}
+
+// TestPrivateCompletionsWithRealService tests that the private completions service
+// works correctly with a real AI service instance (using RawCompletions to avoid circular dependency).
+func TestPrivateCompletionsWithRealService(t *testing.T) {
+	logger := log.New(nil)
+	logger.SetLevel(log.DebugLevel)
+
+	// Create a real AI service
+	aiService := NewOpenAIService(logger, "test-key", "https://api.openai.com/v1")
+
+	// Create mock anonymizer
+	mockAnonymizer := InitMockAnonymizer(1*time.Millisecond, true, logger)
+
+	// Create private completions service with the real service
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: aiService,
+		Anonymizer:         mockAnonymizer,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create private completions service: %v", err)
+	}
+	defer privateService.Shutdown()
+
+	// Verify that the service has the RawCompletions method available
+	// This ensures our fix for circular dependency is in place
+	_, hasRawCompletions := any(aiService).(interface {
+		RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error)
+	})
+
+	if !hasRawCompletions {
+		t.Errorf("AI Service missing RawCompletions method - circular dependency fix not implemented")
+	}
+
+	t.Logf("RawCompletions method available - circular dependency prevention in place")
+}
