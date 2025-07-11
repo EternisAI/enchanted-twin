@@ -214,7 +214,7 @@
   }
 
   /* Makes the titlebar draggable so user can move the window */
-  .titlebar {
+  .titlebar, .draggable {
     user-select: none;
     app-region: drag;
   }

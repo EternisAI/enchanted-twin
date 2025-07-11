@@ -81,7 +81,8 @@ async function startGoServer(
         TELEGRAM_CHAT_SERVER: process.env.TELEGRAM_CHAT_SERVER,
         ENCHANTED_MCP_URL: process.env.ENCHANTED_MCP_URL,
         INVITE_SERVER_URL: process.env.INVITE_SERVER_URL,
-        PROXY_TEE_URL: process.env.PROXY_TEE_URL
+        PROXY_TEE_URL: process.env.PROXY_TEE_URL,
+        HOLON_API_URL: process.env.HOLON_API_URL
       }
     })
 

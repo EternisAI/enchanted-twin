@@ -56,26 +56,26 @@ export default function AccessibilityStatus() {
       case 'granted':
         return {
           icon: CheckCircle2,
-          color: 'text-green-500',
+          color: 'text-green-500 dark:text-green-400',
           label: 'Granted'
         }
       case 'denied':
         return {
           icon: XCircle,
-          color: 'text-red-500',
+          color: 'text-neutral-500 dark:text-neutral-400',
           label: 'Denied'
         }
       case 'unavailable':
         return {
           icon: AlertCircle,
-          color: 'text-yellow-500',
+          color: 'text-yellow-500 dark:text-yellow-400',
           label: 'Unavailable'
         }
       case 'error':
       default:
         return {
           icon: XCircle,
-          color: 'text-red-500',
+          color: 'text-neutral-500 dark:text-neutral-400',
           label: 'Error'
         }
     }

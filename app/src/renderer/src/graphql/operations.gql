@@ -70,7 +70,9 @@ query GetDataSources {
     updatedAt
     isProcessed
     isIndexed
+    indexProgress
     hasError
+    startTime
   }
 }
 
@@ -261,6 +263,7 @@ subscription IndexingStatus {
   indexingStatus {
     status
     error
+    globalStartTime
     dataSources {
       id
       name
@@ -268,6 +271,7 @@ subscription IndexingStatus {
       isIndexed
       indexProgress
       hasError
+      startTime
     }
   }
 }
