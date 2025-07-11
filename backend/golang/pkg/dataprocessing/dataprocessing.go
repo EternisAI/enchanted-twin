@@ -6,8 +6,6 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"context"
-	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -301,7 +299,6 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		return false, fmt.Errorf("invalid output path: %v", err)
 	}
 
-	var records []types.Record
 	var err error
 
 	ext := strings.ToLower(filepath.Ext(inputPath))
@@ -590,7 +587,6 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
 	}
 
-	err = SaveRecords(records, outputPath)
 	if err != nil {
 		return false, err
 	}
@@ -640,108 +636,6 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 	}
 
 	return documents, nil
-}
-
-func SaveRecords(records []types.Record, outputPath string) error {
-	// Validate and clean the output path
-	cleanPath := filepath.Clean(outputPath)
-	if err := validateOutputPath(cleanPath); err != nil {
-		return fmt.Errorf("invalid output path: %v", err)
-	}
-
-	file, err := os.Create(cleanPath)
-	if err != nil {
-		return fmt.Errorf("error creating output file: %v", err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
-		}
-	}()
-
-	// Determine output format based on file extension
-	ext := strings.ToLower(filepath.Ext(cleanPath))
-	switch ext {
-	case ".json":
-		// For JSON output, create a slice of records with their data
-		type jsonRecord struct {
-			Data      map[string]interface{} `json:"data"`
-			Timestamp string                 `json:"timestamp"`
-			Source    string                 `json:"source"`
-		}
-
-		jsonRecords := make([]jsonRecord, len(records))
-		for i, record := range records {
-			jsonRecords[i] = jsonRecord{
-				Data:      record.Data,
-				Timestamp: record.Timestamp.Format(time.RFC3339),
-				Source:    record.Source,
-			}
-		}
-
-		encoder := json.NewEncoder(file)
-		encoder.SetIndent("", "  ")
-		if err := encoder.Encode(jsonRecords); err != nil {
-			return fmt.Errorf("error writing JSON: %v", err)
-		}
-
-	case ".jsonl":
-		// For JSONL output, write each record as a separate line
-		for _, record := range records {
-			jsonRecord := struct {
-				Data      map[string]interface{} `json:"data"`
-				Timestamp string                 `json:"timestamp"`
-				Source    string                 `json:"source"`
-			}{
-				Data:      record.Data,
-				Timestamp: record.Timestamp.Format(time.RFC3339),
-				Source:    record.Source,
-			}
-
-			jsonData, err := json.Marshal(jsonRecord)
-			if err != nil {
-				log.Printf("Error marshaling record to JSON: %v", err)
-				continue
-			}
-
-			if _, err := file.Write(jsonData); err != nil {
-				log.Printf("Error writing JSONL record: %v", err)
-				continue
-			}
-			if _, err := file.Write([]byte("\n")); err != nil {
-				log.Printf("Error writing newline: %v", err)
-				continue
-			}
-		}
-
-	case ".csv":
-		writer := csv.NewWriter(file)
-		defer writer.Flush()
-
-		header := []string{"data", "timestamp", "source"}
-		if err := writer.Write(header); err != nil {
-			return fmt.Errorf("error writing CSV header: %v", err)
-		}
-
-		for _, record := range records {
-			csvRecord, err := record.ToCSVRecord()
-			if err != nil {
-				log.Printf("Error converting record to CSV: %v", err)
-				continue
-			}
-
-			if err := writer.Write(csvRecord); err != nil {
-				log.Printf("Error writing record: %v", err)
-				continue
-			}
-		}
-
-	default:
-		return fmt.Errorf("unsupported output format: %s (use .csv, .jsonl, .json)", ext)
-	}
-
-	fmt.Printf("Successfully processed %d records and wrote to %s\n", len(records), cleanPath)
-	return nil
 }
 
 func (d *DataProcessingService) Sync(ctx context.Context, sourceName string, accessToken string) ([]types.Record, error) {
