@@ -1,7 +1,8 @@
-import { Mic } from 'lucide-react'
+import { MicOff } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import useMicrophonePermission from '@renderer/hooks/useMicrophonePermission'
-import microphoneAccessImage from '../../../../../../public/assets/microphoneAccess.png'
+import Lottie from 'lottie-react'
+import microphoneAccessAnimation from '@renderer/assets/microphoneAccess.json'
 
 interface EnableMicrophoneProps {
   onGrantPermission?: () => void
@@ -24,8 +25,8 @@ export default function EnableMicrophone({ onGrantPermission, onSkip }: EnableMi
 
   return (
     <div className="w-full max-w-2xl flex flex-col gap-6 p-10 bg-white/5 rounded-xl border border-white/50">
-      <div className="flex items-center gap-2">
-        <Mic className="w-12 h-12 text-white" />
+      <div className="flex items-center gap-3">
+        <MicOff className="w-12 h-12 text-white" />
         <div className="flex flex-col gap-1.5">
           <h2 className="text-lg text-white font-normal">Enable Microphone</h2>
           <p className="text-sm text-white/75">
@@ -67,7 +68,12 @@ export default function EnableMicrophone({ onGrantPermission, onSkip }: EnableMi
 
       <div>
         <div className="w-full h-34 flex items-center justify-center rounded-xl mt-4">
-          {/* <img src={microphoneAccessImage} alt="Microphone" width="100%" height="100%" /> */}
+          <Lottie
+            animationData={microphoneAccessAnimation}
+            loop={true}
+            autoplay={true}
+            style={{ width: '100%', height: '100%', maxWidth: '300px', maxHeight: '200px' }}
+          />
         </div>
       </div>
 
