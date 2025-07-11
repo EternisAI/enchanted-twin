@@ -27,6 +27,7 @@ enum ChatCategory {
 type UserProfile {
   name: String
   bio: String
+  username: String
   indexingStatus: IndexingStatus @goField(forceResolver: true)
   connectedDataSources: [DataSource!]! @goField(forceResolver: true)
 }
@@ -102,12 +103,20 @@ type OAuthFlow {
   redirectURI: String!
 }
 
+type OAuthAccount {
+  provider: String!
+  username: String!
+  expiresAt: DateTime!
+  isActive: Boolean!
+}
+
 type Query {
   profile: UserProfile!
   getChats(first: Int! = 10, offset: Int! = 0): [Chat!]!
   getChat(id: ID!): Chat!
   getDataSources: [DataSource!]!
   getOAuthStatus: [OAuthStatus!]!
+  getConnectedAccounts: [OAuthAccount!]!
   getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
   getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
