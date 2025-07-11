@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -36,9 +37,12 @@ type LlamaAnonymizer struct {
 	sessionMutex sync.RWMutex
 }
 
-func NewLlamaAnonymizer(binaryPath, modelPath string) (*LlamaAnonymizer, error) {
+func NewLlamaAnonymizer(appDataPath, sharedLibraryPath string) (*LlamaAnonymizer, error) {
 	// This will be the fixed tool in the correct Anonymizer model , using this system prompt on this inferencing POC model first
 	systemPrompt := "Find names in the input text. For each name found, create a JSON mapping where the original name is the key and a completely different, unrelated name is the value. The replacement name must be different from the original. Return only JSON."
+
+	binaryPath := filepath.Join(sharedLibraryPath, "LLMCLI")
+	modelPath := filepath.Join(appDataPath, "models", "Llama-3.2-1B-Instruct-CoreML")
 
 	anonymizer := &LlamaAnonymizer{
 		binaryPath:     binaryPath,
