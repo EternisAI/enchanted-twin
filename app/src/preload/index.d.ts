@@ -131,6 +131,16 @@ interface IApi {
     writeText: (text: string) => Promise<{ success: boolean; error?: string }>
     readText: () => Promise<{ success: boolean; text?: string; error?: string }>
   }
+  tts: {
+    generate: (
+      text: string,
+      firebaseToken: string
+    ) => Promise<{
+      success: boolean
+      audioBuffer?: Buffer
+      error?: string
+    }>
+  }
 }
 
 declare global {

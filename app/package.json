@@ -63,6 +63,7 @@
     "leva": "^0.10.0",
     "lucide-react": "^0.488.0",
     "node-machine-id": "^1.1.12",
+    "openai": "^5.9.0",
     "posthog-node": "^4.17.1",
     "react-focus-lock": "^2.13.6",
     "react-markdown": "^10.1.0",

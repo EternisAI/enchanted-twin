@@ -309,6 +309,21 @@ subscription PrivacyDictUpdated($chatId: ID!) {
   }
 }
 
+subscription ProcessMessageHistoryStream(
+  $chatId: ID!
+  $messages: [MessageInput!]!
+  $isOnboarding: Boolean!
+) {
+  processMessageHistoryStream(chatId: $chatId, messages: $messages, isOnboarding: $isOnboarding) {
+    messageId
+    chunk
+    role
+    isComplete
+    createdAt
+    imageUrls
+  }
+}
+
 mutation AddDataSource($name: String!, $path: String!) {
   addDataSource(name: $name, path: $path)
 }
