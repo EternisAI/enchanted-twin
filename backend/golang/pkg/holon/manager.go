@@ -101,6 +101,10 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 			EnableLogging: config.EnableLogging,
 		}
 		fetcherService = NewFetcherService(store, fetcherConfig, effectiveLogger)
+		if fetcherService == nil {
+			effectiveLogger.Error("Failed to create FetcherService - store is nil")
+			return nil
+		}
 	}
 
 	// Initialize NATS client
