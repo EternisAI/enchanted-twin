@@ -365,7 +365,10 @@ func (s *Service) SendMessage(
 					return
 				}
 
-				_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.privacy_dict", chatID), updateData)
+				err = s.nc.Publish(fmt.Sprintf("chat.%s.privacy_dict", chatID), updateData)
+				if err != nil {
+					s.logger.Error("failed to publish privacy dict update", "error", err)
+				}
 			}()
 		}
 	}
