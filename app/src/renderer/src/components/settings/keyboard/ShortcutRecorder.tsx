@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
 import { XCircle } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface ShortcutRecorderProps {
   value: string
@@ -32,37 +33,50 @@ export function ShortcutRecorder({
 
   const normalizeKey = useCallback((e: KeyboardEvent): string | null => {
     // Handle modifier keys
-    if (e.key === 'Meta' || e.key === 'Command') return 'Meta'
+    if (e.key === 'Meta' || e.key === 'OS') return 'Meta'
     if (e.key === 'Control') return 'Control'
     if (e.key === 'Alt') return 'Alt'
     if (e.key === 'Shift') return 'Shift'
 
-    // Ignore dead keys and process keys
+    // For dead keys or unidentified
     if (e.key === 'Dead' || e.key === 'Process' || e.key === 'Unidentified') {
-      // Use e.code as fallback for dead keys
       if (e.code && e.code.startsWith('Key')) {
-        return e.code.replace('Key', '')
+        return e.code.replace('Key', '').toUpperCase()
       }
       return null
     }
 
-    // Handle special keys
-    const keyMap: Record<string, string> = {
-      ' ': 'Space',
+    // Prefer e.code for letters and digits to get base key
+    if (e.code.startsWith('Key')) {
+      return e.code.replace('Key', '').toUpperCase()
+    }
+    if (e.code.startsWith('Digit')) {
+      return e.code.replace('Digit', '')
+    }
+
+    // Handle special keys via code
+    const codeMap: Record<string, string> = {
+      Space: 'Space',
       ArrowUp: 'Up',
       ArrowDown: 'Down',
       ArrowLeft: 'Left',
       ArrowRight: 'Right',
-      Escape: 'Esc'
+      Escape: 'Esc',
+      Tab: 'Tab',
+      Enter: 'Enter',
+      Backspace: 'Backspace',
+      Delete: 'Delete'
     }
 
-    let key = keyMap[e.key] || e.key
+    if (codeMap[e.code]) {
+      return codeMap[e.code]
+    }
 
-    // Capitalize single letters
+    // Fallback to e.key for other keys
+    let key = e.key
     if (key.length === 1) {
       key = key.toUpperCase()
     }
-
     return key
   }, [])
 
@@ -78,6 +92,8 @@ export function ShortcutRecorder({
         modifiers.push('CommandOrControl')
       } else if (!isMac && (key === 'Ctrl' || key === 'Control')) {
         modifiers.push('CommandOrControl')
+      } else if (!isMac && key === 'Meta') {
+        modifiers.push('Super')
       } else if (key === 'Alt' || key === 'Option') {
         modifiers.push('Alt')
       } else if (key === 'Shift') {
@@ -141,6 +157,18 @@ export function ShortcutRecorder({
         const currentKeys = Array.from(currentPressedKeys)
         if (currentKeys.length > 0) {
           const shortcut = buildShortcut(currentKeys)
+
+          // Validate shortcut: must have at least one non-modifier key
+          const parts = shortcut.split('+')
+          const modifiersSet = new Set(['CommandOrControl', 'Alt', 'Shift', 'Super'])
+          const hasNonModifier = parts.some((p) => !modifiersSet.has(p))
+
+          if (!hasNonModifier || parts.length === 0) {
+            onStopRecording()
+            toast.error('Invalid shortcut: Must include at least one non-modifier key')
+            return currentPressedKeys
+          }
+
           onChange(shortcut)
           onStopRecording()
         }
@@ -178,7 +206,9 @@ export function ShortcutRecorder({
       Up: '↑',
       Down: '↓',
       Left: '←',
-      Right: '→'
+      Right: '→',
+      Meta: isMac ? '⌘' : 'Super',
+      Super: 'Super'
     }
 
     return keys.map((key) => symbols[key] || key).join(' ')
@@ -203,7 +233,7 @@ export function ShortcutRecorder({
       <Button
         variant={isRecording ? 'default' : 'outline'}
         size="sm"
-        className={cn('min-w-[120px] font-mono text-xs', isRecording && 'animate-pulse')}
+        className={cn('min-w-[120px] font-mono text-sm', isRecording && 'animate-pulse')}
         onClick={handleClick}
       >
         {isRecording
