@@ -92,7 +92,8 @@ func (a *LlamaAnonymizer) anonymizeInteractive(ctx context.Context, input string
 
 	var result map[string]string
 	if err := json.Unmarshal([]byte(response.GeneratedText), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON response: %w,\noutput:%s", err, response.GeneratedText)
+		// Special Handling due to model inconsistent JSON response to not error and skip this
+		return make(map[string]string), nil
 	}
 
 	return result, nil
