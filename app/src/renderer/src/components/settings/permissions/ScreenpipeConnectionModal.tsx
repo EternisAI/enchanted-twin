@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogDescription
 } from '@renderer/components/ui/dialog'
+import { motion } from 'framer-motion'
 
 interface ScreenpipeConnectionModalProps {
   isOpen: boolean
@@ -64,136 +65,117 @@ export default function ScreenpipeConnectionModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Monitor className="h-6 w-6" />
-            Set up Screenpipe Connection
+      <DialogContent className="sm:max-w-md border-none bg-background">
+        <DialogHeader className="space-y-1">
+          <DialogTitle className="flex items-center gap-2 text-lg font-medium">
+            <Monitor className="h-5 w-5 text-primary" />
+            Screenpipe Setup
           </DialogTitle>
-          <DialogDescription className="text-base">
-            Complete these steps to enable screen recording and AI context awareness
+          <DialogDescription className="text-sm text-muted-foreground">
+            Enable screen awareness for AI context
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-6 py-4">
           {/* Step 1: Permission */}
-          <div
-            className={`p-4 rounded-lg border-2 transition-all ${
-              needsPermission
-                ? 'border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20'
-                : 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
-            }`}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`p-4 rounded-xl border ${needsPermission ? 'border-border' : 'border-green-200 dark:border-green-800'}`}
           >
             <div className="flex items-start gap-3">
               <div
-                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                  needsPermission
-                    ? 'bg-blue-100 dark:bg-blue-900'
-                    : 'bg-green-100 dark:bg-green-900'
-                }`}
+                className={`p-2 rounded-lg border ${needsPermission ? 'border-border' : 'border-green-200 dark:border-green-800'}`}
               >
                 {needsPermission ? (
-                  <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <Shield className="h-5 w-5 text-muted-foreground" />
                 ) : (
-                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                 )}
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-sm mb-1">Screen Recording Permission</h3>
-                <p className="text-sm text-muted-foreground mb-3">
+                <h3 className="text-sm font-medium mb-2">Step 1: Screen Permission</h3>
+                <p className="text-xs text-muted-foreground mb-4">
                   {needsPermission
-                    ? 'Allow access to capture your screen activity for AI context'
-                    : 'Permission granted - ready to capture screen content'}
+                    ? 'Grant access to capture screen activity'
+                    : 'Permission granted'}
                 </p>
                 {needsPermission && (
                   <Button
                     onClick={handleRequestPermission}
                     disabled={isRequestingPermission}
                     size="sm"
-                    className="w-full"
+                    className="text-sm"
                   >
                     <Settings className="h-4 w-4 mr-2" />
-                    {isRequestingPermission ? 'Opening Settings...' : 'Grant Permission'}
+                    {isRequestingPermission ? 'Requesting...' : 'Grant Access'}
                   </Button>
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Step 2: Start Screenpipe */}
-          <div
-            className={`p-4 rounded-lg border-2 transition-all ${
-              needsScreenpipe
-                ? needsPermission
-                  ? 'border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-800/20'
-                  : 'border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20'
-                : 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
-            }`}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className={`p-4 rounded-xl border ${needsScreenpipe ? (needsPermission ? 'border-border bg-transparent' : 'border-border') : 'border-green-200 dark:border-green-800'}`}
           >
             <div className="flex items-start gap-3">
               <div
-                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                  needsScreenpipe
-                    ? needsPermission
-                      ? 'bg-gray-100 dark:bg-gray-800'
-                      : 'bg-blue-100 dark:bg-blue-900'
-                    : 'bg-green-100 dark:bg-green-900'
-                }`}
+                className={`p-2 rounded-lg border ${needsScreenpipe ? (needsPermission ? 'border-border' : 'border-border') : 'border-green-200 dark:border-green-800'}`}
               >
                 {needsScreenpipe ? (
                   <Zap
-                    className={`h-4 w-4 ${
-                      needsPermission
-                        ? 'text-gray-400 dark:text-gray-500'
-                        : 'text-blue-600 dark:text-blue-400'
-                    }`}
+                    className={`h-5 w-5 ${needsPermission ? 'text-muted-foreground' : 'text-muted-foreground'}`}
                   />
                 ) : (
-                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                 )}
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-sm mb-1">Start Screenpipe Service</h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  {needsScreenpipe
-                    ? 'Launch the background service to begin screen recording'
-                    : 'Service is running and capturing screen activity'}
+                <h3 className="text-sm font-medium mb-2">Step 2: Start Service</h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  {needsScreenpipe ? 'Launch background recording' : 'Service running'}
                 </p>
                 {needsScreenpipe && (
                   <Button
                     onClick={handleStartScreenpipe}
                     disabled={isStartingScreenpipe || needsPermission}
                     size="sm"
-                    className="w-full"
-                    variant={needsPermission ? 'secondary' : 'default'}
+                    className="text-sm"
+                    variant={needsPermission ? 'outline' : 'default'}
                   >
                     <Play className="h-4 w-4 mr-2" />
-                    {isStartingScreenpipe ? 'Starting Service...' : 'Start Service'}
+                    {isStartingScreenpipe ? 'Starting...' : 'Start Now'}
                   </Button>
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Info box for permission restart */}
           {needsPermission && (
-            <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                <strong>Note:</strong> After granting permission, the app will restart automatically
-                and return you to this setup screen.
-              </p>
-            </div>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              className="p-3 rounded-lg bg-background border border-border text-xs text-muted-foreground"
+            >
+              After granting permission, the app will restart to apply changes.
+            </motion.div>
           )}
         </div>
 
-        <div className="flex justify-between items-center pt-4">
-          <Button variant="outline" onClick={onClose}>
+        <div className="flex justify-end gap-2 pt-4">
+          <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>
           {!needsPermission && !needsScreenpipe && (
-            <Button onClick={onClose} className="bg-green-600 hover:bg-green-700">
+            <Button size="sm" onClick={onClose}>
               <CheckCircle2 className="h-4 w-4 mr-2" />
-              All Set!
+              Done
             </Button>
           )}
         </div>
