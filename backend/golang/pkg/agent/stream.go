@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"strings"
 
 	"github.com/openai/openai-go"
 

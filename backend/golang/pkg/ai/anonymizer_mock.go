@@ -45,6 +45,11 @@ type NoOpAnonymizer struct {
 	logger *log.Logger
 }
 
+// NewNoOpAnonymizer creates a new NoOpAnonymizer instance.
+func NewNoOpAnonymizer(logger *log.Logger) *NoOpAnonymizer {
+	return &NoOpAnonymizer{logger: logger}
+}
+
 func (n *NoOpAnonymizer) AnonymizeMessages(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
 	// Return messages unchanged with empty replacement rules
 	emptyDict := make(map[string]string)
@@ -114,7 +119,7 @@ var defaultReplacements = map[string]string{
 func InitMockAnonymizer(delay time.Duration, enabled bool, logger *log.Logger) Anonymizer {
 	if !enabled {
 		logger.Info("MockAnonymizer disabled, using no-op anonymizer")
-		return &NoOpAnonymizer{logger: logger}
+		return NewNoOpAnonymizer(logger)
 	}
 
 	mockAnonymizerOnce.Do(func() {
