@@ -167,7 +167,7 @@ export function Home() {
         if (newChatId) {
           navigate({
             to: `/chat/${newChatId}`,
-            search: { initialMessage: query }
+            search: { initialMessage: query, reasoning: isReasonSelected }
           })
 
           sendMessage({
@@ -252,7 +252,7 @@ export function Home() {
       if (newChatId) {
         navigate({
           to: `/chat/${newChatId}`,
-          search: { initialMessage: suggestion.name }
+          search: { initialMessage: suggestion.name, reasoning: isReasonSelected }
         })
 
         await client.cache.evict({ fieldName: 'getChats' })
