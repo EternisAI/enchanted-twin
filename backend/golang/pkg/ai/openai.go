@@ -17,6 +17,11 @@ type Config struct {
 	BaseUrl string
 }
 
+var (
+	_ Embedding  = (*Service)(nil)
+	_ Completion = (*Service)(nil)
+)
+
 type Service struct {
 	client             *openai.Client
 	logger             *log.Logger

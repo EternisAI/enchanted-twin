@@ -13,6 +13,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
+	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
 // This file will not be regenerated automatically.
@@ -31,6 +32,5 @@ type Resolver struct {
 	TelegramService        *telegram.TelegramService
 	HolonService           *holon.Service
 	DirectoryWatcher       *directorywatcher.DirectoryWatcher
-	WhatsAppQRCode         *string // Current WhatsApp QR code
-	WhatsAppConnected      bool    // WhatsApp connection status
+	WhatsAppService        *whatsapp.Service
 }

@@ -32,11 +32,6 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 	languageModel := a.CompletionsModel
 	if reasoning {
 		languageModel = a.ReasoningModel
-	} else {
-		if strings.Contains(languageModel, "qwen3") {
-			// HACK: qwen3 supports non-reasoning mode for faster responses with special tag `/no_think`
-			messages[len(messages)-1] = openai.UserMessage(messages[len(messages)-1].OfUser.Content.OfString.Value + "/no_think")
-		}
 	}
 
 	// Use privacy-enabled streaming

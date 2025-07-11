@@ -20,6 +20,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/constants"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/misc"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
@@ -277,14 +278,16 @@ type DataProcessingService struct {
 	openAiService    *ai.Service
 	completionsModel string
 	store            *db.Store
+	memory           memory.Storage
 	logger           *log.Logger
 }
 
-func NewDataProcessingService(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger) *DataProcessingService {
+func NewDataProcessingService(openAiService *ai.Service, completionsModel string, store *db.Store, memoryStorage memory.Storage, logger *log.Logger) *DataProcessingService {
 	return &DataProcessingService{
 		openAiService:    openAiService,
 		completionsModel: completionsModel,
 		store:            store,
+		memory:           memoryStorage,
 		logger:           logger,
 	}
 }
@@ -322,8 +325,8 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		inputPath = tempDir
 	}
 
-	switch strings.ToLower(sourceType) {
-	case "telegram":
+	switch constants.ProcessorType(strings.ToLower(sourceType)) {
+	case constants.ProcessorTelegram:
 		processor, err := telegram.NewTelegramProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
@@ -338,7 +341,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return false, err
 		}
 		return true, nil
-	case "slack":
+	case constants.ProcessorSlack:
 		source, err := slack.NewSlackProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
@@ -347,7 +350,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-	case "gmail":
+	case constants.ProcessorGmail:
 		processor, err := gmail.NewGmailProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
@@ -360,7 +363,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return false, err
 		}
 		return true, nil
-	case "x":
+	case constants.ProcessorX:
 		source, err := x.NewXProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
@@ -369,7 +372,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-	case "whatsapp":
+	case constants.ProcessorWhatsapp:
 		processor, err := whatsapp.NewWhatsappProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
@@ -384,7 +387,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return false, err
 		}
 		return true, nil
-	case "chatgpt":
+	case constants.ProcessorChatGPT:
 		processor, err := chatgpt.NewChatGPTProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
@@ -399,15 +402,33 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return false, err
 		}
 		return true, nil
-	case "misc":
-		source, err := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store, s.logger)
+	case constants.ProcessorSyncedDocument:
+		source, err := misc.NewTextDocumentProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessDirectory(ctx, inputPath)
+		fileDocuments, err := source.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
+
+		// Convert FileDocuments to Document interface for storage
+		var documents []memory.Document
+		for _, fileDoc := range fileDocuments {
+			documents = append(documents, &fileDoc)
+		}
+
+		// Store via the memory system which will route to DocumentChunk storage
+		progressCallback := func(processed, total int) {
+			s.logger.Info("Processing documents", "processed", processed, "total", total)
+		}
+
+		if err := s.memory.Store(ctx, documents, progressCallback); err != nil {
+			return false, fmt.Errorf("failed to store documents: %w", err)
+		}
+
+		s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+		return true, nil
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
 	}
@@ -423,12 +444,11 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType string, records []types.Record) ([]memory.Document, error) {
 	var documents []memory.Document
 
-	sourceType = strings.ToLower(sourceType)
-	switch sourceType {
-	case "chatgpt":
+	switch constants.ProcessorType(strings.ToLower(sourceType)) {
+	case constants.ProcessorChatGPT:
 		// ChatGPT no longer supports ToDocuments - use direct ProcessFile interface instead
 		return nil, fmt.Errorf("ChatGPT processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
-	case "telegram":
+	case constants.ProcessorTelegram:
 		telegramProcessor, err := telegram.NewTelegramProcessor(s.store, s.logger)
 		if err != nil {
 			return nil, err
@@ -437,7 +457,7 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 		if err != nil {
 			return nil, err
 		}
-	case "slack":
+	case constants.ProcessorSlack:
 		slackProcessor, err := slack.NewSlackProcessor(s.store, s.logger)
 		if err != nil {
 			return nil, err
@@ -446,10 +466,10 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 		if err != nil {
 			return nil, err
 		}
-	case "gmail":
+	case constants.ProcessorGmail:
 		// Gmail no longer supports ToDocuments - use direct ProcessFile interface instead
 		return nil, fmt.Errorf("gmail processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
-	case "whatsapp":
+	case constants.ProcessorWhatsapp:
 		whatsappProcessor, err := whatsapp.NewWhatsappProcessor(s.store, s.logger)
 		if err != nil {
 			return nil, err
@@ -458,7 +478,7 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 		if err != nil {
 			return nil, err
 		}
-	case "x":
+	case constants.ProcessorX:
 		xProcessor, err := x.NewXProcessor(s.store, s.logger)
 		if err != nil {
 			return nil, err
@@ -467,15 +487,9 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 		if err != nil {
 			return nil, err
 		}
-	case "misc":
-		miscProcessor, err := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store, s.logger)
-		if err != nil {
-			return nil, err
-		}
-		documents, err = miscProcessor.ToDocuments(ctx, records)
-		if err != nil {
-			return nil, err
-		}
+	case constants.ProcessorSyncedDocument:
+		// Misc processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly
+		return nil, fmt.Errorf("misc processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
 	default:
 		return nil, fmt.Errorf("unsupported source type: %s", sourceType)
 	}
@@ -589,11 +603,11 @@ func (d *DataProcessingService) Sync(ctx context.Context, sourceName string, acc
 	var records []types.Record
 
 	var authorized bool
-	switch sourceName {
-	case "gmail":
+	switch constants.ProcessorType(sourceName) {
+	case constants.ProcessorGmail:
 		// Gmail no longer supports Sync - use direct ProcessFile interface instead
 		return nil, fmt.Errorf("gmail processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
-	case "x":
+	case constants.ProcessorX:
 		xProcessor, err := x.NewXProcessor(d.store, d.logger)
 		if err != nil {
 			return nil, err

@@ -131,7 +131,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
 
   return (
     <>
-      <aside className="flex flex-col bg-muted p-4 rounded-tr-lg h-full gap-2 w-64">
+      <aside className="flex flex-col bg-muted p-4 rounded-tr-lg h-full w-64">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
             <TooltipProvider>
@@ -194,7 +194,9 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           </div>
           {shortcuts.newChat?.keys && (
             <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
-              <kbd className="rounded bg-muted px-1.5 py-0.5">{formatShortcutForDisplay(shortcuts.newChat.keys)}</kbd>
+              <kbd className="rounded bg-muted px-1.5 py-0.5">
+                {formatShortcutForDisplay(shortcuts.newChat.keys)}
+              </kbd>
             </div>
           )}
         </Button>
@@ -259,7 +261,9 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
             </div>
             {shortcuts.openSettings?.keys && (
               <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
-                <kbd className="rounded bg-muted px-1.5 py-0.5">{formatShortcutForDisplay(shortcuts.openSettings.keys)}</kbd>
+                <kbd className="rounded bg-muted px-1.5 py-0.5">
+                  {formatShortcutForDisplay(shortcuts.openSettings.keys)}
+                </kbd>
               </div>
             )}
           </Button>

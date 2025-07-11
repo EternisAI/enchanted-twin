@@ -22,13 +22,14 @@ import (
 )
 
 const (
-	ClassName         = "MemoryFact"
-	DocumentClassName = "SourceDocument" // New separate class for documents
-	contentProperty   = "content"
-	timestampProperty = "timestamp"
-	metadataProperty  = "metadataJson"
-	sourceProperty    = "source"
-	tagsProperty      = "tags"
+	ClassName              = "MemoryFact"
+	DocumentClassName      = "SourceDocument"
+	DocumentChunkClassName = "DocumentChunk"
+	contentProperty        = "content"
+	timestampProperty      = "timestamp"
+	metadataProperty       = "metadataJson"
+	sourceProperty         = "source"
+	tagsProperty           = "tags"
 	// Updated properties for document references - now stores multiple reference IDs.
 	documentReferencesProperty = "documentReferences" // Array of document IDs
 	// Structured fact properties for the new system.
@@ -46,6 +47,11 @@ const (
 	documentOriginalIDProperty  = "originalId"
 	documentMetadataProperty    = "metadata"
 	documentCreatedAtProperty   = "createdAt"
+	// Document chunk properties.
+	chunkIndexProperty              = "chunkIndex"
+	chunkOriginalDocumentIDProperty = "originalDocumentId"
+	chunkFilePathProperty           = "filePath"
+	chunkCreatedAtProperty          = "createdAt"
 )
 
 // WeaviateMemoryFact represents the structure stored in Weaviate for clean deserialization.
@@ -85,6 +91,19 @@ type StoredDocument struct {
 	CreatedAt   time.Time
 }
 
+// DocumentChunk represents a chunk of a document stored separately from facts.
+type DocumentChunk struct {
+	ID                 string
+	Content            string
+	ChunkIndex         int
+	OriginalDocumentID string
+	Source             string
+	FilePath           string
+	Tags               []string
+	Metadata           map[string]string
+	CreatedAt          time.Time
+}
+
 // Interface defines the storage operations needed by evolvingmemory.
 type Interface interface {
 	GetByID(ctx context.Context, id string) (*memory.MemoryFact, error)
@@ -102,6 +121,10 @@ type Interface interface {
 	UpsertDocument(ctx context.Context, doc memory.Document) (string, error)
 	GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error)
 	GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*StoredDocument, error)
+
+	// Document chunk operations
+	StoreDocumentChunksBatch(ctx context.Context, chunks []*DocumentChunk) error
+	QueryDocumentChunks(ctx context.Context, queryText string, filter *memory.Filter) ([]*DocumentChunk, error)
 
 	// Batch fact retrieval for intelligent querying
 	GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error)
@@ -375,13 +398,17 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 	return s.EnsureSchemaExists(ctx)
 }
 
-// EnsureSchemaExists ensures the Weaviate schema exists for both Memory and Document classes.
+// EnsureSchemaExists ensures the Weaviate schema exists for Memory, Document, and DocumentChunk classes.
 func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
 	if err := s.ensureMemoryClassExists(ctx); err != nil {
 		return err
 	}
 
 	if err := s.ensureDocumentClassExists(ctx); err != nil {
+		return err
+	}
+
+	if err := s.ensureDocumentChunkClassExists(ctx); err != nil {
 		return err
 	}
 
@@ -652,6 +679,118 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 	}
 
 	s.logger.Info("Document schema created successfully")
+	return nil
+}
+
+// ensureDocumentChunkClassExists ensures the document chunk class schema exists.
+func (s *WeaviateStorage) ensureDocumentChunkClassExists(ctx context.Context) error {
+	schema, err := s.client.Schema().Getter().Do(ctx)
+	if err != nil {
+		return fmt.Errorf("getting schema: %w", err)
+	}
+
+	for _, class := range schema.Classes {
+		if class.Class == DocumentChunkClassName {
+			s.logger.Infof("Schema for class %s already exists, validating...", DocumentChunkClassName)
+
+			expectedProps := map[string]string{
+				contentProperty:                 "text",
+				chunkIndexProperty:              "int",
+				chunkOriginalDocumentIDProperty: "text",
+				sourceProperty:                  "text",
+				chunkFilePathProperty:           "text",
+				tagsProperty:                    "text[]",
+				metadataProperty:                "text",
+				chunkCreatedAtProperty:          "date",
+			}
+
+			existingProps := make(map[string]string)
+			for _, prop := range class.Properties {
+				for _, dt := range prop.DataType {
+					existingProps[prop.Name] = dt
+				}
+			}
+
+			for propName, propType := range expectedProps {
+				if existingType, exists := existingProps[propName]; exists {
+					if existingType != propType {
+						return fmt.Errorf("property %s has type %s, expected %s", propName, existingType, propType)
+					}
+				} else {
+					return fmt.Errorf("property %s is missing from document chunk schema", propName)
+				}
+			}
+
+			s.logger.Info("Document chunk schema validation successful")
+			return nil
+		}
+	}
+
+	// Schema doesn't exist, create it
+	s.logger.Infof("Creating schema for class %s", DocumentChunkClassName)
+
+	indexFilterable := true
+	classObj := &models.Class{
+		Class:       DocumentChunkClassName,
+		Description: "A chunk of a document stored separately from facts",
+		Properties: []*models.Property{
+			{
+				Name:        contentProperty,
+				DataType:    []string{"text"},
+				Description: "The content of the document chunk",
+			},
+			{
+				Name:            chunkIndexProperty,
+				DataType:        []string{"int"},
+				Description:     "The index of the chunk within the document",
+				IndexFilterable: &indexFilterable,
+			},
+			{
+				Name:            chunkOriginalDocumentIDProperty,
+				DataType:        []string{"text"},
+				Description:     "The ID of the original document this chunk belongs to",
+				IndexFilterable: &indexFilterable,
+			},
+			{
+				Name:            sourceProperty,
+				DataType:        []string{"text"},
+				Description:     "The source of the document chunk (e.g., 'conversation', 'text')",
+				IndexFilterable: &indexFilterable,
+			},
+			{
+				Name:            chunkFilePathProperty,
+				DataType:        []string{"text"},
+				Description:     "The file path of the original document this chunk was extracted from",
+				IndexFilterable: &indexFilterable,
+			},
+			{
+				Name:            tagsProperty,
+				DataType:        []string{"text[]"},
+				Description:     "Tags associated with the document chunk",
+				IndexFilterable: &indexFilterable,
+			},
+			{
+				Name:            metadataProperty,
+				DataType:        []string{"text"},
+				Description:     "JSON-encoded metadata for the document chunk",
+				IndexFilterable: &indexFilterable,
+			},
+			{
+				Name:            chunkCreatedAtProperty,
+				DataType:        []string{"date"},
+				Description:     "When the document chunk was created",
+				IndexFilterable: &indexFilterable,
+			},
+		},
+		Vectorizer: "none",
+	}
+
+	err = s.client.Schema().ClassCreator().WithClass(classObj).Do(ctx)
+	if err != nil {
+		return fmt.Errorf("creating document chunk schema: %w", err)
+	}
+
+	s.logger.Info("Document chunk schema created successfully")
 	return nil
 }
 
@@ -1572,6 +1711,236 @@ func sha256hex(content string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(content))
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// StoreDocumentChunksBatch stores multiple document chunks in Weaviate.
+func (s *WeaviateStorage) StoreDocumentChunksBatch(ctx context.Context, chunks []*DocumentChunk) error {
+	if len(chunks) == 0 {
+		return nil
+	}
+
+	// Generate embeddings for all chunks
+	var chunkContents []string
+	for _, chunk := range chunks {
+		chunkContents = append(chunkContents, chunk.Content)
+	}
+
+	s.logger.Info("Generating embeddings for document chunks", "count", len(chunkContents))
+	embeddings, err := s.embeddingsWrapper.Embeddings(ctx, chunkContents)
+	if err != nil {
+		return fmt.Errorf("failed to generate embeddings for document chunks: %w", err)
+	}
+
+	// Create Weaviate objects for chunks
+	var objects []*models.Object
+	for i, chunk := range chunks {
+		// Marshal metadata
+		metadataJSON, err := json.Marshal(chunk.Metadata)
+		if err != nil {
+			return fmt.Errorf("marshaling chunk metadata: %w", err)
+		}
+
+		properties := map[string]interface{}{
+			contentProperty:                 chunk.Content,
+			chunkIndexProperty:              chunk.ChunkIndex,
+			chunkOriginalDocumentIDProperty: chunk.OriginalDocumentID,
+			sourceProperty:                  chunk.Source,
+			chunkFilePathProperty:           chunk.FilePath,
+			tagsProperty:                    chunk.Tags,
+			metadataProperty:                string(metadataJSON),
+			chunkCreatedAtProperty:          chunk.CreatedAt.Format(time.RFC3339),
+		}
+
+		obj := &models.Object{
+			Class:      DocumentChunkClassName,
+			Properties: properties,
+			Vector:     embeddings[i],
+		}
+
+		// Set ID if provided
+		if chunk.ID != "" {
+			obj.ID = strfmt.UUID(chunk.ID)
+		}
+
+		objects = append(objects, obj)
+	}
+
+	// Store in batches
+	batcher := s.client.Batch().ObjectsBatcher()
+	for _, obj := range objects {
+		batcher = batcher.WithObjects(obj)
+	}
+
+	result, err := batcher.Do(ctx)
+	if err != nil {
+		return fmt.Errorf("batch storing document chunks: %w", err)
+	}
+
+	for _, obj := range result {
+		if obj.Result.Errors != nil && len(obj.Result.Errors.Error) > 0 {
+			return fmt.Errorf("document chunk storage error: %s", obj.Result.Errors.Error[0].Message)
+		}
+	}
+
+	s.logger.Info("Successfully stored document chunks", "count", len(chunks))
+	return nil
+}
+
+// QueryDocumentChunks retrieves document chunks relevant to the query text.
+func (s *WeaviateStorage) QueryDocumentChunks(ctx context.Context, queryText string, filter *memory.Filter) ([]*DocumentChunk, error) {
+	s.logger.Debug("QueryDocumentChunks called", "query", queryText, "filter", filter)
+
+	// Generate query vector for semantic search
+	queryVector, err := s.embeddingsWrapper.Embedding(ctx, queryText)
+	if err != nil {
+		s.logger.Error("Failed to create embedding for chunk query", "error", err)
+		return nil, fmt.Errorf("failed to create embedding for chunk query: %w", err)
+	}
+	s.logger.Debug("Generated embedding vector", "dimension", len(queryVector))
+
+	// Build nearVector search
+	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector)
+	if filter != nil && filter.Distance > 0 {
+		nearVector = nearVector.WithDistance(filter.Distance)
+		s.logger.Debug("Added distance filter", "distance", filter.Distance)
+	}
+
+	// Define fields to retrieve - construct them properly as weaviateGraphql.Field objects
+	fields := []weaviateGraphql.Field{
+		{Name: contentProperty},
+		{Name: chunkIndexProperty},
+		{Name: chunkOriginalDocumentIDProperty},
+		{Name: sourceProperty},
+		{Name: chunkFilePathProperty},
+		{Name: tagsProperty},
+		{Name: metadataProperty},
+		{Name: chunkCreatedAtProperty},
+		{
+			Name: "_additional",
+			Fields: []weaviateGraphql.Field{
+				{Name: "id"},
+			},
+		},
+	}
+
+	// Build query
+	queryBuilder := s.client.GraphQL().Get().
+		WithClassName(DocumentChunkClassName).
+		WithNearVector(nearVector)
+
+	// Add fields - no longer need the loop since we're using proper Field objects
+	queryBuilder = queryBuilder.WithFields(fields...)
+
+	// Add limit if specified
+	if filter != nil && filter.Limit != nil {
+		queryBuilder = queryBuilder.WithLimit(*filter.Limit)
+		s.logger.Debug("Added limit", "limit", *filter.Limit)
+	}
+
+	s.logger.Debug("Executing DocumentChunk GraphQL query")
+	// Execute query
+	result, err := queryBuilder.Do(ctx)
+	if err != nil {
+		s.logger.Error("Failed to execute document chunk query", "error", err)
+		return nil, fmt.Errorf("executing document chunk query: %w", err)
+	}
+
+	s.logger.Debug("Query executed successfully")
+	// Parse results
+	data := result.Data
+	if data == nil {
+		s.logger.Debug("No data in result")
+		return []*DocumentChunk{}, nil
+	}
+
+	get, ok := data["Get"].(map[string]interface{})
+	if !ok {
+		s.logger.Debug("No Get field in result data")
+		return []*DocumentChunk{}, nil
+	}
+
+	classData, ok := get[DocumentChunkClassName].([]interface{})
+	if !ok {
+		s.logger.Debug("No DocumentChunk class data in result")
+		return []*DocumentChunk{}, nil
+	}
+
+	s.logger.Debug("Found raw chunk data", "count", len(classData))
+	var chunks []*DocumentChunk
+	for i, item := range classData {
+		chunk, err := s.parseDocumentChunk(item)
+		if err != nil {
+			s.logger.Warn("Failed to parse document chunk", "index", i, "error", err)
+			continue
+		}
+		s.logger.Debug("Parsed chunk", "index", i, "content_length", len(chunk.Content), "id", chunk.ID)
+		chunks = append(chunks, chunk)
+	}
+
+	s.logger.Info("QueryDocumentChunks completed", "results", len(chunks))
+	return chunks, nil
+}
+
+// parseDocumentChunk converts a GraphQL result item to DocumentChunk.
+func (s *WeaviateStorage) parseDocumentChunk(item interface{}) (*DocumentChunk, error) {
+	obj, ok := item.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("item is not a map")
+	}
+
+	// Extract ID from _additional
+	additional, _ := obj["_additional"].(map[string]interface{})
+	id, _ := additional["id"].(string)
+
+	// Parse fields
+	content, _ := obj[contentProperty].(string)
+	chunkIndex, _ := obj[chunkIndexProperty].(float64) // JSON numbers are float64
+	originalDocumentID, _ := obj[chunkOriginalDocumentIDProperty].(string)
+	source, _ := obj[sourceProperty].(string)
+	filePath, _ := obj[chunkFilePathProperty].(string)
+	createdAtStr, _ := obj[chunkCreatedAtProperty].(string)
+	metadataJSON, _ := obj[metadataProperty].(string)
+
+	// Parse tags
+	var tags []string
+	if tagsInterface, ok := obj[tagsProperty].([]interface{}); ok {
+		for _, tagInterface := range tagsInterface {
+			if tagStr, ok := tagInterface.(string); ok {
+				tags = append(tags, tagStr)
+			}
+		}
+	}
+
+	// Parse metadata
+	var metadata map[string]string
+	if metadataJSON != "" {
+		if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
+			s.logger.Warn("Failed to unmarshal chunk metadata", "error", err)
+			metadata = make(map[string]string)
+		}
+	} else {
+		metadata = make(map[string]string)
+	}
+
+	// Parse timestamp
+	var createdAt time.Time
+	if createdAtStr != "" {
+		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+			createdAt = t
+		}
+	}
+
+	return &DocumentChunk{
+		ID:                 id,
+		Content:            content,
+		ChunkIndex:         int(chunkIndex),
+		OriginalDocumentID: originalDocumentID,
+		Source:             source,
+		FilePath:           filePath,
+		Tags:               tags,
+		Metadata:           metadata,
+		CreatedAt:          createdAt,
+	}, nil
 }
 
 // UpsertDocument uses deterministic UUID + batch upsert for idempotent document storage.
