@@ -2,67 +2,50 @@ package llama1b
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/shared/constant"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLlamaModel_InteractiveMode(t *testing.T) {
+func TestLlamaAnonymizer(t *testing.T) {
 	binaryPath := os.Getenv("LLAMA_BINARY_PATH")
 	if binaryPath == "" {
 		t.Skip("LLAMA_BINARY_PATH not set")
 	}
 
-	modelDir := os.Getenv("LLAMA_MODEL_DIR")
-	if modelDir == "" {
+	modelPath := os.Getenv("LLAMA_MODEL_DIR")
+	if modelPath == "" {
 		t.Skip("LLAMA_MODEL_DIR not set")
 	}
 
-	tokenizerName := os.Getenv("LLAMA_TOKENIZER_NAME")
-	if tokenizerName == "" {
-		tokenizerName = "meta-llama/Llama-3.2-1B"
-	}
-
-	systemPrompt := "Find names in the input text. For each name found, create a JSON mapping where the original name is the key and a completely different, unrelated name is the value. The replacement name must be different from the original. Return only JSON."
-
-	model, err := NewLlamaModel(context.Background(), binaryPath, modelDir, tokenizerName, true, systemPrompt)
+	anonymizer, err := NewLlamaAnonymizer(binaryPath, modelPath)
 	assert.NoError(t, err)
-	defer func() { _ = model.Close() }()
+	defer func() { _ = anonymizer.Close() }()
 
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage("I am John"),
-	}
-
-	// First Inferencing
+	input := "I am John"
 	start := time.Now()
-	response, err := model.Completions(context.Background(), messages, nil, "llama-1b")
+	result, err := anonymizer.Anonymize(context.Background(), input)
 	elapsed := time.Since(start)
 
 	assert.NoError(t, err)
-	assert.Equal(t, constant.Assistant("assistant"), response.Role)
-	assert.NotEmpty(t, response.Content)
+	assert.NotNil(t, result)
 
-	var anonymizeMap map[string]string
-	if err := json.Unmarshal([]byte(response.Content), &anonymizeMap); err != nil {
-		t.Log("Fail to parse response, the response is not in Json map of string to string format")
-	}
+	t.Logf("Input: %s", input)
+	t.Logf("Anonymization Result: %v", result)
+	t.Logf("Anonymization time: %v", elapsed)
 
-	t.Logf("Original Response: %s", response.Content)
-	t.Logf("Anonymize Map: %v", anonymizeMap)
-	t.Logf("Completions Inferencing time: %v", elapsed)
-
-	// Second Inferencing
-	messages = []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage("I am Emily"),
-	}
+	// Test second call to verify interactive session reuse
+	input2 := "I am Emily"
 	start = time.Now()
-	response, err = model.Completions(context.Background(), messages, nil, "llama-1b")
+	result2, err := anonymizer.Anonymize(context.Background(), input2)
 	elapsed = time.Since(start)
-	t.Logf("Response: %s", response.Content)
-	t.Logf("Completions Inferencing time: %v", elapsed)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result2)
+
+	t.Logf("Input2: %s", input2)
+	t.Logf("Anonymization Result2: %v", result2)
+	t.Logf("Second anonymization time: %v", elapsed)
 }
