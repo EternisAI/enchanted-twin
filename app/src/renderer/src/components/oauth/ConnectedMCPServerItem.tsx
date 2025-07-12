@@ -38,7 +38,7 @@ export default function ConnectedMCPServerItem({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="font-semibold text-lg flex items-center justify-between flex-row gap-5">
+      <div className="flex items-center justify-between flex-row gap-5">
         <div className="flex items-center gap-5 flex-1 min-w-0">
           <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center flex-shrink-0">
             {PROVIDER_ICON_MAP[server.type]}
@@ -109,23 +109,14 @@ export default function ConnectedMCPServerItem({
           {/* Disconnect button - fades in on hover */}
           <AlertDialog open={isDisconnectDialogOpen} onOpenChange={setIsDisconnectDialogOpen}>
             <AlertDialogTrigger asChild>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={`absolute right-0 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                      onClick={() => setIsDisconnectDialogOpen(true)}
-                    >
-                      <Unplug className="w-4 h-4" />
-                      Disconnect
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Disconnect server</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Button
+                variant="outline"
+                className={`absolute right-0 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onClick={() => setIsDisconnectDialogOpen(true)}
+              >
+                <Unplug className="w-4 h-4" />
+                Disconnect
+              </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
