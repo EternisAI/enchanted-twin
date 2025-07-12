@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { ShortcutRecorder } from './ShortcutRecorder'
-import { RotateCcw } from 'lucide-react'
+import { CircleCheck, KeyboardOff, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatShortcutForDisplay } from '@renderer/lib/utils/shortcuts'
 
 interface Shortcut {
   keys: string
@@ -19,7 +20,7 @@ interface ShortcutItem {
 const SHORTCUT_ITEMS: ShortcutItem[] = [
   {
     action: 'toggleOmnibar',
-    label: 'Omnibar',
+    label: 'Global Omnibar',
     description: 'Access Enchanted from anywhere'
   },
   {
@@ -47,24 +48,31 @@ export function ShortcutList() {
   const loadShortcuts = async () => {
     try {
       const data = await window.api.keyboardShortcuts.get()
-      console.log('loadShortcuts', data)
       if (data && typeof data === 'object') {
         setShortcuts(data)
       } else {
-        console.error('Invalid shortcuts data received:', data)
         setShortcuts({})
       }
-    } catch (error) {
-      console.error('Failed to load shortcuts:', error)
+    } catch {
       toast.error('Failed to load keyboard shortcuts')
     }
   }
 
-  const handleShortcutChange = async (action: string, keys: string) => {
+  const handleShortcutChange = async (item: ShortcutItem, keys: string) => {
     try {
-      const result = await window.api.keyboardShortcuts.set(action, keys)
+      const result = await window.api.keyboardShortcuts.set(item.action, keys)
+      const isRemoved = keys === ''
       if (result.success) {
-        toast.success(`Shortcut updated: ${action} has been set to ${keys}`)
+        toast(`${item.label} shortcut ${isRemoved ? 'removed' : 'updated'}`, {
+          icon: isRemoved ? (
+            <KeyboardOff className="h-4 w-4" />
+          ) : (
+            <CircleCheck className="h-4 w-4 text-green-500" />
+          ),
+          description: isRemoved ? undefined : (
+            <kbd className="text-sm font-medium">{formatShortcutForDisplay(keys)}</kbd>
+          )
+        })
         loadShortcuts()
       } else {
         toast.error(`Failed to update shortcut: ${result.error}`)
@@ -74,17 +82,24 @@ export function ShortcutList() {
     }
   }
 
-  const handleReset = async (action: string) => {
+  const handleReset = async (item: ShortcutItem) => {
     try {
-      const result = await window.api.keyboardShortcuts.reset(action)
+      const result = await window.api.keyboardShortcuts.reset(item.action)
       if (result.success) {
-        toast.success(`Shortcut reset: ${action} has been reset to default`)
+        toast(`${item.label} shortcut reset`, {
+          icon: <CircleCheck className="h-4 w-4 text-green-500" />,
+          description: (
+            <kbd className="text-sm font-medium">
+              {formatShortcutForDisplay(shortcuts[item.action].default)}
+            </kbd>
+          )
+        })
         loadShortcuts()
       } else {
-        toast.error(`Failed to reset shortcut: ${result.error}`)
+        toast.error(`Failed to reset shortcut`)
       }
-    } catch (error) {
-      toast.error(`Failed to reset shortcut: ${error}`)
+    } catch {
+      toast.error(`Failed to reset shortcut`)
     }
   }
 
@@ -92,7 +107,7 @@ export function ShortcutList() {
     try {
       const result = await window.api.keyboardShortcuts.resetAll()
       if (result.success) {
-        toast.success('All shortcuts reset')
+        toast.success('All shortcuts have been reset')
         loadShortcuts()
       } else {
         toast.error(`Failed to reset shortcuts: ${result.error}`)
@@ -131,7 +146,7 @@ export function ShortcutList() {
               <div className="flex items-center gap-2">
                 <ShortcutRecorder
                   value={shortcut?.keys || ''}
-                  onChange={(keys) => handleShortcutChange(item.action, keys)}
+                  onChange={(keys) => handleShortcutChange(item, keys)}
                   onCancel={() => setRecordingAction(null)}
                   isRecording={isRecording}
                   onStartRecording={() => setRecordingAction(item.action)}
@@ -141,7 +156,7 @@ export function ShortcutList() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={() => handleReset(item.action)}
+                  onClick={() => handleReset(item)}
                   disabled={!isModified}
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
