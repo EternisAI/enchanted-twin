@@ -45,9 +45,7 @@ export default function ConnectedMCPServerItem({
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-0">
             <span className="font-semibold text-lg leading-none">{server.name}</span>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {PROVIDER_DESCRIPTION_MAP[server.type]}
-            </p>
+            <p className="text-sm text-muted-foreground">{PROVIDER_DESCRIPTION_MAP[server.type]}</p>
             {server.connected && (
               <div className="flex flex-wrap gap-1">
                 {/* Extract connection identifier from envs */}
