@@ -3,7 +3,6 @@ import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesP
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
 import ConnectedMCPPanel from '@renderer/components/oauth/ConnectedMCPPanel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
-import ConnectMCPServerButton from '@renderer/components/oauth/MCPConnectServerButton'
 import { FolderSyncIcon, NetworkIcon, PlugIcon } from 'lucide-react'
 import LocalFolderSync from '@renderer/components/data-sources/LocalFolderSync'
 import { SettingsContent } from '@renderer/components/settings/SettingsContent'
@@ -26,7 +25,7 @@ function ImportDataSettings() {
   return (
     <SettingsContent>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex flex-col sm:flex-row gap-2 w-full items-center justify-between  pb-10">
+        <div className="flex flex-col sm:flex-row gap-2 w-full items-center justify-center  pb-10">
           <TabsList>
             <TabsTrigger value="available">
               <NetworkIcon className="w-4 h-4" /> Available
@@ -38,7 +37,6 @@ function ImportDataSettings() {
               <PlugIcon className="w-4 h-4" /> Connected
             </TabsTrigger>
           </TabsList>
-          <ConnectMCPServerButton onSuccess={() => {}} />
         </div>
         <AnimatePresence mode="wait">
           <TabsContent value="available" key="available">

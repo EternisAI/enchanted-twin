@@ -74,7 +74,7 @@ export const UnifiedDataSourceCard = ({
   const canImport = !isImporting && !isGlobalProcessing && !importingSource && !isBeingProcessed
 
   return (
-    <div className="p-4 w-full hover:bg-muted rounded-md">
+    <div className="px-6 py-4 w-full hover:bg-muted">
       <div className="font-semibold text-lg flex flex-wrap items-center justify-between flex-row gap-5">
         <div className="flex items-center gap-5">
           {source.icon}

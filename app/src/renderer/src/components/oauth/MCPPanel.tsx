@@ -10,6 +10,8 @@ import { useEffect, useMemo } from 'react'
 import { Skeleton } from '@renderer/components/ui/skeleton'
 import { motion } from 'framer-motion'
 import { PROVIDER_CONFIG } from '@renderer/constants/mcpProviders'
+import ConnectMCPServerButton from './MCPConnectServerButton'
+import { Card } from '../ui/card'
 
 const MCPServerSkeleton = () => (
   <div className="p-4 w-full rounded-md">
@@ -103,12 +105,15 @@ export default function MCPPanel() {
   }, [serversByType])
 
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-2 border-b pb-3">
-        <h2 className="text-xl font-bold leading-none">Quick Connect</h2>
-        <p className="text-muted-foreground leading-none text-sm">
-          Takes under 30 seconds to connect.
-        </p>
+    <Card className="flex flex-col gap-4 p-0">
+      <header className="flex gap-2 justify-between items-center border-b-[0.5px] p-6 py-8">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-2xl font-bold leading-none">Quick Connect</h2>
+          <p className="text-muted-foreground leading-none text-sm">
+            Takes under 30 seconds to connect.
+          </p>
+        </div>
+        <ConnectMCPServerButton onSuccess={() => {}} />
       </header>
       <motion.div
         className="flex flex-col gap-4 w-full"
@@ -179,6 +184,6 @@ export default function MCPPanel() {
           </>
         )}
       </motion.div>
-    </div>
+    </Card>
   )
 }
