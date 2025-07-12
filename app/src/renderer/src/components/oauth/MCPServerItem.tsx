@@ -146,7 +146,7 @@ export default function MCPServerItem({
 
   return (
     <div className="p-4 w-full hover:bg-muted rounded-md">
-      <div className="font-semibold text-lg flex items-center justify-between flex-row gap-5">
+      <div className="flex items-center justify-between flex-row gap-5">
         <div className="flex items-center gap-5 flex-1 min-w-0">
           <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center flex-shrink-0">
             {PROVIDER_ICON_MAP[server.type]}
