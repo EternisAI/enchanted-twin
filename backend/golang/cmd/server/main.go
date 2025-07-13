@@ -158,14 +158,14 @@ func main() {
 		case "local":
 			if localAnonymizer != nil {
 				logger.Info("Using local LLM anonymizer")
-				anonymizerManager = ai.NewLocalAnonymizerManager(localAnonymizer, logger)
+				anonymizerManager = ai.NewLocalAnonymizerManager(localAnonymizer, store.DB().DB, logger)
 			} else {
 				logger.Warn("Local anonymizer requested but not initialized, falling back to no-op")
 				anonymizerManager = ai.NewNoOpAnonymizerManager(logger)
 			}
 		case "llm":
 			logger.Info("Using LLM-based anonymizer")
-			anonymizerManager = ai.NewLLMAnonymizerManager(aiCompletionsService, "openai/gpt-4o-mini", logger)
+			anonymizerManager = ai.NewLLMAnonymizerManager(aiCompletionsService, "openai/gpt-4o-mini", store.DB().DB, logger)
 		case "mock":
 			// Parse anonymizer delay for mock anonymizer
 			delay, err := time.ParseDuration(envs.MockAnonymizerDelay)

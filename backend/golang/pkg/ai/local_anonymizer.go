@@ -2,58 +2,68 @@ package ai
 
 import (
 	"context"
-	"crypto/md5"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
-
-	"github.com/EternisAI/enchanted-twin/pkg/localmodel/llama1b"
 )
 
-// LocalAnonymizer is an adapter that wraps llama1b.LlamaAnonymizer to implement the Anonymizer interface.
-type LocalAnonymizer struct {
-	llama *llama1b.LlamaAnonymizer
+// LlamaAnonymizerInterface defines the interface for Llama-based anonymization.
+type LlamaAnonymizerInterface interface {
+	Anonymize(ctx context.Context, text string) (map[string]string, error)
+	Close() error
+}
 
-	// In-memory storage for conversation dictionaries and message hashes
-	// In a production system, this would be backed by a database
-	conversationDicts map[string]map[string]string
-	messageHashes     map[string]map[string]bool // conversationID -> messageHash -> anonymized
+// LocalAnonymizer is an adapter that wraps LlamaAnonymizerInterface to implement the Anonymizer interface.
+type LocalAnonymizer struct {
+	llama  LlamaAnonymizerInterface
+	store  ConversationStore
+	hasher *MessageHasher
+	logger *log.Logger
 }
 
 // NewLocalAnonymizer creates a new LocalAnonymizer instance.
-func NewLocalAnonymizer(llama *llama1b.LlamaAnonymizer) *LocalAnonymizer {
+func NewLocalAnonymizer(llama LlamaAnonymizerInterface, db *sql.DB, logger *log.Logger) *LocalAnonymizer {
 	return &LocalAnonymizer{
-		llama:             llama,
-		conversationDicts: make(map[string]map[string]string),
-		messageHashes:     make(map[string]map[string]bool),
+		llama:  llama,
+		store:  NewSQLiteConversationStore(db, logger),
+		hasher: NewMessageHasher(),
+		logger: logger,
 	}
 }
 
 // AnonymizeMessages implements the Anonymizer interface.
-func (l *LocalAnonymizer) AnonymizeMessages(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) (anonymizedMessages []openai.ChatCompletionMessageParamUnion, updatedDict map[string]string, newRules map[string]string, err error) {
-	// Load existing conversation dictionary
-	conversationDict, err := l.LoadConversationDict(conversationID)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to load conversation dictionary: %w", err)
+func (l *LocalAnonymizer) AnonymizeMessages(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
+	if conversationID == "" {
+		// Memory-only mode
+		return l.anonymizeInMemory(ctx, messages, existingDict, interruptChan)
 	}
 
-	// Merge with existing dictionary
+	// Persistent mode
+	return l.anonymizeWithPersistence(ctx, conversationID, messages, existingDict, interruptChan)
+}
+
+func (l *LocalAnonymizer) anonymizeInMemory(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
+	// Start with existing dictionary
+	workingDict := make(map[string]string)
 	for k, v := range existingDict {
-		conversationDict[k] = v
+		workingDict[k] = v
 	}
 
-	// Track new rules discovered in this call
-	newRules = make(map[string]string)
+	// Process all messages
+	anonymizedMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
+	newRules := make(map[string]string)
 
-	// Process each message
-	anonymizedMessages = make([]openai.ChatCompletionMessageParamUnion, len(messages))
 	for i, message := range messages {
 		// Check for interruption
 		select {
+		case <-ctx.Done():
+			return nil, nil, nil, ctx.Err()
 		case <-interruptChan:
-			return nil, nil, nil, context.Canceled
+			return nil, nil, nil, fmt.Errorf("anonymization interrupted")
 		default:
 		}
 
@@ -74,31 +84,119 @@ func (l *LocalAnonymizer) AnonymizeMessages(ctx context.Context, conversationID 
 		for original, replacement := range nameReplacements {
 			if original != "" && replacement != "" && original != replacement {
 				// Only add if not already in dictionary
-				if _, exists := conversationDict[original]; !exists {
-					conversationDict[original] = replacement
+				if _, exists := workingDict[original]; !exists {
+					workingDict[original] = replacement
 					newRules[original] = replacement
 				}
 			}
 		}
 
 		// Apply all known replacements to the message
-		anonymizedContent := l.applyReplacements(content, conversationDict)
+		anonymizedContent := l.applyReplacements(content, workingDict)
 		anonymizedMessages[i] = l.replaceMessageContent(message, anonymizedContent)
+	}
 
-		// Mark message as anonymized
-		messageHash := l.GetMessageHash(message)
-		if l.messageHashes[conversationID] == nil {
-			l.messageHashes[conversationID] = make(map[string]bool)
+	l.logger.Debug("Memory-only local anonymization complete", "messageCount", len(messages), "newRulesCount", len(newRules))
+	return anonymizedMessages, workingDict, newRules, nil
+}
+
+func (l *LocalAnonymizer) anonymizeWithPersistence(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
+	// Load existing conversation dictionary
+	conversationDict, err := l.store.GetConversationDict(conversationID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to load conversation dict: %w", err)
+	}
+
+	// Merge with provided existing dictionary (provided dict takes precedence)
+	workingDict := make(map[string]string)
+	for k, v := range conversationDict {
+		workingDict[k] = v
+	}
+	for k, v := range existingDict {
+		workingDict[k] = v
+	}
+
+	// Identify new messages that need anonymization
+	newMessages := make([]openai.ChatCompletionMessageParamUnion, 0)
+	messageMap := make(map[string]openai.ChatCompletionMessageParamUnion)
+
+	for _, message := range messages {
+		messageHash := l.hasher.GetMessageHash(message)
+		messageMap[messageHash] = message
+
+		isAnonymized, err := l.store.IsMessageAnonymized(conversationID, messageHash)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to check message anonymization status: %w", err)
 		}
-		l.messageHashes[conversationID][messageHash] = true
+
+		if !isAnonymized {
+			newMessages = append(newMessages, message)
+		}
+	}
+
+	l.logger.Debug("Persistent local anonymization analysis", "conversationID", conversationID, "totalMessages", len(messages), "newMessages", len(newMessages))
+
+	// Process new messages only if there are any
+	newRules := make(map[string]string)
+	if len(newMessages) > 0 {
+		// Check for context cancellation and interruption
+		select {
+		case <-ctx.Done():
+			return nil, nil, nil, ctx.Err()
+		case <-interruptChan:
+			return nil, nil, nil, fmt.Errorf("anonymization interrupted")
+		default:
+		}
+
+		// Use in-memory processing for new messages with working dictionary
+		_, tempDict, msgRules, err := l.anonymizeInMemory(ctx, newMessages, workingDict, interruptChan)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to anonymize new messages: %w", err)
+		}
+
+		// Merge new rules and update working dictionary
+		for token, original := range msgRules {
+			newRules[token] = original
+			workingDict[token] = original
+		}
+
+		// Update working dictionary with any new discoveries from temp processing
+		for k, v := range tempDict {
+			if _, exists := workingDict[k]; !exists {
+				workingDict[k] = v
+			}
+		}
+
+		// Mark new messages as anonymized
+		for _, message := range newMessages {
+			messageHash := l.hasher.GetMessageHash(message)
+			if err := l.store.MarkMessageAnonymized(conversationID, messageHash); err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to mark message as anonymized: %w", err)
+			}
+		}
 	}
 
 	// Save updated dictionary
-	if err := l.SaveConversationDict(conversationID, conversationDict); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to save conversation dictionary: %w", err)
+	if err := l.store.SaveConversationDict(conversationID, workingDict); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to save conversation dict: %w", err)
 	}
 
-	return anonymizedMessages, conversationDict, newRules, nil
+	// Reconstruct full anonymized message list
+	anonymizedMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
+	for i, message := range messages {
+		content := l.extractMessageContent(message)
+		if content == "" {
+			anonymizedMessages[i] = message
+			continue
+		}
+
+		// Apply all known replacements to the message
+		anonymizedContent := l.applyReplacements(content, workingDict)
+		anonymizedMessages[i] = l.replaceMessageContent(message, anonymizedContent)
+	}
+
+	l.logger.Debug("Persistent local anonymization complete", "conversationID", conversationID, "totalMessages", len(messages), "newRulesCount", len(newRules))
+	return anonymizedMessages, workingDict, newRules, nil
 }
 
 // DeAnonymize implements the Anonymizer interface.
@@ -114,47 +212,31 @@ func (l *LocalAnonymizer) DeAnonymize(anonymized string, rules map[string]string
 
 // LoadConversationDict implements the Anonymizer interface.
 func (l *LocalAnonymizer) LoadConversationDict(conversationID string) (map[string]string, error) {
-	if dict, exists := l.conversationDicts[conversationID]; exists {
-		// Return a copy to prevent external modification
-		result := make(map[string]string)
-		for k, v := range dict {
-			result[k] = v
-		}
-		return result, nil
-	}
-	return make(map[string]string), nil
+	return l.store.GetConversationDict(conversationID)
 }
 
 // SaveConversationDict implements the Anonymizer interface.
 func (l *LocalAnonymizer) SaveConversationDict(conversationID string, dict map[string]string) error {
-	// Create a copy to prevent external modification
-	l.conversationDicts[conversationID] = make(map[string]string)
-	for k, v := range dict {
-		l.conversationDicts[conversationID][k] = v
-	}
-	return nil
+	return l.store.SaveConversationDict(conversationID, dict)
 }
 
 // GetMessageHash implements the Anonymizer interface.
 func (l *LocalAnonymizer) GetMessageHash(message openai.ChatCompletionMessageParamUnion) string {
-	// Create a hash based on message content
-	content := l.extractMessageContent(message)
-	hash := md5.Sum([]byte(content))
-	return fmt.Sprintf("%x", hash)
+	return l.hasher.GetMessageHash(message)
 }
 
 // IsMessageAnonymized implements the Anonymizer interface.
 func (l *LocalAnonymizer) IsMessageAnonymized(conversationID, messageHash string) (bool, error) {
-	if hashes, exists := l.messageHashes[conversationID]; exists {
-		return hashes[messageHash], nil
-	}
-	return false, nil
+	return l.store.IsMessageAnonymized(conversationID, messageHash)
 }
 
 // Shutdown implements the Anonymizer interface.
 func (l *LocalAnonymizer) Shutdown() {
 	if l.llama != nil {
 		_ = l.llama.Close()
+	}
+	if l.store != nil {
+		_ = l.store.Close()
 	}
 }
 

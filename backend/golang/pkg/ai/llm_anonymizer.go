@@ -2,11 +2,11 @@ package ai
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
@@ -23,12 +23,11 @@ type AnonymizationResponse struct {
 }
 
 type LLMAnonymizer struct {
-	aiService         CompletionsService
-	model             string
-	logger            *log.Logger
-	mu                sync.RWMutex
-	conversationDicts map[string]map[string]string
-	hasher            MessageHasher
+	aiService CompletionsService
+	model     string
+	logger    *log.Logger
+	store     ConversationStore
+	hasher    *MessageHasher
 }
 
 var anonymizationTool = openai.ChatCompletionToolParam{
@@ -63,17 +62,27 @@ var anonymizationTool = openai.ChatCompletionToolParam{
 	},
 }
 
-func NewLLMAnonymizer(aiService CompletionsService, model string, logger *log.Logger) *LLMAnonymizer {
+func NewLLMAnonymizer(aiService CompletionsService, model string, db *sql.DB, logger *log.Logger) *LLMAnonymizer {
 	return &LLMAnonymizer{
-		aiService:         aiService,
-		model:             model,
-		logger:            logger,
-		conversationDicts: make(map[string]map[string]string),
-		hasher:            *NewMessageHasher(),
+		aiService: aiService,
+		model:     model,
+		logger:    logger,
+		store:     NewSQLiteConversationStore(db, logger),
+		hasher:    NewMessageHasher(),
 	}
 }
 
 func (l *LLMAnonymizer) AnonymizeMessages(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
+	if conversationID == "" {
+		// Memory-only mode
+		return l.anonymizeInMemory(ctx, messages, existingDict, interruptChan)
+	}
+
+	// Persistent mode
+	return l.anonymizeWithPersistence(ctx, conversationID, messages, existingDict, interruptChan)
+}
+
+func (l *LLMAnonymizer) anonymizeInMemory(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
 	select {
 	case <-ctx.Done():
 		return nil, nil, nil, ctx.Err()
@@ -181,6 +190,101 @@ Use the replace_entities tool to provide your response.`, string(existingDictJSO
 	anonymizedMessages := l.applyAnonymization(messages, updatedDict)
 
 	return anonymizedMessages, updatedDict, newRules, nil
+}
+
+func (l *LLMAnonymizer) anonymizeWithPersistence(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
+	// Load existing conversation dictionary
+	conversationDict, err := l.store.GetConversationDict(conversationID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to load conversation dict: %w", err)
+	}
+
+	// Merge with provided existing dictionary (provided dict takes precedence)
+	workingDict := make(map[string]string)
+	for k, v := range conversationDict {
+		workingDict[k] = v
+	}
+	for k, v := range existingDict {
+		workingDict[k] = v
+	}
+
+	// Identify new messages that need anonymization
+	newMessages := make([]openai.ChatCompletionMessageParamUnion, 0)
+	messageMap := make(map[string]openai.ChatCompletionMessageParamUnion)
+
+	for _, message := range messages {
+		messageHash := l.hasher.GetMessageHash(message)
+		messageMap[messageHash] = message
+
+		isAnonymized, err := l.store.IsMessageAnonymized(conversationID, messageHash)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to check message anonymization status: %w", err)
+		}
+
+		if !isAnonymized {
+			newMessages = append(newMessages, message)
+		}
+	}
+
+	l.logger.Debug("Persistent LLM anonymization analysis", "conversationID", conversationID, "totalMessages", len(messages), "newMessages", len(newMessages))
+
+	// Process new messages only if there are any
+	newRules := make(map[string]string)
+	if len(newMessages) > 0 {
+		// Check for context cancellation and interruption
+		select {
+		case <-ctx.Done():
+			return nil, nil, nil, ctx.Err()
+		case <-interruptChan:
+			return nil, nil, nil, fmt.Errorf("anonymization interrupted")
+		default:
+		}
+
+		// Use in-memory processing for new messages with working dictionary
+		_, tempDict, msgRules, err := l.anonymizeInMemory(ctx, newMessages, workingDict, interruptChan)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to anonymize new messages: %w", err)
+		}
+
+		// Merge new rules and update working dictionary
+		for token, original := range msgRules {
+			newRules[token] = original
+			workingDict[token] = original
+		}
+
+		// Update working dictionary with any new discoveries from temp processing
+		for k, v := range tempDict {
+			if _, exists := workingDict[k]; !exists {
+				workingDict[k] = v
+			}
+		}
+
+		// Mark new messages as anonymized
+		for _, message := range newMessages {
+			messageHash := l.hasher.GetMessageHash(message)
+			if err := l.store.MarkMessageAnonymized(conversationID, messageHash); err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to mark message as anonymized: %w", err)
+			}
+		}
+	}
+
+	// Save updated dictionary
+	if err := l.store.SaveConversationDict(conversationID, workingDict); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to save conversation dict: %w", err)
+	}
+
+	// Reconstruct full anonymized message list
+	anonymizedMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
+	for i, message := range messages {
+		anonymizedMsg, err := l.anonymizeMessage(message, workingDict)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to anonymize message %d: %w", i, err)
+		}
+		anonymizedMessages[i] = anonymizedMsg
+	}
+
+	l.logger.Debug("Persistent LLM anonymization complete", "conversationID", conversationID, "totalMessages", len(messages), "newRulesCount", len(newRules))
+	return anonymizedMessages, workingDict, newRules, nil
 }
 
 func (l *LLMAnonymizer) extractMessageContent(message openai.ChatCompletionMessageParamUnion) string {
@@ -307,33 +411,11 @@ func (l *LLMAnonymizer) DeAnonymize(anonymized string, rules map[string]string) 
 }
 
 func (l *LLMAnonymizer) LoadConversationDict(conversationID string) (map[string]string, error) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-
-	if dict, exists := l.conversationDicts[conversationID]; exists {
-		// Return a copy to prevent external modification
-		result := make(map[string]string)
-		for k, v := range dict {
-			result[k] = v
-		}
-		return result, nil
-	}
-
-	return make(map[string]string), nil
+	return l.store.GetConversationDict(conversationID)
 }
 
 func (l *LLMAnonymizer) SaveConversationDict(conversationID string, dict map[string]string) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	// Store a copy to prevent external modification
-	dictCopy := make(map[string]string)
-	for k, v := range dict {
-		dictCopy[k] = v
-	}
-
-	l.conversationDicts[conversationID] = dictCopy
-	return nil
+	return l.store.SaveConversationDict(conversationID, dict)
 }
 
 func (l *LLMAnonymizer) GetMessageHash(message openai.ChatCompletionMessageParamUnion) string {
@@ -341,15 +423,11 @@ func (l *LLMAnonymizer) GetMessageHash(message openai.ChatCompletionMessageParam
 }
 
 func (l *LLMAnonymizer) IsMessageAnonymized(conversationID, messageHash string) (bool, error) {
-	// LLM anonymizer doesn't track individual message anonymization status
-	// This would require additional persistence layer
-	return false, nil
+	return l.store.IsMessageAnonymized(conversationID, messageHash)
 }
 
 func (l *LLMAnonymizer) Shutdown() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	// Clear conversation dictionaries
-	l.conversationDicts = make(map[string]map[string]string)
+	if l.store != nil {
+		_ = l.store.Close()
+	}
 }

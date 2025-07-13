@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-
-	"github.com/EternisAI/enchanted-twin/pkg/localmodel/llama1b"
 )
 
 type AnonymizerType int
@@ -30,7 +28,7 @@ type AnonymizerConfig struct {
 	Database *sql.DB
 
 	// For LocalAnonymizer
-	LlamaAnonymizer *llama1b.LlamaAnonymizer
+	LlamaAnonymizer LlamaAnonymizerInterface
 
 	// For MockAnonymizer
 	PredefinedReplacements map[string]string
@@ -121,8 +119,12 @@ func (m *AnonymizerManager) createAnonymizer() (Anonymizer, func()) {
 			logger.Error("LocalAnonymizer requires LlamaAnonymizer, falling back to no-op")
 			return NewNoOpAnonymizer(logger), nil
 		}
+		if m.config.Database == nil {
+			logger.Error("LocalAnonymizer requires database, falling back to no-op")
+			return NewNoOpAnonymizer(logger), nil
+		}
 
-		localAnonymizer := NewLocalAnonymizer(m.config.LlamaAnonymizer)
+		localAnonymizer := NewLocalAnonymizer(m.config.LlamaAnonymizer, m.config.Database, logger)
 		logger.Info("LocalAnonymizer created")
 
 		return localAnonymizer, func() {
@@ -134,13 +136,17 @@ func (m *AnonymizerManager) createAnonymizer() (Anonymizer, func()) {
 			logger.Error("LLMAnonymizer requires AIService, falling back to no-op")
 			return NewNoOpAnonymizer(logger), nil
 		}
+		if m.config.Database == nil {
+			logger.Error("LLMAnonymizer requires database, falling back to no-op")
+			return NewNoOpAnonymizer(logger), nil
+		}
 
 		model := m.config.Model
 		if model == "" {
 			model = "openai/gpt-4o-mini"
 		}
 
-		llmAnonymizer := NewLLMAnonymizer(m.config.AIService, model, logger)
+		llmAnonymizer := NewLLMAnonymizer(m.config.AIService, model, m.config.Database, logger)
 		logger.Info("LLMAnonymizer created", "model", model)
 
 		return llmAnonymizer, func() {
@@ -204,19 +210,21 @@ func NewPersistentAnonymizerManager(db *sql.DB, logger *log.Logger) *AnonymizerM
 	})
 }
 
-func NewLocalAnonymizerManager(llama *llama1b.LlamaAnonymizer, logger *log.Logger) *AnonymizerManager {
+func NewLocalAnonymizerManager(llama LlamaAnonymizerInterface, db *sql.DB, logger *log.Logger) *AnonymizerManager {
 	return NewAnonymizerManager(AnonymizerConfig{
 		Type:            LocalAnonymizerType,
 		LlamaAnonymizer: llama,
+		Database:        db,
 		Logger:          logger,
 	})
 }
 
-func NewLLMAnonymizerManager(aiService CompletionsService, model string, logger *log.Logger) *AnonymizerManager {
+func NewLLMAnonymizerManager(aiService CompletionsService, model string, db *sql.DB, logger *log.Logger) *AnonymizerManager {
 	return NewAnonymizerManager(AnonymizerConfig{
 		Type:      LLMAnonymizerType,
 		AIService: aiService,
 		Model:     model,
+		Database:  db,
 		Logger:    logger,
 	})
 }
