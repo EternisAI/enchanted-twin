@@ -16,7 +16,9 @@ import (
 func TestPrivateCompletionsMockAnonymizer(t *testing.T) {
 	logger := log.New(nil)
 
-	anonymizer := InitMockAnonymizer(0, true, logger)
+	anonymizerManager := NewMockAnonymizerManager(0, true, logger)
+	anonymizer := anonymizerManager.GetAnonymizer()
+	defer anonymizerManager.Shutdown()
 
 	ctx := context.Background()
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -54,9 +56,9 @@ func TestPrivateCompletionsMockAnonymizer(t *testing.T) {
 func TestMockAnonymizerDelay(t *testing.T) {
 	logger := log.New(nil)
 
-	// Reset singleton to ensure we get the correct delay configuration
-	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(10*time.Millisecond, true, logger)
+	anonymizerManager := NewMockAnonymizerManager(10*time.Millisecond, true, logger)
+	anonymizer := anonymizerManager.GetAnonymizer()
+	defer anonymizerManager.Shutdown()
 
 	ctx := context.Background()
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -84,9 +86,8 @@ func TestMockAnonymizerDelay(t *testing.T) {
 func TestPrivateCompletionsServiceMessageInterruption(t *testing.T) {
 	logger := log.New(nil)
 
-	// Reset singleton to ensure we get the correct delay configuration
-	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(100*time.Millisecond, true, logger)
+	anonymizerManager := NewMockAnonymizerManager(100*time.Millisecond, true, logger)
+	defer anonymizerManager.Shutdown()
 
 	mockService := &mockCompletionsService{
 		response: openai.ChatCompletionMessage{
@@ -96,7 +97,7 @@ func TestPrivateCompletionsServiceMessageInterruption(t *testing.T) {
 
 	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: mockService,
-		Anonymizer:         anonymizer,
+		AnonymizerManager:  anonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -234,27 +235,27 @@ func TestNewPrivateCompletionsServiceValidation(t *testing.T) {
 	// Test with nil CompletionsService
 	_, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: nil,
-		Anonymizer:         InitMockAnonymizer(0, true, logger),
+		AnonymizerManager:  NewMockAnonymizerManager(0, true, logger),
 		Logger:             logger,
 	})
 	if err == nil || !strings.Contains(err.Error(), "completionsService is required") {
 		t.Errorf("Expected CompletionsService validation error, got: %v", err)
 	}
 
-	// Test with nil Anonymizer
+	// Test with nil AnonymizerManager
 	_, err = NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: &mockCompletionsService{},
-		Anonymizer:         nil,
+		AnonymizerManager:  nil,
 		Logger:             logger,
 	})
-	if err == nil || !strings.Contains(err.Error(), "anonymizer is required") {
-		t.Errorf("Expected Anonymizer validation error, got: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "anonymizerManager is required") {
+		t.Errorf("Expected AnonymizerManager validation error, got: %v", err)
 	}
 
 	// Test with nil Logger
 	_, err = NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: &mockCompletionsService{},
-		Anonymizer:         InitMockAnonymizer(0, true, logger),
+		AnonymizerManager:  NewMockAnonymizerManager(0, true, logger),
 		Logger:             nil,
 	})
 	if err == nil || !strings.Contains(err.Error(), "logger is required") {
@@ -262,9 +263,12 @@ func TestNewPrivateCompletionsServiceValidation(t *testing.T) {
 	}
 
 	// Test with valid config
+	anonymizerManager := NewMockAnonymizerManager(0, true, logger)
+	defer anonymizerManager.Shutdown()
+
 	service, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: &mockCompletionsService{},
-		Anonymizer:         InitMockAnonymizer(0, true, logger),
+		AnonymizerManager:  anonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -282,9 +286,8 @@ func TestNewPrivateCompletionsServiceValidation(t *testing.T) {
 func TestPrivateCompletionsE2EAnonymizationFlow(t *testing.T) {
 	logger := log.New(nil)
 
-	// Reset singleton to ensure clean state
-	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(0, true, logger) // No delay for faster test
+	anonymizerManager := NewMockAnonymizerManager(0, true, logger) // No delay for faster test
+	defer anonymizerManager.Shutdown()
 
 	// Create capturing mock that will record what the LLM sees
 	mockLLM := &capturingMockCompletionsService{
@@ -296,7 +299,7 @@ func TestPrivateCompletionsE2EAnonymizationFlow(t *testing.T) {
 	// Create private completions service with our mocks
 	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: mockLLM,
-		Anonymizer:         anonymizer,
+		AnonymizerManager:  anonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -426,9 +429,8 @@ func TestPrivateCompletionsE2EAnonymizationFlow(t *testing.T) {
 func TestPrivateCompletionsE2EWithToolCalls(t *testing.T) {
 	logger := log.New(nil)
 
-	// Reset singleton to ensure clean state
-	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(0, true, logger) // No delay for faster test
+	anonymizerManager := NewMockAnonymizerManager(0, true, logger) // No delay for faster test
+	defer anonymizerManager.Shutdown()
 
 	// Create capturing mock that will record what the LLM sees and responds with tool calls
 	mockLLM := &capturingMockCompletionsService{
@@ -450,7 +452,7 @@ func TestPrivateCompletionsE2EWithToolCalls(t *testing.T) {
 	// Create private completions service with our mocks
 	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: mockLLM,
-		Anonymizer:         anonymizer,
+		AnonymizerManager:  anonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -656,9 +658,6 @@ func TestPrivateCompletionsE2EWithToolCalls(t *testing.T) {
 func TestMockAnonymizerLongerReplacementFirst(t *testing.T) {
 	logger := log.New(nil)
 
-	// Reset singleton to ensure clean state
-	ResetMockAnonymizerForTesting()
-
 	// Create custom replacements where shorter string is subset of longer string
 	customReplacements := map[string]string{
 		"Ivan":        "ANON_2",
@@ -667,17 +666,8 @@ func TestMockAnonymizerLongerReplacementFirst(t *testing.T) {
 		"John Smith":  "PERSON_002",
 	}
 
-	// Create mock anonymizer with custom replacements
-	mockAnonymizer := &MockAnonymizer{
-		Delay:                  0,
-		PredefinedReplacements: customReplacements,
-		requestChan:            make(chan anonymizationRequest, 10),
-		done:                   make(chan struct{}),
-		logger:                 logger,
-	}
-
-	// Start processor
-	go mockAnonymizer.processRequests()
+	// Create mock anonymizer with custom replacements using the new factory
+	mockAnonymizer := NewMockAnonymizer(0, customReplacements, logger)
 	defer mockAnonymizer.Shutdown()
 
 	ctx := context.Background()
@@ -750,9 +740,8 @@ func TestMockAnonymizerLongerReplacementFirst(t *testing.T) {
 func TestPrivateCompletionsE2EStreamingAnonymizationFlow(t *testing.T) {
 	logger := log.New(nil)
 
-	// Reset singleton to ensure clean state
-	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(0, true, logger) // No delay for faster test
+	anonymizerManager := NewMockAnonymizerManager(0, true, logger) // No delay for faster test
+	defer anonymizerManager.Shutdown()
 
 	// Create streaming mock that will simulate chunks
 	mockLLM := &streamingMockCompletionsService{
@@ -769,7 +758,7 @@ func TestPrivateCompletionsE2EStreamingAnonymizationFlow(t *testing.T) {
 	// Create private completions service with our mocks
 	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: mockLLM,
-		Anonymizer:         anonymizer,
+		AnonymizerManager:  anonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -838,7 +827,7 @@ func TestPrivateCompletionsE2EStreamingAnonymizationFlow(t *testing.T) {
 	for i, delta := range streamingDeltas {
 		// Build expected accumulated content
 		expectedAnonymized += mockLLM.chunks[i].ContentDelta
-		expectedDeanonymized = anonymizer.DeAnonymize(expectedAnonymized, result.ReplacementRules)
+		expectedDeanonymized = anonymizerManager.GetAnonymizer().DeAnonymize(expectedAnonymized, result.ReplacementRules)
 
 		// Verify accumulated anonymized message
 		if delta.AccumulatedAnonymizedMessage != expectedAnonymized {
@@ -976,8 +965,8 @@ func TestStreamingAccumulation(t *testing.T) {
 	logger := log.New(nil)
 
 	// Test that streaming properly accumulates content progressively
-	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(0, true, logger)
+	anonymizerManager := NewMockAnonymizerManager(0, true, logger)
+	defer anonymizerManager.Shutdown()
 
 	mockLLM := &streamingMockCompletionsService{
 		chunks: []StreamDelta{
@@ -989,7 +978,7 @@ func TestStreamingAccumulation(t *testing.T) {
 
 	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: mockLLM,
-		Anonymizer:         anonymizer,
+		AnonymizerManager:  anonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -1049,8 +1038,8 @@ func TestStreamingPatternSpanning(t *testing.T) {
 	logger := log.New(nil)
 
 	// Test patterns that span across multiple streaming chunks
-	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(0, true, logger)
+	anonymizerManager := NewMockAnonymizerManager(0, true, logger)
+	defer anonymizerManager.Shutdown()
 
 	// Create chunks that split names across boundaries
 	mockLLM := &streamingMockCompletionsService{
@@ -1064,7 +1053,7 @@ func TestStreamingPatternSpanning(t *testing.T) {
 
 	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: mockLLM,
-		Anonymizer:         anonymizer,
+		AnonymizerManager:  anonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -1113,8 +1102,8 @@ func TestStreamingErrorHandling(t *testing.T) {
 	logger := log.New(nil)
 
 	// Test error handling during streaming
-	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(0, true, logger)
+	anonymizerManager := NewMockAnonymizerManager(0, true, logger)
+	defer anonymizerManager.Shutdown()
 
 	// Create mock that returns an error during streaming
 	mockLLM := &streamingMockCompletionsService{
@@ -1126,7 +1115,7 @@ func TestStreamingErrorHandling(t *testing.T) {
 
 	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: mockLLM,
-		Anonymizer:         anonymizer,
+		AnonymizerManager:  anonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -1162,15 +1151,15 @@ func TestStreamingContextCancellation(t *testing.T) {
 	logger := log.New(nil)
 
 	// Test context cancellation during streaming
-	ResetMockAnonymizerForTesting()
-	anonymizer := InitMockAnonymizer(0, true, logger)
+	anonymizerManager := NewMockAnonymizerManager(0, true, logger)
+	defer anonymizerManager.Shutdown()
 
 	// Create mock with infinite streaming that we'll cancel
 	mockLLM := &infiniteStreamingMock{}
 
 	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: mockLLM,
-		Anonymizer:         anonymizer,
+		AnonymizerManager:  anonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -1292,12 +1281,13 @@ func TestNoCircularDependencyInPrivateCompletions(t *testing.T) {
 	}
 
 	// Create mock anonymizer
-	mockAnonymizer := InitMockAnonymizer(1*time.Millisecond, true, logger)
+	mockAnonymizerManager := NewMockAnonymizerManager(1*time.Millisecond, true, logger)
+	defer mockAnonymizerManager.Shutdown()
 
 	// Create private completions service
 	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: tracker,
-		Anonymizer:         mockAnonymizer,
+		AnonymizerManager:  mockAnonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})
@@ -1339,12 +1329,13 @@ func TestPrivateCompletionsWithRealService(t *testing.T) {
 	aiService := NewOpenAIService(logger, "test-key", "https://api.openai.com/v1")
 
 	// Create mock anonymizer
-	mockAnonymizer := InitMockAnonymizer(1*time.Millisecond, true, logger)
+	mockAnonymizerManager := NewMockAnonymizerManager(1*time.Millisecond, true, logger)
+	defer mockAnonymizerManager.Shutdown()
 
 	// Create private completions service with the real service
 	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 		CompletionsService: aiService,
-		Anonymizer:         mockAnonymizer,
+		AnonymizerManager:  mockAnonymizerManager,
 		ExecutorWorkers:    1,
 		Logger:             logger,
 	})

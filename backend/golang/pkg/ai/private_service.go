@@ -13,7 +13,7 @@ import (
 
 type PrivateCompletionsService struct {
 	completionsService CompletionsService
-	anonymizer         Anonymizer
+	anonymizerManager  *AnonymizerManager
 	executor           *microscheduler.TaskExecutor
 	logger             *log.Logger
 }
@@ -25,7 +25,7 @@ type CompletionsService interface {
 
 type PrivateCompletionsConfig struct {
 	CompletionsService CompletionsService
-	Anonymizer         Anonymizer
+	AnonymizerManager  *AnonymizerManager
 	ExecutorWorkers    int
 	Logger             *log.Logger
 }
@@ -35,8 +35,8 @@ func NewPrivateCompletionsService(config PrivateCompletionsConfig) (*PrivateComp
 	if config.CompletionsService == nil {
 		return nil, fmt.Errorf("completionsService is required but was nil")
 	}
-	if config.Anonymizer == nil {
-		return nil, fmt.Errorf("anonymizer is required but was nil")
+	if config.AnonymizerManager == nil {
+		return nil, fmt.Errorf("anonymizerManager is required but was nil")
 	}
 	if config.Logger == nil {
 		return nil, fmt.Errorf("logger is required but was nil")
@@ -51,7 +51,7 @@ func NewPrivateCompletionsService(config PrivateCompletionsConfig) (*PrivateComp
 
 	service := &PrivateCompletionsService{
 		completionsService: config.CompletionsService,
-		anonymizer:         config.Anonymizer,
+		anonymizerManager:  config.AnonymizerManager,
 		executor:           executor,
 		logger:             config.Logger,
 	}
@@ -63,8 +63,11 @@ func NewPrivateCompletionsService(config PrivateCompletionsConfig) (*PrivateComp
 func (s *PrivateCompletionsService) Shutdown() {
 	if s.executor != nil {
 		s.executor.Shutdown()
-		s.logger.Info("PrivateCompletionsService shut down")
 	}
+	if s.anonymizerManager != nil {
+		s.anonymizerManager.Shutdown()
+	}
+	s.logger.Info("PrivateCompletionsService shut down")
 }
 
 func (s *PrivateCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
@@ -128,7 +131,8 @@ func (s *PrivateCompletionsService) scheduleAnonymization(ctx context.Context, c
 				return nil, fmt.Errorf("anonymization task interrupted before starting")
 			}
 
-			anonymizedMessages, _, rules, err := s.anonymizer.AnonymizeMessages(ctx, conversationID, messages, nil, interruptChan)
+			anonymizer := s.anonymizerManager.GetAnonymizer()
+			anonymizedMessages, _, rules, err := anonymizer.AnonymizeMessages(ctx, conversationID, messages, nil, interruptChan)
 
 			// Check for context cancellation after anonymization
 			select {
@@ -176,9 +180,10 @@ type AnonymizationResult struct {
 
 func (s *PrivateCompletionsService) deAnonymizeMessage(message openai.ChatCompletionMessage, rules map[string]string) openai.ChatCompletionMessage {
 	result := message
+	anonymizer := s.anonymizerManager.GetAnonymizer()
 
 	if message.Content != "" {
-		originalContent := s.anonymizer.DeAnonymize(message.Content, rules)
+		originalContent := anonymizer.DeAnonymize(message.Content, rules)
 		result.Content = originalContent
 	}
 
@@ -188,7 +193,7 @@ func (s *PrivateCompletionsService) deAnonymizeMessage(message openai.ChatComple
 
 		for i, toolCall := range message.ToolCalls {
 			if toolCall.Function.Arguments != "" {
-				originalArgs := s.anonymizer.DeAnonymize(toolCall.Function.Arguments, rules)
+				originalArgs := anonymizer.DeAnonymize(toolCall.Function.Arguments, rules)
 				result.ToolCalls[i].Function.Arguments = originalArgs
 			}
 		}
@@ -233,7 +238,8 @@ streamLoop:
 				currentAccumulated := accumulatedContent.String()
 
 				// Deanonymize the entire accumulated content
-				deanonymizedAccumulated := s.anonymizer.DeAnonymize(currentAccumulated, allRules)
+				anonymizer := s.anonymizerManager.GetAnonymizer()
+				deanonymizedAccumulated := anonymizer.DeAnonymize(currentAccumulated, allRules)
 
 				// Call user's onDelta with both versions
 				if onDelta != nil {

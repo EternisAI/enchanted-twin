@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -34,11 +33,6 @@ type MockAnonymizer struct {
 	done        chan struct{}
 	logger      *log.Logger
 }
-
-var (
-	mockAnonymizerInstance *MockAnonymizer
-	mockAnonymizerOnce     sync.Once
-)
 
 // NoOpAnonymizer is a no-op implementation that passes messages through unchanged.
 type NoOpAnonymizer struct {
@@ -114,30 +108,26 @@ var defaultReplacements = map[string]string{
 	"San Francisco": "LOCATION_006",
 }
 
-// InitMockAnonymizer creates a mock anonymizer if enabled via ENABLE_MOCK_ANONYMIZER=true,
-// otherwise returns a no-op anonymizer that passes messages through unchanged.
-func InitMockAnonymizer(delay time.Duration, enabled bool, logger *log.Logger) Anonymizer {
-	if !enabled {
-		logger.Info("MockAnonymizer disabled, using no-op anonymizer")
-		return NewNoOpAnonymizer(logger)
+// NewMockAnonymizer creates a new mock anonymizer instance.
+// This replaces the old singleton pattern with dependency injection.
+func NewMockAnonymizer(delay time.Duration, replacements map[string]string, logger *log.Logger) *MockAnonymizer {
+	if replacements == nil {
+		replacements = defaultReplacements
 	}
 
-	mockAnonymizerOnce.Do(func() {
-		mockAnonymizerInstance = &MockAnonymizer{
-			Delay:                  delay,
-			PredefinedReplacements: defaultReplacements,
-			requestChan:            make(chan anonymizationRequest, 10), // Buffer for requests
-			done:                   make(chan struct{}),
-			logger:                 logger,
-		}
+	mockAnonymizer := &MockAnonymizer{
+		Delay:                  delay,
+		PredefinedReplacements: replacements,
+		requestChan:            make(chan anonymizationRequest, 10),
+		done:                   make(chan struct{}),
+		logger:                 logger,
+	}
 
-		// Start single-threaded processor goroutine
-		go mockAnonymizerInstance.processRequests()
+	// Start single-threaded processor goroutine
+	go mockAnonymizer.processRequests()
 
-		logger.Info("MockAnonymizer singleton initialized", "delay", delay)
-	})
-
-	return mockAnonymizerInstance
+	logger.Info("MockAnonymizer created", "delay", delay)
+	return mockAnonymizer
 }
 
 func (m *MockAnonymizer) AnonymizeMessages(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
@@ -379,7 +369,13 @@ func (m *MockAnonymizer) DeAnonymize(anonymized string, rules map[string]string)
 }
 
 func (m *MockAnonymizer) Shutdown() {
-	close(m.done)
+	select {
+	case <-m.done:
+		// Already closed
+		return
+	default:
+		close(m.done)
+	}
 }
 
 func (m *MockAnonymizer) LoadConversationDict(conversationID string) (map[string]string, error) {
@@ -401,14 +397,4 @@ func (m *MockAnonymizer) GetMessageHash(message openai.ChatCompletionMessagePara
 func (m *MockAnonymizer) IsMessageAnonymized(conversationID, messageHash string) (bool, error) {
 	// Mock anonymizer doesn't support persistence
 	return false, nil
-}
-
-// ResetMockAnonymizerForTesting resets the singleton instance for testing purposes.
-// This should only be used in tests.
-func ResetMockAnonymizerForTesting() {
-	if mockAnonymizerInstance != nil {
-		mockAnonymizerInstance.Shutdown()
-	}
-	mockAnonymizerInstance = nil
-	mockAnonymizerOnce = sync.Once{}
 }

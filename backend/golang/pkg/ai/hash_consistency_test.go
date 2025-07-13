@@ -58,8 +58,8 @@ func TestHashBasedMessageSkippingConsistency(t *testing.T) {
 
 		// Same messages + one new message
 		messages2 := []openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage("Hello John, how are you?"),        // Same as message 1 (should be skipped by hash)
-			openai.AssistantMessage("Hi! I'm doing well at OpenAI."), // Same as message 2 (should be skipped by hash)
+			openai.UserMessage("Hello John, how are you?"),                        // Same as message 1 (should be skipped by hash)
+			openai.AssistantMessage("Hi! I'm doing well at OpenAI."),              // Same as message 2 (should be skipped by hash)
 			openai.UserMessage("John, please introduce me to Alice from OpenAI."), // New message
 		}
 
@@ -141,13 +141,13 @@ func TestHashBasedMessageSkippingConsistency(t *testing.T) {
 				for i := 0; i < len(baseMessages); i++ {
 					prevContent := extractMessageContent(previousAnonymizedMessages[i])
 					currContent := extractMessageContent(anonymizedMessages[i])
-					assert.Equal(t, prevContent, currContent, 
+					assert.Equal(t, prevContent, currContent,
 						"Base message %d should have identical anonymization in cycle %d", i, cycle+1)
 				}
 
 				// Verify dictionary consistency for previous entities
 				for token, entity := range previousDict {
-					assert.Equal(t, entity, dict[token], 
+					assert.Equal(t, entity, dict[token],
 						"Token %s should map to same entity across cycles", token)
 				}
 			}

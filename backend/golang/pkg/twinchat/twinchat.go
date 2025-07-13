@@ -95,10 +95,7 @@ func (s *Service) Execute(
 		postToolCallback,
 	)
 
-	var toolsList []tools.Tool
-	if !reasoning {
-		toolsList = s.toolRegistry.Excluding("send_to_chat").GetAll()
-	}
+	toolsList := s.toolRegistry.Excluding("send_to_chat").GetAll()
 
 	response, err := agent.ExecuteStreamWithPrivacy(ctx, messageHistory, toolsList, onDelta, reasoning)
 	if err != nil {
