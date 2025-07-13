@@ -326,7 +326,7 @@ func TestBackwardCompatibilityWithExistingInterface(t *testing.T) {
 
 		service, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
 			CompletionsService: mockLLM,
-			Anonymizer:         anonymizer,
+			AnonymizerManager:  NewPersistentAnonymizerManager(db, logger),
 			ExecutorWorkers:    1,
 			Logger:             logger,
 		})

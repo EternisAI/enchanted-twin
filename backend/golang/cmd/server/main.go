@@ -151,18 +151,21 @@ func main() {
 
 	// Initialize Private Completions Service
 	if envs.PrivateCompletionsEnabled {
-		var anonymizer ai.Anonymizer
+		var anonymizerManager *ai.AnonymizerManager
 
 		// Choose anonymizer based on configuration
 		switch envs.AnonymizerType {
 		case "local":
 			if localAnonymizer != nil {
 				logger.Info("Using local LLM anonymizer")
-				anonymizer = ai.NewLocalAnonymizer(localAnonymizer)
+				anonymizerManager = ai.NewLocalAnonymizerManager(localAnonymizer, logger)
 			} else {
 				logger.Warn("Local anonymizer requested but not initialized, falling back to no-op")
-				anonymizer = ai.NewNoOpAnonymizer(logger)
+				anonymizerManager = ai.NewNoOpAnonymizerManager(logger)
 			}
+		case "llm":
+			logger.Info("Using LLM-based anonymizer")
+			anonymizerManager = ai.NewLLMAnonymizerManager(aiCompletionsService, "openai/gpt-4o-mini", logger)
 		case "mock":
 			// Parse anonymizer delay for mock anonymizer
 			delay, err := time.ParseDuration(envs.MockAnonymizerDelay)
@@ -171,16 +174,19 @@ func main() {
 				delay = 10 * time.Millisecond
 			}
 			logger.Info("Using mock anonymizer", "delay", delay)
-			anonymizer = ai.InitMockAnonymizer(delay, true, logger)
+			anonymizerManager = ai.NewMockAnonymizerManager(delay, true, logger)
 		default: // "no-op" or any other value
 			logger.Info("Using no-op anonymizer")
-			anonymizer = ai.NewNoOpAnonymizer(logger)
+			anonymizerManager = ai.NewNoOpAnonymizerManager(logger)
 		}
+
+		// Ensure proper cleanup of anonymizer manager
+		defer anonymizerManager.Shutdown()
 
 		// Create private completions service instance
 		privateCompletions, err := ai.NewPrivateCompletionsService(ai.PrivateCompletionsConfig{
 			CompletionsService: aiCompletionsService,
-			Anonymizer:         anonymizer,
+			AnonymizerManager:  anonymizerManager,
 			ExecutorWorkers:    envs.PrivateCompletionsWorkers,
 			Logger:             logger,
 		})
