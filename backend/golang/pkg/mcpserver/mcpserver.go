@@ -89,7 +89,17 @@ func (s *service) ConnectMCPServer(
 	}
 
 	if mcpServer != nil {
-		return nil, fmt.Errorf("mcp server with name %s already exists", name)
+		if s.isServerConnected(mcpServer.ID) {
+			return nil, fmt.Errorf("mcp server with name %s already exists and is connected", name)
+		}
+
+		// Server exists in database but not connected.
+		// Remove it first, then continue with fresh connection.
+		log.Info("Found existing disconnected MCP server, removing it for fresh connection", "server", name, "id", mcpServer.ID)
+		err = s.repo.DeleteMCPServer(ctx, mcpServer.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to remove existing disconnected server %s: %w", name, err)
+		}
 	}
 
 	// MCPServerTypeFreysa is just a URL-type MCP server, it will be handled similar to other URL-type MCP servers.
@@ -204,18 +214,29 @@ func (s *service) ConnectMCPServer(
 	var mcpClient *mcpclient.Client
 
 	if command == "url" {
-		// Store tokens in the OS keyring with database fallback for persistence across restarts.
-		// The URL is used as the identifier to identify the token.
-		tokenStore := NewKeyringDatabaseTokenStore(s.store, input.Args[0])
+		// Create MCP token store that manages both tokens and client credentials.
+		mcpTokenStore := NewTokenStore(s.store, input.Args[0])
+
+		// Check if tokens exist before creating client and validate refresh capability.
+		if existingToken, err := mcpTokenStore.GetToken(); err == nil {
+			ValidateTokenRefreshCapability(existingToken, input.Name)
+		}
+
+		// Try to retrieve stored client credentials first.
+		clientID, clientSecret, err := mcpTokenStore.GetClientCredentials()
+		if err != nil {
+			clientID = ""
+			clientSecret = ""
+		}
+
 		oauthConfig := mcpclient.OAuthConfig{
-			// The client ID can be set if dynamic clients are not used or if
-			// the MCP server itself acts as the client like Freysa Video MCP
-			ClientID:     os.Getenv("MCP_CLIENT_ID"),
-			ClientSecret: os.Getenv("MCP_CLIENT_SECRET"),
-			RedirectURI:  "http://localhost:8085/oauth/callback",
-			Scopes:       []string{"mcp.read", "mcp.write"},
-			TokenStore:   tokenStore,
-			PKCEEnabled:  true,
+			ClientID:              clientID,
+			ClientSecret:          clientSecret,
+			RedirectURI:           "http://localhost:8085/oauth/callback",
+			Scopes:                []string{"mcp.read", "mcp.write"},
+			TokenStore:            mcpTokenStore,
+			PKCEEnabled:           true,
+			AuthServerMetadataURL: "", // Auto-discovered.
 		}
 
 		mcpClient, err = mcpclient.NewOAuthStreamableHttpClient(input.Args[0], oauthConfig)
@@ -226,16 +247,41 @@ func (s *service) ConnectMCPServer(
 		// HTTP clients need manual start
 		err = mcpClient.Start(ctx)
 		if err != nil {
-			// If requires authorization, handle it
+			// If requires authorization, handle it.
 			if mcpclient.IsOAuthAuthorizationRequiredError(err) {
-				err = s.handleOAuthAuthorization(ctx, err)
+				log.Warn("OAuth authorization required for MCP server. Server will continue running, but this MCP server will be unavailable until authorization is completed.", "server", input.Name)
+				newMCPServer, err := s.repo.AddMCPServer(ctx, &input, &enabled)
 				if err != nil {
-					return nil, fmt.Errorf("failed to complete OAuth authorization: %w", err)
+					return nil, err
 				}
-				err = mcpClient.Start(ctx)
-				if err != nil {
-					return nil, fmt.Errorf("failed to start HTTP MCP client after OAuth: %w", err)
-				}
+				go func() {
+					authErr := s.handleOAuthAuthorization(ctx, err, input.Args[0])
+					if authErr != nil {
+						log.Error("Failed to complete OAuth authorization", "server", input.Name, "error", authErr)
+						return
+					}
+					if startErr := mcpClient.Start(ctx); startErr != nil {
+						log.Error("Failed to start HTTP MCP client after OAuth", "server", input.Name, "error", startErr)
+						return
+					}
+					initRequest := mcp.InitializeRequest{}
+					initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+					initRequest.Params.ClientInfo = mcp.Implementation{
+						Name:    "enchanted-twin-mcp-client",
+						Version: "1.0.0",
+					}
+					if _, initErr := mcpClient.Initialize(ctx, initRequest); initErr != nil {
+						log.Error("Failed to initialize HTTP MCP client after OAuth", "server", input.Name, "error", initErr)
+						return
+					}
+					s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+						ID:     newMCPServer.ID,
+						Client: mcpClient,
+					})
+					s.registerMCPTools(ctx, mcpClient)
+					log.Info("OAuth MCP server successfully connected", "server", input.Name)
+				}()
+				return newMCPServer, nil
 			} else {
 				return nil, fmt.Errorf("failed to start HTTP MCP client: %w", err)
 			}
@@ -253,7 +299,7 @@ func (s *service) ConnectMCPServer(
 		if err != nil {
 			// If requires authorization, handle it, again
 			if mcpclient.IsOAuthAuthorizationRequiredError(err) {
-				err = s.handleOAuthAuthorization(ctx, err)
+				err = s.handleOAuthAuthorization(ctx, err, input.Args[0])
 				if err != nil {
 					return nil, fmt.Errorf("failed to complete OAuth authorization: %w", err)
 				}
@@ -495,16 +541,26 @@ func (s *service) LoadMCP(ctx context.Context) error {
 
 		var mcpClient *mcpclient.Client
 		if command == "url" {
-			// Retrieve the token from keyring or database if it exists.
-			// If not, get a token and save it to keyring with database fallback.
-			tokenStore := NewKeyringDatabaseTokenStore(s.store, server.Args[0])
+			mcpTokenStore := NewTokenStore(s.store, server.Args[0])
+
+			if existingToken, err := mcpTokenStore.GetToken(); err == nil {
+				ValidateTokenRefreshCapability(existingToken, server.Name)
+			}
+
+			clientID, clientSecret, err := mcpTokenStore.GetClientCredentials()
+			if err != nil {
+				clientID = ""
+				clientSecret = ""
+			}
+
 			oauthConfig := mcpclient.OAuthConfig{
-				ClientID:     os.Getenv("MCP_CLIENT_ID"),
-				ClientSecret: os.Getenv("MCP_CLIENT_SECRET"),
-				RedirectURI:  "http://localhost:8085/oauth/callback",
-				Scopes:       []string{"mcp.read", "mcp.write"},
-				TokenStore:   tokenStore,
-				PKCEEnabled:  true,
+				ClientID:              clientID,
+				ClientSecret:          clientSecret,
+				RedirectURI:           "http://localhost:8085/oauth/callback",
+				Scopes:                []string{"mcp.read", "mcp.write"},
+				TokenStore:            mcpTokenStore,
+				PKCEEnabled:           true,
+				AuthServerMetadataURL: "",
 			}
 
 			mcpClient, err = mcpclient.NewOAuthStreamableHttpClient(server.Args[0], oauthConfig)
@@ -517,16 +573,35 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			err = mcpClient.Start(ctx)
 			if err != nil {
 				if mcpclient.IsOAuthAuthorizationRequiredError(err) {
-					err = s.handleOAuthAuthorization(ctx, err)
-					if err != nil {
-						log.Error("Failed to complete OAuth authorization", "server", server.Name, "error", err)
-						continue
-					}
-					err = mcpClient.Start(ctx)
-					if err != nil {
-						log.Error("Error starting HTTP MCP client after OAuth", "server", server.Name, "error", err)
-						continue
-					}
+					log.Warn("OAuth authorization required for MCP server during startup. Server will continue running, but this MCP server will be unavailable until authorization is completed.", "server", server.Name)
+					go func() {
+						authErr := s.handleOAuthAuthorization(ctx, err, server.Args[0])
+						if authErr != nil {
+							log.Error("Failed to complete OAuth authorization during startup", "server", server.Name, "error", authErr)
+							return
+						}
+						if startErr := mcpClient.Start(ctx); startErr != nil {
+							log.Error("Error starting HTTP MCP client after OAuth during startup", "server", server.Name, "error", startErr)
+							return
+						}
+						initRequest := mcp.InitializeRequest{}
+						initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+						initRequest.Params.ClientInfo = mcp.Implementation{
+							Name:    "enchanted-twin-mcp-client",
+							Version: "1.0.0",
+						}
+						if _, initErr := mcpClient.Initialize(ctx, initRequest); initErr != nil {
+							log.Error("Error initializing HTTP MCP client after OAuth during startup", "server", server.Name, "error", initErr)
+							return
+						}
+						s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+							ID:     server.ID,
+							Client: mcpClient,
+						})
+						s.registerMCPTools(ctx, mcpClient)
+						log.Info("OAuth MCP server successfully connected during startup", "server", server.Name)
+					}()
+					continue
 				} else {
 					log.Error("Error starting HTTP MCP client", "server", server.Name, "error", err)
 					continue
@@ -542,21 +617,8 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			}
 			_, err = mcpClient.Initialize(ctx, initRequest)
 			if err != nil {
-				if mcpclient.IsOAuthAuthorizationRequiredError(err) {
-					err = s.handleOAuthAuthorization(ctx, err)
-					if err != nil {
-						log.Error("Failed to complete OAuth authorization", "server", server.Name, "error", err)
-						continue
-					}
-					_, err = mcpClient.Initialize(ctx, initRequest)
-					if err != nil {
-						log.Error("Error initializing HTTP MCP client after OAuth", "server", server.Name, "error", err)
-						continue
-					}
-				} else {
-					log.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
-					continue
-				}
+				log.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
+				continue
 			}
 		} else {
 			// Convert envs to string slice
@@ -670,6 +732,16 @@ func (s *service) RemoveMCPServer(ctx context.Context, id string) error {
 // GetRegistry returns the tool registry.
 func (s *service) GetRegistry() tools.ToolRegistry {
 	return s.registry
+}
+
+// isServerConnected checks if a server with the given ID is currently connected.
+func (s *service) isServerConnected(serverID string) bool {
+	for _, connectedServer := range s.connectedServers {
+		if connectedServer.ID == serverID {
+			return true
+		}
+	}
+	return false
 }
 
 // registerMCPTools registers tools from an MCP client with the tool registry.
@@ -874,7 +946,7 @@ func getTools(ctx context.Context, connectedServer *ConnectedMCPServer) ([]*mode
 }
 
 // handleOAuthAuthorization handles the OAuth authorization flow.
-func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error) error {
+func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error, serverURL string) error {
 	log.Info("OAuth authorization required. Starting authorization flow...")
 
 	oauthHandler := mcpclient.GetOAuthHandler(authErr)
@@ -926,11 +998,35 @@ func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error) e
 		}
 
 		log.Info("Authorization successful!")
+
+		if err := s.saveClientCredentialsFromHandler(ctx, oauthHandler, serverURL); err != nil {
+			log.Warn("Failed to save client credentials after OAuth completion", "error", err)
+		}
+
+		log.Info("Validating stored token for automatic refresh capability...")
+
 		return nil
 
 	case <-time.After(5 * time.Minute):
 		return fmt.Errorf("OAuth authorization timed out")
 	}
+}
+
+// saveClientCredentialsFromHandler extracts and saves client credentials from an OAuth handler.
+func (s *service) saveClientCredentialsFromHandler(ctx context.Context, oauthHandler interface{}, serverURL string) error {
+	if handler, ok := oauthHandler.(*transport.OAuthHandler); ok {
+		clientID := handler.GetClientID()
+		clientSecret := handler.GetClientSecret()
+
+		mcpTokenStore := NewTokenStore(s.store, serverURL)
+		if err := mcpTokenStore.SetClientCredentials(clientID, clientSecret); err != nil {
+			return fmt.Errorf("failed to save client credentials: %w", err)
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("OAuth handler is not of expected type: %T", oauthHandler)
 }
 
 // startCallbackServer starts a local HTTP server to handle the OAuth callback.
