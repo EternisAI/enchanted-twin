@@ -30,6 +30,10 @@ export default function TTSOnboarding() {
 
   useEffect(() => {
     const initializeTTSOnboarding = async () => {
+      window.api.analytics.capture('onboarding_started', {
+        type: 'TTS'
+      })
+
       generateTTSForResponse(INITIAL_AGENT_MESSAGE)
       await createOnboardingChat()
     }

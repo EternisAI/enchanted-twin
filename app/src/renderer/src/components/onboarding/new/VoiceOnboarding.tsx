@@ -16,6 +16,10 @@ export default function VoiceOnboarding() {
 
   useEffect(() => {
     const initializeVoiceOnboarding = async () => {
+      window.api.analytics.capture('onboarding_started', {
+        type: 'VOICE'
+      })
+
       const newChatId = await createOnboardingChat()
       startVoiceMode(newChatId, true)
     }
