@@ -40,7 +40,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
           navigate({
             to: '/chat/$chatId',
             params: { chatId: newChatId },
-            search: { initialMessage: text, threadId: thread.id }
+            search: { initialMessage: text, threadId: thread.id, reasoning: false }
           })
 
           await client.cache.evict({ fieldName: 'getChats' })

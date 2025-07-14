@@ -38,11 +38,17 @@ interface ChatProviderProps {
   children: ReactNode
   chat: Chat
   initialMessage?: string
+  initialReasoningState?: boolean
 }
 
-export function ChatProvider({ children, chat, initialMessage }: ChatProviderProps) {
+export function ChatProvider({
+  children,
+  chat,
+  initialMessage,
+  initialReasoningState
+}: ChatProviderProps) {
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
-  const [isReasonSelected, setIsReasonSelected] = useState(false)
+  const [isReasonSelected, setIsReasonSelected] = useState(initialReasoningState || false)
   const [error, setError] = useState<string>('')
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]) // current message
   const [privacyDict, setPrivacyDict] = useState<string>(chat.privacyDictJson)
