@@ -165,7 +165,7 @@ function RootComponent() {
           layout="position"
         >
           <AdminKeyboardShortcuts />
-          <motion.div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm">
+          <motion.div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center">
             {/* {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '} */}
           </motion.div>
           <div className="fixed top-0 right-0 z-50 h-8 no-drag">
@@ -226,7 +226,7 @@ function RootComponent() {
               layout
               transition={{ type: 'spring', stiffness: 350, damping: 55 }}
             >
-              <motion.div className="flex-1 flex overflow-hidden relative justify-center pt-10">
+              <motion.div className="flex-1 flex overflow-hidden relative ">
                 <Outlet />
               </motion.div>
             </motion.div>
