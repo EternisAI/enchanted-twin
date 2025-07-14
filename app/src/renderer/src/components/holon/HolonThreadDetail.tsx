@@ -8,6 +8,7 @@ import { useMutation } from '@apollo/client'
 import { useCallback } from 'react'
 import { client } from '@renderer/graphql/lib'
 import MessageInput from '../chat/MessageInput'
+import Markdown from '@renderer/components/chat/messages/Markdown'
 
 interface HolonThreadDetailProps {
   thread: Thread
@@ -39,7 +40,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
           navigate({
             to: '/chat/$chatId',
             params: { chatId: newChatId },
-            search: { initialMessage: text, threadId: thread.id }
+            search: { initialMessage: text, threadId: thread.id, reasoning: false }
           })
 
           await client.cache.evict({ fieldName: 'getChats' })
@@ -109,9 +110,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
             </div>
           )}
 
-          <p className="text-foreground dark:text-gray-200 whitespace-pre-wrap leading-relaxed text-base">
-            {thread.content}
-          </p>
+          <Markdown>{thread.content}</Markdown>
         </div>
       </div>
 
@@ -147,9 +146,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
                     })}
                   </span>
                 </div>
-                <p className="text-sm text-foreground dark:text-gray-200 leading-relaxed">
-                  {message.content}
-                </p>
+                <Markdown>{message.content}</Markdown>
               </div>
             ))}
           </div>

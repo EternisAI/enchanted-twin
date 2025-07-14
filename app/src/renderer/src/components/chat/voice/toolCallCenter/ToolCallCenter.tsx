@@ -40,7 +40,7 @@ export default function ToolCallCenter({
         initial={{ x: '100%' }}
         animate={{ x: '0%' }}
         // animate={{ x: isShowing ? '0%' : '100%' }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 55 }}
       >
         <div className="h-full w-full p-4 overflow-y-auto overflow-x-hidden flex flex-col gap-8">
           <ToolCallProcessing toolCalls={activeToolCalls} />

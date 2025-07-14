@@ -64,7 +64,7 @@ function CodeBlock({ children, className, language }: CodeBlockProps) {
   )
 }
 
-export default function Markdown({ children }: { children: string; isChat?: boolean }) {
+export default function Markdown({ children }: { children: string }) {
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault()
     if (!href) return

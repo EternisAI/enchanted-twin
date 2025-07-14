@@ -1,77 +1,33 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useQuery, useMutation } from '@apollo/client'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
-import {
-  GetWhitelistStatusDocument,
-  ActivateInviteCodeDocument
-} from '@renderer/graphql/generated/graphql'
 import { OnboardingLayout } from './OnboardingLayout'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Loader2 } from 'lucide-react'
 import { router } from '../../main'
-import { OnboardingVoiceAnimation } from './voice/Animations'
+import { OnboardingVoiceAnimation } from './new/Animations'
 import { useTheme } from '@renderer/lib/theme'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import GoogleSignInButton from '../oauth/GoogleSignInButton'
 import XSignInButton from '../oauth/XSignInButton'
+import Loading from '../Loading'
 
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isActivated, setIsActivated] = useState(false)
 
-  const { user, authError, loading: authLoading, waitingForLogin, hasUpdatedToken } = useAuth()
+  const { user, authError, loading: authLoading, waitingForLogin, whitelist } = useAuth()
 
   const {
-    data: whitelistData,
     loading: whitelistLoading,
+    status: isWhitelisted,
     error: whitelistError,
-    refetch: refetchWhitelist
-  } = useQuery(GetWhitelistStatusDocument, {
-    fetchPolicy: 'network-only',
-    skip: !user || !hasUpdatedToken
-  })
+    called: whitelistCalled,
+    activateInviteCode
+  } = whitelist
 
-  const [activateInviteCode] = useMutation(ActivateInviteCodeDocument, {
-    onCompleted: async () => {
-      toast.success('Invite code activated successfully!')
-      await refetchWhitelist()
-      setIsActivated(true)
-    },
-    onError: (error) => {
-      console.error(error)
-      toast.error(`Failed to activate invite code: ${error.message}`)
-      setIsSubmitting(false)
-    }
-  })
-
-  console.log('whitelistData', whitelistData, whitelistError)
-
-  const errorFetching = useMemo(() => {
-    return whitelistError?.message || authError
-  }, [whitelistError, authError])
-
-  useEffect(() => {
-    const handleError = async () => {
-      if (errorFetching) {
-        console.error('Whitelist query failed:', errorFetching)
-
-        // Don't redirect if we're on the omnibar overlay route
-        // const currentPath = window.location.hash.replace('#', '')
-        // if (currentPath === '/omnibar-overlay') {
-        //   return
-        // }
-
-        // await new Promise((resolve) => setTimeout(resolve, 3000))
-        // router.navigate({ to: '/settings/advanced' })
-      }
-    }
-    handleError()
-  }, [errorFetching])
-
-  const isWhitelisted = whitelistData?.whitelistStatus || whitelistError
+  const errorFetching = whitelistError || authError
 
   const handleInviteCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,22 +38,22 @@ export default function InvitationGate({ children }: { children: React.ReactNode
 
     setIsSubmitting(true)
     try {
-      await activateInviteCode({
-        variables: { inviteCode: inviteCode.trim() }
-      })
+      await activateInviteCode(inviteCode.trim())
       setInviteCode('')
+      router.navigate({ to: '/onboarding' })
     } catch {
-      // Error is handled in onError callback
+      // Error is handled in the auth context
+    } finally {
+      setIsSubmitting(false)
     }
-    setIsSubmitting(false)
-    router.navigate({ to: '/onboarding' })
   }
 
-  if (isActivated || isWhitelisted || errorFetching) {
+  if (isWhitelisted || errorFetching) {
     return <>{children}</>
   }
 
   if (waitingForLogin) {
+    console.log('waitingForLogin', waitingForLogin)
     return (
       <div className="flex justify-center py-8 w-full">
         <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">
@@ -112,15 +68,17 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     )
   }
 
-  if (whitelistLoading || authLoading) {
+  if (whitelistLoading || authLoading || (user && !whitelistCalled)) {
+    console.log('whitelistLoading', whitelistLoading, authLoading)
     return (
-      <div className="flex justify-center py-8 w-full">
-        <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">
-          <div className="flex justify-center py-0 w-full text-primary">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        </OnboardingLayout>
-      </div>
+      <Loading />
+      // <div className="flex justify-center py-8 w-full">
+      //   <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">
+      //     <div className="flex justify-center py-0 w-full text-primary">
+      //       <Loader2 className="h-8 w-8 animate-spin" />
+      //     </div>
+      //   </OnboardingLayout>
+      // </div>
     )
   }
 

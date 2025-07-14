@@ -14,18 +14,12 @@ function IndexComponent() {
   const { error, success } = Route.useLoaderData()
 
   return (
-    <motion.div className="flex-1 flex flex-col items-center justify-center p-6">
-      <motion.div className="w-full max-w-4xl h-full">
-        <motion.div
-          layout
-          className="flex flex-col justify-center items-center gap-4 h-full"
-          transition={{
-            layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
-          }}
-        >
+    <div className="flex-1 flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-4xl h-full">
+        <div className="flex flex-col justify-center items-center gap-4 h-full">
           <Home />
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -44,7 +38,7 @@ function IndexComponent() {
           </div>
         )}
       </motion.div>
-    </motion.div>
+    </div>
   )
 }
 
