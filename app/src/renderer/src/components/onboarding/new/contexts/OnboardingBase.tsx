@@ -18,10 +18,18 @@ export function OnboardingBase({
   triggerAnimation: boolean
   onSkip: () => void
 }) {
+  const handleSkip = () => {
+    window.api.analytics.capture('onboarding_skipped', {
+      timestamp: new Date().toISOString()
+    })
+
+    onSkip()
+  }
+
   return (
     <div className="w-full h-full flex flex-col justify-between items-center relative">
       <Button
-        onClick={onSkip}
+        onClick={handleSkip}
         variant="outline"
         size="sm"
         className="absolute bottom-4 right-4 text-white hover:text-black"

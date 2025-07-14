@@ -87,6 +87,11 @@ export default function useOnboardingChat() {
 
       const result = JSON.parse(toolCall.result?.content || '{}')
 
+      window.api.analytics.capture('onboarding_completed', {
+        name: result?.name || 'No name',
+        context: result?.context || 'No context'
+      })
+
       updateProfile({
         variables: {
           input: {
