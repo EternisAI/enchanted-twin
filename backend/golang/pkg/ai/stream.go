@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/option"
 )
 
 type StreamDelta struct {
@@ -43,10 +44,19 @@ func (s *Service) CompletionsStream(
 		s.logger.Debug("Starting stream", "model", model, "messages_count", len(messages), "tools_count", len(tools))
 
 		// Add timeout context to prevent hanging
-		timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
+		opts := s.opts
 
-		stream := s.client.Chat.Completions.NewStreaming(timeoutCtx, params)
+		if s.getAccessToken != nil {
+			firebaseToken, err := s.getAccessToken()
+			if err != nil {
+				return
+			}
+			opts = append(opts, option.WithHeader("Authorization", "Bearer "+firebaseToken))
+		}
+
+		stream := s.client.Chat.Completions.NewStreaming(timeoutCtx, params, opts...)
 		defer func() {
 			if err := stream.Close(); err != nil {
 				s.logger.Error("Error closing stream", "error", err)

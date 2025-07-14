@@ -27,6 +27,7 @@ enum ChatCategory {
 type UserProfile {
   name: String
   bio: String
+  username: String
   indexingStatus: IndexingStatus @goField(forceResolver: true)
   connectedDataSources: [DataSource!]! @goField(forceResolver: true)
 }
@@ -34,6 +35,11 @@ type UserProfile {
 input UpdateProfileInput {
   name: String
   bio: String
+}
+
+input StoreTokenInput {
+  token: String!
+  refreshToken: String!
 }
 
 type ToolCall {
@@ -56,7 +62,8 @@ type Chat {
   createdAt: DateTime!
   category: ChatCategory!
   holonThreadId: String #include this in the system prompt so user does not have to excit. on twinchat.go
-    initialMessage: String
+  initialMessage: String
+  privacyDictJson: JSON
 }
 
 type Message {
@@ -96,12 +103,20 @@ type OAuthFlow {
   redirectURI: String!
 }
 
+type OAuthAccount {
+  provider: String!
+  username: String!
+  expiresAt: DateTime!
+  isActive: Boolean!
+}
+
 type Query {
   profile: UserProfile!
   getChats(first: Int! = 10, offset: Int! = 0): [Chat!]!
   getChat(id: ID!): Chat!
   getDataSources: [DataSource!]!
   getOAuthStatus: [OAuthStatus!]!
+  getConnectedAccounts: [OAuthAccount!]!
   getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
   getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
@@ -112,6 +127,15 @@ type Query {
   getHolons(userId: ID!): [String!]
   getThreads(network: String, first: Int! = 10, offset: Int! = 0): [Thread!]!
   getThread(network: String, id: ID!): Thread
+  getTrackedFolders: [TrackedFolder!]!
+  getDirectoryWatcherStatus: DirectoryWatcherStatus!
+}
+
+type DirectoryWatcherStatus {
+  isRunning: Boolean!
+  watchedDirectories: [String!]!
+  trackedFoldersFromDB: [TrackedFolder!]!
+  errorMessage: String
 }
 
 type SetupProgress {
@@ -142,11 +166,6 @@ type Mutation {
     reasoning: Boolean! = False
     voice: Boolean! = False
   ): Message!
-  processMessageHistory(
-    chatId: ID!
-    messages: [MessageInput!]!
-    isOnboarding: Boolean! = False
-  ): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
@@ -159,6 +178,10 @@ type Mutation {
   startWhatsAppConnection: Boolean!
   activate(inviteCode: String!): Boolean!
   joinHolon(userId: String!, network: String): Boolean!
+  storeToken(input: StoreTokenInput!): Boolean!
+  addTrackedFolder(input: AddTrackedFolderInput!): TrackedFolder!
+  deleteTrackedFolder(id: ID!): Boolean!
+  updateTrackedFolder(id: ID!, input: UpdateTrackedFolderInput!): Boolean!
 }
 
 type Subscription {
@@ -174,6 +197,7 @@ type Subscription {
     isOnboarding: Boolean! = False
   ): MessageStreamPayload!
   whatsAppSyncStatus: WhatsAppSyncStatus!
+  privacyDictUpdated(chatId: ID!): PrivacyDictUpdate!
 }
 
 type WhatsAppSyncStatus {
@@ -192,6 +216,25 @@ type DataSource {
   isIndexed: Boolean!
   indexProgress: Int!
   hasError: Boolean!
+}
+
+type TrackedFolder {
+  id: ID!
+  path: String!
+  name: String
+  isEnabled: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input AddTrackedFolderInput {
+  path: String!
+  name: String
+}
+
+input UpdateTrackedFolderInput {
+  name: String
+  isEnabled: Boolean
 }
 
 enum IndexingState {
@@ -231,6 +274,7 @@ enum MCPServerType {
   OTHER
   SCREENPIPE
   ENCHANTED
+  FREYSA
 }
 
 input ConnectMCPServerInput {
@@ -291,6 +335,11 @@ type WhatsAppQRCodeUpdate {
   event: String!
   timestamp: DateTime!
   isConnected: Boolean!
+}
+
+type PrivacyDictUpdate {
+  chatId: ID!
+  privacyDictJson: JSON!
 }
 
 type AgentTask {

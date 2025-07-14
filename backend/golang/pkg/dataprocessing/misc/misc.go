@@ -1,22 +1,23 @@
 package misc
 
 import (
+	"archive/zip"
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/KSpaceer/goppt"
 	"github.com/charmbracelet/log"
+	"github.com/guylaor/goword"
 	"github.com/ledongthuc/pdf"
-	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/constants"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -25,22 +26,12 @@ const (
 )
 
 type TextDocumentProcessor struct {
-	openAiService    *ai.Service
-	chunkSize        int
-	completionsModel string
-	store            *db.Store
-	logger           *log.Logger
+	chunkSize int
+	store     *db.Store
+	logger    *log.Logger
 }
 
-func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger) (processor.Processor, error) {
-	if openAiService == nil {
-		return nil, fmt.Errorf("openAiService is nil")
-	}
-
-	if completionsModel == "" {
-		return nil, fmt.Errorf("completionsModel is empty")
-	}
-
+func NewTextDocumentProcessor(store *db.Store, logger *log.Logger) (*TextDocumentProcessor, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store is nil")
 	}
@@ -50,16 +41,14 @@ func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string
 	}
 
 	return &TextDocumentProcessor{
-		openAiService:    openAiService,
-		chunkSize:        DefaultChunkSize,
-		completionsModel: completionsModel,
-		store:            store,
-		logger:           logger,
+		chunkSize: DefaultChunkSize,
+		store:     store,
+		logger:    logger,
 	}, nil
 }
 
 func (s *TextDocumentProcessor) Name() string {
-	return "misc"
+	return constants.ProcessorSyncedDocument.String()
 }
 
 // IsHumanReadableContent determines if the content is human-readable text.
@@ -71,7 +60,6 @@ func (s *TextDocumentProcessor) IsHumanReadableContent(ctx context.Context, cont
 	if len(content) >= 4 {
 		firstFourBytes := content[:4]
 
-		// PDF files are now handled separately
 		if strings.HasPrefix(firstFourBytes, "%PDF") {
 			return true, nil
 		}
@@ -245,43 +233,221 @@ func (s *TextDocumentProcessor) ExtractTextFromPDF(filePath string) (string, err
 	return textBuilder.String(), nil
 }
 
-// ExtractContentTags uses a language model to extract relevant tags from the content.
-func (s *TextDocumentProcessor) ExtractContentTags(ctx context.Context, content string) ([]string, error) {
-	contentSample := content
-	if len(content) > 1000 {
-		contentSample = content[:1000]
-	}
-
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(fmt.Sprintf("Extract 3-5 tags that describe this content. Reply with ONLY a comma-separated list of tags (no explanations, just the tags).\n\nText sample: %s", contentSample)),
-	}
-
-	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, s.completionsModel)
+// ExtractTextFromWord extracts text content from a Word (.docx) file.
+func (s *TextDocumentProcessor) ExtractTextFromWord(filePath string) (string, error) {
+	text, err := goword.ParseText(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract tags: %w", err)
+		return "", fmt.Errorf("failed to extract text from Word file %s: %w", filePath, err)
 	}
+	return text, nil
+}
 
-	responseText := strings.TrimSpace(response.Content)
+// ExtractTextFromPPT extracts text content from a legacy PowerPoint (.ppt) file.
+func (s *TextDocumentProcessor) ExtractTextFromPPT(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open PPT file %s: %w", filePath, err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			s.logger.Warn("failed to close PPT file", "filePath", filePath, "error", err)
+		}
+	}()
 
-	responseText = strings.ReplaceAll(responseText, "\n", " ")
-	responseText = strings.ReplaceAll(responseText, "  ", " ")
-	responseText = strings.ReplaceAll(responseText, "* ", "")
-	responseText = strings.ReplaceAll(responseText, "- ", "")
+	text, err := goppt.ExtractText(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract text from PPT file %s: %w", filePath, err)
+	}
+	return text, nil
+}
 
-	tagsList := strings.Split(responseText, ",")
+// ExtractTextFromPPTX extracts text content from a modern PowerPoint (.pptx) file.
+func (s *TextDocumentProcessor) ExtractTextFromPPTX(filePath string) (string, error) {
+	reader, err := zip.OpenReader(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open PPTX file %s: %w", filePath, err)
+	}
+	defer func() {
+		if err := reader.Close(); err != nil {
+			s.logger.Warn("failed to close PPTX reader", "filePath", filePath, "error", err)
+		}
+	}()
 
-	tags := make([]string, 0, len(tagsList))
-	for _, tag := range tagsList {
-		tag = strings.TrimSpace(tag)
-		if tag != "" && len(tag) < 50 {
-			tags = append(tags, tag)
+	var textBuilder strings.Builder
+
+	for _, file := range reader.File {
+		if strings.HasPrefix(file.Name, "ppt/slides/slide") && strings.HasSuffix(file.Name, ".xml") {
+			text, err := s.extractTextFromSlideXML(file)
+			if err != nil {
+				s.logger.Warn("Failed to extract text from slide", "file", file.Name, "error", err)
+				continue
+			}
+			if text != "" {
+				textBuilder.WriteString(text)
+				textBuilder.WriteString("\n\n")
+			}
 		}
 	}
 
-	return tags, nil
+	return textBuilder.String(), nil
 }
 
-func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
+// extractTextFromSlideXML extracts text from a slide XML file within the PPTX archive.
+func (s *TextDocumentProcessor) extractTextFromSlideXML(file *zip.File) (string, error) {
+	rc, err := file.Open()
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err := rc.Close(); err != nil {
+			s.logger.Warn("failed to close slide XML reader", "file", file.Name, "error", err)
+		}
+	}()
+
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return "", err
+	}
+
+	xmlContent := string(data)
+
+	return s.extractTextFromXMLFallback(xmlContent), nil
+}
+
+// extractTextFromXMLFallback is a fallback method to extract text from XML using string manipulation.
+func (s *TextDocumentProcessor) extractTextFromXMLFallback(xmlContent string) string {
+	var textBuilder strings.Builder
+	extractedTexts := make(map[string]bool)
+
+	start := 0
+	for {
+		startTag := strings.Index(xmlContent[start:], "<a:t>")
+		if startTag == -1 {
+			break
+		}
+		startTag += start + 5
+
+		endTag := strings.Index(xmlContent[startTag:], "</a:t>")
+		if endTag == -1 {
+			break
+		}
+		endTag += startTag
+
+		text := strings.TrimSpace(xmlContent[startTag:endTag])
+		if text != "" && !extractedTexts[text] {
+			textBuilder.WriteString(text)
+			textBuilder.WriteString(" ")
+			extractedTexts[text] = true
+		}
+
+		start = endTag + 6
+	}
+
+	otherTags := []string{
+		"<p:t>", "</p:t>",
+		"<a:p>", "</a:p>",
+		"<p:p>", "</p:p>",
+	}
+
+	for i := 0; i < len(otherTags); i += 2 {
+		openTag := otherTags[i]
+		closeTag := otherTags[i+1]
+
+		start := 0
+		for {
+			startTag := strings.Index(xmlContent[start:], openTag)
+			if startTag == -1 {
+				break
+			}
+			startTag += start + len(openTag)
+
+			endTag := strings.Index(xmlContent[startTag:], closeTag)
+			if endTag == -1 {
+				break
+			}
+			endTag += startTag
+
+			content := xmlContent[startTag:endTag]
+			text := s.removeXMLTags(content)
+			text = strings.TrimSpace(text)
+
+			if text != "" && !extractedTexts[text] {
+				textBuilder.WriteString(text)
+				textBuilder.WriteString(" ")
+				extractedTexts[text] = true
+			}
+
+			start = endTag + len(closeTag)
+		}
+	}
+
+	result := strings.TrimSpace(textBuilder.String())
+	return result
+}
+
+// removeXMLTags removes XML tags from text content.
+func (s *TextDocumentProcessor) removeXMLTags(content string) string {
+	var result strings.Builder
+	inTag := false
+
+	for _, char := range content {
+		if char == '<' {
+			inTag = true
+		} else if char == '>' {
+			inTag = false
+		} else if !inTag {
+			result.WriteRune(char)
+		}
+	}
+
+	return result.String()
+}
+
+func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.FileDocument, error) {
+	// Check if the input is a directory
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file info for %s: %w", filePath, err)
+	}
+
+	if info.IsDir() {
+		// Handle directory by walking through all files
+		return s.processDirectory(ctx, filePath)
+	}
+
+	// Handle single file
+	return s.processSingleFile(ctx, filePath)
+}
+
+func (s *TextDocumentProcessor) processDirectory(ctx context.Context, dirPath string) ([]memory.FileDocument, error) {
+	var allDocuments []memory.FileDocument
+
+	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		documents, err := s.processSingleFile(ctx, path)
+		if err != nil {
+			s.logger.Warn("Failed to process file", "path", path, "error", err)
+			return nil // Continue processing other files
+		}
+
+		allDocuments = append(allDocuments, documents...)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error walking directory %s: %w", dirPath, err)
+	}
+
+	return allDocuments, nil
+}
+
+func (s *TextDocumentProcessor) processSingleFile(ctx context.Context, filePath string) ([]memory.FileDocument, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
@@ -305,12 +471,35 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 	timestamp := fileInfo.ModTime()
 	fileName := fileInfo.Name()
 
-	isPdf := strings.ToLower(filepath.Ext(fileName)) == ".pdf"
+	ext := strings.ToLower(filepath.Ext(fileName))
+	isPdf := ext == ".pdf"
+	isDocx := ext == ".docx"
+	isPpt := ext == ".ppt"
+	isPptx := ext == ".pptx"
 
 	var textContent string
 
 	if isPdf {
+		s.logger.Info("Extracting text from PDF", "filePath", filePath)
 		extractedText, err := s.ExtractTextFromPDF(filePath)
+		if err != nil {
+			return nil, err
+		}
+		textContent = extractedText
+	} else if isDocx {
+		extractedText, err := s.ExtractTextFromWord(filePath)
+		if err != nil {
+			return nil, err
+		}
+		textContent = extractedText
+	} else if isPpt {
+		extractedText, err := s.ExtractTextFromPPT(filePath)
+		if err != nil {
+			return nil, err
+		}
+		textContent = extractedText
+	} else if isPptx {
+		extractedText, err := s.ExtractTextFromPPTX(filePath)
 		if err != nil {
 			return nil, err
 		}
@@ -334,7 +523,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 
 		textContent = content.String()
 
-		if !isPdf {
+		if !isPdf && !isDocx && !isPpt && !isPptx {
 			isHumanReadable, err := s.IsHumanReadableContent(context.Background(), textContent)
 			if err != nil {
 				return nil, fmt.Errorf("error analyzing file %s: %w", filePath, err)
@@ -351,32 +540,23 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 	s.logger.Info("Processing file", "fileName", fileName, "contentLength", len(textContent), "preview", textContent[:min(200, len(textContent))])
 
 	if len(textContent) == 0 {
-		emptyRecord := types.Record{
-			Data: map[string]interface{}{
-				"content":  "",
+		emptyDoc := memory.FileDocument{
+			FieldID:        fmt.Sprintf("misc-%s-%d", fileName, timestamp.Unix()),
+			FieldContent:   "",
+			FieldTimestamp: &timestamp,
+			FieldSource:    s.Name(),
+			FieldTags:      []string{},
+			FieldMetadata: map[string]string{
 				"filename": fileName,
-				"type": func() string {
-					if isPdf {
-						return "pdf"
-					} else {
-						return "text"
-					}
-				}(),
-				"path": filePath,
+				"path":     filePath,
+				"type":     s.getFileType(ext),
 			},
-			Timestamp: timestamp,
-			Source:    s.Name(),
+			FieldFilePath: filePath,
 		}
-		return []types.Record{emptyRecord}, nil
+		return []memory.FileDocument{emptyDoc}, nil
 	}
 
-	tags, err := s.ExtractContentTags(context.Background(), textContent)
-	if err != nil {
-		s.logger.Warn("Failed to extract tags", "filePath", filePath, "error", err)
-		tags = []string{}
-	}
-
-	var records []types.Record
+	var documents []memory.FileDocument
 	for i := 0; i < len(textContent); i += s.chunkSize {
 		end := i + s.chunkSize
 		if end > len(textContent) {
@@ -384,126 +564,42 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 		}
 
 		chunk := textContent[i:end]
-		record := types.Record{
-			Data: map[string]interface{}{
-				"content":  chunk,
+		chunkIndex := i / s.chunkSize
+
+		doc := memory.FileDocument{
+			FieldID:        fmt.Sprintf("misc-%s-%d-chunk%d", fileName, timestamp.Unix(), chunkIndex),
+			FieldContent:   chunk,
+			FieldTimestamp: &timestamp,
+			FieldSource:    s.Name(),
+			FieldTags:      []string{"synced-document", "file", "document", ext},
+			FieldMetadata: map[string]string{
 				"filename": fileName,
-				"type": func() string {
-					if isPdf {
-						return "pdf"
-					} else {
-						return "text"
-					}
-				}(),
-				"chunk": i / s.chunkSize,
-				"tags":  tags,
+				"path":     filePath,
+				"type":     s.getFileType(ext),
+				"chunk":    fmt.Sprintf("%d", chunkIndex),
 			},
-			Timestamp: timestamp,
-			Source:    s.Name(),
+			FieldFilePath: filePath,
 		}
-		records = append(records, record)
-
-		s.logger.Info("Created record", "fileName", fileName, "chunk", i/s.chunkSize, "contentLength", len(chunk))
-	}
-
-	s.logger.Info("File processed into records", "fileName", fileName, "records", len(records))
-	return records, nil
-}
-
-func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
-	var allRecords []types.Record
-
-	err := filepath.WalkDir(inputPath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		records, err := s.ProcessFile(ctx, path)
-		if err != nil {
-			s.logger.Warn("Failed to process file", "path", path, "error", err)
-			return nil
-		}
-
-		allRecords = append(allRecords, records...)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error walking directory %s: %w", inputPath, err)
-	}
-
-	return allRecords, nil
-}
-
-func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	s.logger.Info("Converting records to documents", "records", len(records))
-
-	documents := make([]memory.TextDocument, 0, len(records))
-	for _, record := range records {
-		metadata := map[string]string{}
-
-		content := ""
-		if contentVal, ok := record.Data["content"]; ok && contentVal != nil {
-			if contentStr, ok := contentVal.(string); ok {
-				content = contentStr
-			}
-		}
-
-		if pathVal, ok := record.Data["path"]; ok && pathVal != nil {
-			if pathStr, ok := pathVal.(string); ok {
-				metadata["path"] = pathStr
-			}
-		}
-
-		var tags []string
-		if tagsVal, ok := record.Data["tags"]; ok && tagsVal != nil {
-			if tagsArr, ok := tagsVal.([]string); ok {
-				tags = tagsArr
-			}
-		}
-
-		// Generate unique document ID including chunk index for uniqueness
-		chunkIndex := 0
-		if chunkVal, ok := record.Data["chunk"]; ok && chunkVal != nil {
-			if chunkInt, ok := chunkVal.(int); ok {
-				chunkIndex = chunkInt
-			}
-		}
-
-		docID := fmt.Sprintf("misc-%s-%d-chunk%d", record.Source, record.Timestamp.Unix(), chunkIndex)
-		if pathVal, ok := record.Data["path"]; ok && pathVal != nil {
-			if pathStr, ok := pathVal.(string); ok {
-				filename := filepath.Base(pathStr)
-				docID = fmt.Sprintf("misc-%s-%s-%d-chunk%d", record.Source, filename, record.Timestamp.Unix(), chunkIndex)
-			}
-		}
-
-		doc := memory.TextDocument{
-			FieldID:        docID,
-			FieldContent:   content,
-			FieldTimestamp: &record.Timestamp,
-			FieldSource:    record.Source,
-			FieldMetadata:  metadata,
-			FieldTags:      tags,
-		}
-
-		s.logger.Info("Document", "id", doc.ID(), "source", doc.Source(), "contentLength", len(doc.Content()), "preview", doc.Content()[:min(100, len(doc.Content()))])
-
 		documents = append(documents, doc)
+
+		s.logger.Info("Created document", "fileName", fileName, "chunk", chunkIndex, "contentLength", len(chunk))
 	}
 
-	var documents_ []memory.Document
-	for _, document := range documents {
-		documents_ = append(documents_, &document)
-	}
-
-	s.logger.Info("Converted records to documents", "records", len(records), "documents", len(documents_))
-	return documents_, nil
+	s.logger.Info("File processed into documents", "fileName", fileName, "documents", len(documents))
+	return documents, nil
 }
 
-func (s *TextDocumentProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
-	return nil, false, fmt.Errorf("sync not supported for local text files")
+func (s *TextDocumentProcessor) getFileType(ext string) string {
+	switch ext {
+	case ".pdf":
+		return "pdf"
+	case ".docx":
+		return "docx"
+	case ".ppt":
+		return "ppt"
+	case ".pptx":
+		return "pptx"
+	default:
+		return "text"
+	}
 }

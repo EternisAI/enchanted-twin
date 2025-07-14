@@ -1,4 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ElectronAPI } from '@electron-toolkit/preload'
+
+interface FileDialogResult {
+  canceled: boolean
+  filePaths: string[]
+  fileSizes?: number[]
+}
 
 interface IApi {
   getPathForFile: (file: File) => string
@@ -6,7 +13,7 @@ interface IApi {
   selectDirectory: () => Promise<Electron.OpenDialogReturnValue>
   selectFiles: (options?: {
     filters?: { name: string; extensions: string[] }[]
-  }) => Promise<Electron.OpenDialogReturnValue>
+  }) => Promise<FileDialogResult>
   getNativeTheme: () => Promise<string>
   setNativeTheme: (theme: 'system' | 'light' | 'dark') => Promise<string>
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => void
@@ -42,6 +49,7 @@ interface IApi {
     stop: () => Promise<any>
     getAutoStart: () => Promise<boolean>
     setAutoStart: (enabled: boolean) => Promise<any>
+    storeRestartIntent: (route: string, showModal: boolean) => Promise<boolean>
   }
   launch: {
     onProgress: (
@@ -79,7 +87,7 @@ interface IApi {
   }
   livekit: {
     setup: () => Promise<any>
-    start: (chatId: string, isOnboarding?: boolean) => Promise<any>
+    start: (chatId: string, isOnboarding?: boolean, jwtToken?: string) => Promise<any>
     stop: () => Promise<any>
     isRunning: () => Promise<boolean>
     isSessionReady: () => Promise<boolean>
@@ -107,6 +115,38 @@ interface IApi {
     set: (action: string, keys: string) => Promise<{ success: boolean; error?: string }>
     reset: (action: string) => Promise<{ success: boolean; error?: string }>
     resetAll: () => Promise<{ success: boolean; error?: string }>
+  }
+  models: {
+    hasModelsDownloaded: () => Promise<Record<DependencyName, boolean>>
+    downloadModels: (modelName: DependencyName) => Promise<{ success: boolean; path: string }>
+    onProgress: (
+      callback: (data: {
+        modelName: string
+        pct: number
+        totalBytes: number
+        downloadedBytes: number
+        error?: string
+      }) => void
+    ) => () => void
+  }
+  goServer: {
+    initialize: () => Promise<{ success: boolean; error?: string }>
+    cleanup: () => Promise<{ success: boolean; error?: string }>
+    getStatus: () => Promise<{ success: boolean; isRunning: boolean; message: string }>
+  }
+  clipboard: {
+    writeText: (text: string) => Promise<{ success: boolean; error?: string }>
+    readText: () => Promise<{ success: boolean; text?: string; error?: string }>
+  }
+  tts: {
+    generate: (
+      text: string,
+      firebaseToken: string
+    ) => Promise<{
+      success: boolean
+      audioBuffer?: Buffer
+      error?: string
+    }>
   }
 }
 

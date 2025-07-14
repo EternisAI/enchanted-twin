@@ -3,7 +3,6 @@ package evolvingmemory
 import (
 	"context"
 
-	"github.com/openai/openai-go"
 	"github.com/stretchr/testify/mock"
 	"github.com/weaviate/weaviate/entities/models"
 
@@ -100,69 +99,24 @@ func (m *MockStorage) GetFactsByIDs(ctx context.Context, factIDs []string) ([]*m
 	return facts, args.Error(1)
 }
 
+func (m *MockStorage) StoreDocumentChunksBatch(ctx context.Context, chunks []*storage.DocumentChunk) error {
+	args := m.Called(ctx, chunks)
+	return args.Error(0)
+}
+
+func (m *MockStorage) QueryDocumentChunks(ctx context.Context, queryText string, filter *memory.Filter) ([]*storage.DocumentChunk, error) {
+	args := m.Called(ctx, queryText, filter)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	chunks, _ := args.Get(0).([]*storage.DocumentChunk)
+	return chunks, args.Error(1)
+}
+
 // Ensure MockStorage implements the storage interface.
 var _ storage.Interface = (*MockStorage)(nil)
 
 // MockCompletionsService mocks the AI completions service.
 type MockCompletionsService struct {
 	mock.Mock
-}
-
-func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
-	args := m.Called(ctx, messages, tools, model)
-	if args.Get(0) == nil {
-		return openai.ChatCompletionMessage{}, args.Error(1)
-	}
-	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
-}
-
-func (m *MockCompletionsService) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
-	args := m.Called(ctx, inputs, model)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	embeddings, _ := args.Get(0).([][]float64)
-	return embeddings, args.Error(1)
-}
-
-func (m *MockCompletionsService) Embedding(ctx context.Context, input string, model string) ([]float64, error) {
-	args := m.Called(ctx, input, model)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	embedding, _ := args.Get(0).([]float64)
-	return embedding, args.Error(1)
-}
-
-// MockEmbeddingsService mocks the embeddings service.
-type MockEmbeddingsService struct {
-	mock.Mock
-}
-
-func (m *MockEmbeddingsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
-	args := m.Called(ctx, messages, tools, model)
-	if args.Get(0) == nil {
-		return openai.ChatCompletionMessage{}, args.Error(1)
-	}
-	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
-}
-
-func (m *MockEmbeddingsService) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
-	args := m.Called(ctx, inputs, model)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	embeddings, _ := args.Get(0).([][]float64)
-	return embeddings, args.Error(1)
-}
-
-func (m *MockEmbeddingsService) Embedding(ctx context.Context, input string, model string) ([]float64, error) {
-	args := m.Called(ctx, input, model)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	embedding, _ := args.Get(0).([]float64)
-	return embedding, args.Error(1)
 }

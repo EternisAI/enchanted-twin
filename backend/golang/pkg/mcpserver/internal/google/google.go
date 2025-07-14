@@ -37,7 +37,9 @@ func (c *GoogleClient) ListTools(
 		return nil, err
 	}
 	tools = append(tools, googleDriveTools...)
-	log.Info("Returning tools", "tools", tools)
+	for _, tool := range tools {
+		log.Info("Google tool", "name", tool.Name)
+	}
 	return &mcp_golang.ListToolsResult{
 		Tools: tools,
 	}, nil

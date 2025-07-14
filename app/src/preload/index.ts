@@ -74,7 +74,9 @@ const api = {
     start: () => ipcRenderer.invoke('screenpipe:start'),
     stop: () => ipcRenderer.invoke('screenpipe:stop'),
     getAutoStart: () => ipcRenderer.invoke('screenpipe:get-auto-start'),
-    setAutoStart: (enabled: boolean) => ipcRenderer.invoke('screenpipe:set-auto-start', enabled)
+    setAutoStart: (enabled: boolean) => ipcRenderer.invoke('screenpipe:set-auto-start', enabled),
+    storeRestartIntent: (route: string, showModal: boolean) =>
+      ipcRenderer.invoke('screenpipe:store-restart-intent', route, showModal)
   },
   launch: {
     onProgress: (
@@ -122,9 +124,8 @@ const api = {
     set: (key: string, value: unknown) => screenpipeStore.set(key, value)
   },
   livekit: {
-    setup: () => ipcRenderer.invoke('livekit:setup'),
-    start: (chatId: string, isOnboarding?: boolean) =>
-      ipcRenderer.invoke('livekit:start', chatId, isOnboarding),
+    start: (chatId: string, isOnboarding?: boolean, jwtToken?: string) =>
+      ipcRenderer.invoke('livekit:start', chatId, isOnboarding, jwtToken),
     stop: () => ipcRenderer.invoke('livekit:stop'),
     isRunning: () => ipcRenderer.invoke('livekit:is-running'),
     isSessionReady: () => ipcRenderer.invoke('livekit:is-session-ready'),
@@ -166,6 +167,44 @@ const api = {
       ipcRenderer.invoke('keyboard-shortcuts:set', action, keys),
     reset: (action: string) => ipcRenderer.invoke('keyboard-shortcuts:reset', action),
     resetAll: () => ipcRenderer.invoke('keyboard-shortcuts:reset-all')
+  },
+  models: {
+    hasModelsDownloaded: () => ipcRenderer.invoke('models:has-models-downloaded'),
+    downloadModels: (modelName: 'embeddings' | 'anonymizer') =>
+      ipcRenderer.invoke('models:download', modelName),
+    onProgress: (
+      callback: (data: {
+        modelName: string
+        pct: number
+        totalBytes: number
+        downloadedBytes: number
+      }) => void
+    ) => {
+      const listener = (
+        _: unknown,
+        data: {
+          modelName: string
+          pct: number
+          totalBytes: number
+          downloadedBytes: number
+        }
+      ) => callback(data)
+      ipcRenderer.on('models:progress', listener)
+      return () => ipcRenderer.removeListener('models:progress', listener)
+    }
+  },
+  goServer: {
+    initialize: () => ipcRenderer.invoke('go-server:initialize'),
+    cleanup: () => ipcRenderer.invoke('go-server:cleanup'),
+    getStatus: () => ipcRenderer.invoke('go-server:status')
+  },
+  clipboard: {
+    writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
+    readText: () => ipcRenderer.invoke('clipboard:readText')
+  },
+  tts: {
+    generate: (text: string, firebaseToken: string) =>
+      ipcRenderer.invoke('tts:generate', text, firebaseToken)
   }
 }
 
@@ -176,12 +215,14 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
+    console.log('Preload: APIs exposed via contextBridge')
   } catch (error) {
-    console.error(error)
+    console.error('Preload: Failed to expose APIs:', error)
   }
 } else {
   // @ts-ignore (define in dts)
   window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
+  console.log('Preload: APIs exposed directly to window')
 }

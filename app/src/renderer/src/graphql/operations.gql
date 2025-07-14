@@ -11,6 +11,7 @@ query GetChats($first: Int!, $offset: Int!) {
     createdAt
     category
     holonThreadId
+    privacyDictJson
     messages {
       id
       text
@@ -39,6 +40,7 @@ query GetChat($id: ID!) {
     createdAt
     category
     holonThreadId
+    privacyDictJson
     messages {
       id
       text
@@ -68,7 +70,9 @@ query GetDataSources {
     updatedAt
     isProcessed
     isIndexed
+    indexProgress
     hasError
+    startTime
   }
 }
 
@@ -138,6 +142,33 @@ query GetWhitelistStatus {
   whitelistStatus
 }
 
+query GetTrackedFolders {
+  getTrackedFolders {
+    id
+    name
+    path
+    isEnabled
+    createdAt
+    updatedAt
+  }
+}
+
+query GetDirectoryWatcherStatus {
+  getDirectoryWatcherStatus {
+    isRunning
+    watchedDirectories
+    trackedFoldersFromDB {
+      id
+      name
+      path
+      isEnabled
+      createdAt
+      updatedAt
+    }
+    errorMessage
+  }
+}
+
 mutation CreateChat(
   $name: String!
   $category: ChatCategory! = TEXT
@@ -155,6 +186,7 @@ mutation CreateChat(
     createdAt
     category
     holonThreadId
+    privacyDictJson
   }
 }
 
@@ -231,6 +263,7 @@ subscription IndexingStatus {
   indexingStatus {
     status
     error
+    globalStartTime
     dataSources {
       id
       name
@@ -238,6 +271,7 @@ subscription IndexingStatus {
       isIndexed
       indexProgress
       hasError
+      startTime
     }
   }
 }
@@ -272,6 +306,28 @@ subscription WhatsAppSyncStatus {
     statusMessage
   }
 }
+
+subscription PrivacyDictUpdated($chatId: ID!) {
+  privacyDictUpdated(chatId: $chatId) {
+    privacyDictJson
+  }
+}
+
+subscription ProcessMessageHistoryStream(
+  $chatId: ID!
+  $messages: [MessageInput!]!
+  $isOnboarding: Boolean!
+) {
+  processMessageHistoryStream(chatId: $chatId, messages: $messages, isOnboarding: $isOnboarding) {
+    messageId
+    chunk
+    role
+    isComplete
+    createdAt
+    imageUrls
+  }
+}
+
 mutation AddDataSource($name: String!, $path: String!) {
   addDataSource(name: $name, path: $path)
 }
@@ -337,6 +393,7 @@ query GetThreads($network: String, $first: Int! = 10, $offset: Int! = 0) {
       createdAt
       isDelivered
       actions
+      state
     }
     actions
     views
@@ -365,6 +422,7 @@ query GetThread($network: String, $id: ID!) {
       createdAt
       isDelivered
       actions
+      state
     }
     actions
     views
@@ -381,4 +439,27 @@ mutation JoinHolon($userId: String!, $network: String) {
 
 mutation StartWhatsAppConnection {
   startWhatsAppConnection
+}
+
+mutation StoreToken($input: StoreTokenInput!) {
+  storeToken(input: $input)
+}
+
+mutation AddTrackedFolder($input: AddTrackedFolderInput!) {
+  addTrackedFolder(input: $input) {
+    id
+    name
+    path
+    isEnabled
+    createdAt
+    updatedAt
+  }
+}
+
+mutation DeleteTrackedFolder($id: ID!) {
+  deleteTrackedFolder(id: $id)
+}
+
+mutation UpdateTrackedFolder($id: ID!, $input: UpdateTrackedFolderInput!) {
+  updateTrackedFolder(id: $id, input: $input)
 }

@@ -54,6 +54,7 @@ type Filter struct {
 	FactCategory   *string // Filter by fact category (profile_stable, preference, goal_plan, etc.)
 	FactAttribute  *string // Filter by fact attribute (specific property being described)
 	FactImportance *int    // Filter by importance score (1, 2, 3)
+	FactFilePath   *string // NEW: Filter by file path (indexed for efficiency)
 
 	// Ranges for numeric/date fields
 	FactImportanceMin *int // Minimum importance score (inclusive)
@@ -75,6 +76,7 @@ type Document interface {
 	Tags() []string
 	Metadata() map[string]string
 	Source() string
+	FilePath() string  // NEW: File path for documents that originate from files
 	Chunk() []Document // New method for document chunking
 }
 
@@ -185,7 +187,12 @@ func (cd *ConversationDocument) Source() string {
 	return cd.FieldSource
 }
 
-// LoadConversationDocumentsFromJSON loads ConversationDocuments from JSONL file.
+// FilePath returns empty string for ConversationDocument as they don't originate from files directly.
+func (cd *ConversationDocument) FilePath() string {
+	return "" // ConversationDocuments don't have file paths
+}
+
+// LoadConversationDocumentsFromJSON loads ConversationDocuments from JSON array file.
 func LoadConversationDocumentsFromJSON(filepath string) ([]ConversationDocument, error) {
 	file, err := os.Open(filepath)
 	if err != nil {
@@ -491,6 +498,7 @@ type TextDocument struct {
 	FieldSource    string            `json:"source,omitempty"`
 	FieldTags      []string          `json:"tags,omitempty"`
 	FieldMetadata  map[string]string `json:"metadata,omitempty"`
+	FieldFilePath  string            `json:"file_path,omitempty"` // NEW: File path for indexed files
 }
 
 // Document interface implementation for TextDocument.
@@ -519,7 +527,12 @@ func (td *TextDocument) Metadata() map[string]string {
 }
 
 func (td *TextDocument) Source() string {
-	return td.FieldSource // Now returns the top-level field
+	return td.FieldSource
+}
+
+// FilePath returns the file path for indexed files.
+func (td *TextDocument) FilePath() string {
+	return td.FieldFilePath
 }
 
 // Chunk implements intelligent text document chunking (replaces truncation).
@@ -725,7 +738,95 @@ func (td *TextDocument) createTextChunk(content string, chunkNum int) *TextDocum
 		FieldSource:    td.FieldSource,
 		FieldTags:      td.FieldTags,
 		FieldMetadata:  metadata,
+		FieldFilePath:  td.FieldFilePath,
 	}
+}
+
+// FileDocument represents a document from file uploads (PDFs, text files, etc.)
+// that should bypass fact extraction and go directly to document storage.
+type FileDocument struct {
+	FieldID        string            `json:"id"`
+	FieldContent   string            `json:"content"`
+	FieldTimestamp *time.Time        `json:"timestamp"`
+	FieldSource    string            `json:"source,omitempty"`
+	FieldTags      []string          `json:"tags,omitempty"`
+	FieldMetadata  map[string]string `json:"metadata,omitempty"`
+	FieldFilePath  string            `json:"file_path,omitempty"`
+}
+
+// Document interface implementation for FileDocument.
+func (fd *FileDocument) ID() string {
+	return fd.FieldID
+}
+
+func (fd *FileDocument) Content() string {
+	return fd.FieldContent
+}
+
+func (fd *FileDocument) Timestamp() *time.Time {
+	return fd.FieldTimestamp
+}
+
+func (fd *FileDocument) Tags() []string {
+	return fd.FieldTags
+}
+
+func (fd *FileDocument) Metadata() map[string]string {
+	// Ensure metadata is not nil
+	if fd.FieldMetadata == nil {
+		return make(map[string]string)
+	}
+	return fd.FieldMetadata
+}
+
+func (fd *FileDocument) Source() string {
+	return fd.FieldSource
+}
+
+func (fd *FileDocument) FilePath() string {
+	return fd.FieldFilePath
+}
+
+// Chunk implements intelligent document chunking by reusing TextDocument's proven logic.
+func (fd *FileDocument) Chunk() []Document {
+	if fd == nil || fd.Content() == "" {
+		return []Document{fd}
+	}
+
+	if len(fd.Content()) <= MaxProcessableContentChars {
+		return []Document{fd}
+	}
+
+	// Convert to TextDocument temporarily for chunking
+	td := &TextDocument{
+		FieldID:        fd.FieldID,
+		FieldContent:   fd.FieldContent,
+		FieldTimestamp: fd.FieldTimestamp,
+		FieldSource:    fd.FieldSource,
+		FieldTags:      fd.FieldTags,
+		FieldMetadata:  fd.FieldMetadata,
+	}
+
+	chunks := td.Chunk()
+
+	// Convert chunks back to FileDocument
+	var fileChunks []Document
+	for _, chunk := range chunks {
+		if textChunk, ok := chunk.(*TextDocument); ok {
+			fileChunk := &FileDocument{
+				FieldID:        textChunk.FieldID,
+				FieldContent:   textChunk.FieldContent,
+				FieldTimestamp: textChunk.FieldTimestamp,
+				FieldSource:    textChunk.FieldSource,
+				FieldTags:      textChunk.FieldTags,
+				FieldMetadata:  textChunk.FieldMetadata,
+				FieldFilePath:  textChunk.FieldFilePath,
+			}
+			fileChunks = append(fileChunks, fileChunk)
+		}
+	}
+
+	return fileChunks
 }
 
 // MemoryFact represents an extracted fact about a person with structured fields.
@@ -748,13 +849,43 @@ type MemoryFact struct {
 	Source             string   `json:"source"`              // Source of the memory document
 	DocumentReferences []string `json:"document_references"` // IDs of source documents
 	Tags               []string `json:"tags,omitempty"`      // Tags for categorization
+	FilePath           string   `json:"file_path"`           // NEW: Indexed file path for efficient querying
 
 	// Legacy support
 	Metadata map[string]string `json:"metadata,omitempty"` // Additional metadata (being phased out)
 }
 
+// GenerateContent creates the searchable content string from structured fields.
+func (mf *MemoryFact) GenerateContent() string {
+	// Simple combination for embeddings and search
+	return fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
+}
+
+// GenerateContentForLLM creates rich content with timestamp for LLM consumption.
+func (mf *MemoryFact) GenerateContentForLLM() string {
+	content := fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
+	if !mf.Timestamp.IsZero() {
+		content += fmt.Sprintf(" [%s]", mf.Timestamp.Format("Jan 2006"))
+	}
+	return content
+}
+
+// DocumentChunk represents a document chunk result for queries.
+type DocumentChunk struct {
+	ID                 string            `json:"id"`
+	Content            string            `json:"content"`
+	ChunkIndex         int               `json:"chunk_index"`
+	OriginalDocumentID string            `json:"original_document_id"`
+	Source             string            `json:"source"`
+	FilePath           string            `json:"file_path"`
+	Tags               []string          `json:"tags"`
+	Metadata           map[string]string `json:"metadata"`
+	CreatedAt          time.Time         `json:"created_at"`
+}
+
 type QueryResult struct {
-	Facts []MemoryFact `json:"facts"`
+	Facts          []MemoryFact    `json:"facts"`
+	DocumentChunks []DocumentChunk `json:"document_chunks,omitempty"`
 }
 
 // ProgressUpdate represents progress information for memory storage operations.
@@ -779,21 +910,6 @@ func (tf *TagsFilter) IsEmpty() bool {
 		return true
 	}
 	return len(tf.All) == 0 && len(tf.Any) == 0 && tf.Expression == nil
-}
-
-// GenerateContent creates the searchable content string from structured fields.
-func (mf *MemoryFact) GenerateContent() string {
-	// Simple combination for embeddings and search
-	return fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
-}
-
-// GenerateContentForLLM creates rich content with timestamp for LLM consumption.
-func (mf *MemoryFact) GenerateContentForLLM() string {
-	content := fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
-	if !mf.Timestamp.IsZero() {
-		content += fmt.Sprintf(" [%s]", mf.Timestamp.Format("Jan 2006"))
-	}
-	return content
 }
 
 // IsLeaf returns true if this is a leaf node (has tags).

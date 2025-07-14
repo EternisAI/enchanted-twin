@@ -20,13 +20,15 @@ type Config struct {
 	EmbeddingsModel    string
 	DBPath             string
 	AppDataPath        string
+	WatchDirectoryPath string
 	TelegramToken      string
 	TelegramChatServer string
 	ContainerRuntime   string
 	WeaviatePort       string
 	EnchantedMcpURL    string
-	InviteServerURL    string
 	ProxyTeeURL        string
+	UseLocalModel      string
+	UseLocalAnonymizer string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -68,8 +70,9 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
-		InviteServerURL:    getEnv("INVITE_SERVER_URL", "", printEnv),
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
+		UseLocalModel:      getEnv("USE_LOCAL_MODEL", "", printEnv),
+		UseLocalAnonymizer: getEnv("USE_LOCAL_ANONYMIZER", "", printEnv),
 	}
 	return conf, nil
 }

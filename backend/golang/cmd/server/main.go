@@ -3,14 +3,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -27,7 +25,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
-	"go.mau.fi/whatsmeow"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -46,42 +43,22 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/engagement"
+	"github.com/EternisAI/enchanted-twin/pkg/directorywatcher"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
+	"github.com/EternisAI/enchanted-twin/pkg/localmodel/jinaaiembedding"
+	"github.com/EternisAI/enchanted-twin/pkg/localmodel/llama1b"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
-	waTools "github.com/EternisAI/enchanted-twin/pkg/whatsapp/tools"
 )
 
-// customLogWriter routes logs to stderr if they contain "err" or "error", otherwise to stdout.
-type customLogWriter struct{}
-
-func (w *customLogWriter) Write(p []byte) (n int, err error) {
-	logContent := strings.ToLower(string(p))
-	if strings.Contains(logContent, "err") || strings.Contains(logContent, "error") || strings.Contains(logContent, "failed") {
-		return os.Stderr.Write(p)
-	}
-	return os.Stdout.Write(p)
-}
-
 func main() {
-	whatsappQRChan := whatsapp.GetQRChannel()
-	var currentWhatsAppQRCode *string
-	whatsAppConnected := false
-	var whatsappClient *whatsmeow.Client
-
-	logger := log.NewWithOptions(&customLogWriter{}, log.Options{
-		ReportCaller:    true,
-		ReportTimestamp: true,
-		Level:           log.DebugLevel,
-		TimeFormat:      time.Kitchen,
-	})
+	logger := bootstrap.NewLogger()
 
 	envs, _ := config.LoadConfig(false)
 	logger.Debug("Config loaded", "envs", envs)
@@ -100,68 +77,6 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
-	go func() {
-		for evt := range whatsappQRChan {
-			switch evt.Event {
-			case "code":
-				qrCode := evt.Code
-				currentWhatsAppQRCode = &qrCode
-				whatsAppConnected = false
-				logger.Info("Received new WhatsApp QR code, length:", "length", len(qrCode))
-
-				qrCodeUpdate := map[string]interface{}{
-					"event":        "code",
-					"qr_code_data": qrCode,
-					"is_connected": false,
-					"timestamp":    time.Now().Format(time.RFC3339),
-				}
-				jsonData, err := json.Marshal(qrCodeUpdate)
-				if err == nil {
-					err = nc.Publish("whatsapp.qr_code", jsonData)
-					if err != nil {
-						logger.Error("Failed to publish WhatsApp QR code to NATS", "error", err)
-					} else {
-						logger.Info("Published WhatsApp QR code to NATS")
-					}
-				} else {
-					logger.Error("Failed to marshal WhatsApp QR code data", "error", err)
-				}
-			case "success":
-				whatsAppConnected = true
-				currentWhatsAppQRCode = nil
-				logger.Info("WhatsApp connection successful")
-
-				whatsapp.StartSync()
-				whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
-					IsSyncing:      true,
-					IsCompleted:    false,
-					ProcessedItems: 0,
-					TotalItems:     0,
-					StatusMessage:  "Waiting for history sync to begin",
-				})
-				whatsapp.PublishSyncStatus(nc, logger) //nolint:errcheck
-
-				successUpdate := map[string]interface{}{
-					"event":        "success",
-					"qr_code_data": nil,
-					"is_connected": true,
-					"timestamp":    time.Now().Format(time.RFC3339),
-				}
-				jsonData, err := json.Marshal(successUpdate)
-				if err == nil {
-					err = nc.Publish("whatsapp.qr_code", jsonData)
-					if err != nil {
-						logger.Error("Failed to publish WhatsApp connection success to NATS", "error", err)
-					} else {
-						logger.Info("Published WhatsApp connection success to NATS")
-					}
-				} else {
-					logger.Error("Failed to marshal WhatsApp success data", "error", err)
-				}
-			}
-		}
-	}()
-
 	store, err := db.NewStore(context.Background(), envs.DBPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
@@ -179,21 +94,58 @@ func main() {
 		panic(errors.Wrap(err, "Error creating database"))
 	}
 
-	tokenFunc := func() string {
-		return "12345"
+	getFirebaseToken := func() (string, error) {
+		firebaseToken, err := store.GetOAuthTokens(context.Background(), "firebase")
+		if err != nil {
+			return "", err
+		}
+		if firebaseToken == nil {
+			return "", errors.New("no firebase token found in database")
+		}
+		return firebaseToken.AccessToken, nil
 	}
+
 	var aiCompletionsService *ai.Service
 	if envs.ProxyTeeURL != "" {
-		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, envs.ProxyTeeURL, tokenFunc, envs.CompletionsAPIURL)
+		logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
+		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.CompletionsAPIURL)
 	} else {
 		aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
 	}
 
-	var aiEmbeddingsService *ai.Service
-	if envs.ProxyTeeURL != "" {
-		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, envs.ProxyTeeURL, tokenFunc, envs.EmbeddingsAPIURL)
+	var aiEmbeddingsService ai.Embedding
+	if envs.UseLocalModel == "true" {
+		logger.Info("Using local embedding model")
+		sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
+		localEmbeddingModel, err := jinaaiembedding.NewEmbedding(envs.AppDataPath, sharedLibPath)
+		if err != nil {
+			logger.Error("Failed to create local embedding model", "error", err)
+			panic(errors.Wrap(err, "Failed to create local embedding model"))
+		}
+		aiEmbeddingsService = localEmbeddingModel
 	} else {
-		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+		var openAIEmbeddingsService *ai.Service
+		if envs.ProxyTeeURL != "" {
+			logger.Info("Using proxy tee url", "url", envs.ProxyTeeURL)
+			openAIEmbeddingsService = ai.NewOpenAIServiceProxy(logger, getFirebaseToken, envs.ProxyTeeURL, envs.EmbeddingsAPIURL)
+		} else {
+			openAIEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+		}
+		aiEmbeddingsService = openAIEmbeddingsService
+	}
+
+	var localAnonymizer *llama1b.LlamaAnonymizer
+	if envs.UseLocalAnonymizer == "true" {
+		logger.Info("Using local anonymizer model")
+		sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
+
+		var err error
+		localAnonymizer, err = llama1b.NewLlamaAnonymizer(envs.AppDataPath, sharedLibPath)
+		if err != nil {
+			logger.Error("Failed to create local anonymizer model", "error", err)
+			panic(errors.Wrap(err, "Failed to create local anonymizer model"))
+		}
+		logger.Info("Local anonymizer model initialized successfully")
 	}
 
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
@@ -259,23 +211,6 @@ func main() {
 	logger.Info("Evolving memory created", "elapsed", time.Since(memoryCreateStart))
 	logger.Info("Total Weaviate setup completed", "total_elapsed", time.Since(weaviateBootstrapStart))
 
-	whatsappClientChan := make(chan *whatsmeow.Client)
-	go func() {
-		client := whatsapp.BootstrapWhatsAppClient(mem, dbsqlc, logger, nc, envs.DBPath, envs, aiCompletionsService)
-		whatsappClientChan <- client
-	}()
-
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		connectChan := whatsapp.GetConnectChannel()
-		select {
-		case connectChan <- struct{}{}:
-			logger.Info("Sent automatic WhatsApp connect signal on startup")
-		default:
-			logger.Debug("WhatsApp connect channel already has a signal")
-		}
-	}()
-
 	ttsSvc, err := bootstrapTTS(logger)
 	if err != nil {
 		logger.Error("TTS bootstrap failed", "error", err)
@@ -308,15 +243,24 @@ func main() {
 		panic(errors.Wrap(err, "Failed to register schedule task tool"))
 	}
 
-	go func() {
-		logger.Info("Waiting for WhatsApp client to register tool...")
-		whatsappClient = <-whatsappClientChan
-		if whatsappClient != nil {
-			if err := toolRegistry.Register(waTools.NewWhatsAppTool(logger, whatsappClient)); err != nil {
-				logger.Error("Failed to register WhatsApp tool", "error", err)
-			} else {
-				logger.Info("WhatsApp tools registered")
-			}
+	whatsappService := whatsapp.NewService(whatsapp.ServiceConfig{
+		Logger:        logger,
+		NatsClient:    nc,
+		Database:      dbsqlc,
+		MemoryStorage: mem,
+		Config:        envs,
+		AIService:     aiCompletionsService,
+		ToolRegistry:  toolRegistry,
+	})
+
+	if err := whatsappService.Start(context.Background()); err != nil {
+		logger.Error("Failed to start WhatsApp service", "error", err)
+		panic(errors.Wrap(err, "Failed to start WhatsApp service"))
+	}
+
+	defer func() {
+		if err := whatsappService.Stop(context.Background()); err != nil {
+			logger.Error("Failed to stop WhatsApp service", "error", err)
 		}
 	}()
 
@@ -403,10 +347,11 @@ func main() {
 
 	userProfile, err := identitySvc.GetUserProfile(context.Background())
 	if err != nil {
-		logger.Error("Failed to get user profile", "error", err)
-		panic(errors.Wrap(err, "Failed to get user profile"))
+		logger.Warn("Failed to get user profile during startup - continuing without it", "error", err)
+		// Don't panic here - the server can still function without the user profile
+	} else {
+		logger.Info("User profile", "profile", userProfile)
 	}
-	logger.Info("User profile", "profile", userProfile)
 
 	holonConfig := holon.DefaultManagerConfig()
 	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
@@ -482,19 +427,39 @@ func main() {
 	go telegram.SubscribePoller(telegramService, logger)
 	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
+	directoryWatcher, err := directorywatcher.NewDirectoryWatcher(store, mem, logger, temporalClient)
+	if err != nil {
+		logger.Error("Failed to create directory watcher", "error", err)
+		panic(errors.Wrap(err, "Failed to create directory watcher"))
+	}
+
+	if err := directoryWatcher.Start(context.Background()); err != nil {
+		logger.Error("Failed to start directory watcher", "error", err)
+		panic(errors.Wrap(err, "Failed to start directory watcher"))
+	}
+	logger.Info("Directory watcher started")
+
+	defer func() {
+		if err := directoryWatcher.Stop(); err != nil {
+			logger.Error("Error stopping directory watcher", "error", err)
+		} else {
+			logger.Info("Directory watcher stopped")
+		}
+	}()
+
 	router := bootstrapGraphqlServer(graphqlServerInput{
-		logger:            logger,
-		temporalClient:    temporalClient,
-		port:              envs.GraphqlPort,
-		twinChatService:   *twinChatService,
-		natsClient:        nc,
-		store:             store,
-		aiService:         aiCompletionsService,
-		mcpService:        mcpService,
-		telegramService:   telegramService,
-		holonService:      holonService,
-		whatsAppQRCode:    currentWhatsAppQRCode,
-		whatsAppConnected: whatsAppConnected,
+		logger:           logger,
+		temporalClient:   temporalClient,
+		port:             envs.GraphqlPort,
+		twinChatService:  *twinChatService,
+		natsClient:       nc,
+		store:            store,
+		aiService:        aiCompletionsService,
+		mcpService:       mcpService,
+		telegramService:  telegramService,
+		holonService:     holonService,
+		directoryWatcher: directoryWatcher,
+		whatsAppService:  whatsappService,
 	})
 
 	go func() {
@@ -511,6 +476,13 @@ func main() {
 
 	<-signalChan
 	logger.Info("Server shutting down...")
+
+	// Cleanup local anonymizer
+	if localAnonymizer != nil {
+		if err := localAnonymizer.Close(); err != nil {
+			logger.Error("Error closing local anonymizer", "error", err)
+		}
+	}
 }
 
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
@@ -586,17 +558,6 @@ func bootstrapTemporalWorker(
 	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
 	identityActivities.RegisterWorkflowsAndActivities(w)
 
-	friendService := engagement.NewFriendService(engagement.FriendServiceConfig{
-		Logger:          input.logger,
-		MemoryService:   input.memory,
-		IdentityService: identity.NewIdentityService(input.temporalClient),
-		TwinchatService: input.twinchatService,
-		AiService:       input.aiCompletionsService,
-		ToolRegistry:    input.toolsRegistry,
-		Store:           input.store,
-	})
-	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
-
 	// Register holon sync activities
 	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
 	holonSyncActivities := holon.NewHolonSyncActivities(input.logger, holonManager)
@@ -623,8 +584,8 @@ type graphqlServerInput struct {
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
 	holonService           *holon.Service
-	whatsAppQRCode         *string
-	whatsAppConnected      bool
+	directoryWatcher       *directorywatcher.DirectoryWatcher
+	whatsAppService        *whatsapp.Service
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -647,8 +608,8 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 		TelegramService:        input.telegramService,
 		HolonService:           input.holonService,
-		WhatsAppQRCode:         input.whatsAppQRCode,
-		WhatsAppConnected:      input.whatsAppConnected,
+		DirectoryWatcher:       input.directoryWatcher,
+		WhatsAppService:        input.whatsAppService,
 	}
 
 	srv := handler.New(gqlSchema(resolver))

@@ -18,7 +18,11 @@ texfrag
 
 *.p8
 *.db
+*.[0-9]*.mjs
 *.local.json
 test
 test-shm
 test-wal
+
+
+launch.json

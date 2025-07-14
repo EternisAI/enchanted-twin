@@ -10,7 +10,8 @@ export const voiceStore = new Store({
 export const screenpipeStore = new Store({
   name: 'screenpipe-settings',
   defaults: {
-    autoStart: false
+    autoStart: false,
+    restartIntent: null
   }
 })
 

@@ -1,65 +1,66 @@
-import { Card, CardHeader } from '@renderer/components/ui/card'
-import { Play, StopCircle, AlertCircle, Download } from 'lucide-react'
+import {
+  StopCircle,
+  AlertCircle,
+  Download,
+  Monitor,
+  CheckCircle2,
+  XCircle,
+  Settings
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { Alert, AlertDescription } from '@renderer/components/ui/alert'
-
-type MediaStatusType =
-  | 'granted'
-  | 'not-determined'
-  | 'denied'
-  | 'restricted'
-  | 'unavailable'
-  | 'loading'
-
-interface ScreenpipeStatus {
-  isRunning: boolean
-  isInstalled: boolean
-}
+import { toast } from 'sonner'
+import ScreenpipeConnectionModal from './ScreenpipeConnectionModal'
+import { DetailCard } from './DetailCard'
+import { useScreenpipeConnection } from '@renderer/hooks/useScreenpipeConnection'
+import { getSafeScreenRecordingPermission } from '@renderer/lib/utils/permissionUtils'
+import { useSearch } from '@tanstack/react-router'
 
 export default function ScreenpipePanel() {
-  const [status, setStatus] = useState<ScreenpipeStatus>({ isRunning: false, isInstalled: true })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [autoStart, setAutoStart] = useState<boolean>(false)
-  const [permissions, setPermissions] = useState<Record<string, MediaStatusType>>({
-    screen: 'loading',
-    microphone: 'loading',
-    accessibility: 'loading'
-  })
 
-  const fetchStatus = async () => {
-    try {
-      const status = await window.api.screenpipe.getStatus()
-      const autoStartSetting = await window.api.screenpipe.getAutoStart()
-      setStatus(status)
-      setAutoStart(autoStartSetting)
-    } catch (err: unknown) {
-      setError(`Failed to fetch screenpipe status: ${err}`)
+  // Safely get search parameters
+  let shouldShowModalFromSearch = false
+  try {
+    const searchParams = useSearch({ from: '/settings/permissions' })
+    if (searchParams && 'screenpipe' in searchParams) {
+      // Handle both string "true" and boolean true
+      shouldShowModalFromSearch =
+        searchParams.screenpipe === 'true' || searchParams.screenpipe === true
     }
+  } catch {
+    // Ignore errors accessing search params
   }
 
+  const {
+    status,
+    permissions,
+    showConnectionModal,
+    setShowConnectionModal,
+    hasAllPermissions,
+    needsConnection,
+    handleConnect,
+    handleRequestPermission,
+    handleStartScreenpipe,
+    fetchStatus
+  } = useScreenpipeConnection({ shouldShowModalFromSearch })
+
   useEffect(() => {
-    fetchStatus()
-    const fetchStatusInterval = setInterval(fetchStatus, 5000)
-
-    const checkPermissions = async () => {
-      const screenStatus = await window.api.queryMediaStatus('screen')
-      const micStatus = await window.api.queryMediaStatus('microphone')
-      const accessibilityStatus = await window.api.accessibility.getStatus()
-
-      setPermissions({
-        screen: screenStatus as MediaStatusType,
-        microphone: micStatus as MediaStatusType,
-        accessibility: accessibilityStatus as MediaStatusType
-      })
+    const fetchAutoStart = async () => {
+      try {
+        const autoStartSetting = await window.api.screenpipe.getAutoStart()
+        setAutoStart(autoStartSetting)
+      } catch (err: unknown) {
+        setError(`Failed to fetch auto-start setting: ${err}`)
+      }
     }
-    checkPermissions()
-    const interval = setInterval(checkPermissions, 5000)
-    return () => {
-      clearInterval(interval)
-      clearInterval(fetchStatusInterval)
-    }
+
+    fetchAutoStart()
+    const interval = setInterval(fetchAutoStart, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   const handleInstall = async () => {
@@ -102,15 +103,13 @@ export default function ScreenpipePanel() {
     try {
       await window.api.screenpipe.stop()
       await fetchStatus()
+      toast.success('Screenpipe stopped')
     } catch (err: unknown) {
       setError(`Failed to stop Screenpipe: ${err}`)
+      toast.error('Failed to stop Screenpipe')
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const hasAllPermissions = () => {
-    return Object.values(permissions).every((status) => status === 'granted')
   }
 
   const getPermissionMessages = (): string[] => {
@@ -121,88 +120,124 @@ export default function ScreenpipePanel() {
     return messages
   }
 
-  return (
-    <Card className="w-full">
-      <CardHeader className="text-lg font-semibold flex items-center justify-between">
-        <span>Screenpipe</span>
-        <div className="flex gap-2">
-          {autoStart && (
-            <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-800">
-              Auto-start
-            </span>
-          )}
-          <span
-            className={`text-sm font-medium px-2 py-1 rounded-full ${
-              status.isRunning ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}
+  const getStatusInfo = () => {
+    if (!status.isInstalled) {
+      return {
+        icon: Download,
+        color: 'text-orange-500 dark:text-orange-400',
+        label: 'Not Installed'
+      }
+    }
+
+    if (!hasAllPermissions()) {
+      return {
+        icon: XCircle,
+        color: 'text-neutral-500 dark:text-neutral-400',
+        label: 'Permissions Required'
+      }
+    }
+
+    if (status.isRunning) {
+      return {
+        icon: CheckCircle2,
+        color: 'text-green-500 dark:text-green-400',
+        label: 'Running'
+      }
+    }
+
+    return {
+      icon: XCircle,
+      color: 'text-neutral-500 dark:text-neutral-400',
+      label: 'Stopped'
+    }
+  }
+
+  const getButtonLabel = () => {
+    if (!status.isInstalled) return 'Install'
+    if (needsConnection) return 'Connect'
+    if (status.isRunning) return 'Stop'
+    return 'Start'
+  }
+
+  const handleButtonClick = () => {
+    if (!status.isInstalled) {
+      handleInstall()
+    } else if (needsConnection) {
+      handleConnect()
+    } else if (status.isRunning) {
+      handleStop()
+    } else {
+      handleStart()
+    }
+  }
+
+  const getExplanation = () => {
+    if (!status.isInstalled) {
+      return 'Install Screenpipe to enable AI screen context awareness.'
+    }
+    if (!hasAllPermissions()) {
+      return `Missing permissions: ${getPermissionMessages().join(', ')}.`
+    }
+    if (status.isRunning) {
+      return autoStart
+        ? 'Currently capturing screen activity and will auto-start on launch.'
+        : 'Currently capturing screen activity for AI context.'
+    }
+    return autoStart
+      ? 'Ready to capture screen activity. Will auto-start on next launch.'
+      : 'Ready to capture screen activity for AI context.'
+  }
+
+  const getGrantedIcon = () => {
+    if (status.isRunning) {
+      return (
+        <div className="flex gap-1">
+          <Button
+            onClick={handleStop}
+            disabled={isLoading}
+            variant="destructive"
+            size="sm"
+            className="h-fit py-1 px-2"
           >
-            {status.isRunning ? 'Running' : 'Stopped'}
-          </span>
+            <StopCircle className="w-3 h-3 mr-1" />
+            Stop
+          </Button>
         </div>
-      </CardHeader>
-      <div className="flex flex-col gap-4 px-6">
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        {!hasAllPermissions() &&
-          Object.values(permissions).every((status) => status !== 'loading') && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Please enable the following permissions to use Screenpipe:{' '}
-                {getPermissionMessages().join(', ')}
-              </AlertDescription>
-            </Alert>
-          )}
-        <p className="text-sm text-muted-foreground">
-          {!status.isInstalled
-            ? 'Screenpipe needs to be installed first.'
-            : status.isRunning
-              ? autoStart
-                ? 'Screenpipe is currently active and will auto-start on app launch.'
-                : 'Screenpipe is currently active.'
-              : autoStart
-                ? 'Screenpipe is not running but will auto-start on next app launch.'
-                : 'Screenpipe is not running. Start it to enable screen streaming.'}
-        </p>
-        <div className="flex gap-2">
-          {!status.isInstalled ? (
-            <Button
-              onClick={handleInstall}
-              disabled={isLoading}
-              variant="default"
-              className="flex items-center gap-1"
-            >
-              <Download className="w-4 h-4" />
-              Install Screenpipe
-            </Button>
-          ) : (
-            <>
-              <Button
-                onClick={handleStart}
-                disabled={isLoading || status.isRunning || !hasAllPermissions()}
-                variant="default"
-                className="flex items-center gap-1"
-              >
-                <Play className="w-4 h-4" />
-                Start
-              </Button>
-              <Button
-                onClick={handleStop}
-                disabled={isLoading || !status.isRunning}
-                variant="destructive"
-                className="flex items-center gap-1"
-              >
-                <StopCircle className="w-4 h-4" />
-                Stop
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-    </Card>
+      )
+    }
+    return <Settings className="h-4 w-4" />
+  }
+
+  const statusInfo = getStatusInfo()
+
+  return (
+    <>
+      {error && (
+        <Alert variant="destructive" className="mb-3">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <DetailCard
+        title="Screenpipe"
+        IconComponent={Monitor}
+        statusInfo={statusInfo}
+        buttonLabel={getButtonLabel()}
+        onButtonClick={handleButtonClick}
+        isLoading={isLoading}
+        explanation={getExplanation()}
+        grantedIcon={getGrantedIcon()}
+      />
+
+      <ScreenpipeConnectionModal
+        isOpen={showConnectionModal}
+        onClose={() => setShowConnectionModal(false)}
+        screenRecordingPermission={getSafeScreenRecordingPermission(permissions.screen)}
+        isScreenpipeRunning={status.isRunning}
+        onRequestPermission={handleRequestPermission}
+        onStartScreenpipe={handleStartScreenpipe}
+      />
+    </>
   )
 }
