@@ -2,16 +2,7 @@ import React from 'react'
 import { Message, ToolCall as ToolCallType } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
-import {
-  CheckCircle,
-  ChevronRight,
-  Eye,
-  EyeClosed,
-  Lightbulb,
-  LoaderIcon,
-  Volume2,
-  VolumeOff
-} from 'lucide-react'
+import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
 import { extractReasoningAndReply, getToolConfig } from '@renderer/components/chat/config'
 import { Badge } from '@renderer/components/ui/badge'
 import ImagePreview from './ImagePreview'
@@ -22,7 +13,7 @@ import {
   CollapsibleTrigger
 } from '@renderer/components/ui/collapsible'
 import { useTTS } from '@renderer/hooks/useTTS'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
@@ -32,15 +23,13 @@ const messageAnimation = {
 
 export function UserMessageBubble({
   message,
-  showAnonymize = false,
+  isAnonymized = false,
   chatPrivacyDict
 }: {
   message: Message
   chatPrivacyDict: string | null
-  showAnonymize?: boolean
+  isAnonymized?: boolean
 }) {
-  const [isAnonymized, setIsAnonymized] = useState(false)
-
   return (
     <motion.div
       className="flex justify-end"
@@ -65,21 +54,6 @@ export function UserMessageBubble({
           )}
         </div>
         <div className="flex items-center gap-2 w-full">
-          {showAnonymize && (
-            <button
-              onClick={() => setIsAnonymized(!isAnonymized)}
-              className="p-1 rounded-md bg-accent cursor-pointer hover:bg-accent/50"
-              style={{ pointerEvents: 'auto' }}
-              tabIndex={-1}
-              aria-label={isAnonymized ? 'Show original message' : 'Anonymize message'}
-            >
-              {isAnonymized ? (
-                <EyeClosed className="h-4 w-4 text-primary" />
-              ) : (
-                <Eye className="h-4 w-4 text-primary" />
-              )}
-            </button>
-          )}
           <div className="text-xs text-muted-foreground">
             {new Date(message.createdAt).toLocaleTimeString()}
           </div>

@@ -81,6 +81,12 @@ export async function downloadDependency(dependencyName: DependencyName) {
 
   console.log(`[downloadDependencies] Dependency config found:`, { name: cfg.name, url: cfg.url })
 
+  const { capture } = await import('./analytics')
+  const startTime = Date.now()
+  capture('dependency_installation_started', {
+    dependency: dependencyName
+  })
+
   const dependencyDir = cfg.dir
 
   if (!fs.existsSync(dependencyDir)) {
@@ -145,6 +151,14 @@ export async function downloadDependency(dependencyName: DependencyName) {
   } catch (error) {
     console.error(`[downloadDependencies] Download failed for ${dependencyName}:`, error)
 
+    capture('dependency_installation_failed', {
+      dependency: dependencyName,
+      duration: Date.now() - startTime,
+      size_bytes: total,
+      success: false,
+      error: error instanceof Error ? error.message : 'Download failed'
+    })
+
     if (fs.existsSync(tmpFile)) {
       try {
         fs.unlinkSync(tmpFile)
@@ -194,6 +208,13 @@ export async function downloadDependency(dependencyName: DependencyName) {
     console.log(
       `[downloadDependencies] ${dependencyName} download ${cfg.needsExtraction ? 'and extraction' : ''} completed successfully:`
     )
+
+    capture('dependency_installation_completed', {
+      dependency: dependencyName,
+      duration: Date.now() - startTime,
+      size_bytes: total,
+      success: true
+    })
 
     windowManager.mainWindow?.webContents.send('models:progress', {
       modelName: dependencyName,

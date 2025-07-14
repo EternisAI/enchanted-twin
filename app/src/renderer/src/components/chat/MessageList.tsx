@@ -6,12 +6,14 @@ type MessageListProps = {
   messages: Message[]
   isWaitingTwinResponse: boolean
   chatPrivacyDict: string | null
+  isAnonymized?: boolean
 }
 
 export default function MessageList({
   messages,
   isWaitingTwinResponse,
-  chatPrivacyDict
+  chatPrivacyDict,
+  isAnonymized = false
 }: MessageListProps) {
   return (
     <div className="flex flex-col gap-10 w-full">
@@ -20,7 +22,7 @@ export default function MessageList({
           <UserMessageBubble
             key={msg.id}
             message={msg}
-            showAnonymize={true}
+            isAnonymized={isAnonymized}
             chatPrivacyDict={chatPrivacyDict}
           />
         ) : (

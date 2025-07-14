@@ -237,6 +237,13 @@ export function ChatProvider({
 
   const { sendMessage: sendMessageHook } = useSendMessage(chat.id, handleSendMessage, (msg) => {
     console.error('SendMessage error', msg)
+
+    window.api.analytics.capture('error_occurred', {
+      error_type: 'message_send_failed',
+      component: 'ChatContext',
+      message: msg.text ?? 'Error sending message'
+    })
+
     setError(msg.text ?? 'Error sending message')
     setIsWaitingTwinResponse(false)
   })
