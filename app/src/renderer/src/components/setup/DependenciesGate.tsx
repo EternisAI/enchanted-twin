@@ -5,6 +5,7 @@ import { useTheme } from '@renderer/lib/theme'
 import { useGoServer } from '@renderer/hooks/useGoServer'
 import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES } from './util'
 import { Button } from '../ui/button'
+import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 
 export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLMCLI'
 
@@ -211,15 +212,12 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
         }}
       >
         <div className="flex flex-col gap-12 text-primary-foreground p-10 border border-white/50 rounded-lg bg-white/5 min-w-2xl">
-          <div className="flex flex-col gap-1 text-center">
+          <div className="flex flex-col gap-1 text-center items-center">
+            <img src={FreysaLoading} alt="Enchanted" className="w-16 h-16" />
             <h1 className="text-lg font-normal text-white">
-              {allDependenciesCompleted
-                ? 'Starting Enchanted'
-                : 'Enchanted is getting ready for you to use.'}
+              {allDependenciesCompleted ? 'Starting Enchanted' : 'Enchanted is loading'}
             </h1>
-            {!allDependenciesCompleted && (
-              <p className="text-xs text-white">Takes ~5 minutes of download</p>
-            )}
+            {!allDependenciesCompleted && <p className="text-xs text-white">~5 minutes</p>}
           </div>
 
           <div className="flex flex-col gap-4">
