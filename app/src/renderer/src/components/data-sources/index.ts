@@ -1,2 +1,2 @@
 export { DataSourcesPanel } from './DataSourcesPanel'
-export * from './types'
+export type { DataSourcesPanelProps } from './types'

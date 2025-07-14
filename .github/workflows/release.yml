@@ -81,7 +81,7 @@ jobs:
         env:
           COMPLETIONS_API_URL: "https://openrouter.ai/api/v1"
           COMPLETIONS_MODEL: "openai/gpt-4.1"
-          REASONING_MODEL: "openai/o3-mini-high-2025-01-31"
+          REASONING_MODEL: "x-ai/grok-4"
           EMBEDDINGS_API_URL: "https://api.openai.com/v1"
           EMBEDDINGS_MODEL: "text-embedding-3-small"
           IS_PROD_BUILD: "true"

@@ -3,23 +3,28 @@ import path from 'path'
 import fs from 'fs'
 import axios from 'axios'
 import extract from 'extract-zip'
-import tar from 'tar'
+import * as tar from 'tar'
 
 import { windowManager } from './windows'
-import { DependencyName, DependencyStatus } from './types/dependencies'
+import { DependencyName } from './types/dependencies'
 
-const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'Enchanted')
+const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
-const DEPENDENCIES_CONFIGS: Record<DependencyName, { url: string; name: string; dir: string }> = {
+const DEPENDENCIES_CONFIGS: Record<
+  DependencyName,
+  { url: string; name: string; dir: string; needsExtraction: boolean }
+> = {
   embeddings: {
     url: 'https://d3o88a4htgfnky.cloudfront.net/models/jina-embeddings-v2-base-en.zip',
     name: 'embeddings',
-    dir: path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
+    dir: path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en'),
+    needsExtraction: true
   },
   anonymizer: {
     url: 'https://d3o88a4htgfnky.cloudfront.net/models/Llama-3.2-1B-Instruct-CoreML.zip',
     name: 'anonymizer',
-    dir: path.join(DEPENDENCIES_DIR, 'models', 'Llama-3.2-1B-Instruct-CoreML')
+    dir: path.join(DEPENDENCIES_DIR, 'models', 'Llama-3.2-1B-Instruct-CoreML'),
+    needsExtraction: true
   },
   onnx: {
     url:
@@ -27,23 +32,43 @@ const DEPENDENCIES_CONFIGS: Record<DependencyName, { url: string; name: string; 
         ? 'https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-osx-arm64-1.22.0.tgz'
         : 'https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz',
     name: 'onnx',
-    dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib')
+    dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib'),
+    needsExtraction: true
+  },
+  LLMCLI: {
+    url: 'https://d3o88a4htgfnky.cloudfront.net/assets/LLMCLI',
+    name: 'LLMCLI',
+    dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib'),
+    needsExtraction: false
   }
 }
 
-export function hasDependenciesDownloaded(): DependencyStatus {
+export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
   const embeddingsDir = path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
   const anonymizerDir = path.join(DEPENDENCIES_DIR, 'models', 'Llama-3.2-1B-Instruct-CoreML')
-  const onnxDir = path.join(DEPENDENCIES_DIR, 'shared', 'lib')
+  const onnxDir = path.join(
+    DEPENDENCIES_DIR,
+    'shared',
+    'lib',
+    process.platform === 'darwin' && process.arch === 'arm64'
+      ? 'onnxruntime-osx-arm64-1.22.0'
+      : 'onnxruntime-linux-x64-1.22.0'
+  )
+  const LLMCLIFile = path.join(DEPENDENCIES_DIR, 'shared', 'lib', 'LLMCLI')
+
+  console.log('onnxDir', onnxDir)
+  console.log('LLMCLIFile', LLMCLIFile)
 
   const embeddingsExists = fs.existsSync(embeddingsDir) && fs.readdirSync(embeddingsDir).length > 0
   const anonymizerExists = fs.existsSync(anonymizerDir) && fs.readdirSync(anonymizerDir).length > 0
   const onnxExists = fs.existsSync(onnxDir) && fs.readdirSync(onnxDir).length > 0
+  const LLMCLIExists = fs.existsSync(LLMCLIFile)
 
   return {
     embeddings: embeddingsExists,
     anonymizer: anonymizerExists,
-    onnx: onnxExists
+    onnx: onnxExists,
+    LLMCLI: LLMCLIExists
   }
 }
 
@@ -64,7 +89,8 @@ export async function downloadDependency(dependencyName: DependencyName) {
   // Determine file extension from URL
   const urlExtension = path.extname(cfg.url)
   const isTarGz = urlExtension === '.tgz' || urlExtension === '.tar.gz'
-  const tmpFile = path.join(dependencyDir, `${dependencyName}${urlExtension}`)
+  const fileName = cfg.needsExtraction ? `${dependencyName}${urlExtension}` : dependencyName
+  const tmpFile = path.join(dependencyDir, fileName)
   let total = 0
 
   try {
@@ -139,23 +165,34 @@ export async function downloadDependency(dependencyName: DependencyName) {
   }
 
   try {
-    if (isTarGz) {
-      console.log(`[downloadDependencies] Starting TAR extraction to: ${dependencyDir}`)
-      await tar.extract({
-        file: tmpFile,
-        cwd: dependencyDir
-      })
-      console.log(`[downloadDependencies] TAR extraction completed`)
+    if (cfg.needsExtraction) {
+      if (isTarGz) {
+        console.log(`[downloadDependencies] Starting TAR extraction to: ${dependencyDir}`)
+        await tar.extract({
+          file: tmpFile,
+          cwd: dependencyDir
+        })
+        console.log(`[downloadDependencies] TAR extraction completed`)
+      } else {
+        console.log(`[downloadDependencies] Starting ZIP extraction to: ${dependencyDir}`)
+        await extract(tmpFile, { dir: dependencyDir })
+        console.log(`[downloadDependencies] ZIP extraction completed`)
+      }
+
+      // Remove the temporary file after extraction
+      fs.unlinkSync(tmpFile)
     } else {
-      console.log(`[downloadDependencies] Starting ZIP extraction to: ${dependencyDir}`)
-      await extract(tmpFile, { dir: dependencyDir })
-      console.log(`[downloadDependencies] ZIP extraction completed`)
+      console.log(
+        `[downloadDependencies] No extraction needed for ${dependencyName}, file ready to use`
+      )
+      // For files that don't need extraction, make sure they're executable if they're binary files
+      if (dependencyName === 'LLMCLI') {
+        fs.chmodSync(tmpFile, '755')
+      }
     }
 
-    fs.unlinkSync(tmpFile)
-
     console.log(
-      `[downloadDependencies] ${dependencyName} download and extraction completed successfully:`
+      `[downloadDependencies] ${dependencyName} download ${cfg.needsExtraction ? 'and extraction' : ''} completed successfully:`
     )
 
     windowManager.mainWindow?.webContents.send('models:progress', {
@@ -167,7 +204,10 @@ export async function downloadDependency(dependencyName: DependencyName) {
 
     return { success: true, path: dependencyDir }
   } catch (error) {
-    console.error(`[downloadDependencies] Extraction failed for ${dependencyName}:`, error)
+    console.error(
+      `[downloadDependencies] ${cfg.needsExtraction ? 'Extraction' : 'Processing'} failed for ${dependencyName}:`,
+      error
+    )
 
     if (fs.existsSync(tmpFile)) {
       try {
@@ -182,7 +222,10 @@ export async function downloadDependency(dependencyName: DependencyName) {
       pct: 0,
       totalBytes: total,
       downloadedBytes: 0,
-      error: error instanceof Error ? error.message : `${isTarGz ? 'TAR' : 'ZIP'} extraction failed`
+      error:
+        error instanceof Error
+          ? error.message
+          : `${cfg.needsExtraction ? (isTarGz ? 'TAR' : 'ZIP') + ' extraction' : 'Processing'} failed`
     })
 
     throw error

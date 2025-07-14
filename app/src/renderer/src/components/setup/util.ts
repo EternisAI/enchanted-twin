@@ -1,3 +1,5 @@
+import { DownloadState, DependencyName } from './DependenciesGate'
+
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
 
@@ -8,26 +10,40 @@ export function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))}${sizes[i]}`
 }
 
-export const initialDownloadState = {
+export const DEPENDENCY_CONFIG: Record<
+  DependencyName,
+  {
+    name: string
+    description: string
+  }
+> = {
   embeddings: {
-    downloading: false,
-    percentage: 0,
-    completed: false,
-    totalBytes: 0,
-    downloadedBytes: 0
+    name: 'Embeddings model',
+    description: 'Helps Enchanted make sense of your content'
   },
   anonymizer: {
-    downloading: false,
-    percentage: 0,
-    completed: false,
-    totalBytes: 0,
-    downloadedBytes: 0
+    name: 'Anonymizer model',
+    description: 'Helps you keep your things private'
   },
   onnx: {
+    name: 'Inference engine',
+    description: ''
+  },
+  LLMCLI: {
+    name: 'Completions engine',
+    description: ''
+  }
+}
+
+export const DEPENDENCY_NAMES: DependencyName[] = Object.keys(DEPENDENCY_CONFIG) as DependencyName[]
+
+export const initialDownloadState: DownloadState = DEPENDENCY_NAMES.reduce((acc, dependency) => {
+  acc[dependency] = {
     downloading: false,
     percentage: 0,
     completed: false,
     totalBytes: 0,
     downloadedBytes: 0
   }
-}
+  return acc
+}, {} as DownloadState)

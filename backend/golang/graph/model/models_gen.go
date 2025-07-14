@@ -151,6 +151,13 @@ type MessageStreamPayload struct {
 type Mutation struct {
 }
 
+type OAuthAccount struct {
+	Provider  string `json:"provider"`
+	Username  string `json:"username"`
+	ExpiresAt string `json:"expiresAt"`
+	IsActive  bool   `json:"isActive"`
+}
+
 type OAuthFlow struct {
 	AuthURL     string `json:"authURL"`
 	RedirectURI string `json:"redirectURI"`
@@ -251,6 +258,7 @@ type UpdateTrackedFolderInput struct {
 type UserProfile struct {
 	Name                 *string         `json:"name,omitempty"`
 	Bio                  *string         `json:"bio,omitempty"`
+	Username             *string         `json:"username,omitempty"`
 	IndexingStatus       *IndexingStatus `json:"indexingStatus,omitempty"`
 	ConnectedDataSources []*DataSource   `json:"connectedDataSources"`
 }

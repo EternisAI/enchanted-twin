@@ -13,29 +13,26 @@ interface Shortcut {
 interface ShortcutItem {
   action: string
   label: string
-  description: string
+  description?: string
 }
 
 const SHORTCUT_ITEMS: ShortcutItem[] = [
   {
     action: 'toggleOmnibar',
-    label: 'Global Omnibar',
-    description: 'Show or hide the global omnibar overlay'
+    label: 'Omnibar',
+    description: 'Access Enchanted from anywhere'
   },
   {
     action: 'newChat',
-    label: 'New Chat',
-    description: 'Create a new chat'
+    label: 'New Chat'
   },
   {
     action: 'toggleSidebar',
-    label: 'Toggle Sidebar',
-    description: 'Show or hide the sidebar'
+    label: 'Show/Hide Sidebar'
   },
   {
     action: 'openSettings',
-    label: 'Open Settings',
-    description: 'Open the settings window'
+    label: 'Open Settings'
   }
 ]
 
@@ -106,7 +103,7 @@ export function ShortcutList() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div className="space-y-2">
         {SHORTCUT_ITEMS.map((item) => {
           const shortcut = shortcuts[item.action]
@@ -114,17 +111,22 @@ export function ShortcutList() {
           const isModified = shortcut && shortcut.keys !== shortcut.default
 
           return (
-            <div key={item.action} className="flex items-center justify-between py-3 rounded-lg">
+            <div
+              key={item.action}
+              className="flex items-center justify-between p-3 rounded-lg hover:bg-muted focus-within:bg-muted"
+            >
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <div className="font-medium text-sm">{item.label}</div>
+                  <div className="font-medium text-base">{item.label}</div>
                   {shortcut?.global && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                    <span className="text-sm px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
                       Global
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-muted-foreground">{item.description}</div>
+                {item.description && (
+                  <div className="text-xs text-muted-foreground">{item.description}</div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <ShortcutRecorder
@@ -150,10 +152,10 @@ export function ShortcutList() {
         })}
       </div>
 
-      <div className="pt-4">
-        <Button variant="outline" size="sm" onClick={handleResetAll} className="w-full">
+      <div className="pt-4 flex justify-end">
+        <Button className="text-destructive" variant="outline" size="sm" onClick={handleResetAll}>
           <RotateCcw className="h-3.5 w-3.5 mr-2" />
-          Reset All to Defaults
+          Reset All Shortcuts
         </Button>
       </div>
     </div>

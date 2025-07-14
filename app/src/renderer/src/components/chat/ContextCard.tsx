@@ -66,12 +66,7 @@ export function ContextCard() {
   }
 
   return (
-    <motion.div
-      className="relative"
-      transition={{ duration: 0.15, ease: 'easeOut' }}
-      animate={{ height: isEditing ? 'auto' : 'fit-content' }}
-      layout="position"
-    >
+    <motion.div className="relative" transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }} layout>
       <AnimatePresence mode="wait">
         {userData?.profile?.bio || isEditing ? (
           <motion.div
@@ -79,98 +74,99 @@ export function ContextCard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
             className="space-y-2"
-            layout="position"
           >
-            {isEditing ? (
-              <motion.div
-                layoutId="context-textarea"
-                className="relative"
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{
-                  duration: 0.2,
-                  ease: [0.4, 0, 0.2, 1],
-                  opacity: { duration: 0.15 },
-                  layout: { duration: 0.2, ease: [0.4, 0, 0.2, 1] }
-                }}
-              >
+            <AnimatePresence mode="wait">
+              {isEditing ? (
                 <motion.div
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 5 }}
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
-                  layout="position"
-                >
-                  <Textarea
-                    value={context}
-                    onChange={(e) => setContext(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onBlur={() => !context.trim() && handleSubmit({} as React.FormEvent)}
-                    readOnly={!isEditing}
-                    placeholder="Add context..."
-                    onClick={() => !isEditing && setIsEditing(true)}
-                    className={`w-full resize-none transition-all duration-200 rounded-lg ${
-                      !isEditing ? 'min-h-0 max-h-[150px] border-transparent' : 'max-h-[150px]'
-                    }`}
-                    style={{}}
-                    autoFocus={isEditing}
-                  />
-                </motion.div>
-                <motion.div
-                  className="flex justify-end gap-2 mt-2"
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
-                  layout="position"
-                >
-                  <Button variant="ghost" size="sm" onClick={handleCancel}>
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={handleSubmit} disabled={updateLoading}>
-                    Save
-                  </Button>
-                </motion.div>
-              </motion.div>
-            ) : (
-              <motion.div
-                layoutId="context-textarea"
-                className="relative"
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{
-                  duration: 0.2,
-                  ease: [0.4, 0, 0.2, 1],
-                  opacity: { duration: 0.15 },
-                  layout: { duration: 0.2, ease: [0.4, 0, 0.2, 1] }
-                }}
-              >
-                <motion.p
-                  className={`text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors ${
-                    context.split('\n').length === 1 ? 'text-center' : 'text-left'
-                  }`}
-                  onClick={() => setIsEditing(true)}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 5 }}
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
-                  style={{
-                    display: '-webkit-box',
-                    WebkitLineClamp: 5,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    whiteSpace: 'pre-wrap'
+                  key="editing"
+                  layoutId="context-container"
+                  className="relative"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{
+                    duration: 0.2,
+                    ease: [0.4, 0, 0.2, 1],
+                    layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
                   }}
-                  layout="position"
                 >
-                  {context}
-                </motion.p>
-              </motion.div>
-            )}
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 5 }}
+                    transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                    layout="position"
+                  >
+                    <Textarea
+                      value={context}
+                      onChange={(e) => setContext(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onBlur={() => !context.trim() && handleSubmit({} as React.FormEvent)}
+                      readOnly={!isEditing}
+                      placeholder="Add context..."
+                      onClick={() => !isEditing && setIsEditing(true)}
+                      className={`w-full resize-none transition-all duration-200 rounded-lg ${
+                        !isEditing ? 'min-h-0 max-h-[150px] border-transparent' : 'max-h-[150px]'
+                      }`}
+                      style={{}}
+                      autoFocus={isEditing}
+                    />
+                  </motion.div>
+                  <motion.div
+                    className="flex justify-end gap-2 mt-2"
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                    layout="position"
+                  >
+                    <Button variant="ghost" size="sm" onClick={handleCancel}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleSubmit} disabled={updateLoading}>
+                      Save
+                    </Button>
+                  </motion.div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="display"
+                  layoutId="context-container"
+                  className="relative"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{
+                    duration: 0.2,
+                    ease: [0.4, 0, 0.2, 1],
+                    layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+                  }}
+                >
+                  <motion.p
+                    className={`text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors ${
+                      context.split('\n').length === 1 ? 'text-center' : 'text-left'
+                    }`}
+                    onClick={() => setIsEditing(true)}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 5 }}
+                    transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                    style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 5,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      whiteSpace: 'pre-wrap'
+                    }}
+                    layout="position"
+                  >
+                    {context}
+                  </motion.p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         ) : (
           <motion.div
@@ -178,9 +174,9 @@ export function ContextCard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
             className="flex items-center justify-center"
-            layout="position"
+            layout
           >
             <Button
               variant="ghost"

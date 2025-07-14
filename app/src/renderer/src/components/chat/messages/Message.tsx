@@ -98,6 +98,14 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
 
   const isStillThinking = thinkingText?.trim() !== '' && !replyText
 
+  const shouldShowOriginalContent = useMemo(() => {
+    const hideContentForTools = ['preview_thread', 'send_to_holon']
+
+    return !message.toolCalls.some((toolCall) => {
+      return toolCall.isCompleted && hideContentForTools.includes(toolCall.name)
+    })
+  }, [message.toolCalls])
+
   return (
     <motion.div
       className="flex justify-start"
@@ -147,7 +155,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
           </Collapsible>
         )}
 
-        {replyText && <Markdown>{replyText}</Markdown>}
+        {replyText && shouldShowOriginalContent && <Markdown>{replyText}</Markdown>}
         {message.imageUrls.length > 0 && (
           <div className="grid grid-cols-4 gap-y-4 my-2">
             {message.imageUrls.map((url, i) => (
@@ -226,7 +234,7 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
           <span>{toolNameCompleted}</span>
         </Badge>
       ) : (
-        <Badge variant="outline" className="border-gray-300">
+        <Badge variant="outline" className="border-border">
           <LoaderIcon className="h-4 w-4 animate-spin" />
           <span>{toolNameInProgress}...</span>
         </Badge>

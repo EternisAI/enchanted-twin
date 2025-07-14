@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import VoiceOnboarding from '@renderer/components/onboarding/voice/VoiceOnboarding'
+import OnboardingContainer from '@renderer/components/onboarding/new/OnboardingContainer'
 
 export const Route = createFileRoute('/onboarding')({
-  component: VoiceOnboarding
+  component: OnboardingContainer
 })
