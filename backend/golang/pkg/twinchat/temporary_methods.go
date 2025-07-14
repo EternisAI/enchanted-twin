@@ -14,6 +14,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
@@ -68,18 +69,12 @@ func (s *Service) ProcessMessageHistoryStream(
 
 	var systemPrompt string
 	if isOnboarding {
-		systemPrompt = `You are an onboarding agent. Your job is to welcome new users and gather some basic information about them.
-
-You need to ask exactly 3 questions in a friendly and conversational manner:
-1. What is your name?
-2. What is your favorite color?
-3. What is your favorite animal?
-
-After the user has answered all three questions, you should call the finalize_onboarding tool with:
-- name: the user's name (required)
-- context: a summary of their other answers (e.g., "favorite color: blue, favorite animal: cat")
-
-Be warm, welcoming, and conversational. Ask one question at a time and wait for the user's response before moving to the next question.`
+		systemPrompt, err = prompts.BuildOnboardingSystemPrompt(prompts.OnboardingSystemPrompt{
+			CurrentTime: time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to build onboarding system prompt: %w", err)
+		}
 	} else {
 		systemPrompt, err = s.buildSystemPrompt(ctx, chatID, true, userMemoryProfile)
 		if err != nil {
