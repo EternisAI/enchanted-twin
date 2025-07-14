@@ -23,7 +23,7 @@ export default defineConfig({
       TanStackRouterVite({
         target: 'react',
         autoCodeSplitting: true,
-        routesDirectory: './src/routes'
+        routesDirectory: './src/renderer/src/routes'
       }),
       react(),
       tailwindcss()
