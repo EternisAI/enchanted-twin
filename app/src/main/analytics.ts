@@ -85,7 +85,8 @@ export function capture(event: string, properties: Record<string, any> = {}) {
         event,
         properties: {
           ...properties,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          appVersion: app.getVersion()
         }
       })
     }
