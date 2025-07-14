@@ -9,8 +9,7 @@ import (
 //go:embed templates/onboarding_system_prompt.tmpl
 var onboardingSystemPromptTemplate string
 
-type OnboardingSystemPrompt struct {
-}
+type OnboardingSystemPrompt struct{}
 
 func BuildOnboardingSystemPrompt(data OnboardingSystemPrompt) (string, error) {
 	systemPromptTmpl := template.Must(template.New("onboarding_system_prompt").Parse(onboardingSystemPromptTemplate))
