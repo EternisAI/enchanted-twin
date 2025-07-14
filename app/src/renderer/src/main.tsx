@@ -15,7 +15,6 @@ import { routeTree } from '@renderer/routeTree.gen'
 import InvitationGate from './components/onboarding/InvitationGate'
 import UpdateNotification from './components/UpdateNotification'
 import DependenciesGate from './components/setup/DependenciesGate'
-import AppInitialize from './components/setup/AppInitialize'
 
 export const router = createRouter({
   routeTree,
@@ -44,7 +43,6 @@ function App() {
       <TTSProvider>
         <ApolloClientProvider>
           <GoLogsProvider>
-            {/* <AppInitialize> */}
             <div className="flex flex-col h-full w-full">
               <DependenciesGate>
                 <AuthProvider>
@@ -55,7 +53,6 @@ function App() {
                 </AuthProvider>
               </DependenciesGate>
             </div>
-            {/* </AppInitialize> */}
           </GoLogsProvider>
         </ApolloClientProvider>
       </TTSProvider>
