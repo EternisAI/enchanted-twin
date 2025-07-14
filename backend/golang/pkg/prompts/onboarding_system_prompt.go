@@ -10,7 +10,6 @@ import (
 var onboardingSystemPromptTemplate string
 
 type OnboardingSystemPrompt struct {
-	CurrentTime string
 }
 
 func BuildOnboardingSystemPrompt(data OnboardingSystemPrompt) (string, error) {
