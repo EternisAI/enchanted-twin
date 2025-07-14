@@ -49,10 +49,11 @@ func NewAgent(
 }
 
 type AgentResponse struct {
-	Content     string
-	ToolCalls   []openai.ChatCompletionMessageToolCall
-	ToolResults []types.ToolResult
-	ImageURLs   []string
+	Content          string
+	ToolCalls        []openai.ChatCompletionMessageToolCall
+	ToolResults      []types.ToolResult
+	ImageURLs        []string
+	ReplacementRules map[string]string
 }
 
 func (r AgentResponse) String() string {
@@ -101,10 +102,11 @@ func (a *Agent) Execute(
 
 		if len(completion.ToolCalls) == 0 {
 			return AgentResponse{
-				Content:     completion.Content,
-				ToolCalls:   toolCalls,
-				ToolResults: toolResults,
-				ImageURLs:   imageURLs,
+				Content:          completion.Content,
+				ToolCalls:        toolCalls,
+				ToolResults:      toolResults,
+				ImageURLs:        imageURLs,
+				ReplacementRules: make(map[string]string),
 			}, nil
 		}
 
@@ -155,9 +157,10 @@ func (a *Agent) Execute(
 	}
 
 	return AgentResponse{
-		Content:     responseContent,
-		ToolCalls:   toolCalls,
-		ToolResults: toolResults,
-		ImageURLs:   imageURLs,
+		Content:          responseContent,
+		ToolCalls:        toolCalls,
+		ToolResults:      toolResults,
+		ImageURLs:        imageURLs,
+		ReplacementRules: make(map[string]string),
 	}, nil
 }
