@@ -99,7 +99,7 @@ export default function useOnboardingChat() {
       setTimeout(() => {
         setTriggerAnimation(true)
         cleanupChat()
-      }, 14000)
+      }, 10000)
     }
   })
 
