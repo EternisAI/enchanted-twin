@@ -34,7 +34,7 @@ import { Omnibar } from '../Omnibar'
 import { isToday, isYesterday, isWithinInterval, subDays } from 'date-fns'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { formatShortcutForDisplay } from '@renderer/lib/utils/shortcuts'
@@ -93,47 +93,56 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
   const chatsToDisplay = showAllChats ? chats : chats.slice(0, 5)
   const groupedChats = groupChatsByTime(chatsToDisplay)
 
-  const renderGroup = (title: string, groupChats: Chat[]) => {
-    if (groupChats.length === 0) return null
-    return (
-      <motion.div
-        key={title}
-        className="mb-6"
-        initial="hidden"
-        animate="visible"
-        exit="exit"
-        variants={{
-          visible: {
-            transition: {
-              staggerChildren: 0.1,
-              delayChildren: 0.01
+  const renderGroup = useCallback(
+    (title: string, groupChats: Chat[]) => {
+      if (groupChats.length === 0) return null
+      return (
+        <motion.div
+          key={title}
+          className="mb-6"
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          variants={{
+            visible: {
+              transition: {
+                staggerChildren: 0.1,
+                delayChildren: 0.01
+              }
+            },
+            exit: {
+              transition: {
+                staggerChildren: 0.02,
+                staggerDirection: -1
+              }
             }
-          },
-          exit: {
-            transition: {
-              staggerChildren: 0.02,
-              staggerDirection: -1
-            }
-          }
-        }}
-      >
-        <h3 className="text-xs font-medium text-muted-foreground uppercase p-2">{title}</h3>
-        {groupChats.map((chat) => (
-          <SidebarItem
-            key={chat.id}
-            chat={chat}
-            isActive={location.pathname === `/chat/${chat.id}`}
-          />
-        ))}
-      </motion.div>
-    )
-  }
+          }}
+        >
+          <h3 className="text-xs font-medium text-sidebar-foreground/50 uppercase p-2">{title}</h3>
+          {groupChats.map((chat) => (
+            <SidebarItem
+              key={chat.id}
+              chat={chat}
+              isActive={location.pathname === `/chat/${chat.id}`}
+            />
+          ))}
+        </motion.div>
+      )
+    },
+    [location.pathname]
+  )
 
   return (
     <>
-      <aside className="flex flex-col bg-muted p-4 rounded-tr-lg h-full w-64">
+      <aside className="flex flex-col bg-sidebar text-sidebar-foreground p-4 pt-10 h-full w-64">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1.5">
+          <motion.div
+            className="flex items-center"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.5, ease: 'easeInOut' }}
+          >
             <TooltipProvider>
               <Tooltip delayDuration={500}>
                 <TooltipTrigger asChild>
@@ -141,7 +150,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
                     variant="ghost"
                     size="icon"
                     onClick={() => setSidebarOpen(false)}
-                    className="text-muted-foreground hover:text-foreground h-7 w-7"
+                    className="text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent h-7 w-7"
                   >
                     <PanelLeftClose className="w-4 h-4" />
                   </Button>
@@ -158,7 +167,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          </div>
+          </motion.div>
           <TooltipProvider>
             <Tooltip delayDuration={500}>
               <TooltipTrigger asChild>
@@ -166,7 +175,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
                   variant="ghost"
                   size="icon"
                   onClick={openOmnibar}
-                  className="text-muted-foreground hover:text-foreground h-7 w-7"
+                  className="text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent h-7 w-7"
                 >
                   <SearchIcon className="w-4 h-4" />
                 </Button>
@@ -184,15 +193,15 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
         </div>
 
         <Button
-          variant="outline"
-          className="group w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
+          variant="ghost"
+          className="group w-full justify-start px-2 text-sidebar-foreground h-9 mb-2"
           onClick={handleNewChat}
         >
           <Plus className="w-4 h-4" />
           <span className="text-base">New chat</span>
           {shortcuts.newChat?.keys && (
-            <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
-              <kbd className="rounded bg-muted px-1.5 py-0.5">
+            <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
+              <kbd className="rounded bg-sidebar-accent px-1.5 py-0.5">
                 {formatShortcutForDisplay(shortcuts.newChat.keys)}
               </kbd>
             </div>
@@ -200,20 +209,20 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
         </Button>
 
         <Button
-          variant="outline"
-          className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
+          variant="ghost"
+          className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 mb-2"
           onClick={handleNavigateTasks}
         >
-          <CheckSquare className="w-4 h-4 text-muted-foreground" />
+          <CheckSquare className="w-4 h-4 text-sidebar-foreground/60" />
           <span className="text-base">Tasks</span>
         </Button>
 
         <Button
-          variant="outline"
-          className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-1"
+          variant="ghost"
+          className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 mb-1"
           onClick={() => navigate({ to: '/holon' })}
         >
-          <Globe className="w-4 h-4 text-muted-foreground" />
+          <Globe className="w-4 h-4 text-sidebar-foreground/60" />
           <span className="text-base">Holon Networks</span>
         </Button>
 
@@ -230,7 +239,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
             <motion.div>
               <Button
                 variant="ghost"
-                className="w-full justify-center text-xs text-muted-foreground hover:text-foreground h-8 mt-2 mb-1"
+                className="w-full justify-center text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground h-8 mt-2 mb-1"
                 onClick={() => setShowAllChats(!showAllChats)}
               >
                 {showAllChats ? (
@@ -247,10 +256,10 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           )}
         </div>
 
-        <div className="pt-2 border-t border-border/50 shrink-0">
+        <div className="pt-2 border-t border-sidebar-border/50 shrink-0">
           <Button
             variant="ghost"
-            className="w-full justify-between px-2 text-secondary-foreground hover:text-foreground h-9 group"
+            className="w-full justify-between px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group"
             onClick={() => navigate({ to: '/settings' })}
           >
             <div className="flex items-center gap-2">
@@ -258,7 +267,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
               <span className="text-base">Settings</span>
             </div>
             {shortcuts.openSettings?.keys && (
-              <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
+              <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
                 <kbd className="rounded bg-muted px-1.5 py-0.5">
                   {formatShortcutForDisplay(shortcuts.openSettings.keys)}
                 </kbd>
@@ -316,8 +325,8 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         }
       }}
       className={cn('flex items-center h-fit gap-2 justify-between rounded-md group text-base', {
-        'bg-primary/10 text-primary': isActive,
-        'hover:bg-accent text-foreground': !isActive
+        'bg-sidebar-accent text-sidebar-accent-foreground font-medium': isActive,
+        'hover:bg-sidebar-accent/50 text-sidebar-foreground/80': !isActive
       })}
     >
       <Link
@@ -336,8 +345,8 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
           })
         }}
         className={cn('block px-2 py-1.5 flex-1 truncate', {
-          'text-primary font-medium': isActive,
-          'text-foreground': !isActive
+          'text-sidebar-accent-foreground font-medium': isActive,
+          'text-sidebar-foreground/80': !isActive
         })}
       >
         {chat.name || 'Untitled Chat'}

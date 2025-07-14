@@ -161,7 +161,7 @@ function RootComponent() {
     <NotificationsProvider>
       <LayoutGroup>
         <motion.div
-          className="flex flex-col h-screen w-screen text-foreground pt-8 relative bg-background"
+          className="flex flex-col h-screen w-screen text-foreground relative bg-background"
           layout="position"
         >
           <AdminKeyboardShortcuts />
@@ -172,14 +172,15 @@ function RootComponent() {
             <GlobalIndexingStatus />
           </div>
 
-          <div className="flex flex-1 overflow-hidden mt-0">
+          <div className="flex flex-1 overflow-hidden">
             <AnimatePresence>
               {!sidebarOpen && isCompleted && !location.pathname.startsWith('/settings') && (
                 <motion.div
-                  className="absolute top-11 left-3 z-[60]"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.5 }}
+                  className="absolute top-9 left-3 z-[60]"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.5, ease: 'easeInOut' }}
                 >
                   <TooltipProvider>
                     <Tooltip delayDuration={500}>
@@ -225,7 +226,7 @@ function RootComponent() {
               layout
               transition={{ type: 'spring', stiffness: 350, damping: 55 }}
             >
-              <motion.div className="flex-1 flex overflow-hidden relative justify-center">
+              <motion.div className="flex-1 flex overflow-hidden relative justify-center pt-10">
                 <Outlet />
               </motion.div>
             </motion.div>
