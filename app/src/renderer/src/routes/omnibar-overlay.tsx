@@ -54,9 +54,9 @@ function OmnibarOverlay() {
     }
   }, [query])
 
-  const windowHeight = useMotionValue(72)
-  const containerHeight = useMotionValue(72)
-  const currentHeight = useRef(72)
+  const windowHeight = useMotionValue(64)
+  const containerHeight = useMotionValue(64)
+  const currentHeight = useRef(64)
   const previousResultCount = useRef(0)
 
   useEffect(() => {
@@ -138,7 +138,7 @@ function OmnibarOverlay() {
   // Calculate and animate window height based on state
   useEffect(() => {
     const windowWidth = 500
-    const baseHeight = 72
+    const baseHeight = 64
     const itemHeight = 48 // Height per result item
 
     // Calculate current result count
