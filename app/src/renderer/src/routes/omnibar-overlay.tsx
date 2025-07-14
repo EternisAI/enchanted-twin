@@ -12,7 +12,6 @@ import {
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
 import FocusLock from 'react-focus-lock'
-import { Textarea } from '@renderer/components/ui/textarea'
 import { SendButton } from '../components/chat/MessageInput'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 
@@ -22,6 +21,7 @@ function OmnibarOverlay() {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const { isVoiceMode } = useVoiceStore()
   const [createChat] = useMutation(CreateChatDocument)
   const { data: chatsData } = useQuery(GetChatsDocument, {
@@ -53,21 +53,14 @@ function OmnibarOverlay() {
     }
   }, [query])
 
-  const adjustTextareaHeight = () => {
-    if (textareaRef.current) {
-      // Always maintain fixed height
-      textareaRef.current.style.height = '40px'
-    }
-  }
-
   const resizeWindowToContent = useCallback(() => {
     // Fixed height based on content state
-    const windowWidth = 500
-    let windowHeight = 80 // Default height
+    const windowWidth = 768
+    let windowHeight = 200 // Default height
 
     // Only expand if we have search results
     if (debouncedQuery.trim() && filteredChats.length > 0) {
-      const contentContainer = document.querySelector('[data-omnibar-content]') as HTMLElement
+      const contentContainer = contentRef.current
       if (contentContainer) {
         const rect = contentContainer.getBoundingClientRect()
         windowHeight = Math.min(500, rect.height + 16) // 16px for window chrome
@@ -87,7 +80,6 @@ function OmnibarOverlay() {
   }, [debouncedQuery, filteredChats.length])
 
   useEffect(() => {
-    adjustTextareaHeight()
     resizeWindowToContent()
   }, [query, filteredChats.length, debouncedQuery, resizeWindowToContent])
 
@@ -99,12 +91,11 @@ function OmnibarOverlay() {
     resizeWindowToContent()
 
     // Set up ResizeObserver for responsive resizing
-    const contentContainer = document.querySelector('[data-omnibar-content]') as HTMLElement
-    if (contentContainer && typeof ResizeObserver !== 'undefined') {
+    if (contentRef.current && typeof ResizeObserver !== 'undefined') {
       const resizeObserver = new ResizeObserver(() => {
         resizeWindowToContent()
       })
-      resizeObserver.observe(contentContainer)
+      resizeObserver.observe(contentRef.current)
 
       return () => {
         resizeObserver.disconnect()
@@ -189,14 +180,20 @@ function OmnibarOverlay() {
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: -5 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        transition={{ type: 'spring', damping: 55, stiffness: 350, opacity: { duration: 0.2 } }}
-        className="w-full h-full "
+        transition={{ type: 'spring', damping: 20, stiffness: 200, opacity: { duration: 0.2 } }}
+        className="w-full h-full !bg-transparent"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
         <motion.form onSubmit={handleSubmit} className="w-full">
-          <motion.div data-omnibar-content className={cn('flex flex-col gap-3 p-4 w-[500px]')}>
+          <motion.div
+            ref={contentRef}
+            data-omnibar-content
+            className={cn(
+              'flex flex-col gap-3 p-4 w-[500px] bg-background rounded-xl shadow-xl mx-auto'
+            )}
+          >
             <div className="flex items-center gap-3">
-              <Textarea
+              <textarea
                 ref={textareaRef}
                 value={query}
                 onChange={(e) => {
@@ -210,8 +207,7 @@ function OmnibarOverlay() {
                   }
                 }}
                 placeholder="What would you like to discuss?"
-                className="flex-1 !bg-transparent !h-full !min-h-full flex justify-center items-center !text-base !rounded-none transparent text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
-                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                className="flex-1 !bg-transparent !h-full !min-h-12 flex justify-center items-center !text-base !rounded-none transparent text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
                 rows={1}
               />
               <AnimatePresence mode="wait">

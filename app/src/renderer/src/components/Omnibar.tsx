@@ -193,23 +193,21 @@ export const Omnibar = () => {
                       className="flex-1 !text-base !bg-transparent text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-hidden min-h-0 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
                       rows={1}
                     />
-                    <AnimatePresence mode="wait">
-                      {debouncedQuery.trim() && filteredChats.length === 0 && (
-                        <motion.div
-                          layout="position"
-                          className="self-center"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                        >
-                          <SendButton
-                            onSend={handleCreateChat}
-                            isWaitingTwinResponse={false}
-                            text={query}
-                          />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    {debouncedQuery.trim() && filteredChats.length === 0 && (
+                      <motion.div
+                        layout="position"
+                        className="self-center"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        <SendButton
+                          onSend={handleCreateChat}
+                          isWaitingTwinResponse={false}
+                          text={query}
+                        />
+                      </motion.div>
+                    )}
                   </div>
 
                   <AnimatePresence mode="wait">
