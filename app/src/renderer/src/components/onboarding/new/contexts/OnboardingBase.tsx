@@ -83,7 +83,7 @@ export function MessageDisplay({
             transition={{ duration: 0.3, ease: 'easeOut' }}
             className="z-1"
           >
-            <UserMessageBubble message={lastMessage} chatPrivacyDict={null} />
+            <UserMessageBubble message={lastMessage} chatPrivacyDict={null} isAnonymized={false} />
           </motion.div>
         )}
 
