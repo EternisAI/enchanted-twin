@@ -1,4 +1,4 @@
-import { DownloadState, DependencyName } from './AppSetupGate'
+import { DownloadState, DependencyName } from './DependenciesGate'
 
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
@@ -10,7 +10,6 @@ export function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))}${sizes[i]}`
 }
 
-// Dynamic dependency configuration
 export const DEPENDENCY_CONFIG: Record<
   DependencyName,
   {

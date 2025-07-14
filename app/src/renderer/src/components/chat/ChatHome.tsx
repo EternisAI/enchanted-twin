@@ -22,7 +22,7 @@ import { useVoiceStore } from '@renderer/lib/stores/voice'
 import ChatInputBox from './ChatInputBox'
 import VoiceVisualizer from './voice/VoiceVisualizer'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
-import { VoiceModeInput } from './voice/ChatVoiceModeView'
+import { VoiceModeInput } from './voice/VoiceModeInput'
 
 interface IndexRouteSearch {
   focusInput?: string
@@ -40,6 +40,8 @@ export function Home() {
     variables: { first: 20, offset: 0 }
   })
   const { isVoiceMode, stopVoiceMode, startVoiceMode } = useVoiceStore()
+  const { isVoiceReady } = useDependencyStatus()
+
   const navigate = useNavigate()
   const router = useRouter()
   const searchParams = useSearch({ from: '/' }) as IndexRouteSearch
@@ -60,8 +62,6 @@ export function Home() {
   const filteredChats = chats.filter((chat) =>
     chat.name.toLowerCase().includes(debouncedQuery.toLowerCase())
   )
-
-  const { isVoiceReady } = useDependencyStatus()
 
   const dummySuggestions = [
     // {
@@ -167,7 +167,7 @@ export function Home() {
         if (newChatId) {
           navigate({
             to: `/chat/${newChatId}`,
-            search: { initialMessage: query }
+            search: { initialMessage: query, reasoning: isReasonSelected }
           })
 
           sendMessage({
@@ -252,7 +252,7 @@ export function Home() {
       if (newChatId) {
         navigate({
           to: `/chat/${newChatId}`,
-          search: { initialMessage: suggestion.name }
+          search: { initialMessage: suggestion.name, reasoning: isReasonSelected }
         })
 
         await client.cache.evict({ fieldName: 'getChats' })
