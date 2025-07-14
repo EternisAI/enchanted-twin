@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { ShortcutRecorder } from './ShortcutRecorder'
-import { CircleCheck, KeyboardOff, RotateCcw } from 'lucide-react'
+import { CircleAlertIcon, CircleCheck, KeyboardOff, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatShortcutForDisplay } from '@renderer/lib/utils/shortcuts'
 
@@ -75,10 +75,16 @@ export function ShortcutList() {
         })
         loadShortcuts()
       } else {
-        toast.error(`Failed to update shortcut: ${result.error}`)
+        toast('Invalid shortcut', {
+          description: (
+            <kbd className="text-sm text-red-500 font-medium">{formatShortcutForDisplay(keys)}</kbd>
+          )
+        })
       }
-    } catch (error) {
-      toast.error(`Failed to update shortcut: ${error}`)
+    } catch {
+      toast('Failed to update shortcut', {
+        icon: <CircleAlertIcon className="h-4 w-4 text-red-500" />
+      })
     }
   }
 
