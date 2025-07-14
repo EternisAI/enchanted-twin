@@ -49,7 +49,7 @@ export function UserMessageBubble({
       variants={messageAnimation}
     >
       <div className="flex flex-col gap-1 max-w-md">
-        <div className="bg-accent dark:bg-black dark:border dark:border-border text-foreground rounded-lg px-4 py-2 max-w-md relative group">
+        <div className="bg-muted text-foreground rounded-lg px-4 py-2 max-w-md relative group">
           {message.text && <p>{anonymizeText(message.text, chatPrivacyDict, isAnonymized)}</p>}
           {message.imageUrls.length > 0 && (
             <div className="grid grid-cols-4 gap-y-4 my-2">
