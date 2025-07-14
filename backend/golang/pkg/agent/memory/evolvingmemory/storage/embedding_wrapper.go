@@ -10,27 +10,27 @@ import (
 // EmbeddingWrapper wraps the AI service to provide float32 embeddings for Weaviate.
 // It handles the conversion from float64 to float32 and stores the model configuration.
 type EmbeddingWrapper struct {
-	service *ai.Service
-	model   string
+	embedding ai.Embedding
+	model     string
 }
 
 // NewEmbeddingWrapper creates a new embedding wrapper with the specified model.
-func NewEmbeddingWrapper(service *ai.Service, model string) (*EmbeddingWrapper, error) {
-	if service == nil {
-		return nil, fmt.Errorf("ai service cannot be nil")
+func NewEmbeddingWrapper(embedding ai.Embedding, model string) (*EmbeddingWrapper, error) {
+	if embedding == nil {
+		return nil, fmt.Errorf("embedder cannot be nil")
 	}
 	if model == "" {
 		return nil, fmt.Errorf("model cannot be empty")
 	}
 	return &EmbeddingWrapper{
-		service: service,
-		model:   model,
+		embedding: embedding,
+		model:     model,
 	}, nil
 }
 
 // Embedding returns a single embedding as float32 slice using the configured model.
 func (w *EmbeddingWrapper) Embedding(ctx context.Context, input string) ([]float32, error) {
-	embedding, err := w.service.Embedding(ctx, input, w.model)
+	embedding, err := w.embedding.Embedding(ctx, input, w.model)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func (w *EmbeddingWrapper) Embedding(ctx context.Context, input string) ([]float
 
 // Embeddings returns multiple embeddings as float32 slices using the configured model.
 func (w *EmbeddingWrapper) Embeddings(ctx context.Context, inputs []string) ([][]float32, error) {
-	embeddings, err := w.service.Embeddings(ctx, inputs, w.model)
+	embeddings, err := w.embedding.Embeddings(ctx, inputs, w.model)
 	if err != nil {
 		return nil, err
 	}

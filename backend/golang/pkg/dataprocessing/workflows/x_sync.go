@@ -11,6 +11,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/constants"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
@@ -140,8 +141,9 @@ func (w *DataProcessingWorkflows) XFetchActivity(
 		return XFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for X")
 	}
 	w.Logger.Debug("XFetchActivity", "tokens", tokens)
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
-	records, err := dataprocessingService.Sync(ctx, "x", tokens.AccessToken)
+
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Memory, w.Logger)
+	records, err := dataprocessingService.Sync(ctx, constants.ProcessorX.String(), tokens.AccessToken)
 	if err != nil {
 		return XFetchActivityResponse{}, err
 	}
@@ -158,8 +160,8 @@ func (w *DataProcessingWorkflows) XIndexActivity(
 	ctx context.Context,
 	input XIndexActivityInput,
 ) (XIndexActivityResponse, error) {
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
-	documents, err := dataprocessingService.ToDocuments(ctx, "x", input.Records)
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Memory, w.Logger)
+	documents, err := dataprocessingService.ToDocuments(ctx, constants.ProcessorX.String(), input.Records)
 	if err != nil {
 		return XIndexActivityResponse{}, err
 	}

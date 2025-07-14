@@ -15,7 +15,6 @@ import {
 import {
   PYTHON_VERSION,
   UV_INSTALL_SCRIPT,
-  REQUIRED_ENV_VARS,
   PYTHON_REQUIREMENTS,
   PROGRESS_STEPS,
   SESSION_READY_INDICATORS,
@@ -297,6 +296,9 @@ export class LiveKitAgentBootstrap {
       this.updateProgress(PROGRESS_STEPS.DEPENDENCIES, 'Installing dependencies')
       await this.ensureDeps()
 
+      this.updateProgress(PROGRESS_STEPS.INITIALIZATION, 'Initializing agent')
+      await this.startAgent('FAKE_CHAT_ID', false, true, undefined)
+
       this.updateProgress(PROGRESS_STEPS.COMPLETE, 'Ready')
 
       log.info('[LiveKit] LiveKit Agent setup completed successfully')
@@ -312,21 +314,18 @@ export class LiveKitAgentBootstrap {
     }
   }
 
-  async startAgent(chatId: string, isOnboarding: boolean = false, isInitialising: boolean = false) {
+  async startAgent(
+    chatId: string,
+    isOnboarding: boolean = false,
+    isInitialising: boolean = false,
+    jwtToken?: string
+  ) {
     if (this.agentProc) {
       log.warn('[LiveKit] Agent is already running')
       return
     }
 
     log.info('[LiveKit] Starting LiveKit agent', isOnboarding)
-
-    // Note: Room connection is handled by the LiveKit agent framework via ctx.connect()
-
-    // Check for required environment variables before starting
-    const missingEnvVars = REQUIRED_ENV_VARS.filter((envVar) => !process.env[envVar])
-    if (missingEnvVars.length > 0) {
-      throw new EnvironmentError(missingEnvVars)
-    }
 
     let greeting = ``
     if (isOnboarding) {
@@ -347,10 +346,11 @@ export class LiveKitAgentBootstrap {
         ...process.env,
         CHAT_ID: chatId,
         FAKE_INIT: initialising,
-        TINFOIL_API_KEY: process.env.TINFOIL_API_KEY,
-        TINFOIL_AUDIO_URL: process.env.TINFOIL_AUDIO_URL,
-        TINFOIL_STT_MODEL: process.env.TINFOIL_STT_MODEL,
-        TINFOIL_TTS_MODEL: process.env.TINFOIL_TTS_MODEL,
+        FIREBASE_JWT_TOKEN: jwtToken || '', // Pass JWT token as environment variable
+        TTS_URL: process.env.TTS_URL,
+        TTS_MODEL: process.env.TTS_MODEL,
+        STT_URL: process.env.STT_URL,
+        STT_MODEL: process.env.STT_MODEL,
         SEND_MESSAGE_URL: `http://localhost:44999/query`,
         TERM: 'dumb', // Use dumb terminal to avoid TTY features
         PYTHONUNBUFFERED: '1', // Ensure immediate output
@@ -383,6 +383,11 @@ export class LiveKitAgentBootstrap {
   async stopAgent() {
     if (!this.agentProc) {
       log.warn('[LiveKit] No agent process to stop')
+      return
+    }
+
+    if (this.latestProgress.progress !== PROGRESS_STEPS.COMPLETE) {
+      log.warn('[LiveKit] Agent process is not really running.')
       return
     }
 

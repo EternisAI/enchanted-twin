@@ -11,83 +11,41 @@ import {
 import { useEffect, useState } from 'react'
 import { Button } from '../ui/button'
 import { toast } from 'sonner'
-import { Card } from '../ui/card'
-import Google from '@renderer/assets/icons/google'
-import Slack from '@renderer/assets/icons/slack'
-import XformerlyTwitter from '@renderer/assets/icons/x'
+import { PlugIcon } from 'lucide-react'
 import {
-  AlertDialog,
-  AlertDialogTrigger,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel
-} from '../ui/alert-dialog'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
-import { Check, Trash2 } from 'lucide-react'
-import icon from '../../../../../resources/icon.png'
-
-const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
-  GOOGLE: {
-    provider: 'google',
-    scope:
-      'openid email profile https://www.googleapis.com/auth/drive https://mail.google.com/ https://www.googleapis.com/auth/calendar'
-  },
-  SLACK: {
-    provider: 'slack',
-    scope:
-      'channels:read,groups:read,channels:history,groups:history,im:read,mpim:read,search:read,users:read'
-  },
-  TWITTER: {
-    provider: 'twitter',
-    scope: 'like.read tweet.read users.read offline.access tweet.write bookmark.read'
-  },
-  SCREENPIPE: { provider: 'screenpipe', scope: '' },
-  OTHER: { provider: 'other', scope: '' },
-  ENCHANTED: { provider: 'enchanted', scope: '' }
-}
-
-const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
-  GOOGLE: <Google />,
-  SLACK: <Slack />,
-  TWITTER: <XformerlyTwitter />,
-  SCREENPIPE: <></>,
-  OTHER: <></>,
-  ENCHANTED: <img src={icon} alt="Enchanted" className="w-8 h-8" />
-}
+  PROVIDER_MAP,
+  PROVIDER_ICON_MAP,
+  PROVIDER_DESCRIPTION_MAP
+} from '@renderer/constants/mcpProviders'
+import ScreenpipeConnectionButton from '../settings/permissions/ScreenpipeConnectionButton'
 
 interface MCPServerItemProps {
   server: McpServerDefinition
+  connectedServers?: McpServerDefinition[]
   onConnect: () => void
   onRemove?: () => void
 }
 
-export default function MCPServerItem({ server, onConnect, onRemove }: MCPServerItemProps) {
+export default function MCPServerItem({
+  server,
+  connectedServers = [],
+  onConnect
+}: MCPServerItemProps) {
   const [showEnvInputs, setShowEnvInputs] = useState(false)
   const [authStateId, setAuthStateId] = useState<string | null>(null)
-  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false)
 
   const [startOAuthFlow] = useMutation(StartOAuthFlowDocument)
   const [completeOAuthFlow] = useMutation(CompleteOAuthFlowDocument)
   const [connectMCPServer] = useMutation(ConnectMcpServerDocument)
-
-  const handleRemove = () => {
-    if (onRemove) {
-      onRemove()
-      setIsRemoveDialogOpen(false)
-    }
-  }
 
   const handleConnectMcpServer = async () => {
     const { data } = await connectMCPServer({
       variables: {
         input: {
           name: server.name,
-          command: 'npx',
-          args: [],
-          envs: [],
+          command: server.command || 'npx',
+          args: server.args || [],
+          envs: server.envs || [],
           type: server.type
         }
       }
@@ -100,7 +58,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   async function handleOAuthFlow(
-    serverType: string,
+    serverType: McpServerType,
     startOAuthFlow: MutationFunction<StartOAuthFlowMutation, StartOAuthFlowMutationVariables>
   ) {
     try {
@@ -132,13 +90,16 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   const handleEnableToolsToggle = async (enabled: boolean) => {
-    // Enchanted and Screenpipe are handled by the backend without OAuth
-    if (server.type === McpServerType.Enchanted || server.type === McpServerType.Screenpipe) {
+    if (
+      server.type === McpServerType.Enchanted ||
+      server.type === McpServerType.Screenpipe ||
+      server.type === McpServerType.Freysa
+    ) {
       handleConnectMcpServer()
       return
     }
 
-    if (server.type === 'OTHER') {
+    if (server.type === McpServerType.Other) {
       setShowEnvInputs(enabled)
       return
     }
@@ -150,9 +111,10 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
 
   useEffect(() => {
     if (
-      server.type === 'OTHER' ||
+      server.type === McpServerType.Other ||
       server.type === McpServerType.Enchanted ||
-      server.type === McpServerType.Screenpipe
+      server.type === McpServerType.Screenpipe ||
+      server.type === McpServerType.Freysa
     )
       return
 
@@ -183,74 +145,74 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }, [completeOAuthFlow, server.name, server.type, onConnect, authStateId])
 
   return (
-    <Card className="p-4 w-[350px] max-w-full">
-      <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-4">
-        <div className="flex items-center gap-2">
-          {PROVIDER_ICON_MAP[server.type]}
-          <span className="font-semibold text-lg">{server.name}</span>
+    <div className="p-4 w-full hover:bg-muted rounded-md">
+      <div className="font-semibold text-lg flex items-center justify-between flex-row gap-5">
+        <div className="flex items-center gap-5 flex-1 min-w-0">
+          <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center flex-shrink-0">
+            {PROVIDER_ICON_MAP[server.type]}
+          </div>
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
+            <span className="font-semibold text-lg leading-none">{server.name}</span>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {PROVIDER_DESCRIPTION_MAP[server.type]}
+            </p>
+            {connectedServers.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {connectedServers.map((connectedServer) => {
+                  // Extract connection identifier from envs
+                  const getConnectionIdentifier = () => {
+                    if (!connectedServer.envs) return connectedServer.name
+
+                    // Look for common identifier keys
+                    const identifierKeys = [
+                      'email',
+                      'username',
+                      'user',
+                      'account',
+                      'handle',
+                      'workspace'
+                    ]
+                    for (const key of identifierKeys) {
+                      const env = connectedServer.envs.find((e) =>
+                        e.key.toLowerCase().includes(key)
+                      )
+                      if (env) return env.value
+                    }
+
+                    // Fallback to first env value or name
+                    return connectedServer.envs[0]?.value || connectedServer.name
+                  }
+
+                  return (
+                    <span
+                      key={connectedServer.id}
+                      className="text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-1 rounded-full"
+                    >
+                      {getConnectionIdentifier()}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {server.connected ? (
-            <>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Check className="w-6 h-6 text-green-600 dark:text-green-400 bg-green-500/20 rounded-full p-1" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Connected</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {server.type === McpServerType.Screenpipe ? (
+            <ScreenpipeConnectionButton
+              onConnectionSuccess={() => {
+                handleConnectMcpServer()
+                onConnect()
+              }}
+              buttonText="Connect"
+            />
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleEnableToolsToggle(!showEnvInputs)}
-            >
+            <Button variant="outline" onClick={() => handleEnableToolsToggle(!showEnvInputs)}>
+              <PlugIcon className="w-4 h-4" />
               Connect
             </Button>
           )}
-          {(server.type === 'OTHER' || server.connected) && onRemove && (
-            <AlertDialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
-              <AlertDialogTrigger asChild>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive rounded-full"
-                        onClick={() => setIsRemoveDialogOpen(true)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Remove connection</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remove server connection</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. It will permanently remove the server.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Do not delete</AlertDialogCancel>
-                  <Button variant="destructive" onClick={handleRemove}>
-                    Delete
-                  </Button>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
         </div>
       </div>
-    </Card>
+    </div>
   )
 }

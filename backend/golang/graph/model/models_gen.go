@@ -9,6 +9,11 @@ import (
 	"strconv"
 )
 
+type AddTrackedFolderInput struct {
+	Path string  `json:"path"`
+	Name *string `json:"name,omitempty"`
+}
+
 type AgentTask struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
@@ -39,13 +44,14 @@ type Author struct {
 }
 
 type Chat struct {
-	ID             string       `json:"id"`
-	Name           string       `json:"name"`
-	Messages       []*Message   `json:"messages"`
-	CreatedAt      string       `json:"createdAt"`
-	Category       ChatCategory `json:"category"`
-	HolonThreadID  *string      `json:"holonThreadId,omitempty"`
-	InitialMessage *string      `json:"initialMessage,omitempty"`
+	ID              string       `json:"id"`
+	Name            string       `json:"name"`
+	Messages        []*Message   `json:"messages"`
+	CreatedAt       string       `json:"createdAt"`
+	Category        ChatCategory `json:"category"`
+	HolonThreadID   *string      `json:"holonThreadId,omitempty"`
+	InitialMessage  *string      `json:"initialMessage,omitempty"`
+	PrivacyDictJSON *string      `json:"privacyDictJson,omitempty"`
 }
 
 type ChatSuggestionsCategory struct {
@@ -70,6 +76,13 @@ type DataSource struct {
 	IsIndexed     bool   `json:"isIndexed"`
 	IndexProgress int32  `json:"indexProgress"`
 	HasError      bool   `json:"hasError"`
+}
+
+type DirectoryWatcherStatus struct {
+	IsRunning            bool             `json:"isRunning"`
+	WatchedDirectories   []string         `json:"watchedDirectories"`
+	TrackedFoldersFromDb []*TrackedFolder `json:"trackedFoldersFromDB"`
+	ErrorMessage         *string          `json:"errorMessage,omitempty"`
 }
 
 type IndexingStatus struct {
@@ -138,6 +151,13 @@ type MessageStreamPayload struct {
 type Mutation struct {
 }
 
+type OAuthAccount struct {
+	Provider  string `json:"provider"`
+	Username  string `json:"username"`
+	ExpiresAt string `json:"expiresAt"`
+	IsActive  bool   `json:"isActive"`
+}
+
 type OAuthFlow struct {
 	AuthURL     string `json:"authURL"`
 	RedirectURI string `json:"redirectURI"`
@@ -151,6 +171,11 @@ type OAuthStatus struct {
 	Error     bool     `json:"error"`
 }
 
+type PrivacyDictUpdate struct {
+	ChatID          string `json:"chatId"`
+	PrivacyDictJSON string `json:"privacyDictJson"`
+}
+
 type Query struct {
 }
 
@@ -159,6 +184,11 @@ type SetupProgress struct {
 	Progress float64 `json:"progress"`
 	Status   string  `json:"status"`
 	Required bool    `json:"required"`
+}
+
+type StoreTokenInput struct {
+	Token        string `json:"token"`
+	RefreshToken string `json:"refreshToken"`
 }
 
 type Subscription struct {
@@ -206,14 +236,29 @@ type ToolCallResult struct {
 	ImageUrls []string `json:"imageUrls"`
 }
 
+type TrackedFolder struct {
+	ID        string  `json:"id"`
+	Path      string  `json:"path"`
+	Name      *string `json:"name,omitempty"`
+	IsEnabled bool    `json:"isEnabled"`
+	CreatedAt string  `json:"createdAt"`
+	UpdatedAt string  `json:"updatedAt"`
+}
+
 type UpdateProfileInput struct {
 	Name *string `json:"name,omitempty"`
 	Bio  *string `json:"bio,omitempty"`
 }
 
+type UpdateTrackedFolderInput struct {
+	Name      *string `json:"name,omitempty"`
+	IsEnabled *bool   `json:"isEnabled,omitempty"`
+}
+
 type UserProfile struct {
 	Name                 *string         `json:"name,omitempty"`
 	Bio                  *string         `json:"bio,omitempty"`
+	Username             *string         `json:"username,omitempty"`
 	IndexingStatus       *IndexingStatus `json:"indexingStatus,omitempty"`
 	ConnectedDataSources []*DataSource   `json:"connectedDataSources"`
 }
@@ -367,6 +412,7 @@ const (
 	MCPServerTypeOther      MCPServerType = "OTHER"
 	MCPServerTypeScreenpipe MCPServerType = "SCREENPIPE"
 	MCPServerTypeEnchanted  MCPServerType = "ENCHANTED"
+	MCPServerTypeFreysa     MCPServerType = "FREYSA"
 )
 
 var AllMCPServerType = []MCPServerType{
@@ -376,11 +422,12 @@ var AllMCPServerType = []MCPServerType{
 	MCPServerTypeOther,
 	MCPServerTypeScreenpipe,
 	MCPServerTypeEnchanted,
+	MCPServerTypeFreysa,
 }
 
 func (e MCPServerType) IsValid() bool {
 	switch e {
-	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther, MCPServerTypeScreenpipe, MCPServerTypeEnchanted:
+	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther, MCPServerTypeScreenpipe, MCPServerTypeEnchanted, MCPServerTypeFreysa:
 		return true
 	}
 	return false

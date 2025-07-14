@@ -40,6 +40,16 @@ jobs:
         with:
           go-version: "1.24.2"
 
+      - name: Check secrets are injected
+        env:
+          COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
+          EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        run: |
+          echo "COMPLETIONS_API_KEY length: ${#COMPLETIONS_API_KEY}"
+          echo "EMBEDDINGS_API_KEY length: ${#EMBEDDINGS_API_KEY}"
+          echo "TELEGRAM_TOKEN length: ${#TELEGRAM_TOKEN}"
+
       - name: Install dependencies
         working-directory: app
         run: pnpm install
@@ -69,13 +79,11 @@ jobs:
 
       - name: Build & notarize macOS app
         env:
-          COMPLETIONS_API_URL: "https://qwen2-5-72b.model.tinfoil.sh/v1"
-          COMPLETIONS_API_KEY: ${{ secrets.TINFOIL_API_KEY }}
-          COMPLETIONS_MODEL: "qwen2-5-72b"
-          REASONING_MODEL: "qwen2-5-72b"
-          EMBEDDINGS_API_URL: "https://nomic-embed-text.model.tinfoil.sh/v1"
-          EMBEDDINGS_API_KEY: ${{ secrets.TINFOIL_API_KEY }}
-          EMBEDDINGS_MODEL: "nomic-embed-text"
+          COMPLETIONS_API_URL: "https://openrouter.ai/api/v1"
+          COMPLETIONS_MODEL: "openai/gpt-4.1"
+          REASONING_MODEL: "x-ai/grok-4"
+          EMBEDDINGS_API_URL: "https://api.openai.com/v1"
+          EMBEDDINGS_MODEL: "text-embedding-3-small"
           IS_PROD_BUILD: "true"
           NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
           NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
@@ -85,13 +93,18 @@ jobs:
           TELEGRAM_CHAT_SERVER: "http://54.82.31.213:8080/query"
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          ENCHANTED_MCP_URL: https://afb4264d05208988909faf4b50978b747a1eb019-8080.dstack-prod7.phala.network/mcp
+          ENCHANTED_MCP_URL: https://enchanted-proxy-dev.up.railway.app/mcp
           POSTHOG_API_KEY: phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8
           INVITE_SERVER_URL: http://52.90.4.74:8080
-          TINFOIL_API_KEY: ${{ secrets.TINFOIL_API_KEY }}
-          TINFOIL_TTS_MODEL: kokoro
-          TINFOIL_AUDIO_URL: https://audio-processing.model.tinfoil.sh/v1/
-          TINFOIL_STT_MODEL: whisper-large-v3-turbo
+          TTS_MODEL: kokoro
+          TTS_URL: https://audio-processing.model.tinfoil.sh/v1/
+          STT_MODEL: whisper-large-v3-turbo
+          STT_URL: https://audio-processing.model.tinfoil.sh/v1/
+          PROXY_TEE_URL: https://enchanted-proxy-dev.up.railway.app
+          VITE_FIREBASE_API_KEY: AIzaSyBMQG7Kw8p1Ymm1j_A-x2Jxc-x4BakXz3k
+          VITE_FIREBASE_AUTH_DOMAIN: freysa-prod.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: freysa-prod
+          HOLON_API_URL: http://23.22.67.228:8123
 
         run: make build-mac-silicon
 

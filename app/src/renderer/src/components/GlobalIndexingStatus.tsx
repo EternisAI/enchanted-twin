@@ -1,10 +1,11 @@
-import { useSubscription } from '@apollo/client'
-import { IndexingState, IndexingStatusDocument } from '@renderer/graphql/generated/graphql'
+import { IndexingState } from '@renderer/graphql/generated/graphql'
+import { useIndexingStatus } from '@renderer/hooks/useIndexingStatus'
 import { Button } from './ui/button'
 import { useNavigate } from '@tanstack/react-router'
+import { useTimeRemaining } from '@renderer/hooks/useTimeRemaining'
 
 export function GlobalIndexingStatus() {
-  const { data: indexingData } = useSubscription(IndexingStatusDocument)
+  const { data: indexingData } = useIndexingStatus()
   const navigate = useNavigate()
 
   // Workflow states
@@ -17,12 +18,7 @@ export function GlobalIndexingStatus() {
   const hasActiveOperation = isIndexing || isProcessing || isNotStarted || isDownloadingModel
 
   const handleClick = () => {
-    navigate({ to: '/settings/import-data' })
-  }
-
-  // Only show if there's an active indexing operation
-  if (!hasActiveOperation) {
-    return null
+    navigate({ to: '/settings/data-sources' })
   }
 
   const getStatusText = () => {
@@ -35,23 +31,22 @@ export function GlobalIndexingStatus() {
 
   const getProgress = () => {
     if (!indexingData?.indexingStatus?.dataSources?.length) return 0
-
-    const totalSources = indexingData.indexingStatus.dataSources.length
-    const processedSources = indexingData.indexingStatus.dataSources.filter(
-      (source) => source.isProcessed
-    ).length
-    const indexedSources = indexingData.indexingStatus.dataSources.filter(
-      (source) => source.isIndexed
-    ).length
-
-    // Calculate overall progress:
-    // - 10% for processing
-    // - 90% for indexing
-    const processingProgress = (processedSources / totalSources) * 10
-    const indexingProgress = (indexedSources / totalSources) * 90
-    return processingProgress + indexingProgress
+    const totalProgress = indexingData.indexingStatus.dataSources.reduce(
+      (sum, source) => sum + (source.indexProgress || 0),
+      0
+    )
+    return totalProgress / indexingData.indexingStatus.dataSources.length
   }
 
+  const progressValue = getProgress()
+  const { timeRemaining, isCalculating } = useTimeRemaining(
+    progressValue,
+    indexingData?.indexingStatus?.globalStartTime
+  )
+  // Only show if there's an active indexing operation
+  if (!hasActiveOperation) {
+    return null
+  }
   return (
     <Button
       variant="ghost"
@@ -61,11 +56,12 @@ export function GlobalIndexingStatus() {
     >
       <div className="flex items-center gap-2">
         <span>{getStatusText()}</span>
+        {isCalculating ? <span>Calculating...</span> : <span>{timeRemaining} left</span>}
         <div className="w-16 bg-secondary rounded-full h-1">
           <div
             className="bg-primary h-1 rounded-full transition-all duration-300"
             style={{
-              width: `${getProgress()}%`
+              width: `${progressValue}%`
             }}
           />
         </div>

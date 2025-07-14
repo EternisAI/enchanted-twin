@@ -1,19 +1,18 @@
 import { Button } from '@renderer/components/ui/button'
-import { Card } from '@renderer/components/ui/card'
 import { useTheme } from '@renderer/lib/theme'
-import { Sun, Moon, Monitor } from 'lucide-react'
+import { Sun, Moon, Wand2Icon } from 'lucide-react'
 
 export default function SystemTheme() {
   const { theme, setTheme } = useTheme()
 
   return (
-    <Card className="flex flex-row items-center gap-2 mt-4 max-w-4xl p-4">
+    <div className="flex flex-row items-center gap-2">
       <Button
         variant={theme === 'light' ? 'default' : 'outline'}
         className="flex-1"
         onClick={() => setTheme('light')}
       >
-        <Sun className="mr-2" />
+        <Sun />
         Light
       </Button>
       <Button
@@ -21,7 +20,7 @@ export default function SystemTheme() {
         className="flex-1"
         onClick={() => setTheme('dark')}
       >
-        <Moon className="mr-2" />
+        <Moon />
         Dark
       </Button>
       <Button
@@ -29,9 +28,9 @@ export default function SystemTheme() {
         className="flex-1"
         onClick={() => setTheme('system')}
       >
-        <Monitor className="mr-2" />
-        System
+        <Wand2Icon />
+        Auto
       </Button>
-    </Card>
+    </div>
   )
 }

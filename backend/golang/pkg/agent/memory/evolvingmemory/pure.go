@@ -93,6 +93,11 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			// Set required fields that LLM doesn't provide
 			memoryFact.ID = uuid.New().String()
 			memoryFact.Source = sourceDoc.Source()
+
+			if filePath := sourceDoc.FilePath(); filePath != "" {
+				memoryFact.FilePath = filePath
+			}
+
 			memoryFact.Content = memoryFact.GenerateContent()
 			if timestamp := sourceDoc.Timestamp(); timestamp != nil {
 				memoryFact.Timestamp = *timestamp
@@ -208,6 +213,10 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			// Set document reference
 			if memoryFact.DocumentReferences == nil {
 				memoryFact.DocumentReferences = []string{sourceDoc.ID()}
+			}
+
+			if filePath := sourceDoc.FilePath(); filePath != "" {
+				memoryFact.FilePath = filePath
 			}
 
 			logger.Debug("Text Document Fact",

@@ -1,15 +1,15 @@
-import { app, dialog, ipcMain, nativeTheme, shell, globalShortcut } from 'electron'
+import { app, dialog, ipcMain, nativeTheme, shell, globalShortcut, clipboard } from 'electron'
 import log from 'electron-log/main'
 import path from 'path'
 import fs from 'fs'
+import { is } from '@electron-toolkit/utils'
+
 import { windowManager } from './windows'
-import { openOAuthWindow } from './oauthHandler'
+import { openOAuthWindow, startFirebaseOAuth, cleanupOAuthServer } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
-import { keyboardShortcutsStore } from './stores'
+import { keyboardShortcutsStore, screenpipeStore } from './stores'
 import { updateMenu } from './menuSetup'
-// import { getKokoroState } from './kokoroManager'
 import {
-  setupLiveKitAgent,
   startLiveKitAgent,
   stopLiveKitAgent,
   isLiveKitAgentRunning,
@@ -19,6 +19,10 @@ import {
   unmuteLiveKitAgent,
   getCurrentAgentState
 } from './livekitManager'
+import { downloadDependency, hasDependenciesDownloaded } from './dependenciesDownload'
+import { DependencyName } from './types/dependencies'
+import { initializeGoServer, cleanupGoServer, isGoServerRunning } from './goServer'
+import { generateTTS } from './ttsManager'
 
 const PATHNAME = 'input_data'
 
@@ -36,11 +40,55 @@ export function registerIpcHandlers() {
   ipcMain.on('renderer-ready', () => {
     log.info('Renderer process is ready for navigation')
     windowManager.processPendingNavigation()
+
+    // Process restart intent if present
+    const restartIntent = screenpipeStore.get('restartIntent')
+    if (restartIntent) {
+      log.info(
+        `Processing restart intent: ${restartIntent.route}, modal: ${restartIntent.showModal}`
+      )
+      const navigationUrl = restartIntent.showModal
+        ? `${restartIntent.route}?screenpipe=true`
+        : restartIntent.route
+      windowManager.setPendingNavigation(navigationUrl)
+      windowManager.processPendingNavigation()
+      // Clear the restart intent after processing
+      screenpipeStore.delete('restartIntent')
+    }
   })
 
   ipcMain.on('open-oauth-url', async (_, url, redirectUri) => {
     console.log('[Main] Opening OAuth window for:', url, 'with redirect:', redirectUri)
     openOAuthWindow(url, redirectUri)
+  })
+
+  ipcMain.handle('start-firebase-oauth', async (_, firebaseConfig) => {
+    try {
+      log.info('[Main] Starting Firebase OAuth server with config:', {
+        apiKey: firebaseConfig.apiKey ? '***' : 'missing',
+        authDomain: firebaseConfig.authDomain || 'missing',
+        projectId: firebaseConfig.projectId || 'missing'
+      })
+
+      const loginUrl = await startFirebaseOAuth(firebaseConfig)
+      log.info(`[Main] Firebase OAuth server started at: ${loginUrl}`)
+      await shell.openExternal(loginUrl)
+      return { success: true, loginUrl }
+    } catch (error) {
+      log.error('[Main] Failed to start Firebase OAuth server:', error)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  ipcMain.handle('cleanup-oauth-server', async () => {
+    try {
+      log.info('[Main] Cleaning up OAuth server')
+      cleanupOAuthServer()
+      return { success: true }
+    } catch (error) {
+      log.error('[Main] Failed to cleanup OAuth server:', error)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
   })
 
   ipcMain.handle('get-native-theme', () => {
@@ -58,6 +106,26 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('get-app-version', () => {
     return app.getVersion()
+  })
+
+  // Clipboard handlers
+  ipcMain.handle('clipboard:writeText', async (_event, text: string) => {
+    try {
+      clipboard.writeText(text)
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to write to clipboard:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('clipboard:readText', async () => {
+    try {
+      return { success: true, text: clipboard.readText() }
+    } catch (error) {
+      log.error('Failed to read from clipboard:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
   })
 
   nativeTheme.on('updated', () => {
@@ -81,6 +149,25 @@ export function registerIpcHandlers() {
         properties: ['openFile'],
         filters: options?.filters
       })
+
+      // Add file size information
+      if (!result.canceled && result.filePaths.length > 0) {
+        const fileSizes: number[] = []
+        for (const filePath of result.filePaths) {
+          try {
+            const stats = fs.statSync(filePath)
+            fileSizes.push(stats.size)
+          } catch (error) {
+            console.error('Error getting file stats:', error)
+            fileSizes.push(0)
+          }
+        }
+        return {
+          ...result,
+          fileSizes
+        }
+      }
+
       return result
     }
   )
@@ -219,26 +306,18 @@ export function registerIpcHandlers() {
     }
   })
 
-  // LiveKit Agent IPC handlers
-  ipcMain.handle('livekit:setup', async () => {
-    try {
-      await setupLiveKitAgent()
-      return { success: true }
-    } catch (error) {
-      log.error('Failed to setup LiveKit agent:', error)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  ipcMain.handle(
+    'livekit:start',
+    async (_, chatId: string, isOnboarding = false, jwtToken?: string) => {
+      try {
+        await startLiveKitAgent(chatId, isOnboarding, false, jwtToken)
+        return { success: true }
+      } catch (error) {
+        log.error('Failed to start LiveKit agent:', error)
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      }
     }
-  })
-
-  ipcMain.handle('livekit:start', async (_, chatId: string, isOnboarding = false) => {
-    try {
-      await startLiveKitAgent(chatId, isOnboarding)
-      return { success: true }
-    } catch (error) {
-      log.error('Failed to start LiveKit agent:', error)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-    }
-  })
+  )
 
   ipcMain.handle('livekit:stop', async () => {
     try {
@@ -377,7 +456,6 @@ export function registerIpcHandlers() {
   ipcMain.handle('keyboard-shortcuts:get', () => {
     try {
       const shortcuts = keyboardShortcutsStore.get('shortcuts')
-      log.info('Getting keyboard shortcuts:', shortcuts)
       return shortcuts
     } catch (error) {
       log.error('Failed to get keyboard shortcuts:', error)
@@ -417,7 +495,7 @@ export function registerIpcHandlers() {
         if (shortcuts[action] && shortcuts[action].keys) {
           try {
             globalShortcut.unregister(shortcuts[action].keys)
-          } catch (err) {
+          } catch {
             log.warn(`Failed to unregister shortcut: ${shortcuts[action].keys}`)
           }
         }
@@ -451,7 +529,7 @@ export function registerIpcHandlers() {
       if (shortcuts[action] && shortcuts[action].keys && shortcuts[action].global) {
         try {
           globalShortcut.unregister(shortcuts[action].keys)
-        } catch (err) {
+        } catch {
           log.warn(`Failed to unregister old shortcut: ${shortcuts[action].keys}`)
         }
       }
@@ -507,7 +585,7 @@ export function registerIpcHandlers() {
       if (shortcuts[action] && shortcuts[action].global) {
         try {
           globalShortcut.unregister(shortcuts[action].keys)
-        } catch (err) {
+        } catch {
           log.warn(`Failed to unregister invalid shortcut: ${shortcuts[action].keys}`)
         }
       }
@@ -538,7 +616,7 @@ export function registerIpcHandlers() {
         if (shortcuts[action] && shortcuts[action].global) {
           try {
             globalShortcut.unregister(shortcuts[action].keys)
-          } catch (err) {
+          } catch {
             log.warn(
               `Failed to unregister invalid shortcut for ${action}: ${shortcuts[action].keys}`
             )
@@ -564,6 +642,82 @@ export function registerIpcHandlers() {
     } catch (error) {
       log.error('Failed to reset all keyboard shortcuts:', error)
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('models:has-models-downloaded', () => {
+    return hasDependenciesDownloaded()
+  })
+
+  ipcMain.handle('models:download', async (_, modelName: DependencyName) => {
+    return downloadDependency(modelName)
+  })
+
+  ipcMain.handle('go-server:initialize', async () => {
+    try {
+      const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
+      const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
+
+      log.info('Initializing Go server via IPC request')
+      const success = await initializeGoServer(IS_PRODUCTION, DEFAULT_BACKEND_PORT)
+
+      if (success) {
+        log.info('Go server initialized successfully via IPC')
+        return { success: true }
+      } else {
+        log.error('Failed to initialize Go server via IPC')
+        return { success: false, error: 'Failed to initialize Go server' }
+      }
+    } catch (error) {
+      log.error('Error initializing Go server via IPC:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('go-server:cleanup', async () => {
+    try {
+      log.info('Cleaning up Go server via IPC request')
+      cleanupGoServer()
+      log.info('Go server cleaned up successfully via IPC')
+      return { success: true }
+    } catch (error) {
+      log.error('Error cleaning up Go server via IPC:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('go-server:status', () => {
+    const isRunning = isGoServerRunning()
+    return {
+      success: true,
+      isRunning,
+      message: isRunning ? 'Go server is running' : 'Go server is not running'
+    }
+  })
+
+  ipcMain.handle('tts:generate', async (_, text: string, firebaseToken: string) => {
+    try {
+      const audioBuffer = await generateTTS(text, firebaseToken)
+
+      if (!audioBuffer) {
+        return { success: false, error: 'Failed to generate TTS' }
+      }
+
+      // Convert ArrayBuffer to Buffer for IPC transmission
+      const buffer = Buffer.from(audioBuffer)
+      return { success: true, audioBuffer: buffer }
+    } catch (error) {
+      log.error('[TTS] IPC handler error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
     }
   })
 }

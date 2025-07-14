@@ -4,13 +4,16 @@ go 1.24.2
 
 require (
 	github.com/99designs/gqlgen v0.17.73
+	github.com/KSpaceer/goppt v0.1.1
 	github.com/charmbracelet/log v0.4.2
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/g8rswimmer/go-twitter/v2 v2.1.5
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-openapi/loads v0.22.0
 	github.com/go-openapi/strfmt v0.23.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/guylaor/goword v0.0.0-20171127195350-66a9aa7fe479
 	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/jmoiron/sqlx v1.4.0
@@ -18,8 +21,9 @@ require (
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.10.9
 	github.com/lnquy/cron v1.1.1
-	github.com/mark3labs/mcp-go v0.32.0
+	github.com/mark3labs/mcp-go v0.33.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
+	github.com/mnako/letters v0.2.5
 	github.com/nats-io/nats-server/v2 v2.11.3
 	github.com/nats-io/nats.go v1.42.0
 	github.com/openai/openai-go v1.3.0
@@ -35,13 +39,17 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.27
 	github.com/weaviate/weaviate v1.30.3
 	github.com/weaviate/weaviate-go-client/v5 v5.1.0
+	github.com/yalue/onnxruntime_go v1.21.0
+	github.com/zalando/go-keyring v0.2.6
 	go.mau.fi/whatsmeow v0.0.0-20250501130609-4c93ee4e6efa
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-133.3
+	golang.org/x/net v0.40.0
 	google.golang.org/grpc v1.72.0
 )
 
 require (
+	al.essio.dev/pkg/shellescape v1.5.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.9.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1 // indirect
@@ -82,6 +90,7 @@ require (
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/danaugrs/go-tsne v0.0.0-20200708172100-6b7d1d577fd3 // indirect
+	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/docker/docker v28.0.1+incompatible // indirect
@@ -105,6 +114,7 @@ require (
 	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/go-test/deep v1.1.1 // indirect
 	github.com/goccy/go-json v0.10.4 // indirect
+	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
@@ -144,7 +154,6 @@ require (
 	github.com/miekg/dns v1.1.43 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/minio/minio-go/v7 v7.0.84 // indirect
-	github.com/mnako/letters v0.2.5 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
@@ -177,6 +186,8 @@ require (
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pion/turn/v4 v4.0.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
+	github.com/richardlehane/mscfb v1.0.4 // indirect
+	github.com/richardlehane/msoleps v1.0.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
@@ -206,7 +217,6 @@ require (
 	go.mau.fi/libsignal v0.1.2 // indirect
 	go.mau.fi/util v0.8.6 // indirect
 	go.mongodb.org/mongo-driver v1.17.3 // indirect
-	golang.org/x/net v0.40.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
@@ -242,7 +252,7 @@ require (
 	github.com/cactus/go-statsd-client/v5 v5.1.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/charmbracelet/lipgloss v1.1.0 // indirect
+	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.9.2 // indirect
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443 // indirect
 	github.com/coreos/go-oidc/v3 v3.14.1 // indirect
@@ -263,7 +273,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/gocql/gocql v1.7.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/gomarkdown/markdown v0.0.0-20250311123330-531bef5e742b // indirect
@@ -368,7 +378,7 @@ require (
 	golang.org/x/oauth2 v0.30.0
 	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/text v0.25.0
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.33.0 // indirect
 	google.golang.org/api v0.233.0

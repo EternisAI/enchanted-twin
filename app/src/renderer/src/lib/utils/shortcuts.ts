@@ -30,6 +30,5 @@ export function formatShortcutForDisplay(shortcut: string): string {
     Left: '←',
     Right: '→'
   }
-
   return parts.map((key) => symbols[key] || key.toUpperCase()).join(' ')
 }

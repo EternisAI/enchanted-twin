@@ -1,6 +1,11 @@
 import { createContext, useContext, useMemo, useCallback, ReactNode, useState } from 'react'
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import { useSendMessage } from '@renderer/hooks/useChat'
+import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
+import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
+import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
+import { usePrivacyDictUpdate } from '@renderer/hooks/usePrivacyDictUpdate'
+import { useVoiceStore } from '@renderer/lib/stores/voice'
 
 interface ChatState {
   isWaitingTwinResponse: boolean
@@ -9,6 +14,7 @@ interface ChatState {
   activeToolCalls: ToolCall[]
   historicToolCalls: ToolCall[]
   messages: Message[]
+  privacyDict: string
 }
 
 interface ChatActions {
@@ -22,6 +28,7 @@ interface ChatActions {
   setActiveToolCalls: (toolCalls: ToolCall[] | ((prev: ToolCall[]) => ToolCall[])) => void
   setHistoricToolCalls: (toolCalls: ToolCall[] | ((prev: ToolCall[]) => ToolCall[])) => void
   setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void
+  updatePrivacyDict: (privacyDict: string) => void
 }
 
 const ChatStateContext = createContext<ChatState | null>(null)
@@ -31,13 +38,20 @@ interface ChatProviderProps {
   children: ReactNode
   chat: Chat
   initialMessage?: string
+  initialReasoningState?: boolean
 }
 
-export function ChatProvider({ children, chat, initialMessage }: ChatProviderProps) {
+export function ChatProvider({
+  children,
+  chat,
+  initialMessage,
+  initialReasoningState
+}: ChatProviderProps) {
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
-  const [isReasonSelected, setIsReasonSelected] = useState(false)
+  const [isReasonSelected, setIsReasonSelected] = useState(initialReasoningState || false)
   const [error, setError] = useState<string>('')
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]) // current message
+  const [privacyDict, setPrivacyDict] = useState<string>(chat.privacyDictJson)
   const [historicToolCalls, setHistoricToolCalls] = useState<ToolCall[]>(() => {
     return chat.messages
       .map((message) => message.toolCalls)
@@ -63,6 +77,8 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
     }
     return chat.messages
   })
+
+  const { isVoiceMode } = useVoiceStore()
 
   const upsertMessage = useCallback((msg: Message) => {
     setMessages((prev) => {
@@ -116,6 +132,69 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
     []
   )
 
+  const updatePrivacyDict = useCallback((privacyDict: string) => {
+    setPrivacyDict(privacyDict)
+  }, [])
+
+  useMessageSubscription(chat.id, (message) => {
+    if (message.role !== Role.User) {
+      upsertMessage(message)
+      window.api.analytics.capture('message_received', {
+        tools: message.toolCalls.map((tool) => tool.name)
+      })
+    }
+
+    if (message.role === Role.User && isVoiceMode) {
+      upsertMessage(message)
+      window.api.analytics.capture('voice_message_sent', {
+        tools: message.toolCalls.map((tool) => tool.name)
+      })
+    }
+  })
+
+  useMessageStreamSubscription(chat.id, (messageId, chunk, isComplete, imageUrls) => {
+    const existingMessage = messages.find((m) => m.id === messageId)
+    if (!existingMessage) {
+      upsertMessage({
+        id: messageId,
+        text: chunk ?? '',
+        role: Role.Assistant,
+        createdAt: new Date().toISOString(),
+        imageUrls: imageUrls ?? [],
+        toolCalls: [],
+        toolResults: []
+      })
+    } else {
+      const allImageUrls = existingMessage.imageUrls.concat(imageUrls ?? [])
+      const updatedMessage = {
+        ...existingMessage,
+        text: (existingMessage.text ?? '') + (chunk ?? ''),
+        imageUrls: allImageUrls
+      }
+      upsertMessage(updatedMessage)
+    }
+
+    setIsWaitingTwinResponse(false)
+  })
+
+  useToolCallUpdate(chat.id, (toolCall) => {
+    updateToolCallInMessage(toolCall)
+
+    setActiveToolCalls((prev) => {
+      const existingIndex = prev.findIndex((tc) => tc.id === toolCall.id)
+      if (existingIndex !== -1) {
+        const updated = [...prev]
+        updated[existingIndex] = { ...updated[existingIndex], ...toolCall }
+        return updated
+      }
+      return [...prev, toolCall]
+    })
+  })
+
+  usePrivacyDictUpdate(chat.id, (privacyDict) => {
+    updatePrivacyDict(privacyDict)
+  })
+
   const state = useMemo<ChatState>(
     () => ({
       isWaitingTwinResponse,
@@ -123,9 +202,18 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
       error,
       activeToolCalls,
       historicToolCalls,
-      messages
+      messages,
+      privacyDict
     }),
-    [isWaitingTwinResponse, isReasonSelected, error, activeToolCalls, historicToolCalls, messages]
+    [
+      isWaitingTwinResponse,
+      isReasonSelected,
+      error,
+      activeToolCalls,
+      historicToolCalls,
+      messages,
+      privacyDict
+    ]
   )
 
   const handleSendMessage = useCallback(
@@ -159,7 +247,8 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
       setError,
       setActiveToolCalls,
       setHistoricToolCalls,
-      setMessages
+      setMessages,
+      updatePrivacyDict
     }),
     [
       sendMessageHook,
@@ -171,7 +260,8 @@ export function ChatProvider({ children, chat, initialMessage }: ChatProviderPro
       setError,
       setActiveToolCalls,
       setHistoricToolCalls,
-      setMessages
+      setMessages,
+      updatePrivacyDict
     ]
   )
 

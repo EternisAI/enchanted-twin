@@ -8,10 +8,12 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/directorywatcher"
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
+	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
 // This file will not be regenerated automatically.
@@ -29,6 +31,6 @@ type Resolver struct {
 	DataProcessingWorkflow *workflows.DataProcessingWorkflows
 	TelegramService        *telegram.TelegramService
 	HolonService           *holon.Service
-	WhatsAppQRCode         *string // Current WhatsApp QR code
-	WhatsAppConnected      bool    // WhatsApp connection status
+	DirectoryWatcher       *directorywatcher.DirectoryWatcher
+	WhatsAppService        *whatsapp.Service
 }
