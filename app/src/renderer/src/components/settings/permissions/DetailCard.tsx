@@ -32,29 +32,22 @@ export function DetailCard({
   grantedIcon = <Settings className="h-4 w-4" />
 }: DetailCardProps) {
   return (
-    <div className="p-2 hover:bg-muted transition-colors duration-100 rounded-md flex-col gap-3 flex items-center justify-between w-full bg-transparent border-none">
-      <div className="flex items-start gap-4 w-full">
+    <div className="p-4 hover:bg-muted transition-colors duration-100 rounded-md flex-col gap-3 flex items-center justify-between w-full bg-transparent border-none">
+      <div className="flex items-center gap-4 w-full">
         <IconContainer className="bg-transparent">
           <IconComponent className={cn('h-7 w-7', statusInfo.color)} />
         </IconContainer>
-        <div className="flex flex-col gap-1 w-full">
-          <div className="flex items-center justify-between gap-1">
-            <span className="font-semibold capitalize text-lg">{title}</span>
-            <Button
-              variant="outline"
-              onClick={onButtonClick}
-              disabled={isLoading}
-              className="py-1 h-fit w-fit px-2"
-            >
-              {statusInfo.label === 'Granted' || statusInfo.label === 'Enabled'
-                ? grantedIcon
-                : buttonLabel}
-            </Button>
-          </div>
+        <div className="flex flex-col w-full">
+          <span className="font-semibold capitalize leading-none text-lg">{title}</span>
           {explanation && (
             <p className="text-sm text-muted-foreground mt-1 text-balance">{explanation}</p>
           )}
         </div>
+        <Button variant="outline" onClick={onButtonClick} disabled={isLoading}>
+          {statusInfo.label === 'Granted' || statusInfo.label === 'Enabled'
+            ? grantedIcon
+            : buttonLabel}
+        </Button>
       </div>
     </div>
   )
