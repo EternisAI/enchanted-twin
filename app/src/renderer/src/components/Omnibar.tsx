@@ -92,7 +92,7 @@ export const Omnibar = () => {
       if (newChatId) {
         navigate({
           to: `/chat/${newChatId}`,
-          search: { initialMessage: query, reasoning: false }
+          search: { initialMessage: query }
         })
 
         // Refetch all chats
