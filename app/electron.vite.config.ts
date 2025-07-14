@@ -65,11 +65,7 @@ export default defineConfig(({ mode }) => {
         __APP_ENV__: JSON.stringify(env)
       },
       plugins: [
-        TanStackRouterVite({
-          target: 'react',
-          autoCodeSplitting: true,
-          routesDirectory: './src/renderer/src/routes'
-        }),
+        TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
         react(),
         tailwindcss()
       ]
