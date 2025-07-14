@@ -161,7 +161,7 @@ function RootComponent() {
     <NotificationsProvider>
       <LayoutGroup>
         <motion.div
-          className="flex flex-col h-screen w-screen text-foreground pt-8 relative"
+          className="flex flex-col h-screen w-screen text-foreground pt-8 relative bg-background"
           layout="position"
         >
           <AdminKeyboardShortcuts />
