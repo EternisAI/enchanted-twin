@@ -19,7 +19,7 @@ export default function KeyboardShortcuts() {
           enterPressed.current = false
         }, 500)
       } else if (enterPressed.current && e.key === 'd') {
-        navigate({ to: '/admin' })
+        navigate({ to: '/settings/advanced' })
         enterPressed.current = false
         if (timer.current) {
           clearTimeout(timer.current)

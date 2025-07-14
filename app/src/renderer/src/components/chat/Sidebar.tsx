@@ -235,7 +235,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
               >
                 {showAllChats ? (
                   <>
-                    <ChevronUp className="w-3.5 h-3.5 mr-1" /> Show less
+                    <ChevronUp className="w-3.5 h-3.5 mr-1" /> Show fewer
                   </>
                 ) : (
                   <>
