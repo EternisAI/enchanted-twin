@@ -54,9 +54,9 @@ function OmnibarOverlay() {
     }
   }, [query])
 
-  const windowHeight = useMotionValue(96)
-  const containerHeight = useMotionValue(96)
-  const currentHeight = useRef(96)
+  const windowHeight = useMotionValue(72)
+  const containerHeight = useMotionValue(72)
+  const currentHeight = useRef(72)
   const previousResultCount = useRef(0)
 
   useEffect(() => {
@@ -137,8 +137,8 @@ function OmnibarOverlay() {
 
   // Calculate and animate window height based on state
   useEffect(() => {
-    const windowWidth = 768
-    const baseHeight = 96
+    const windowWidth = 500
+    const baseHeight = 72
     const itemHeight = 48 // Height per result item
 
     // Calculate current result count
@@ -184,20 +184,18 @@ function OmnibarOverlay() {
           initial={{ scale: 0.95, opacity: 0, y: -5 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           transition={{ type: 'spring', damping: 55, stiffness: 350 }}
-          className="w-full h-full !bg-transparent"
+          className="w-full h-full !bg-transparent border-0 shadow-none"
           style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
           <motion.form onSubmit={handleSubmit} className="w-full">
             <motion.div
               ref={contentRef}
               data-omnibar-content
-              className={cn(
-                'flex flex-col gap-3 p-4 w-[500px] bg-background rounded-xl shadow-xl mx-auto dark:border dark:border-border'
-              )}
+              className={cn('flex flex-col gap-3 p-4 justify-center w-full  mx-auto')}
               transition={{ type: 'spring', damping: 55, stiffness: 350 }}
               style={{ maxHeight: containerHeight }}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex justify-center items-center gap-3 h-full min-h-10">
                 <textarea
                   ref={textareaRef}
                   value={query}
@@ -212,7 +210,8 @@ function OmnibarOverlay() {
                     }
                   }}
                   placeholder="What would you like to discuss?"
-                  className="flex-1 !bg-transparent !h-full !min-h-12 flex justify-center items-center !text-base !rounded-none transparent text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+                  className="flex-1 !bg-transparent !h-full flex justify-center items-center !text-base !rounded-none transparent text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                   rows={1}
                 />
                 <AnimatePresence>
@@ -223,7 +222,6 @@ function OmnibarOverlay() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     >
                       <SendButton
                         onSend={handleCreateChat}
@@ -252,11 +250,13 @@ function OmnibarOverlay() {
                           <motion.button
                             key={chat.id}
                             type="button"
+                            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                             onClick={() => handleOpenChat(chat.id)}
                             className={cn(
-                              'flex w-full items-center justify-between px-3 py-2 text-left text-sm text-muted-foreground',
-                              'hover:bg-muted/80',
-                              selectedIndex === index && 'bg-primary/10 text-primary rounded-md'
+                              'flex w-full items-center justify-between px-3 py-2 text-left text-sm text-muted-foreground transition-colors rounded-md duration-100',
+                              'hover:bg-sidebar-accent',
+                              selectedIndex === index &&
+                                'bg-sidebar-accent text-sidebar-primary rounded-md'
                             )}
                           >
                             <span className="truncate">{chat.name}</span>
@@ -269,9 +269,9 @@ function OmnibarOverlay() {
                             onClick={handleCreateChat}
                             className={cn(
                               'flex text-muted-foreground w-full items-center justify-between px-3 py-2 text-left text-sm',
-                              'hover:bg-muted/80',
+                              'hover:bg-sidebar-accent',
                               selectedIndex === filteredChats.length &&
-                                'bg-primary/10 text-primary rounded-md'
+                                'bg-sidebar-accent text-sidebar-primary-foreground rounded-md'
                             )}
                           >
                             <span>New chat: &quot;{debouncedQuery}&quot;</span>

@@ -101,7 +101,7 @@ class WindowManagerImpl implements WindowManager {
       maximizable: false,
       closable: false,
       focusable: true,
-      hasShadow: false,
+      hasShadow: true,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
