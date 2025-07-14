@@ -192,7 +192,7 @@ function OmnibarOverlay() {
               ref={contentRef}
               data-omnibar-content
               className={cn(
-                'flex flex-col gap-3 p-4 w-[500px] bg-background rounded-xl shadow-xl mx-auto'
+                'flex flex-col gap-3 p-4 w-[500px] bg-background rounded-xl shadow-xl mx-auto dark:border dark:border-border'
               )}
               transition={{ type: 'spring', damping: 55, stiffness: 350 }}
               style={{ maxHeight: containerHeight }}
