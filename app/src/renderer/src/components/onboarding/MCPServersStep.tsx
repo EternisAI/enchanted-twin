@@ -12,7 +12,7 @@ export default function MCPServersStep() {
       title="Connections"
       subtitle="Connect your accounts to continually update your data"
     >
-      <MCPPanel header={false} />
+      <MCPPanel />
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={previousStep}>

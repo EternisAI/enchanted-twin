@@ -3,15 +3,16 @@ import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import { createErrorWindow, waitForBackend } from './helpers'
 import { BrowserWindow } from 'electron'
 import split2 from 'split2'
+
+import { createErrorWindow, waitForBackend } from './helpers'
+import { capture } from './analytics'
 
 let goServerProcess: ChildProcess | null = null
 // let splashWindow: BrowserWindow | null = null
 
 export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND_PORT: number) {
-  // Create and show splash screen
   // splashWindow = createSplashWindow()
 
   const userDataPath = app.getPath('userData')
@@ -60,9 +61,17 @@ async function startGoServer(
   if (!existsSync(goBinaryPath)) {
     log.error(`Go binary not found at: ${goBinaryPath}`)
     createErrorWindow(`Go binary not found at: ${goBinaryPath}`)
+
+    capture('server_startup_error', {
+      error_type: 'binary_not_found',
+      binary_path: goBinaryPath
+    })
+
     return false
   }
   log.info(`Attempting to start Go server at: ${goBinaryPath}`)
+
+  const startTime = Date.now()
 
   try {
     goServerProcess = spawn(goBinaryPath, [], {
@@ -89,6 +98,13 @@ async function startGoServer(
     if (goServerProcess) {
       goServerProcess.on('error', (err) => {
         log.error('Failed to start Go server, on error:', err)
+
+        capture('server_startup_error', {
+          error_type: 'spawn_error',
+          error_message: err instanceof Error ? err.message : 'Unknown error',
+          duration: Date.now() - startTime
+        })
+
         createErrorWindow(
           `Failed to start Go server: ${err instanceof Error ? err.message : 'Unknown error'}`
         )
@@ -112,13 +128,33 @@ async function startGoServer(
 
       log.info('Go server process spawned. Waiting until it listens …')
       await waitForBackend(backendPort)
+
+      capture('server_startup_success', {
+        duration: Date.now() - startTime,
+        port: backendPort
+      })
+
       return true
     } else {
       log.error('Failed to spawn Go server process.')
+
+      capture('server_startup_error', {
+        error_type: 'spawn_failed',
+        error_message: 'Failed to spawn Go server process',
+        duration: Date.now() - startTime
+      })
+
       return false
     }
   } catch (error: unknown) {
     log.error('Error spawning Go server:', error)
+
+    capture('server_startup_error', {
+      error_type: 'general_error',
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+      duration: Date.now() - startTime
+    })
+
     createErrorWindow(
       `Failed to start Go server: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
