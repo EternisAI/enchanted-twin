@@ -20,11 +20,7 @@ export default defineConfig({
       }
     },
     plugins: [
-      TanStackRouterVite({
-        target: 'react',
-        autoCodeSplitting: true,
-        routesDirectory: './src/renderer/src/routes'
-      }),
+      TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
       react(),
       tailwindcss()
     ],
