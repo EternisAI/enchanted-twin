@@ -7,6 +7,7 @@ import MessageInput from '@renderer/components/chat/MessageInput'
 import { useProcessMessageHistoryStream } from '@renderer/hooks/useProcessMessageHistoryStream'
 import useOnboardingChat, { INITIAL_AGENT_MESSAGE } from '@renderer/hooks/useOnboardingChat'
 import { MessageDisplay, OnboardingBase } from './contexts/OnboardingBase'
+import { usePrevious } from '@renderer/lib/hooks/usePrevious'
 
 export default function TTSOnboarding() {
   const {
@@ -14,13 +15,16 @@ export default function TTSOnboarding() {
     lastAgentMessage,
     chatId,
     triggerAnimation,
+    shouldFinalizeAfterSpeech,
     createOnboardingChat,
-    skipOnboarding
+    skipOnboarding,
+    finalizeOnboarding
   } = useOnboardingChat()
   const [isTTSPlaying, setIsTTSPlaying] = useState(false)
   const [messageHistory, setMessageHistory] = useState<Array<{ text: string; role: Role }>>([])
   const [streamingResponse, setStreamingResponse] = useState('')
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null)
+  const previousIsTTSPlaying = usePrevious(isTTSPlaying)
 
   const handleSendMessage = async (text: string) => {
     console.log('[TTSOnboarding] Sending message:', text)
@@ -39,6 +43,13 @@ export default function TTSOnboarding() {
     }
     initializeTTSOnboarding()
   }, [])
+
+  useEffect(() => {
+    // Tool finalize_onboarding is called and we wait for the TTS to finish playing last message
+    if (shouldFinalizeAfterSpeech && previousIsTTSPlaying && !isTTSPlaying) {
+      finalizeOnboarding()
+    }
+  }, [shouldFinalizeAfterSpeech, previousIsTTSPlaying, isTTSPlaying, finalizeOnboarding])
 
   const handleResponseChunk = (messageId: string, chunk: string, isComplete: boolean) => {
     setStreamingResponse((prev) => prev + chunk)

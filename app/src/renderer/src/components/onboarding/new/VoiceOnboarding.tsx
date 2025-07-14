@@ -7,12 +7,21 @@ import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
 import { VoiceModeInput } from '@renderer/components/chat/voice/VoiceModeInput'
 import useOnboardingChat from '@renderer/hooks/useOnboardingChat'
 import { MessageDisplay, OnboardingBase } from './contexts/OnboardingBase'
+import { usePrevious } from '@renderer/lib/hooks/usePrevious'
 
 export default function VoiceOnboarding() {
-  const { lastMessage, lastAgentMessage, triggerAnimation, createOnboardingChat, skipOnboarding } =
-    useOnboardingChat()
+  const {
+    lastMessage,
+    lastAgentMessage,
+    triggerAnimation,
+    shouldFinalizeAfterSpeech,
+    createOnboardingChat,
+    skipOnboarding,
+    finalizeOnboarding
+  } = useOnboardingChat()
   const { startVoiceMode, stopVoiceMode } = useVoiceStore()
   const { isAgentSpeaking, isSessionReady } = useVoiceAgent()
+  const previousIsAgentSpeaking = usePrevious(isAgentSpeaking)
 
   useEffect(() => {
     const initializeVoiceOnboarding = async () => {
@@ -32,6 +41,13 @@ export default function VoiceOnboarding() {
       stopVoiceMode()
     }
   }, [stopVoiceMode])
+
+  useEffect(() => {
+    // Tool finalize_onboarding is called and we wait for the agent to finish speaking last message
+    if (shouldFinalizeAfterSpeech && previousIsAgentSpeaking && !isAgentSpeaking) {
+      finalizeOnboarding()
+    }
+  }, [shouldFinalizeAfterSpeech, previousIsAgentSpeaking, isAgentSpeaking, finalizeOnboarding])
 
   const handleSkip = async () => {
     stopVoiceMode()

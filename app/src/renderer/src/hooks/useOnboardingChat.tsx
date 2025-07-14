@@ -34,6 +34,7 @@ export default function useOnboardingChat() {
   const [assistantMessageStack, setAssistantMessageStack] = useState<Set<string>>(
     new Set([INITIAL_AGENT_MESSAGE])
   )
+  const [shouldFinalizeAfterSpeech, setShouldFinalizeAfterSpeech] = useState(false)
 
   const [createChat] = useMutation(CreateChatDocument)
   const [updateProfile] = useMutation(UpdateProfileDocument)
@@ -101,12 +102,18 @@ export default function useOnboardingChat() {
         }
       })
 
-      setTimeout(() => {
-        setTriggerAnimation(true)
-        cleanupChat()
-      }, 10000)
+      setShouldFinalizeAfterSpeech(true)
     }
   })
+
+  const finalizeOnboarding = async () => {
+    setTriggerAnimation(true)
+    await cleanupChat()
+    setTimeout(() => {
+      completeOnboarding()
+      navigate({ to: '/' })
+    }, 1000)
+  }
 
   const skipOnboarding = async () => {
     await cleanupChat()
@@ -128,8 +135,10 @@ export default function useOnboardingChat() {
     lastAgentMessage,
     chatId,
     triggerAnimation,
+    shouldFinalizeAfterSpeech,
     createOnboardingChat,
     skipOnboarding,
-    cleanupChat
+    cleanupChat,
+    finalizeOnboarding
   }
 }
