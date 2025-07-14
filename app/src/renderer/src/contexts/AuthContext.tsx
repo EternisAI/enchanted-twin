@@ -62,8 +62,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     skip: !user || !hasUpdatedToken
   })
 
-  console.log('whitelistCalled', { whitelistCalled, whitelistLoading })
-
   const [activateInviteCodeMutation] = useMutation(ActivateInviteCodeDocument, {
     onCompleted: async () => {
       toast.success('Invite code activated successfully!')

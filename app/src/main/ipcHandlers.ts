@@ -42,7 +42,10 @@ export function registerIpcHandlers() {
     windowManager.processPendingNavigation()
 
     // Process restart intent if present
-    const restartIntent = screenpipeStore.get('restartIntent')
+    const restartIntent = screenpipeStore.get('restartIntent') as {
+      route: string
+      showModal: boolean
+    } | null
     if (restartIntent) {
       log.info(
         `Processing restart intent: ${restartIntent.route}, modal: ${restartIntent.showModal}`
