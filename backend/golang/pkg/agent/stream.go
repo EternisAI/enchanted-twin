@@ -41,8 +41,9 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 
 	// For now, return basic response - tool calls will be handled in future iterations
 	return AgentResponse{
-		Content:   result.Message.Content,
-		ToolCalls: result.Message.ToolCalls,
-		ImageURLs: []string{}, // TODO: Handle image URLs from tools
+		Content:          result.Message.Content,
+		ToolCalls:        result.Message.ToolCalls,
+		ImageURLs:        []string{}, // TODO: Handle image URLs from tools
+		ReplacementRules: result.ReplacementRules,
 	}, nil
 }

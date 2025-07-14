@@ -339,34 +339,36 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
-	//@TODO: Call real anonymizer and update chat privacy dictionary
-	privacyDictJson, err := MockAnonymizer(ctx, chatID, message)
-	if err != nil {
-		s.logger.Error("failed to generate privacy dictionary", "error", err)
-	} else {
-		err = s.storage.UpdateChatPrivacyDict(ctx, chatID, privacyDictJson)
+	// Use real anonymization rules from the agent response
+	if len(response.ReplacementRules) > 0 {
+		privacyDictJson, err := createPrivacyDictFromReplacementRules(chatID, response.ReplacementRules)
 		if err != nil {
-			s.logger.Error("failed to update chat privacy dictionary", "error", err)
+			s.logger.Error("failed to generate privacy dictionary from replacement rules", "error", err)
 		} else {
-			s.logger.Info("updated chat privacy dictionary", "chat_id", chatID)
+			err = s.storage.UpdateChatPrivacyDict(ctx, chatID, privacyDictJson)
+			if err != nil {
+				s.logger.Error("failed to update chat privacy dictionary", "error", err)
+			} else {
+				s.logger.Info("updated chat privacy dictionary", "chat_id", chatID)
 
-			go func() {
-				privacyUpdate := model.PrivacyDictUpdate{
-					ChatID:          chatID,
-					PrivacyDictJSON: *privacyDictJson,
-				}
+				go func() {
+					privacyUpdate := model.PrivacyDictUpdate{
+						ChatID:          chatID,
+						PrivacyDictJSON: *privacyDictJson,
+					}
 
-				updateData, err := json.Marshal(privacyUpdate)
-				if err != nil {
-					s.logger.Error("failed to marshal privacy dict update", "error", err)
-					return
-				}
+					updateData, err := json.Marshal(privacyUpdate)
+					if err != nil {
+						s.logger.Error("failed to marshal privacy dict update", "error", err)
+						return
+					}
 
-				err = s.nc.Publish(fmt.Sprintf("chat.%s.privacy_dict", chatID), updateData)
-				if err != nil {
-					s.logger.Error("failed to publish privacy dict update", "error", err)
-				}
-			}()
+					err = s.nc.Publish(fmt.Sprintf("chat.%s.privacy_dict", chatID), updateData)
+					if err != nil {
+						s.logger.Error("failed to publish privacy dict update", "error", err)
+					}
+				}()
+			}
 		}
 	}
 
@@ -617,4 +619,33 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	s.logger.Info("Indexing conversation", "chat_id", chatID, "messages_count", len(conversationMessages))
 
 	return s.memoryService.Store(ctx, []memory.Document{&doc}, nil)
+}
+
+// createPrivacyDictFromReplacementRules converts anonymization replacement rules to privacy dictionary format.
+func createPrivacyDictFromReplacementRules(chatID string, replacementRules map[string]string) (*string, error) {
+	// Create the privacy dictionary from replacement rules
+	// The replacement rules are in format: {token: original_text} e.g. {"PERSON_001": "John Smith"}
+	privacyDict := make(map[string]interface{})
+
+	// Add the replacement rules to the dictionary
+	for token, originalText := range replacementRules {
+		privacyDict[originalText] = token
+	}
+
+	// Add metadata similar to MockAnonymizer
+	privacyDict["_metadata"] = map[string]interface{}{
+		"chat_id":      chatID,
+		"last_updated": time.Now().Format(time.RFC3339),
+		"total_rules":  len(replacementRules), // Count of actual replacement rules
+		"version":      "v1",
+		"type":         "real_anonymization",
+	}
+
+	jsonData, err := json.Marshal(privacyDict)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := string(jsonData)
+	return &jsonString, nil
 }
