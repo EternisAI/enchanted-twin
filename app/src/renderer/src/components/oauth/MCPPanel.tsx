@@ -65,16 +65,19 @@ export default function MCPPanel() {
         if (!acc[server.type]) {
           acc[server.type] = []
         }
-        acc[server.type].push(server)
+        acc[server.type]!.push(server)
         return acc
       },
-      {} as Record<McpServerType, typeof allMcpServers>
+      {} as Partial<Record<McpServerType, typeof allMcpServers>>
     )
 
     // Filter out Enchanted servers when Google isn't connected
-    // if (!hasGoogleConnected && grouped[McpServerType.Enchanted]) {
-    //   delete grouped[McpServerType.Enchanted]
-    // }
+    if (!hasGoogleConnected && McpServerType.Enchanted in grouped) {
+      const enchantedGroup = grouped[McpServerType.Enchanted]
+      if (enchantedGroup !== undefined) {
+        delete grouped[McpServerType.Enchanted]
+      }
+    }
 
     return grouped
   }, [allMcpServers])
@@ -82,9 +85,9 @@ export default function MCPPanel() {
   const serverTypes = useMemo(() => {
     return Object.keys(serversByType)
       .map((type) => {
-        const servers = serversByType[type as McpServerType]
+        const servers = serversByType[type as McpServerType]!
         const connectedServers = servers.filter((s) => s.connected)
-        const templateServer = servers[0] // Use first server as template for type info
+        const templateServer = servers[0]!
         const serverType = type as McpServerType
         const providerConfig = PROVIDER_CONFIG[serverType]
 

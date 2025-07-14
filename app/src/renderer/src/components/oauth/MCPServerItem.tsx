@@ -6,7 +6,8 @@ import {
   StartOAuthFlowMutation,
   StartOAuthFlowMutationVariables,
   McpServerType,
-  ConnectMcpServerDocument
+  ConnectMcpServerDocument,
+  RemoveMcpServerDocument
 } from '@renderer/graphql/generated/graphql'
 import { useEffect, useState } from 'react'
 import { Button } from '../ui/button'
@@ -15,7 +16,8 @@ import { PlugIcon } from 'lucide-react'
 import {
   PROVIDER_MAP,
   PROVIDER_ICON_MAP,
-  PROVIDER_DESCRIPTION_MAP
+  PROVIDER_DESCRIPTION_MAP,
+  PROVIDER_CONFIG
 } from '@renderer/constants/mcpProviders'
 import ScreenpipeConnectionButton from '../settings/permissions/ScreenpipeConnectionButton'
 
@@ -37,9 +39,25 @@ export default function MCPServerItem({
   const [startOAuthFlow] = useMutation(StartOAuthFlowDocument)
   const [completeOAuthFlow] = useMutation(CompleteOAuthFlowDocument)
   const [connectMCPServer] = useMutation(ConnectMcpServerDocument)
+  const [deleteMcpServer] = useMutation(RemoveMcpServerDocument, {
+    onError: (error) => toast.error(`Failed to remove server: ${error.message}`)
+  })
 
   const handleConnectMcpServer = async () => {
-    const { data } = await connectMCPServer({
+    let removed = true
+    if (server.id && !PROVIDER_CONFIG[server.type].supportsMultipleConnections) {
+      const { data, errors } = await deleteMcpServer({ variables: { id: server.id } })
+      if (errors || !data?.removeMCPServer) {
+        removed = false
+      }
+    }
+
+    if (!removed) {
+      toast.error('Failed to remove existing server. Cannot proceed with connection.')
+      return
+    }
+
+    const { data, errors } = await connectMCPServer({
       variables: {
         input: {
           name: server.name,
@@ -51,10 +69,13 @@ export default function MCPServerItem({
       }
     })
 
-    if (data?.connectMCPServer) {
-      toast.success(`Connected successfully to ${data.connectMCPServer}!`)
-      onConnect()
+    if (errors || !data?.connectMCPServer) {
+      toast.error('Failed to connect to the server.')
+      return
     }
+
+    toast.success(`Connected successfully to ${server.name}!`)
+    onConnect()
   }
 
   async function handleOAuthFlow(
