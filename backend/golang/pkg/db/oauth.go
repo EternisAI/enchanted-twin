@@ -607,3 +607,44 @@ func (s *Store) SetOAuthTokenError(ctx context.Context, accessToken string, erro
 	}
 	return nil
 }
+
+// SetMCPOAuthConfig saves or updates OAuth configuration for an MCP server.
+// This is used to store dynamically registered client credentials.
+func (s *Store) SetMCPOAuthConfig(ctx context.Context, serverURL string, clientID string, clientSecret string) error {
+	providerKey := "mcp:" + serverURL
+
+	query := `
+        INSERT OR REPLACE INTO oauth_providers (
+            provider,
+            client_id,
+            redirect_uri,
+            client_secret,
+            auth_endpoint,
+            token_endpoint,
+            user_endpoint,
+            default_scope
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `
+
+	_, err := s.db.ExecContext(ctx, query,
+		providerKey,
+		clientID,
+		"http://localhost:8085/oauth/callback",
+		clientSecret,
+		"",
+		"",
+		"",
+		"mcp.read mcp.write",
+	)
+	if err != nil {
+		return fmt.Errorf("failed to save MCP OAuth config: %w", err)
+	}
+
+	return nil
+}
+
+// GetMCPOAuthConfig retrieves OAuth configuration for an MCP server.
+func (s *Store) GetMCPOAuthConfig(ctx context.Context, serverURL string) (*OAuthConfig, error) {
+	providerKey := "mcp:" + serverURL
+	return s.GetOAuthConfig(ctx, providerKey)
+}

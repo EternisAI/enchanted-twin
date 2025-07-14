@@ -15,137 +15,89 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// DatabaseTokenStore implements the TokenStore interface
-// using the existing oauth_tokens table. Uses `mcp` as
-// the provider identifier and server URL as the username.
-// This is to be used by external MCP servers to persist
-// tokens in the database.
-type DatabaseTokenStore struct {
-	store    *db.Store
-	provider string
-	username string
-	mu       sync.RWMutex
-}
-
-// NewDatabaseTokenStore creates a new DatabaseTokenStore.
-func NewDatabaseTokenStore(store *db.Store, identifier string) *DatabaseTokenStore {
-	provider := "mcp"
-
-	return &DatabaseTokenStore{
-		store:    store,
-		provider: provider,
-		username: identifier,
-	}
-}
-
-// GetToken retrieves a token by username from the database.
-func (s *DatabaseTokenStore) GetToken() (*mcpclient.Token, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	ctx := context.Background()
-
-	oauthToken, err := s.store.GetOAuthTokensByUsername(ctx, s.provider, s.username)
-	if err != nil {
-		return nil, fmt.Errorf("no token available for MCP server provider %s, username %s: %w", s.provider, s.username, err)
-	}
-
-	// Convert OAuth token to MCP client token
-	mcpToken := &mcpclient.Token{
-		AccessToken:  oauthToken.AccessToken,
-		TokenType:    oauthToken.TokenType,
-		RefreshToken: oauthToken.RefreshToken,
-		ExpiresAt:    oauthToken.ExpiresAt,
-		Scope:        oauthToken.Scope,
-	}
-
-	// Calculate ExpiresIn
-	if !oauthToken.ExpiresAt.IsZero() {
-		expiresIn := time.Until(oauthToken.ExpiresAt).Seconds()
-		if expiresIn > 0 {
-			mcpToken.ExpiresIn = int64(expiresIn)
-		}
-	}
-
-	log.Debug("retrieved MCP OAuth token from database",
-		"provider", s.provider,
-		"username", s.username,
-		"expires_at", mcpToken.ExpiresAt,
-		"token_type", mcpToken.TokenType)
-
-	return mcpToken, nil
-}
-
-// SaveToken saves a token to the database.
-func (s *DatabaseTokenStore) SaveToken(token *mcpclient.Token) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	ctx := context.Background()
-
-	// Calculate ExpiresAt
-	expiresAt := token.ExpiresAt
-	if expiresAt.IsZero() && token.ExpiresIn > 0 {
-		expiresAt = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
-	}
-
-	oauthTokens := db.OAuthTokens{
-		Provider:     s.provider,
-		TokenType:    token.TokenType,
-		Scope:        token.Scope,
-		AccessToken:  token.AccessToken,
-		ExpiresAt:    expiresAt,
-		RefreshToken: token.RefreshToken,
-		Username:     s.username,
-		Error:        false,
-	}
-
-	if err := s.store.SetOAuthTokens(ctx, oauthTokens); err != nil {
-		return fmt.Errorf("failed to save MCP OAuth token: %w", err)
-	}
-
-	log.Debug("saved MCP OAuth token to database",
-		"provider", s.provider,
-		"username", s.username,
-		"expires_at", expiresAt,
-		"token_type", token.TokenType)
-
-	return nil
-}
-
-// KeyringTokenStore implements the TokenStore interface using OS keyring.
-type KeyringTokenStore struct {
+// TokenStore implements the mcpclient.TokenStore interface with automatic keyring-to-database fallback
+// and OAuth client credential management for MCP servers.
+type TokenStore struct {
+	store      *db.Store
 	identifier string
 	timeout    time.Duration
 	mu         sync.RWMutex
 }
 
-// NewKeyringTokenStore creates a new KeyringTokenStore.
-func NewKeyringTokenStore(identifier string) *KeyringTokenStore {
-	return &KeyringTokenStore{
+// NewTokenStore creates a new TokenStore that handles both token storage and client credentials.
+func NewTokenStore(store *db.Store, identifier string) *TokenStore {
+	return &TokenStore{
+		store:      store,
 		identifier: identifier,
 		timeout:    3 * time.Second,
 	}
 }
 
-// serviceName prefixes the identifier with "mcp:" for consistency.
-func (k *KeyringTokenStore) serviceName() string {
-	return "mcp:" + k.identifier
-}
+// GetToken retrieves a token, trying keyring first, then database.
+func (t *TokenStore) GetToken() (*mcpclient.Token, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
-// GetToken retrieves a token from the OS keyring.
-func (k *KeyringTokenStore) GetToken() (*mcpclient.Token, error) {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
-
-	// Check availability first to fallback
-	if !k.IsAvailable() {
-		return nil, fmt.Errorf("keyring not available on this system")
+	// Try keyring first
+	if token, err := t.getFromKeyring(); err == nil {
+		return token, nil
+	} else if !isSecretNotFoundError(err) {
+		log.Debug("Keyring unavailable, trying database", "error", err)
 	}
 
-	tokenData, err := k.getWithTimeout(k.serviceName(), "token")
+	// Fall back to database
+	return t.getFromDatabase()
+}
+
+// SaveToken saves a token, trying keyring first, then database.
+func (t *TokenStore) SaveToken(token *mcpclient.Token) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// Try keyring first
+	if err := t.saveToKeyring(token); err == nil {
+		return nil
+	} else {
+		log.Debug("Keyring save failed, trying database", "error", err)
+	}
+
+	// Fall back to database
+	return t.saveToDatabase(token)
+}
+
+// SetClientCredentials stores the OAuth client credentials for this MCP server.
+func (t *TokenStore) SetClientCredentials(clientID, clientSecret string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	ctx := context.Background()
+	return t.store.SetMCPOAuthConfig(ctx, t.identifier, clientID, clientSecret)
+}
+
+// GetClientCredentials retrieves the stored OAuth client credentials for this MCP server.
+func (t *TokenStore) GetClientCredentials() (clientID, clientSecret string, err error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	ctx := context.Background()
+
+	config, err := t.store.GetMCPOAuthConfig(ctx, t.identifier)
 	if err != nil {
-		return nil, fmt.Errorf("no token available in keyring for MCP server %s: %w", k.identifier, err)
+		return "", "", err
+	}
+
+	return config.ClientID, config.ClientSecret, nil
+}
+
+// getFromKeyring retrieves a token from the OS keyring.
+func (t *TokenStore) getFromKeyring() (*mcpclient.Token, error) {
+	if !t.isKeyringAvailable() {
+		return nil, fmt.Errorf("keyring not available")
+	}
+
+	tokenData, err := t.keyringGetWithTimeout(t.serviceName(), "token")
+	if err != nil {
+		return nil, fmt.Errorf("no token in keyring: %w", err)
 	}
 
 	var token mcpclient.Token
@@ -153,98 +105,132 @@ func (k *KeyringTokenStore) GetToken() (*mcpclient.Token, error) {
 		return nil, fmt.Errorf("failed to parse token from keyring: %w", err)
 	}
 
-	if !token.ExpiresAt.IsZero() {
-		expiresIn := time.Until(token.ExpiresAt).Seconds()
-		if expiresIn > 0 {
-			token.ExpiresIn = int64(expiresIn)
-		}
-	}
-
-	log.Debug("retrieved MCP OAuth token from keyring",
-		"identifier", k.identifier,
-		"expires_at", token.ExpiresAt,
-		"token_type", token.TokenType)
-
+	t.calculateExpiresIn(&token)
 	return &token, nil
 }
 
-// SaveToken saves a token to the OS keyring.
-func (k *KeyringTokenStore) SaveToken(token *mcpclient.Token) error {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-
-	if !k.IsAvailable() {
-		return fmt.Errorf("keyring not available on this system")
+// saveToKeyring saves a token to the OS keyring.
+func (t *TokenStore) saveToKeyring(token *mcpclient.Token) error {
+	if !t.isKeyringAvailable() {
+		return fmt.Errorf("keyring not available")
 	}
 
-	if token.ExpiresAt.IsZero() && token.ExpiresIn > 0 {
-		token.ExpiresAt = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
-	}
+	t.ensureExpiresAt(token)
 
 	tokenData, err := json.Marshal(token)
 	if err != nil {
-		return fmt.Errorf("failed to marshal token for keyring: %w", err)
+		return fmt.Errorf("failed to marshal token: %w", err)
 	}
 
-	if err := k.setWithTimeout(k.serviceName(), "token", string(tokenData)); err != nil {
-		return fmt.Errorf("failed to save token to keyring: %w", err)
+	return t.keyringSetWithTimeout(t.serviceName(), "token", string(tokenData))
+}
+
+// getFromDatabase retrieves a token from the database.
+func (t *TokenStore) getFromDatabase() (*mcpclient.Token, error) {
+	ctx := context.Background()
+	oauthToken, err := t.store.GetOAuthTokensByUsername(ctx, "mcp", t.identifier)
+	if err != nil {
+		return nil, fmt.Errorf("no token in database: %w", err)
 	}
 
-	log.Debug("saved MCP OAuth token to keyring",
-		"identifier", k.identifier,
-		"expires_at", token.ExpiresAt,
-		"token_type", token.TokenType)
+	token := &mcpclient.Token{
+		AccessToken:  oauthToken.AccessToken,
+		TokenType:    oauthToken.TokenType,
+		RefreshToken: oauthToken.RefreshToken,
+		ExpiresAt:    oauthToken.ExpiresAt,
+		Scope:        oauthToken.Scope,
+	}
+
+	t.calculateExpiresIn(token)
+	return token, nil
+}
+
+// saveToDatabase saves a token to the database.
+func (t *TokenStore) saveToDatabase(token *mcpclient.Token) error {
+	ctx := context.Background()
+	t.ensureExpiresAt(token)
+
+	oauthTokens := db.OAuthTokens{
+		Provider:     "mcp",
+		TokenType:    token.TokenType,
+		Scope:        token.Scope,
+		AccessToken:  token.AccessToken,
+		ExpiresAt:    token.ExpiresAt,
+		RefreshToken: token.RefreshToken,
+		Username:     t.identifier,
+		Error:        false,
+	}
+
+	if err := t.store.SetOAuthTokens(ctx, oauthTokens); err != nil {
+		return fmt.Errorf("failed to save token to database: %w", err)
+	}
 
 	return nil
 }
 
-// IsAvailable checks if the keyring is available on the current system.
-// Would likely return true for all systems. If false, fall back to the database.
-// Checks by trying to perform a simple set and delete operation.
-func (k *KeyringTokenStore) IsAvailable() bool {
+// serviceName returns the keyring service name.
+func (t *TokenStore) serviceName() string {
+	return "mcp:" + t.identifier
+}
+
+// calculateExpiresIn sets the ExpiresIn field based on ExpiresAt.
+func (t *TokenStore) calculateExpiresIn(token *mcpclient.Token) {
+	if !token.ExpiresAt.IsZero() {
+		expiresIn := time.Until(token.ExpiresAt).Seconds()
+		token.ExpiresIn = int64(expiresIn) // Set even if negative to indicate expiration
+	}
+}
+
+// ensureExpiresAt sets ExpiresAt if it's zero but ExpiresIn is set.
+func (t *TokenStore) ensureExpiresAt(token *mcpclient.Token) {
+	if token.ExpiresAt.IsZero() && token.ExpiresIn > 0 {
+		token.ExpiresAt = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
+	}
+}
+
+// isKeyringAvailable checks if the keyring is available by trying a test operation.
+func (t *TokenStore) isKeyringAvailable() bool {
 	testService := "mcp:test-availability"
 	testUser := "test"
 	testSecret := "test-secret"
 
-	if err := k.setWithTimeout(testService, testUser, testSecret); err != nil {
+	if err := t.keyringSetWithTimeout(testService, testUser, testSecret); err != nil {
 		return false
 	}
 
-	if err := k.deleteWithTimeout(testService, testUser); err != nil {
-		log.Debug("keyring delete operation failed during availability check", "error", err)
+	// Clean up test entry
+	if err := t.keyringDeleteWithTimeout(testService, testUser); err != nil {
+		log.Debug("keyring cleanup failed during availability check", "error", err)
 	}
 
 	return true
 }
 
-// setWithTimeout wraps the keyring.Set operation with a timeout.
-func (k *KeyringTokenStore) setWithTimeout(service, user, secret string) error {
-	type result struct {
-		err error
-	}
-
+// keyringSetWithTimeout wraps keyring.Set with a timeout.
+func (t *TokenStore) keyringSetWithTimeout(service, user, secret string) error {
+	type result struct{ err error }
 	ch := make(chan result, 1)
+
 	go func() {
-		err := keyring.Set(service, user, secret)
-		ch <- result{err: err}
+		ch <- result{err: keyring.Set(service, user, secret)}
 	}()
 
 	select {
 	case res := <-ch:
 		return res.err
-	case <-time.After(k.timeout):
-		return fmt.Errorf("keyring set operation timed out after %v", k.timeout)
+	case <-time.After(t.timeout):
+		return fmt.Errorf("keyring set operation timed out after %v", t.timeout)
 	}
 }
 
-// getWithTimeout wraps the keyring.Get operation with a timeout.
-func (k *KeyringTokenStore) getWithTimeout(service, user string) (string, error) {
+// keyringGetWithTimeout wraps keyring.Get with a timeout.
+func (t *TokenStore) keyringGetWithTimeout(service, user string) (string, error) {
 	type result struct {
 		secret string
 		err    error
 	}
-
 	ch := make(chan result, 1)
+
 	go func() {
 		secret, err := keyring.Get(service, user)
 		ch <- result{secret: secret, err: err}
@@ -253,91 +239,67 @@ func (k *KeyringTokenStore) getWithTimeout(service, user string) (string, error)
 	select {
 	case res := <-ch:
 		return res.secret, res.err
-	case <-time.After(k.timeout):
-		return "", fmt.Errorf("keyring get operation timed out after %v", k.timeout)
+	case <-time.After(t.timeout):
+		return "", fmt.Errorf("keyring get operation timed out after %v", t.timeout)
 	}
 }
 
-// deleteWithTimeout performs a keyring Delete operation with timeout.
-func (k *KeyringTokenStore) deleteWithTimeout(service, user string) error {
-	type result struct {
-		err error
-	}
-
+// keyringDeleteWithTimeout wraps keyring.Delete with a timeout.
+func (t *TokenStore) keyringDeleteWithTimeout(service, user string) error {
+	type result struct{ err error }
 	ch := make(chan result, 1)
+
 	go func() {
-		err := keyring.Delete(service, user)
-		ch <- result{err: err}
+		ch <- result{err: keyring.Delete(service, user)}
 	}()
 
 	select {
 	case res := <-ch:
 		return res.err
-	case <-time.After(k.timeout):
-		return fmt.Errorf("keyring delete operation timed out after %v", k.timeout)
+	case <-time.After(t.timeout):
+		return fmt.Errorf("keyring delete operation timed out after %v", t.timeout)
 	}
 }
 
-// isSecretNotFoundError checks if the error indicates
-// a secret was not found in the keyring.
+// isSecretNotFoundError checks if the error indicates a secret was not found.
 func isSecretNotFoundError(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	errStr := err.Error()
-	return strings.Contains(errStr, "secret not found")
+	return strings.Contains(err.Error(), "secret not found")
 }
 
-// FallbackTokenStore implements the TokenStore interface with a primary and fallback store.
-type FallbackTokenStore struct {
-	primary  mcpclient.TokenStore
-	fallback mcpclient.TokenStore
-}
-
-// NewFallbackTokenStore creates a new FallbackTokenStore with the given primary and fallback stores.
-// This is useful to arbitrarily combine any two token stores, like a keyring and a memory store.
-func NewFallbackTokenStore(primary, fallback mcpclient.TokenStore) mcpclient.TokenStore {
-	return &FallbackTokenStore{
-		primary:  primary,
-		fallback: fallback,
-	}
-}
-
-// NewKeyringDatabaseTokenStore creates a TokenStore that tries keyring first, then falls back to database.
-func NewKeyringDatabaseTokenStore(store *db.Store, identifier string) mcpclient.TokenStore {
-	keyringStore := NewKeyringTokenStore(identifier)
-	databaseStore := NewDatabaseTokenStore(store, identifier)
-	return NewFallbackTokenStore(keyringStore, databaseStore)
-}
-
-// GetToken retrieves a token from the primary store first, then the fallback store if primary fails.
-func (f *FallbackTokenStore) GetToken() (*mcpclient.Token, error) {
-	// Try primary store first
-	token, err := f.primary.GetToken()
-	if err == nil {
-		return token, nil
+// ValidateTokenRefreshCapability checks if a token has the necessary components for automatic refresh.
+func ValidateTokenRefreshCapability(token *mcpclient.Token, identifier string) {
+	if token == nil {
+		log.Warn("Token refresh validation: token is nil", "identifier", identifier)
+		return
 	}
 
-	// Log the primary failure if it's not just a "not found" error.
-	// i.e., we can know that the primary store is not available.
-	if !isSecretNotFoundError(err) {
-		log.Debug("primary token store failed, trying fallback", "error", err)
+	issues := []string{}
+
+	if token.AccessToken == "" {
+		issues = append(issues, "missing access token")
 	}
 
-	return f.fallback.GetToken()
-}
-
-// SaveToken saves a token to the primary store first, then the fallback store if primary fails.
-func (f *FallbackTokenStore) SaveToken(token *mcpclient.Token) error {
-	// Try primary store first
-	if err := f.primary.SaveToken(token); err == nil {
-		return nil
-	} else {
-		// If primary fails, log and try fallback
-		log.Debug("primary token store save failed, trying fallback", "error", err)
+	if token.RefreshToken == "" {
+		issues = append(issues, "missing refresh token - automatic refresh will not work")
 	}
 
-	// Try fallback store
-	return f.fallback.SaveToken(token)
+	if token.ExpiresAt.IsZero() && token.ExpiresIn <= 0 {
+		issues = append(issues, "missing expiration information - cannot determine when to refresh")
+	}
+
+	if token.TokenType == "" {
+		issues = append(issues, "missing token type")
+	}
+
+	if len(issues) > 0 {
+		log.Warn("Token refresh validation issues found",
+			"identifier", identifier,
+			"issues", issues,
+			"expires_at", token.ExpiresAt,
+			"expires_in", token.ExpiresIn,
+			"is_expired", token.IsExpired())
+	}
 }
