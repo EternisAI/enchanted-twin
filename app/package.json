@@ -82,6 +82,7 @@
     "three": "^0.176.0",
     "tw-animate-css": "^1.2.5",
     "unzipper": "^0.12.3",
+    "use-sound": "^5.0.0",
     "uuid": "^11.1.0",
     "wait-on": "^8.0.3",
     "zustand": "^5.0.3"
