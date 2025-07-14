@@ -77,10 +77,10 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
   ENCHANTED: {
     provider: 'enchanted',
     scope: '',
-    description: 'Enhanced AI capabilities and tools',
+    description: 'Generate images and search the web',
     icon: (
       <IconContainer>
-        <img src={enchantedIcon} alt="Enchanted" className="size-7" />
+        <img src={enchantedIcon} alt="Essentials" className="size-7" />
       </IconContainer>
     ),
     supportsMultipleConnections: false

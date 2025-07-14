@@ -84,12 +84,8 @@ export default function InvitationGate({ children }: { children: React.ReactNode
 
   if (!user) {
     return (
-      <InvitationWrapper showTitlebar showAnimation showPrivacyText>
-        <OnboardingLayout
-          title="Beta Access"
-          subtitle="Login for Beta access."
-          className="text-white"
-        >
+      <InvitationWrapper showTitlebar showAnimation>
+        <OnboardingLayout title="Enchanted" subtitle="Private Beta" className="text-white">
           <div className="flex flex-col gap-4 items-center ">
             <GoogleSignInButton />
             <XSignInButton />
@@ -100,7 +96,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   }
 
   return (
-    <InvitationWrapper showTitlebar showAnimation showPrivacyText>
+    <InvitationWrapper showTitlebar showAnimation>
       <OnboardingLayout
         title="Invitation Code"
         subtitle="Enter your invite code to access Enchanted"
