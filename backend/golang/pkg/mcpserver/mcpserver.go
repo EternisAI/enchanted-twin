@@ -402,18 +402,11 @@ func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefiniti
 			Connected: slices.Contains(connectedServerIds, mcpServer.ID),
 			Enabled:   mcpServer.Enabled,
 			Type:      mcpServer.Type,
-			Tools:     []*model.Tool{},
 		}
 
 		if connectedServerMap[mcpServer.ID] != nil {
 			mcpServerDefinition.Connected = true
 			mcpServerDefinition.Enabled = true
-
-			tools, err := getTools(ctx, connectedServerMap[mcpServer.ID])
-			if err != nil {
-				log.Error("Error getting tools for MCP server", "server", mcpServer.Name, "error", err)
-			}
-			mcpServerDefinition.Tools = tools
 		}
 
 		mcpserversDefinitions = append(mcpserversDefinitions, mcpServerDefinition)
@@ -924,25 +917,6 @@ func CapitalizeFirst(s string) string {
 		return string(firstRune) + restOfString
 	}
 	return string(firstRune)
-}
-
-func getTools(ctx context.Context, connectedServer *ConnectedMCPServer) ([]*model.Tool, error) {
-	allTools := []*model.Tool{}
-	request := mcp.ListToolsRequest{}
-	client_tools, err := connectedServer.Client.ListTools(ctx, request)
-	if err != nil {
-		log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
-		return allTools, err
-	}
-
-	for _, tool := range client_tools.Tools {
-		allTools = append(allTools, &model.Tool{
-			Name:        tool.GetName(),
-			Description: tool.Description,
-		})
-	}
-
-	return allTools, nil
 }
 
 // handleOAuthAuthorization handles the OAuth authorization flow.
