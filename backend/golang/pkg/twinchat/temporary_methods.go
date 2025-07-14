@@ -69,9 +69,7 @@ func (s *Service) ProcessMessageHistoryStream(
 
 	var systemPrompt string
 	if isOnboarding {
-		systemPrompt, err = prompts.BuildOnboardingSystemPrompt(prompts.OnboardingSystemPrompt{
-			CurrentTime: time.Now().Format(time.RFC3339),
-		})
+		systemPrompt, err = prompts.BuildOnboardingSystemPrompt(prompts.OnboardingSystemPrompt{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to build onboarding system prompt: %w", err)
 		}
