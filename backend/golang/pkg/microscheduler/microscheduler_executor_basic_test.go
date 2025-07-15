@@ -64,6 +64,7 @@ func TestExecutorConcurrency(t *testing.T) {
 	}
 
 	start := time.Now()
+	var testError error
 
 	for _, task := range tasks {
 		wg.Add(1)
@@ -71,7 +72,12 @@ func TestExecutorConcurrency(t *testing.T) {
 			defer wg.Done()
 			result, err := executor.Execute(ctx, t, t.Priority)
 			if err != nil {
-				panic(fmt.Sprintf("Expected no error, got %v", err))
+				mu.Lock()
+				if testError == nil {
+					testError = fmt.Errorf("expected no error, got %v", err)
+				}
+				mu.Unlock()
+				return
 			}
 			mu.Lock()
 			completed = append(completed, fmt.Sprintf("%s: %v", t.Name, result))
@@ -80,6 +86,10 @@ func TestExecutorConcurrency(t *testing.T) {
 	}
 
 	wg.Wait()
+
+	if testError != nil {
+		t.Fatalf("Test failed: %v", testError)
+	}
 	elapsed := time.Since(start)
 
 	if len(completed) != 3 {
@@ -121,7 +131,8 @@ func TestExecutorThreadSafety(t *testing.T) {
 
 				result, err := executor.Execute(ctx, task, priority)
 				if err != nil {
-					panic(fmt.Sprintf("Unexpected error: %v", err))
+					t.Errorf("Unexpected error executing task %s: %v", task.Name, err)
+					return
 				}
 
 				mu.Lock()
@@ -195,13 +206,19 @@ func TestExecutorMultipleThreadsWithScheduling(t *testing.T) {
 		}),
 	}
 
+	var testError error
 	for _, task := range tasks {
 		wg.Add(1)
 		go func(t Task) {
 			defer wg.Done()
 			result, err := executor.Execute(ctx, t, t.Priority)
 			if err != nil {
-				panic(fmt.Sprintf("Task failed: %v", err))
+				mu.Lock()
+				if testError == nil {
+					testError = fmt.Errorf("task failed: %v", err)
+				}
+				mu.Unlock()
+				return
 			}
 			mu.Lock()
 			executionResults = append(executionResults, fmt.Sprintf("%s: %v", t.Name, result))
@@ -210,6 +227,10 @@ func TestExecutorMultipleThreadsWithScheduling(t *testing.T) {
 	}
 
 	wg.Wait()
+
+	if testError != nil {
+		t.Fatalf("Test failed: %v", testError)
+	}
 
 	if len(executionResults) != 6 {
 		t.Errorf("Expected 6 completed tasks, got %d", len(executionResults))
