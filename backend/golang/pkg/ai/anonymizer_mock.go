@@ -81,6 +81,11 @@ func (n *NoOpAnonymizer) IsMessageAnonymized(conversationID, messageHash string)
 }
 
 var defaultReplacements = map[string]string{
+	// Full names (processed first due to length sorting)
+	"John Smith":    "PERSON_001",
+	"Jane Doe":      "PERSON_002",
+	"Alice Johnson": "PERSON_003",
+
 	// Common names
 	"John":    "PERSON_001",
 	"Jane":    "PERSON_002",

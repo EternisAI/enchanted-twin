@@ -38,7 +38,7 @@ func TestPrivateCompletionsWithMCPToolCalling(t *testing.T) {
 					Type: "function",
 					Function: openai.ChatCompletionMessageToolCallFunction{
 						Name:      "gmail_send",
-						Arguments: `{"to": "PERSON_001@COMPANY_001.com", "subject": "Meeting with PERSON_002", "body": "Hi PERSON_001, can we schedule a meeting about the project at COMPANY_001?"}`,
+						Arguments: `{"to": "PERSON_001@COMPANY_001.com", "subject": "Meeting with PERSON_003", "body": "Hi PERSON_001, can we schedule a meeting about the project at COMPANY_001?"}`,
 					},
 				},
 			},
@@ -186,7 +186,7 @@ func TestPrivateCompletionsWithMCPToolCalling(t *testing.T) {
 		if !strings.Contains(subject, "Alice Johnson") {
 			t.Errorf("Email subject missing de-anonymized name 'Alice Johnson': %s", subject)
 		}
-		if strings.Contains(subject, "PERSON_002") {
+		if strings.Contains(subject, "PERSON_003") {
 			t.Errorf("Email subject still contains anonymized tokens: %s", subject)
 		}
 	}
@@ -271,7 +271,7 @@ func TestPrivateCompletionsWithComplexMCPScenario(t *testing.T) {
 					Type: "function",
 					Function: openai.ChatCompletionMessageToolCallFunction{
 						Name:      "calendar_create_event",
-						Arguments: `{"title": "Meeting with PERSON_001", "location": "LOCATION_006", "attendees": ["PERSON_001@COMPANY_001.com", "PERSON_002@COMPANY_002.com"]}`,
+						Arguments: `{"title": "Meeting with PERSON_001", "location": "LOCATION_006", "attendees": ["PERSON_001@COMPANY_001.com", "PERSON_003@COMPANY_002.com"]}`,
 					},
 				},
 				{
