@@ -599,8 +599,8 @@ func TestPrivateCompletionsE2EWithToolCalls(t *testing.T) {
 
 	// Verify that tool call arguments were de-anonymized
 	if name, ok := args["name"].(string); ok {
-		if name != "John" {
-			t.Errorf("Expected de-anonymized name 'John' in tool call, got '%s'", name)
+		if name != "John Smith" {
+			t.Errorf("Expected de-anonymized name 'John Smith' in tool call, got '%s'", name)
 		}
 		if strings.Contains(name, "PERSON_001") {
 			t.Errorf("Tool call arguments still contain anonymized token 'PERSON_001': %s", name)
@@ -639,7 +639,7 @@ func TestPrivateCompletionsE2EWithToolCalls(t *testing.T) {
 	}
 
 	expectedRules := map[string]string{
-		"PERSON_001":   "John",
+		"PERSON_001":   "John Smith",
 		"COMPANY_001":  "OpenAI",
 		"LOCATION_006": "San Francisco",
 	}

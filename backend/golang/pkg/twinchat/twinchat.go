@@ -324,9 +324,14 @@ func (s *Service) SendMessage(
 		}
 	}
 
+	messageContent := response.Content
+	if messageContent == "" && len(response.ToolResults) > 0 {
+		messageContent = "Task completed successfully."
+	}
+
 	assistantMessageJson, err := json.Marshal(model.Message{
 		ID:          assistantMessageId,
-		Text:        &response.Content,
+		Text:        &messageContent,
 		ImageUrls:   response.ImageURLs,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 		Role:        model.RoleAssistant,
@@ -405,7 +410,7 @@ func (s *Service) SendMessage(
 	assistantMessageDb := repository.Message{
 		ID:           uuid.New().String(),
 		ChatID:       chatID,
-		Text:         response.Content,
+		Text:         messageContent,
 		Role:         model.RoleAssistant.String(),
 		CreatedAtStr: time.Now().Format(time.RFC3339Nano),
 	}
@@ -461,7 +466,7 @@ func (s *Service) SendMessage(
 
 	return &model.Message{
 		ID:          idAssistant,
-		Text:        &response.Content,
+		Text:        &messageContent,
 		Role:        model.RoleAssistant,
 		ImageUrls:   response.ImageURLs,
 		CreatedAt:   time.Now().Format(time.RFC3339),
