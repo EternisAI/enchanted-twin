@@ -105,10 +105,16 @@ func TestPrivateCompletionsServiceMessageInterruption(t *testing.T) {
 		t.Fatalf("Failed to create private service: %v", err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage("Test message that should be interrupted"),
 	}
+
+	// Cancel the context after 50ms to interrupt the 100ms anonymization delay
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
 
 	start := time.Now()
 	_, err = privateService.Completions(ctx, messages, nil, "test-model", Background)
@@ -116,19 +122,22 @@ func TestPrivateCompletionsServiceMessageInterruption(t *testing.T) {
 
 	t.Logf("Private completion took %v", elapsed)
 
-	if err != nil && strings.Contains(err.Error(), "interrupted") {
-		t.Logf("Successfully interrupted after %v", elapsed)
-		if elapsed >= 100*time.Millisecond {
-			t.Errorf("Expected interruption before full delay, but took %v", elapsed)
-		}
-	} else if err == nil {
-		if elapsed < 100*time.Millisecond {
-			t.Errorf("Expected at least 100ms delay, but took %v", elapsed)
-		}
-		t.Logf("Completed without interruption after %v", elapsed)
-	} else {
-		t.Fatalf("Unexpected error: %v", err)
+	// Should be interrupted with context cancellation
+	if err == nil {
+		t.Errorf("Expected error due to context cancellation, got nil")
 	}
+
+	// Error should indicate interruption or cancellation
+	if !strings.Contains(err.Error(), "interrupted") && !strings.Contains(err.Error(), "canceled") {
+		t.Errorf("Expected error to contain 'interrupted' or 'canceled', got: %v", err)
+	}
+
+	// Should have been interrupted before the full delay
+	if elapsed >= 100*time.Millisecond {
+		t.Errorf("Expected interruption before full delay (100ms), but took %v", elapsed)
+	}
+
+	t.Logf("Successfully interrupted after %v", elapsed)
 }
 
 type mockCompletionsService struct {
