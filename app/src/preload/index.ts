@@ -16,6 +16,11 @@ const api = {
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => {
     ipcRenderer.on('native-theme-updated', (_, theme) => callback(theme))
   },
+  onThemeChanged: (callback: (theme: 'system' | 'light' | 'dark') => void) => {
+    const listener = (_: unknown, theme: 'system' | 'light' | 'dark') => callback(theme)
+    ipcRenderer.on('theme-changed', listener)
+    return () => ipcRenderer.removeListener('theme-changed', listener)
+  },
   openOAuthUrl: (url: string, redirectUri?: string) => {
     console.log('openOAuthUrl', url, redirectUri)
     ipcRenderer.send('open-oauth-url', url, redirectUri)

@@ -104,6 +104,15 @@ export function registerIpcHandlers() {
     } else {
       nativeTheme.themeSource = theme
     }
+    
+    // Broadcast theme change to all windows
+    if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+      windowManager.mainWindow.webContents.send('theme-changed', theme)
+    }
+    if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
+      windowManager.omnibarWindow.webContents.send('theme-changed', theme)
+    }
+    
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   })
 
@@ -133,8 +142,12 @@ export function registerIpcHandlers() {
 
   nativeTheme.on('updated', () => {
     const newTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-    if (windowManager.mainWindow) {
+    // Broadcast to all windows
+    if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
       windowManager.mainWindow.webContents.send('native-theme-updated', newTheme)
+    }
+    if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
+      windowManager.omnibarWindow.webContents.send('native-theme-updated', newTheme)
     }
   })
 

@@ -14,7 +14,7 @@ import { client } from '@renderer/graphql/lib'
 import FocusLock from 'react-focus-lock'
 import { SendButton } from '../components/chat/MessageInput'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
-import { ThemeProvider } from '@renderer/lib/theme'
+import { SyncedThemeProvider } from '@renderer/components/SyncedThemeProvider'
 
 function OmnibarOverlay() {
   const [query, setQuery] = useState('')
@@ -175,7 +175,7 @@ function OmnibarOverlay() {
 
   // This is the overlay window - just the omnibar component without any chrome
   return (
-    <ThemeProvider>
+    <SyncedThemeProvider>
       <FocusLock returnFocus>
         <motion.div
           initial={{ scale: 0.95, opacity: 0, y: -5 }}
@@ -284,7 +284,7 @@ function OmnibarOverlay() {
           </motion.form>
         </motion.div>
       </FocusLock>
-    </ThemeProvider>
+    </SyncedThemeProvider>
   )
 }
 
