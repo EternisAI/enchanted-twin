@@ -765,7 +765,9 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient) {
 }
 
 func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
-	if s.registry == nil {
+	if s.registry == nil || client == nil {
+		// This happens when the server is already disconnected.
+		// This could be the case for remote MCP servers.
 		return
 	}
 	request := mcp.ListToolsRequest{}

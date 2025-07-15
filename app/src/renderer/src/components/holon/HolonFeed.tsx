@@ -112,7 +112,7 @@ export default function HolonFeed() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="flex w-full justify-center overflow-y-auto"
+      className="flex w-full justify-center overflow-y-auto pt-10"
     >
       <div className="max-w-2xl mx-auto p-6 flex flex-col gap-16">
         <div className="flex items-center justify-between">

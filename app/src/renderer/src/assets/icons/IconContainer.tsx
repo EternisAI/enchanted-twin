@@ -10,7 +10,10 @@ export default function IconContainer({
 }) {
   return (
     <div
-      className={cn('flex items-center justify-center rounded-sm w-10 h-10 bg-accent', className)}
+      className={cn(
+        'flex items-center justify-center rounded-sm w-10 h-10 bg-accent/50',
+        className
+      )}
     >
       {children}
     </div>
