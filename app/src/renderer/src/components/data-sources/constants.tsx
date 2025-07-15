@@ -6,7 +6,7 @@ import XformerlyTwitterIcon from '@renderer/assets/icons/x'
 import OpenAI from '@renderer/assets/icons/openai'
 import WhatsAppSync from './custom-view/WhatAppSync'
 import { DataSource } from './types'
-import { FilesIcon } from 'lucide-react'
+import { FileIcon } from 'lucide-react'
 import IconContainer from '@renderer/assets/icons/IconContainer'
 
 export const SUPPORTED_DATA_SOURCES: DataSource[] = [
@@ -83,8 +83,8 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     selectType: 'files',
     fileRequirement: 'Select files in .txt, .pdf, .doc, .docx, .xls, .xlsx, .csv format',
     icon: (
-      <IconContainer className="bg-foreground">
-        <FilesIcon strokeWidth={1.5} className="h-7 w-7 text-primary-foreground" />
+      <IconContainer>
+        <FileIcon strokeWidth={1.5} className="h-7 w-7" />
       </IconContainer>
     ),
     fileFilters: [
