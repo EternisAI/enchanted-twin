@@ -256,7 +256,7 @@ function OmnibarOverlay() {
               <motion.div
                 ref={contentRef}
                 data-omnibar-content
-                className={cn('flex flex-col gap-3 px-4 pt-3 pb-4 w-full mx-auto')}
+                className={cn('flex flex-col gap-3 px-4 pt-3.5 pb-4 w-full mx-auto')}
                 transition={{ type: 'spring', damping: 55, stiffness: 350 }}
               >
                 <div className="flex items-center gap-3">
