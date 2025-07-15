@@ -3,7 +3,6 @@ import { FolderOpen, Trash2, UsersRoundIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ContinueSetupButton } from '../ContinueSetupButton'
-import { Card } from '../ui/card'
 import { useAuth } from '@renderer/contexts/AuthContext'
 
 export default function AdminPanel() {

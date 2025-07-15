@@ -11,7 +11,7 @@ import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Switch } from '../ui/switch'
 import { Button } from '../ui/button'
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown, Eye, EyeClosed } from 'lucide-react'
 
 interface ChatViewProps {
   chat: Chat
@@ -24,6 +24,7 @@ export default function ChatView({ chat }: ChatViewProps) {
   const [mounted, setMounted] = useState(false)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
+  const [isAnonymized, setIsAnonymized] = useState(false)
 
   const {
     privacyDict,
@@ -79,9 +80,14 @@ export default function ChatView({ chat }: ChatViewProps) {
         isWaitingTwinResponse={isWaitingTwinResponse}
         error={error}
         chatPrivacyDict={privacyDict}
+        isAnonymized={isAnonymized}
+        setIsAnonymized={setIsAnonymized}
       />
     )
   }
+
+  const hasUserMessages = messages.some((msg) => msg.role === 'USER')
+  const showAnonymizationToggle = hasUserMessages && privacyDict
 
   return (
     <div className="flex flex-col h-full w-full items-center relative">
@@ -96,10 +102,37 @@ export default function ChatView({ chat }: ChatViewProps) {
               {chat.category === ChatCategory.Holon && chat.holonThreadId && (
                 <HolonThreadContext threadId={chat.holonThreadId} />
               )}
+              {showAnonymizationToggle && (
+                <div className="absolute top-0 right-12 flex justify-end mb-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => setIsAnonymized(!isAnonymized)}
+                        className="p-2 rounded-md bg-accent cursor-pointer hover:bg-accent/50"
+                        variant="ghost"
+                        size="sm"
+                      >
+                        {isAnonymized ? (
+                          <EyeClosed className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-primary" />
+                        )}
+                        <span className="ml-2 text-sm">
+                          {isAnonymized ? 'Show original' : 'Show anonymized'}
+                        </span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{isAnonymized ? 'Show original messages' : 'Anonymize messages'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
               <MessageList
                 messages={messages}
                 isWaitingTwinResponse={isWaitingTwinResponse}
                 chatPrivacyDict={privacyDict}
+                isAnonymized={isAnonymized}
               />
               {error && (
                 <div className="py-2 px-4 mt-2 rounded-md border border-red-500 bg-red-500/10 text-red-500">
