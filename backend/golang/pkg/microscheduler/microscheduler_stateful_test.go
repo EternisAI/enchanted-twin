@@ -134,6 +134,7 @@ func TestMixedStatefulAndStatelessTasks(t *testing.T) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var results []string
+	var statelessError, statefulError error
 
 	// Stateless task
 	wg.Add(1)
@@ -145,7 +146,10 @@ func TestMixedStatefulAndStatelessTasks(t *testing.T) {
 
 		result, err := executor.Execute(ctx, task, Background)
 		if err != nil {
-			t.Errorf("Stateless task failed: %v", err)
+			mu.Lock()
+			statelessError = fmt.Errorf("stateless task failed: %v", err)
+			mu.Unlock()
+			return
 		}
 
 		mu.Lock()
@@ -170,7 +174,10 @@ func TestMixedStatefulAndStatelessTasks(t *testing.T) {
 
 		result, err := executor.Execute(ctx, task, Background)
 		if err != nil {
-			t.Errorf("Stateful task failed: %v", err)
+			mu.Lock()
+			statefulError = fmt.Errorf("stateful task failed: %v", err)
+			mu.Unlock()
+			return
 		}
 
 		mu.Lock()
@@ -179,6 +186,14 @@ func TestMixedStatefulAndStatelessTasks(t *testing.T) {
 	}()
 
 	wg.Wait()
+
+	// Check for errors from goroutines
+	if statelessError != nil {
+		t.Errorf("Stateless task error: %v", statelessError)
+	}
+	if statefulError != nil {
+		t.Errorf("Stateful task error: %v", statefulError)
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
