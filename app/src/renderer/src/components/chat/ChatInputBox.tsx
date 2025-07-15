@@ -101,7 +101,7 @@ export default function ChatInputBox({
           layout: { type: 'spring', stiffness: 200, damping: 30 }
         }}
         onLayoutAnimationComplete={onLayoutAnimationComplete}
-        className="relative overflow-hidden px-3 z-50 w-full flex items-center gap-2 border border-border rounded-lg dark:bg-background focus-within:bg-white focus-within:shadow-xl dark:focus-within:border-primary/25 transition-shadow duration-200"
+        className="relative overflow-hidden px-3 z-50 w-full flex items-center gap-2 border border-border rounded-lg dark:bg-background bg-white focus-within:shadow-xl dark:focus-within:border-primary/25 transition-shadow duration-200"
       >
         <motion.textarea
           layout="position"
