@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html class="bg-transparent">
   <head>
     <meta charset="UTF-8" />
     <title>Enchanted</title>
@@ -24,7 +24,7 @@
           https://apis.google.com
           https://www.gstatic.com;
         style-src  'self' 'unsafe-inline' https://fonts.googleapis.com;
-        font-src   'self' https://fonts.gstatic.com;
+        font-src   'self' https://fonts.gstatic.com data:;
         worker-src 'self' blob:;
         frame-src 'self' 
           https://accounts.google.com
@@ -41,7 +41,7 @@
     />
   </head>
 
-  <body class="bg-background text-foreground h-screen w-screen flex flex-col">
+  <body class="bg-transparent text-foreground h-screen w-screen flex flex-col">
     <div id="root" class="flex flex-1"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

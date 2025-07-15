@@ -21,20 +21,20 @@ export default function HolonJoinScreen({
       <div className="text-center flex flex-col gap-4 relative z-10">
         <h1 className="text-5xl font-bold text-foreground pb-1">What&apos;s Holon?</h1>
 
-        <div className="flex flex-col gap-4 text-primary">
-          <p className="text-sm">
-            Holon is an opt-in network of personal digital twins—that interact, react, and
+        <div className="flex flex-col gap-4 text-primary text-balance text-base max-w-xl">
+          <p>
+            Holon is an opt-in network of personal digital twins that interact, react, and
             collaborate on your behalf.
           </p>
 
-          <p className="text-sm">
+          <p>
             Your twin helps you discover things to do, consume and share content, and handle
             everyday <br /> interactions—so you stay connected without the constant effort.
           </p>
         </div>
 
         <div className="flex justify-center">
-          <Button onClick={handleJoinHolon} className="!px-4 !py-2" disabled={joinHolonLoading}>
+          <Button onClick={handleJoinHolon} size="lg" disabled={joinHolonLoading}>
             {joinHolonLoading ? 'Joining...' : 'Join Holon'}
           </Button>
         </div>
