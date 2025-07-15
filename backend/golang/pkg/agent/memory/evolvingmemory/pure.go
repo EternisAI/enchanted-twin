@@ -137,12 +137,22 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		return []*memory.MemoryFact{}, nil
 	}
 
+	// Use anti-duplication prompt for twin chat conversations
+	var systemPrompt string
+	if convDoc.Source() == "chat" {
+		systemPrompt = TwinChatFactExtractionPrompt
+		logger.Debug("Using twin chat anti-duplication prompt", "source", convDoc.Source())
+	} else {
+		systemPrompt = FactExtractionPrompt
+		logger.Debug("Using standard fact extraction prompt", "source", convDoc.Source())
+	}
+
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(FactExtractionPrompt),
+		openai.SystemMessage(systemPrompt),
 		openai.UserMessage(content),
 	}
 
-	logger.Debug("Sending conversation to LLM", "system_prompt_length", len(FactExtractionPrompt), "json_length", len(content))
+	logger.Debug("Sending conversation to LLM", "system_prompt_length", len(systemPrompt), "json_length", len(content))
 
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
@@ -190,11 +200,16 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			}
 
 			memoryFact.Content = memoryFact.GenerateContent()
-			if timestamp := sourceDoc.Timestamp(); timestamp != nil {
-				memoryFact.Timestamp = *timestamp
-			} else {
-				memoryFact.Timestamp = time.Now() // fallback if no timestamp available
+
+			if len(convDoc.Conversation) > 0 {
+				// Use the timestamp from the conversation messages for temporal context
+				firstMessageTime := convDoc.Conversation[0].Time
+				temporalContext := firstMessageTime.Format("2006-01-02") // YYYY-MM-DD format
+				memoryFact.TemporalContext = &temporalContext
 			}
+
+			// Timestamp is always when the fact was processed, not when the conversation happened
+			memoryFact.Timestamp = time.Now()
 
 			// Set document reference
 			if memoryFact.DocumentReferences == nil {
@@ -299,12 +314,16 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			memoryFact.ID = uuid.New().String()
 			memoryFact.Source = sourceDoc.Source()
 			memoryFact.Content = memoryFact.GenerateContent()
+
 			if timestamp := sourceDoc.Timestamp(); timestamp != nil {
-				memoryFact.Timestamp = *timestamp
-			} else {
-				memoryFact.Timestamp = time.Now()
+				temporalContext := timestamp.Format("2006-01-02") // YYYY-MM-DD format
+				memoryFact.TemporalContext = &temporalContext
 			}
 
+			// Timestamp is always when the fact was processed, not when the document was created
+			memoryFact.Timestamp = time.Now()
+
+			// Set document reference
 			if memoryFact.DocumentReferences == nil {
 				memoryFact.DocumentReferences = []string{sourceDoc.ID()}
 			}
