@@ -318,7 +318,7 @@ function OmnibarOverlay() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="rounded-lg overflow-hidden"
+                      className="rounded-lg overflow-auto max-h-[280px]"
                       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     >
                       <LayoutGroup>
