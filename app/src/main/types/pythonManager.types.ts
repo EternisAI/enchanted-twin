@@ -45,12 +45,6 @@ export interface AnonymiserResult {
   }>
 }
 
-export interface AnonymiserConfig {
-  modelName?: string
-  confidenceThreshold?: number
-  enabledEntityTypes?: string[]
-}
-
 export interface PythonEnvironmentConfig {
   projectName: string
   dependencies: string[]
