@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 )
 
@@ -26,10 +27,12 @@ func NewClient(logger *slog.Logger) (*Client, error) {
 		logger: logger,
 	}
 
-	// Start the Python server with unbuffered output
-	serverCmd := exec.Command("python3", "-u", "sample/sample.py")
+	// Start the Python server with unbuffered output using uv
+	serverCmd := exec.Command("uv", "run", "sample.py")
+	serverCmd.Dir = "sample"
 	serverCmd.Stdout = os.Stdout
 	serverCmd.Stderr = os.Stderr
+	serverCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := serverCmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start Python server: %w", err)
 	}
@@ -99,6 +102,11 @@ func (c *Client) Infer(input string) (string, error) {
 
 func (c *Client) Close() error {
 	if c.serverCmd != nil && c.serverCmd.Process != nil {
+		// Kill the entire process group to ensure all subprocesses are terminated
+		pgid, err := syscall.Getpgid(c.serverCmd.Process.Pid)
+		if err == nil {
+			_ = syscall.Kill(-pgid, syscall.SIGTERM)
+		}
 		_ = c.serverCmd.Process.Kill()
 		_ = c.serverCmd.Wait()
 	}
