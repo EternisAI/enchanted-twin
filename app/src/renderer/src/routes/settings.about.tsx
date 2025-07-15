@@ -48,7 +48,9 @@ function AboutSettings() {
         transition={{ duration: 2, ease: 'easeOut', delay: 1 }}
         className="absolute inset-0 z-0 opacity-10 h-screen isolate"
       >
-        <Brain />
+        <ErrorBoundary componentName="Versions" fallback={<></>}>
+          <Brain />
+        </ErrorBoundary>
       </motion.div>
       <SettingsContent className="p-0 gap-5 relative z-10 flex flex-col items-center justify-center">
         <motion.div
@@ -67,17 +69,7 @@ function AboutSettings() {
             Enchanted
           </motion.h1>
           <motion.div variants={itemVariants}>
-            <ErrorBoundary
-              componentName="Versions"
-              fallback={
-                <div className="w-full border-none flex flex-col gap-2 items-center text-center">
-                  <h2 className="text-2xl font-semibold">Version Information</h2>
-                  <p className="text-sm text-muted-foreground">Unable to load version details</p>
-                </div>
-              }
-            >
-              <Versions />
-            </ErrorBoundary>
+            <Versions />
           </motion.div>
           <motion.p className="text-sm text-muted-foreground" variants={itemVariants}>
             Made with 💚 by{' '}
