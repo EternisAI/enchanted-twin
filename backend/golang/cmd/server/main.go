@@ -44,7 +44,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/directorywatcher"
-	"github.com/EternisAI/enchanted-twin/pkg/engagement"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
@@ -136,7 +135,7 @@ func main() {
 	}
 
 	var localAnonymizer *llama1b.LlamaAnonymizer
-	if envs.AnonymizerType == "local" {
+	if envs.UseLocalAnonymizer == "true" {
 		logger.Info("Using local anonymizer model")
 		sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
 
@@ -147,66 +146,6 @@ func main() {
 			panic(errors.Wrap(err, "Failed to create local anonymizer model"))
 		}
 		logger.Info("Local anonymizer model initialized successfully")
-	}
-
-	// Initialize Private Completions Service
-	if envs.PrivateCompletionsEnabled {
-		var anonymizerManager *ai.AnonymizerManager
-
-		// Choose anonymizer based on configuration
-		switch envs.AnonymizerType {
-		case "local":
-			if localAnonymizer != nil {
-				logger.Info("Using local LLM anonymizer")
-				anonymizerManager = ai.NewLocalAnonymizerManager(localAnonymizer, store.DB().DB, logger)
-			} else {
-				logger.Warn("Local anonymizer requested but not initialized, falling back to no-op")
-				anonymizerManager = ai.NewNoOpAnonymizerManager(logger)
-			}
-		case "llm":
-			logger.Info("Using LLM-based anonymizer")
-			anonymizerManager = ai.NewLLMAnonymizerManager(aiCompletionsService, "openai/gpt-4o-mini", store.DB().DB, logger)
-		case "mock":
-			// Parse anonymizer delay for mock anonymizer
-			delay, err := time.ParseDuration(envs.MockAnonymizerDelay)
-			if err != nil {
-				logger.Warn("Invalid anonymizer delay, using default", "delay", envs.MockAnonymizerDelay, "error", err)
-				delay = 10 * time.Millisecond
-			}
-			logger.Info("Using mock anonymizer", "delay", delay)
-			anonymizerManager = ai.NewMockAnonymizerManager(delay, true, logger)
-		default: // "no-op" or any other value
-			logger.Info("Using no-op anonymizer")
-			anonymizerManager = ai.NewNoOpAnonymizerManager(logger)
-		}
-
-		// Ensure proper cleanup of anonymizer manager
-		defer anonymizerManager.Shutdown()
-
-		// Create private completions service instance
-		privateCompletions, err := ai.NewPrivateCompletionsService(ai.PrivateCompletionsConfig{
-			CompletionsService: aiCompletionsService,
-			AnonymizerManager:  anonymizerManager,
-			ExecutorWorkers:    envs.PrivateCompletionsWorkers,
-			Logger:             logger,
-		})
-		if err != nil {
-			log.Fatalf("Failed to create private completions service: %v", err)
-		}
-
-		// Enable private completions on the existing service
-		aiCompletionsService.EnablePrivateCompletions(privateCompletions, ai.Background)
-
-		anonymizerType := envs.AnonymizerType
-		if anonymizerType == "local" && localAnonymizer == nil {
-			anonymizerType = "no-op (local fallback)"
-		}
-
-		logger.Info("Private completions service initialized and enabled",
-			"workers", envs.PrivateCompletionsWorkers,
-			"anonymizer", anonymizerType)
-	} else {
-		logger.Info("Private completions service disabled")
 	}
 
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
@@ -618,17 +557,6 @@ func bootstrapTemporalWorker(
 	// Register identity activities
 	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
 	identityActivities.RegisterWorkflowsAndActivities(w)
-
-	friendService := engagement.NewFriendService(engagement.FriendServiceConfig{
-		Logger:          input.logger,
-		MemoryService:   input.memory,
-		IdentityService: identity.NewIdentityService(input.temporalClient),
-		TwinchatService: input.twinchatService,
-		AiService:       input.aiCompletionsService,
-		ToolRegistry:    input.toolsRegistry,
-		Store:           input.store,
-	})
-	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
 
 	// Register holon sync activities
 	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)

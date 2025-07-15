@@ -1,4 +1,4 @@
-import { Clock, ExternalLink, FileUp, Settings, Upload } from 'lucide-react'
+import { Clock, ExternalLink, FileUp, Settings, Upload, CheckCircle } from 'lucide-react'
 import { Button } from '../ui/button'
 import {
   Dialog,
@@ -15,7 +15,9 @@ import { ReactNode, useState } from 'react'
 import { TabsContent } from '../ui/tabs'
 import { TabsList, TabsTrigger } from '../ui/tabs'
 import { Tabs } from '../ui/tabs'
+import { Card } from '../ui/card'
 import { cn } from '@renderer/lib/utils'
+import { ScrollArea } from '../ui/scroll-area'
 
 export const DataSourceDialog = ({
   selectedSource,
@@ -23,7 +25,6 @@ export const DataSourceDialog = ({
   pendingDataSources,
   onFileSelect,
   onAddSource,
-  onFileDrop,
   customComponent
 }: {
   selectedSource: DataSource | null
@@ -45,45 +46,92 @@ export const DataSourceDialog = ({
 
   return (
     <Dialog open={!!selectedSource} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Add {selectedSource.label} Data</DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground/50" />
-            {EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate}
-          </DialogDescription>
+      <DialogContent
+        className="max-w-2xl h-[calc(100vh-2rem)] sm:h-auto sm:max-h-[90vh] p-0 flex flex-col overflow-hidden"
+        style={{ display: 'flex', flexDirection: 'column' }}
+      >
+        <DialogHeader className="p-4 sm:p-6 border-b flex-shrink-0">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="p-2 sm:p-3 bg-primary/10 rounded-lg flex-shrink-0">
+              {selectedSource.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-lg sm:text-xl">
+                Import {selectedSource.label}
+              </DialogTitle>
+              <DialogDescription className="mt-1">
+                <span className="block sm:inline">{selectedSource.description}</span>
+                {EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate && (
+                  <span className="flex items-center gap-2 mt-1 text-xs sm:text-sm">
+                    <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground/50" />
+                    {EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate}
+                  </span>
+                )}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid ${customComponent ? 'grid-cols-2' : 'grid-cols-1'} mb-6`}>
-            <TabsTrigger value="file" className="flex py-2 items-center gap-2">
-              <FileUp className="h-4 w-4" />
-              File Upload
-            </TabsTrigger>
+        <ScrollArea className="flex-1 min-h-0 overflow-y-auto">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 pb-6">
+            {customComponent ? (
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid grid-cols-2 p-1 bg-muted h-auto mb-3 sm:mb-6">
+                  <TabsTrigger
+                    value="file"
+                    className="data-[state=active]:bg-background data-[state=active]:shadow-sm text-xs sm:text-sm"
+                  >
+                    <FileUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <span className="hidden xs:inline">File Upload</span>
+                    <span className="xs:hidden">File</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value={customComponent.name}
+                    className="data-[state=active]:bg-background data-[state=active]:shadow-sm text-xs sm:text-sm"
+                  >
+                    <Settings className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    {customComponent.name}
+                  </TabsTrigger>
+                </TabsList>
 
-            {customComponent && (
-              <TabsTrigger value={customComponent.name} className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                {customComponent.name}
-              </TabsTrigger>
+                <TabsContent value="file" className="mt-0">
+                  <StandardFileUpload
+                    selectedSource={selectedSource}
+                    pendingDataSources={pendingDataSources}
+                    onFileSelect={onFileSelect}
+                  />
+                </TabsContent>
+
+                <TabsContent value={customComponent.name} className="mt-0">
+                  {customComponent.component}
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <StandardFileUpload
+                selectedSource={selectedSource}
+                pendingDataSources={pendingDataSources}
+                onFileSelect={onFileSelect}
+              />
             )}
-          </TabsList>
+          </div>
+        </ScrollArea>
 
-          <TabsContent value="file">
-            <StandardFileUpload
-              selectedSource={selectedSource}
-              pendingDataSources={pendingDataSources}
-              onFileSelect={onFileSelect}
-              onClose={onClose}
-              onAddSource={onAddSource}
-              onFileDrop={onFileDrop}
-            />
-          </TabsContent>
-
-          {customComponent && (
-            <TabsContent value="QR Code">{customComponent.component}</TabsContent>
-          )}
-        </Tabs>
+        <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 border-t flex-shrink-0">
+          <Button variant="outline" onClick={onClose} size="sm" className="sm:size-default">
+            Cancel
+          </Button>
+          <Button
+            onClick={onAddSource}
+            disabled={
+              !pendingDataSources[selectedSource.name] ||
+              !pendingDataSources[selectedSource.name]?.path
+            }
+            size="sm"
+            className="sm:size-default"
+          >
+            Add Data Source
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -93,18 +141,16 @@ const StandardFileUpload = ({
   selectedSource,
   pendingDataSources,
   onFileSelect,
-  onClose,
-  onAddSource,
   onFileDrop
 }: {
   selectedSource: DataSource
   pendingDataSources: Record<string, PendingDataSource>
   onFileSelect: () => void
-  onClose: () => void
-  onAddSource: () => void
   onFileDrop?: (files: File[], sourceName: string) => Promise<void>
 }) => {
   const [isDragOver, setIsDragOver] = useState(false)
+  const hasSelectedFile = !!pendingDataSources[selectedSource.name]?.path
+  const instructions = EXPORT_INSTRUCTIONS[selectedSource.name]
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -142,104 +188,126 @@ const StandardFileUpload = ({
       // Fallback to file browser
       onFileSelect()
     }
-    onClose()
   }
 
   return (
     <>
-      <div className="space-y-8">
-        <div className="space-y-4 py-4">
-          <div className="rounded-lg">
-            <ol className="space-y-4 flex flex-col gap-3">
-              {EXPORT_INSTRUCTIONS[selectedSource.name]?.steps.map((step, index) => (
-                <li key={index} className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-accent flex items-center justify-center text-primary font-medium text-sm">
-                    {index + 1}
+      <div className="flex flex-col gap-4 sm:gap-6">
+        {/* Export Instructions */}
+        {instructions?.steps && instructions.steps.length > 0 && (
+          <details className="group" open>
+            <summary className="cursor-pointer flex items-center justify-between text-sm font-semibold mb-3 hover:text-primary">
+              <span>How to export your data</span>
+              <span className="text-xs text-muted-foreground ml-2 group-open:hidden">
+                Show steps
+              </span>
+            </summary>
+            <div className="flex flex-col gap-3 sm:gap-4 py-2 sm:py-4">
+              {instructions?.steps?.map((step, index) => (
+                <div key={index} className="flex gap-2">
+                  <div className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-accent flex items-center justify-center">
+                    <span className="text-xs sm:text-sm font-medium text-accent-foreground">
+                      {index + 1}
+                    </span>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm">{step}</p>
-                  </div>
-                </li>
+                  <p className="text-xs sm:text-sm text-foreground pt-0.5">{step}</p>
+                </div>
               ))}
-            </ol>
-            {EXPORT_INSTRUCTIONS[selectedSource.name]?.link && (
-              <Button variant="link" className="mt-4 p-0 h-auto text-primary" asChild>
+            </div>
+
+            {instructions?.link && (
+              <Button variant="outline" size="sm" className="mt-2 w-full sm:w-auto" asChild>
                 <a
-                  href={EXPORT_INSTRUCTIONS[selectedSource.name].link}
+                  href={instructions.link}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2"
                 >
-                  Open {selectedSource.name} Export Page <ExternalLink className="h-4 w-4" />
+                  Open {selectedSource.label} Export Page
+                  <ExternalLink className="h-3.5 w-3.5" />
                 </a>
               </Button>
             )}
-          </div>
-        </div>
+          </details>
+        )}
 
-        <div
-          className={cn(
-            'flex flex-col gap-2 p-4 rounded-lg border-2 border-dashed transition-all duration-200 cursor-pointer',
-            isDragOver
-              ? 'border-primary bg-primary/5 scale-[1.02]'
-              : 'border-border bg-card dark:bg-muted'
-          )}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={onFileSelect}
-        >
-          <div className="flex flex-col items-center gap-2 text-center">
-            <div
-              className={cn(
-                'p-4 rounded-full transition-colors',
-                isDragOver ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+        {/* File Selection */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold">Select your export file</h3>
+          <Card
+            className={cn(
+              'p-4 sm:p-6 border-2 border-dashed cursor-pointer transition-colors',
+              isDragOver
+                ? 'border-primary bg-primary/5 scale-[1.02]'
+                : hasSelectedFile
+                  ? 'border-primary bg-primary/5'
+                  : 'hover:border-primary/50'
+            )}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={onFileSelect}
+          >
+            <div className="flex flex-col items-center gap-2 sm:gap-3 text-center">
+              {hasSelectedFile ? (
+                <>
+                  <CheckCircle className="h-8 w-8 sm:h-10 sm:w-10 text-primary" />
+                  <div className="space-y-1">
+                    <p className="text-xs sm:text-sm font-medium">File selected</p>
+                    <p className="text-xs text-muted-foreground max-w-[200px] sm:max-w-none truncate">
+                      {truncatePath(pendingDataSources[selectedSource.name].path)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onFileSelect()
+                    }}
+                    className="text-xs sm:text-sm"
+                  >
+                    Change file
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Upload
+                    className={cn(
+                      'h-8 w-8 sm:h-10 sm:w-10 transition-colors',
+                      isDragOver ? 'text-primary' : 'text-muted-foreground'
+                    )}
+                  />
+                  <div className="space-y-1">
+                    <p className="text-xs sm:text-sm font-medium">
+                      {isDragOver ? 'Drop your file here' : 'Drag & drop your file here'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedSource.fileRequirement}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground w-full max-w-[200px]">
+                    <div className="h-px bg-border flex-1"></div>
+                    <span>or</span>
+                    <div className="h-px bg-border flex-1"></div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onFileSelect()
+                    }}
+                    className="text-xs sm:text-sm"
+                  >
+                    Browse Files
+                  </Button>
+                </>
               )}
-            >
-              <Upload className="w-5 h-5" />
             </div>
-
-            <div className="space-y-2">
-              <p
-                className={cn(
-                  'text-md font-medium transition-colors',
-                  isDragOver ? 'text-primary' : 'text-foreground'
-                )}
-              >
-                {isDragOver ? 'Drop your file here' : 'Drag & drop your file here'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {pendingDataSources[selectedSource.name]?.path
-                  ? truncatePath(pendingDataSources[selectedSource.name]?.path)
-                  : selectedSource.fileRequirement}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <div className="h-px bg-border flex-1"></div>
-              <span>or</span>
-              <div className="h-px bg-border flex-1"></div>
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation()
-                onFileSelect()
-              }}
-            >
-              Browse Files
-            </Button>
-          </div>
+          </Card>
         </div>
       </div>
-      <DialogFooter className="pt-4">
-        <Button variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button onClick={onAddSource} disabled={!pendingDataSources[selectedSource.name]}>
-          Add Source
-        </Button>
-      </DialogFooter>
     </>
   )
 }

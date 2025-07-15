@@ -79,6 +79,7 @@ export function useGoServer() {
   const start = useCallback(async () => {
     try {
       const status = await getGoServerStatus()
+
       if (status.isRunning) {
         setState({ initializing: false, isRunning: true })
         return { success: true }
@@ -87,6 +88,7 @@ export function useGoServer() {
       setState((prev) => ({ ...prev, initializing: true, error: undefined }))
 
       const result = await initializeGoServer()
+
       if (result.success) {
         setState({ initializing: false, isRunning: true })
       } else {
@@ -139,7 +141,7 @@ export function useGoServer() {
 
     try {
       setState((prev) => ({ ...prev, initializing: true, error: undefined }))
-
+      console.log('[useGoServer] Initializing Go Server')
       const status = await getGoServerStatus()
       if (status.isRunning) {
         setState({ initializing: false, isRunning: true })

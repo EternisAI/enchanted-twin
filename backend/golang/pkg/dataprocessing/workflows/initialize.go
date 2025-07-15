@@ -297,18 +297,21 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			continue
 		}
 
-		// Ensure we release the claim in case of any error
-		defer func(dsID string, idx int) {
-			releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
-				DataSourceID: dsID,
-				WorkflowID:   workflowID,
-			}).Get(ctx, nil)
-			if releaseErr != nil {
-				workflow.GetLogger(ctx).Error("Failed to release data source claim after indexing",
-					"error", releaseErr,
-					"dataSource", dsID)
+		// Track if we need to release the claim (will be set to false on successful completion)
+		needsRelease := true
+		defer func(dsID string, needsReleasePtr *bool) {
+			if *needsReleasePtr {
+				releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
+					DataSourceID: dsID,
+					WorkflowID:   workflowID,
+				}).Get(ctx, nil)
+				if releaseErr != nil {
+					workflow.GetLogger(ctx).Error("Failed to release data source claim after indexing",
+						"error", releaseErr,
+						"dataSource", dsID)
+				}
 			}
-		}(dataSourceDB.ID, i)
+		}(dataSourceDB.ID, &needsRelease)
 
 		// TODO: systematically decide batching strategy
 		batchSize := 20
@@ -343,6 +346,31 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				result.IndexingStatus = "completed"
 				result.IsIndexed = true
 				result.DocumentsStored = 0
+			}
+
+			// Update database state and release claim for no-batch completion
+			updateStateInput := UpdateDataSourceStateActivityInput{
+				DataSourceID: dataSourceDB.ID,
+				IsIndexed:    true,
+				HasError:     false,
+			}
+			err = workflow.ExecuteActivity(ctx, w.UpdateDataSourceStateActivity, updateStateInput).Get(ctx, nil)
+			if err != nil {
+				workflow.GetLogger(ctx).Error("Failed to update data source state for no-batch completion", "error", err)
+			} else {
+				// Release the claim after successful database update
+				releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
+					DataSourceID: dataSourceDB.ID,
+					WorkflowID:   workflowID,
+				}).Get(ctx, nil)
+				if releaseErr != nil {
+					workflow.GetLogger(ctx).Error("Failed to release data source claim after no-batch completion",
+						"error", releaseErr,
+						"dataSource", dataSourceDB.Name)
+				} else {
+					// Successfully released, prevent defer from running
+					needsRelease = false
+				}
 			}
 			continue
 		}
@@ -465,6 +493,20 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				err = workflow.ExecuteActivity(ctx, w.UpdateDataSourceStateActivity, updateStateInput).Get(ctx, nil)
 				if err != nil {
 					workflow.GetLogger(ctx).Error("Failed to update data source state", "error", err)
+				} else {
+					// Release the claim after successful database update
+					releaseErr := workflow.ExecuteActivity(ctx, w.ReleaseDataSourceActivity, ReleaseDataSourceInput{
+						DataSourceID: dataSourceDB.ID,
+						WorkflowID:   workflowID,
+					}).Get(ctx, nil)
+					if releaseErr != nil {
+						workflow.GetLogger(ctx).Error("Failed to release data source claim after successful indexing",
+							"error", releaseErr,
+							"dataSource", dataSourceDB.Name)
+					} else {
+						// Successfully released, prevent defer from running
+						needsRelease = false
+					}
 				}
 			}
 		}
@@ -600,7 +642,16 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 
 	isNewFormat := w.isNewFormatProcessor(input.DataSourceName)
 
+	w.Logger.Info("ProcessDataActivity: Format detection",
+		"dataSource", input.DataSourceName,
+		"isNewFormat", isNewFormat)
+
 	if isNewFormat {
+		w.Logger.Info("ProcessDataActivity: Processing new format data source",
+			"dataSource", input.DataSourceName,
+			"dataSourceID", input.DataSourceID,
+			"sourcePath", input.SourcePath)
+
 		// New format processors (telegram, whatsapp, etc.) store documents directly in memory
 		// No file is created, so we use a special marker path
 		success, err := dataprocessingService.ProcessSource(
@@ -622,11 +673,23 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 
 		// Use a special marker to indicate direct processing (no file)
 		processedPath := fmt.Sprintf("direct://%s_%s", input.DataSourceName, input.DataSourceID)
+		w.Logger.Info("ProcessDataActivity: Setting direct processing path",
+			"dataSource", input.DataSourceName,
+			"dataSourceID", input.DataSourceID,
+			"processedPath", processedPath)
+
 		err = w.Store.UpdateDataSourceProcessedPath(ctx, input.DataSourceID, processedPath)
 		if err != nil {
+			w.Logger.Error("ProcessDataActivity: Failed to update processed path",
+				"error", err,
+				"dataSource", input.DataSourceName,
+				"processedPath", processedPath)
 			return ProcessDataActivityResponse{}, err
 		}
 
+		w.Logger.Info("ProcessDataActivity: Successfully processed new format data source",
+			"dataSource", input.DataSourceName,
+			"success", success)
 		return ProcessDataActivityResponse{Success: success}, nil
 	} else {
 		// Old format processors create JSONL files
@@ -704,6 +767,12 @@ func (w *DataProcessingWorkflows) GetBatchesActivity(
 	ctx context.Context,
 	input GetBatchesActivityInput,
 ) (GetBatchesActivityResponse, error) {
+	w.Logger.Info("GetBatchesActivity: Starting batch calculation",
+		"dataSource", input.DataSourceName,
+		"dataSourceID", input.DataSourceID,
+		"processedPath", input.ProcessedPath,
+		"batchSize", input.BatchSize)
+
 	if input.BatchSize <= 0 {
 		return GetBatchesActivityResponse{}, errors.New("batch size must be positive")
 	}
@@ -713,6 +782,9 @@ func (w *DataProcessingWorkflows) GetBatchesActivity(
 
 	// Check if this is a direct processing marker (documents already stored in memory)
 	if strings.HasPrefix(input.ProcessedPath, "direct://") {
+		w.Logger.Info("GetBatchesActivity: Detected direct processing path, no indexing needed",
+			"dataSource", input.DataSourceName,
+			"processedPath", input.ProcessedPath)
 		// Documents were stored directly in memory during processing, no indexing needed
 		return GetBatchesActivityResponse{TotalBatches: 0}, nil
 	}
@@ -757,6 +829,13 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 	ctx context.Context,
 	input IndexBatchActivityInput,
 ) (IndexBatchActivityResponse, error) {
+	w.Logger.Info("IndexBatchActivity: Starting batch indexing",
+		"dataSource", input.DataSourceName,
+		"batchIndex", input.BatchIndex,
+		"batchSize", input.BatchSize,
+		"totalBatches", input.TotalBatches,
+		"processedPath", input.ProcessedPath)
+
 	if input.BatchIndex < 0 {
 		return IndexBatchActivityResponse{}, errors.New("batch index cannot be negative")
 	}

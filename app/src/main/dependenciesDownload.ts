@@ -8,7 +8,7 @@ import * as tar from 'tar'
 import { windowManager } from './windows'
 import { DependencyName } from './types/dependencies'
 
-const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'Enchanted')
+const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
 const DEPENDENCIES_CONFIGS: Record<
   DependencyName,

@@ -7,9 +7,8 @@ import { is } from '@electron-toolkit/utils'
 import { windowManager } from './windows'
 import { openOAuthWindow, startFirebaseOAuth, cleanupOAuthServer } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
-import { keyboardShortcutsStore } from './stores'
+import { keyboardShortcutsStore, screenpipeStore } from './stores'
 import { updateMenu } from './menuSetup'
-// import { getKokoroState } from './kokoroManager'
 import {
   startLiveKitAgent,
   stopLiveKitAgent,
@@ -23,6 +22,7 @@ import {
 import { downloadDependency, hasDependenciesDownloaded } from './dependenciesDownload'
 import { DependencyName } from './types/dependencies'
 import { initializeGoServer, cleanupGoServer, isGoServerRunning } from './goServer'
+import { generateTTS } from './ttsManager'
 
 const PATHNAME = 'input_data'
 
@@ -40,6 +40,21 @@ export function registerIpcHandlers() {
   ipcMain.on('renderer-ready', () => {
     log.info('Renderer process is ready for navigation')
     windowManager.processPendingNavigation()
+
+    // Process restart intent if present
+    const restartIntent = screenpipeStore.get('restartIntent')
+    if (restartIntent) {
+      log.info(
+        `Processing restart intent: ${restartIntent.route}, modal: ${restartIntent.showModal}`
+      )
+      const navigationUrl = restartIntent.showModal
+        ? `${restartIntent.route}?screenpipe=true`
+        : restartIntent.route
+      windowManager.setPendingNavigation(navigationUrl)
+      windowManager.processPendingNavigation()
+      // Clear the restart intent after processing
+      screenpipeStore.delete('restartIntent')
+    }
   })
 
   ipcMain.on('open-oauth-url', async (_, url, redirectUri) => {
@@ -61,7 +76,7 @@ export function registerIpcHandlers() {
       return { success: true, loginUrl }
     } catch (error) {
       log.error('[Main] Failed to start Firebase OAuth server:', error)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -72,7 +87,7 @@ export function registerIpcHandlers() {
       return { success: true }
     } catch (error) {
       log.error('[Main] Failed to cleanup OAuth server:', error)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -134,6 +149,25 @@ export function registerIpcHandlers() {
         properties: ['openFile'],
         filters: options?.filters
       })
+
+      // Add file size information
+      if (!result.canceled && result.filePaths.length > 0) {
+        const fileSizes: number[] = []
+        for (const filePath of result.filePaths) {
+          try {
+            const stats = fs.statSync(filePath)
+            fileSizes.push(stats.size)
+          } catch (error) {
+            console.error('Error getting file stats:', error)
+            fileSizes.push(0)
+          }
+        }
+        return {
+          ...result,
+          fileSizes
+        }
+      }
+
       return result
     }
   )
@@ -664,6 +698,26 @@ export function registerIpcHandlers() {
       success: true,
       isRunning,
       message: isRunning ? 'Go server is running' : 'Go server is not running'
+    }
+  })
+
+  ipcMain.handle('tts:generate', async (_, text: string, firebaseToken: string) => {
+    try {
+      const audioBuffer = await generateTTS(text, firebaseToken)
+
+      if (!audioBuffer) {
+        return { success: false, error: 'Failed to generate TTS' }
+      }
+
+      // Convert ArrayBuffer to Buffer for IPC transmission
+      const buffer = Buffer.from(audioBuffer)
+      return { success: true, audioBuffer: buffer }
+    } catch (error) {
+      log.error('[TTS] IPC handler error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
     }
   })
 }
