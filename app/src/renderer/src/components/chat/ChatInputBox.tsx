@@ -21,6 +21,7 @@ type ChatInputBoxProps = {
   isVoiceMode: boolean
   onVoiceModeChange: (toggleSidebar?: boolean) => void
   handleCreateChat: () => void
+  onLayoutAnimationComplete?: () => void
 }
 
 export default function ChatInputBox({
@@ -33,12 +34,14 @@ export default function ChatInputBox({
   handleSubmit,
   setIsReasonSelected,
   handleCreateChat,
-  onVoiceModeChange
+  onVoiceModeChange,
+  onLayoutAnimationComplete
 }: ChatInputBoxProps) {
   return (
     <motion.div
       layoutId="message-input-container"
       transition={{ type: 'spring', stiffness: 350, damping: 55 }}
+      onLayoutAnimationComplete={onLayoutAnimationComplete}
       className="relative z-50 flex items-center gap-2 w-full border border-border rounded-lg px-2.5 py-0 dark:bg-background focus-within:bg-white focus-within:shadow-xl dark:focus-within:border-primary/25 transition-shadow duration-200"
     >
       <Textarea
