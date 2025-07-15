@@ -69,7 +69,7 @@ export const keyboardShortcutsStore = new Store<KeyboardShortcutsStoreData>({
     '>=0.0.1': (store) => {
       // Ensure all shortcuts have proper structure
       const shortcuts = store.get('shortcuts', {})
-      const fixed: any = {}
+      const fixed: KeyboardShortcutsStoreData['shortcuts'] = {}
 
       // For each default shortcut, ensure it exists with proper structure
       Object.entries(defaultShortcuts).forEach(([action, defaultShortcut]) => {
@@ -92,6 +92,14 @@ export const keyboardShortcutsStore = new Store<KeyboardShortcutsStoreData>({
 
       store.set('shortcuts', fixed)
     }
+  }
+})
+
+export const appStore = new Store({
+  name: 'app-settings',
+  defaults: {
+    internetSpeed: null,
+    internetSpeedTimestamp: null
   }
 })
 

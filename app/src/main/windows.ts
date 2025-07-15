@@ -28,6 +28,8 @@ class WindowManagerImpl implements WindowManager {
     const mainWindow = new BrowserWindow({
       width: 1200,
       height: 800,
+      minWidth: 800,
+      minHeight: 600,
       show: false,
       titleBarStyle: 'hidden',
       autoHideMenuBar: true,
@@ -83,18 +85,18 @@ class WindowManagerImpl implements WindowManager {
 
     const omnibarWindow = new BrowserWindow({
       width: 500,
-      height: 64,
-      minHeight: 64,
+      height: 68,
+      minHeight: 68,
       maxHeight: 500,
       minWidth: 500,
       maxWidth: 800,
-      show: false,
+      show: true,
+      transparent: true,
       // backgroundColor: '#00000000',
       frame: false,
-      transparent: true,
       alwaysOnTop: true,
       skipTaskbar: true,
-      resizable: true,
+      resizable: false,
       movable: true,
       minimizable: false,
       maximizable: false,
@@ -105,7 +107,7 @@ class WindowManagerImpl implements WindowManager {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         nodeIntegration: false,
-        contextIsolation: true
+        contextIsolation: false
       }
     })
 
@@ -149,7 +151,7 @@ class WindowManagerImpl implements WindowManager {
       omnibarWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/omnibar-overlay`)
     } else {
       omnibarWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-        hash: 'omnibar-overlay'
+        hash: '/omnibar-overlay'
       })
     }
 

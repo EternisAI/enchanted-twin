@@ -1,8 +1,8 @@
 import { createFileRoute, Outlet, Navigate } from '@tanstack/react-router'
 import { Button } from '@renderer/components/ui/button'
-import { ArrowLeft, Info } from 'lucide-react'
+import { ArrowLeft, Info, PlugIcon } from 'lucide-react'
 import { Link, useRouterState, useRouter } from '@tanstack/react-router'
-import { Database, Settings2, Shield } from 'lucide-react'
+import { Settings2, Shield } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
@@ -16,8 +16,8 @@ export const Route = createFileRoute('/settings')({
 const settingsTabs = [
   {
     value: 'data-sources',
-    label: 'Data Sources',
-    icon: Database,
+    label: 'Connections',
+    icon: PlugIcon,
     path: '/settings/data-sources'
   },
   {
@@ -77,7 +77,7 @@ function SettingsLayout() {
         Settings
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 border-b no-drag">
+        <div className="p-4 border-b no-drag border-border">
           <Button variant="ghost" className="h-9 px-2 absolute left-4" onClick={handleBackClick}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back

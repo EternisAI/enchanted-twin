@@ -78,6 +78,8 @@ export function ChatProvider({
     return chat.messages
   })
 
+  const [lastMessageStartTime, setLastMessageStartTime] = useState<number | null>(null)
+
   const { isVoiceMode } = useVoiceStore()
 
   const upsertMessage = useCallback((msg: Message) => {
@@ -160,6 +162,14 @@ export function ChatProvider({
     const messageText = deanonymizedAccumulatedMessage || accumulatedMessage || ''
     
     if (!existingMessage) {
+      if (lastMessageStartTime) {
+        window.api.analytics.capture('message_response_time', {
+          duration: Date.now() - lastMessageStartTime
+        })
+
+        setLastMessageStartTime(null)
+      }
+
       upsertMessage({
         id: messageId,
         text: messageText,
@@ -228,6 +238,8 @@ export function ChatProvider({
       setError('')
       setHistoricToolCalls((prev) => [...activeToolCalls, ...prev])
       setActiveToolCalls([])
+      setLastMessageStartTime(Date.now())
+
       window.api.analytics.capture('message_sent', {
         reasoning: isReasonSelected
       })
@@ -238,7 +250,7 @@ export function ChatProvider({
   const { sendMessage: sendMessageHook } = useSendMessage(chat.id, handleSendMessage, (msg) => {
     console.error('SendMessage error', msg)
 
-    window.api.analytics.capture('error_occurred', {
+    window.api.analytics.capture('message_error_occurred', {
       error_type: 'message_send_failed',
       component: 'ChatContext',
       message: msg.text ?? 'Error sending message'

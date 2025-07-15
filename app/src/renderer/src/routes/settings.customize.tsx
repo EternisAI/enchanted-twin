@@ -11,7 +11,7 @@ export const Route = createFileRoute('/settings/customize')({
 function KeyboardSettings() {
   return (
     <SettingsContent>
-      {/* <h1 className="text-4xl font-semibold">Customize</h1> */}
+      <h1 className="text-4xl tracking-tight font-semibold">Customize</h1>
       <Card className="flex flex-col gap-4 divide-y p-0">
         <div className="flex flex-col md:flex-row gap-4 justify-between p-4">
           <h2 className="text-xl font-semibold p-2">Appearance</h2>

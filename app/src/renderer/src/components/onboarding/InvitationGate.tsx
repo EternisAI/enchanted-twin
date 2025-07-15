@@ -10,6 +10,7 @@ import { OnboardingVoiceAnimation } from './new/Animations'
 import { useTheme } from '@renderer/lib/theme'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import GoogleSignInButton from '../oauth/GoogleSignInButton'
+import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import XSignInButton from '../oauth/XSignInButton'
 import Loading from '../Loading'
 
@@ -74,15 +75,18 @@ export default function InvitationGate({ children }: { children: React.ReactNode
 
   if (!user) {
     return (
-      <InvitationWrapper showTitlebar showAnimation showPrivacyText>
-        <OnboardingLayout
-          title="Beta Access"
-          subtitle="Login for Beta access."
-          className="text-white"
-        >
-          <div className="flex flex-col gap-4 items-center ">
-            <GoogleSignInButton />
-            <XSignInButton />
+      <InvitationWrapper showTitlebar showAnimation>
+        <OnboardingLayout title="" subtitle="" className="text-white">
+          <div className="flex flex-col gap-6 text-primary-foreground p-10 border border-white/48 rounded-lg bg-white/5 min-w-sm">
+            <div className="flex flex-col gap-1 text-center items-center">
+              <img src={FreysaLoading} alt="Enchanted" className="w-16 h-16" />
+              <h1 className="text-lg font-normal text-white">Welcome to Enchanted</h1>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <GoogleSignInButton />
+              <XSignInButton />
+            </div>
           </div>
         </OnboardingLayout>
       </InvitationWrapper>
@@ -90,7 +94,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   }
 
   return (
-    <InvitationWrapper showTitlebar showAnimation showPrivacyText>
+    <InvitationWrapper showTitlebar showAnimation>
       <OnboardingLayout
         title="Invitation Code"
         subtitle="Enter your invite code to access Enchanted"

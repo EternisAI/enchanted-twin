@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Switch } from '../ui/switch'
 import { Button } from '../ui/button'
 import { ArrowDown, Eye, EyeClosed } from 'lucide-react'
+import { Fade } from '../ui/blur-fade'
 
 interface ChatViewProps {
   chat: Chat
@@ -91,10 +92,17 @@ export default function ChatView({ chat }: ChatViewProps) {
 
   return (
     <div className="flex flex-col h-full w-full items-center relative">
+      <Fade
+        background="var(--color-background)"
+        className="w-full h-[100px] absolute top-0 left-0 z-20 pointer-events-none"
+        side="top"
+        blur="6px"
+        stop="5%"
+      />
       <div
         ref={containerRef}
         onScroll={onScroll}
-        className="flex flex-1 flex-col w-full overflow-y-auto"
+        className="flex flex-1 flex-col w-full overflow-y-auto pt-10"
       >
         <div className="flex w-full justify-center">
           <div className="flex flex-col max-w-4xl items-center p-4 w-full">
@@ -103,12 +111,12 @@ export default function ChatView({ chat }: ChatViewProps) {
                 <HolonThreadContext threadId={chat.holonThreadId} />
               )}
               {showAnonymizationToggle && (
-                <div className="absolute top-0 right-12 flex justify-end mb-2">
+                <div className="absolute top-4 right-4 flex justify-end mb-2 z-40">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         onClick={() => setIsAnonymized(!isAnonymized)}
-                        className="p-2 rounded-md bg-accent cursor-pointer hover:bg-accent/50"
+                        className="p-2 rounded-md bg-accent no-drag cursor-pointer hover:bg-accent/50"
                         variant="ghost"
                         size="sm"
                       >
