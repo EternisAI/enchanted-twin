@@ -3,7 +3,6 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { omnibarStore } from './stores'
-import liquidGlass from 'electron-liquid-glass'
 
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 
@@ -153,15 +152,6 @@ class WindowManagerImpl implements WindowManager {
     } else {
       omnibarWindow.loadFile(join(__dirname, '../renderer/index.html'), {
         hash: '/omnibar-overlay'
-      })
-      omnibarWindow.webContents.once('did-finish-load', () => {
-        // 🪄 Apply effect, get handle
-        const glassId = liquidGlass.addView(omnibarWindow.getNativeWindowHandle(), {
-          /* options */
-        })
-        console.log(glassId)
-
-        // Experimental, undocumented private APIs
       })
     }
 
