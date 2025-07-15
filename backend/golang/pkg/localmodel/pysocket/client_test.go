@@ -2,6 +2,7 @@ package pysocket
 
 import (
 	"testing"
+	"time"
 )
 
 func TestPySocketInfer(t *testing.T) {
@@ -10,6 +11,9 @@ func TestPySocketInfer(t *testing.T) {
 		t.Fatalf("Failed to create client: %v", err)
 	}
 	defer client.Close()
+
+	// Wait for Python server to start and load model
+	time.Sleep(6 * time.Second)
 
 	response, err := client.Infer("test input")
 	if err != nil {
