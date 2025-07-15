@@ -25,7 +25,6 @@ type LocalAnonymizer struct {
 	logger *log.Logger
 }
 
-// NewLocalAnonymizer creates a new LocalAnonymizer instance.
 func NewLocalAnonymizer(llama LlamaAnonymizerInterface, db *sql.DB, logger *log.Logger) *LocalAnonymizer {
 	return &LocalAnonymizer{
 		llama:  llama,
@@ -35,7 +34,6 @@ func NewLocalAnonymizer(llama LlamaAnonymizerInterface, db *sql.DB, logger *log.
 	}
 }
 
-// AnonymizeMessages implements the Anonymizer interface.
 func (l *LocalAnonymizer) AnonymizeMessages(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
 	if conversationID == "" {
 		// Memory-only mode

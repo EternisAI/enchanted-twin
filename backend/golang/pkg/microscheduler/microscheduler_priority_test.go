@@ -71,12 +71,6 @@ func TestSingleProcessorPriority(t *testing.T) {
 		t.Errorf("Expected 4 completed tasks, got %d", len(executionOrder))
 	}
 
-	// Verify priority scheduling behavior:
-	// Since tasks are submitted with delays, we need to check priority within overlapping execution windows
-	// BG-1 (0ms) should run first since no higher priority tasks are queued
-	// UI-1 (50ms) should run before BG-2 (100ms) if they overlap
-	// UI-2 (150ms) should run before any remaining background tasks if they overlap
-
 	// Check that UI-1 appears before BG-2 (these should overlap in execution)
 	ui1Pos := -1
 	bg2Pos := -1
@@ -93,7 +87,6 @@ func TestSingleProcessorPriority(t *testing.T) {
 		t.Errorf("UI-1 task (pos %d) should appear before BG-2 task (pos %d) due to higher priority", ui1Pos, bg2Pos)
 	}
 
-	// Verify we have the correct number of each task type
 	uiCount := 0
 	bgCount := 0
 	for _, entry := range executionOrder {
