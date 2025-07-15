@@ -43,7 +43,7 @@ export default function MessageList({
             {[...Array(3)].map((_, i) => (
               <div
                 key={i}
-                className="h-2 w-2 bg-gray-500 rounded-full animate-bounce"
+                className="h-2 w-2 bg-accent rounded-full animate-bounce"
                 style={{ animationDelay: `${i * 0.15}s` }}
               />
             ))}
