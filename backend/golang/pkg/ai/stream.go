@@ -9,10 +9,7 @@ import (
 	"github.com/openai/openai-go/option"
 )
 
-type StreamDelta struct {
-	ContentDelta string
-	IsCompleted  bool
-}
+// StreamDelta is now defined in private.go to include anonymization fields
 
 type Stream struct {
 	Content   <-chan StreamDelta
