@@ -24,6 +24,16 @@ func NewReplacementTrie() *ReplacementTrie {
 
 // Insert adds a pattern and its replacement to the trie.
 func (t *ReplacementTrie) Insert(pattern, replacement string) {
+	// Validate input pattern - empty patterns can cause matching issues
+	if pattern == "" {
+		return // Early return for empty patterns
+	}
+
+	// Validate trie root
+	if t.root == nil {
+		return // Early return if trie is not properly initialized
+	}
+
 	current := t.root
 
 	for _, r := range pattern {
