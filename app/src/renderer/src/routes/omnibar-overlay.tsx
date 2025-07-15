@@ -47,6 +47,14 @@ function OmnibarResults({
               type="button"
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               onClick={() => handleOpenChat(chat.id)}
+              role="option"
+              aria-selected={selectedIndex === index}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleOpenChat(chat.id)
+                }
+              }}
               className={cn(
                 'flex w-full items-center justify-between px-3 py-2 text-left text-sm text-muted-foreground transition-colors rounded-md duration-100',
                 'hover:bg-sidebar-accent',
