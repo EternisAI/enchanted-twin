@@ -7,7 +7,7 @@ import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { createHashHistory } from '@tanstack/react-router'
 
 import { ApolloClientProvider } from './graphql/provider'
-import { ThemeProvider } from './lib/theme'
+import { SyncedThemeProvider } from './components/SyncedThemeProvider'
 import { TTSProvider } from './lib/ttsProvider'
 import { GoLogsProvider } from './contexts/GoLogsContext'
 import { AuthProvider } from './contexts/AuthContext'
@@ -28,17 +28,9 @@ declare module '@tanstack/react-router' {
   }
 }
 
-const savedTheme = (() => {
-  try {
-    return (localStorage.getItem('theme') as 'dark' | 'light' | 'system') || 'system'
-  } catch {
-    return 'system'
-  }
-})()
-
 function App() {
   return (
-    <ThemeProvider defaultTheme={savedTheme}>
+    <SyncedThemeProvider>
       <Toaster position="bottom-right" />
       <TTSProvider>
         <ApolloClientProvider>
@@ -57,7 +49,7 @@ function App() {
           </GoLogsProvider>
         </ApolloClientProvider>
       </TTSProvider>
-    </ThemeProvider>
+    </SyncedThemeProvider>
   )
 }
 

@@ -28,6 +28,7 @@ interface IApi {
   getNativeTheme: () => Promise<'light' | 'dark'>
   setNativeTheme: (theme: 'system' | 'light' | 'dark') => Promise<'light' | 'dark'>
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => void
+  onThemeChanged: (callback: (theme: 'system' | 'light' | 'dark') => void) => () => void
   openOAuthUrl: (url: string, redirectUri?: string) => void
   onOAuthCallback: (callback: (data: { state: string; code: string }) => void) => void
   openLogsFolder: () => Promise<boolean>
