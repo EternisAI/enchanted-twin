@@ -49,6 +49,7 @@ type Service struct {
 	toolRegistry     *tools.ToolMapRegistry
 	userStorage      *db.Store
 	identityService  *identity.IdentityService
+	anonymizerType   string
 }
 
 func NewService(
@@ -62,6 +63,7 @@ func NewService(
 	completionsModel string,
 	reasoningModel string,
 	identityService *identity.IdentityService,
+	anonymizerType string,
 ) *Service {
 	return &Service{
 		logger:           logger,
@@ -74,6 +76,7 @@ func NewService(
 		toolRegistry:     registry,
 		userStorage:      userStorage,
 		identityService:  identityService,
+		anonymizerType:   anonymizerType,
 	}
 }
 
@@ -353,27 +356,39 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
-	// Use real anonymization rules from the agent response
-	if len(response.ReplacementRules) > 0 {
-		privacyDictJson, err := createPrivacyDictFromReplacementRules(chatID, response.ReplacementRules)
+	// Handle privacy dictionary update based on anonymizer type
+	var privacyDictJson *string
+
+	if s.anonymizerType == "mock" {
+		// Use mock anonymizer for development/testing
+		privacyDictJson, err = MockAnonymizer(ctx, chatID, message)
+		if err != nil {
+			s.logger.Error("failed to generate mock privacy dictionary", "error", err)
+		}
+	} else if len(response.ReplacementRules) > 0 {
+		// Use real anonymization rules from the agent response
+		privacyDictJson, err = createPrivacyDictFromReplacementRules(chatID, response.ReplacementRules)
 		if err != nil {
 			s.logger.Error("failed to generate privacy dictionary from replacement rules", "error", err)
+		}
+	}
+
+	// Update privacy dictionary if we have one
+	if privacyDictJson != nil {
+		err = s.storage.UpdateChatPrivacyDict(ctx, chatID, privacyDictJson)
+		if err != nil {
+			s.logger.Error("failed to update chat privacy dictionary", "error", err)
 		} else {
-			err = s.storage.UpdateChatPrivacyDict(ctx, chatID, privacyDictJson)
-			if err != nil {
-				s.logger.Error("failed to update chat privacy dictionary", "error", err)
-			} else {
-				s.logger.Info("updated chat privacy dictionary", "chat_id", chatID)
+			s.logger.Info("updated chat privacy dictionary", "chat_id", chatID, "type", s.anonymizerType)
 
-				go func() {
-					privacyUpdate := model.PrivacyDictUpdate{
-						ChatID:          chatID,
-						PrivacyDictJSON: *privacyDictJson,
-					}
+			go func() {
+				privacyUpdate := model.PrivacyDictUpdate{
+					ChatID:          chatID,
+					PrivacyDictJSON: *privacyDictJson,
+				}
 
-					_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.privacy_dict", chatID), privacyUpdate)
-				}()
-			}
+				_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.privacy_dict", chatID), privacyUpdate)
+			}()
 		}
 	}
 
