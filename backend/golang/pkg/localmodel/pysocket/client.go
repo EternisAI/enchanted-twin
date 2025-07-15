@@ -20,8 +20,8 @@ type Client struct {
 func NewClient() (*Client, error) {
 	client := &Client{}
 
-	// Start the Python server
-	serverCmd := exec.Command("python3", "sample/sample.py")
+	// Start the Python server with unbuffered output
+	serverCmd := exec.Command("python3", "-u", "sample/sample.py")
 	serverCmd.Stdout = os.Stdout
 	serverCmd.Stderr = os.Stderr
 	if err := serverCmd.Start(); err != nil {
