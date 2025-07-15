@@ -1,4 +1,4 @@
-package pysocket
+package pyhttp
 
 import (
 	"testing"
