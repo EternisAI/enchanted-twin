@@ -28,7 +28,7 @@ func NewClient(logger *slog.Logger) (*Client, error) {
 	}
 
 	// Start the Python server with unbuffered output using uv
-	serverCmd := exec.Command("uv", "run", "sample.py")
+	serverCmd := exec.Command("uv", "run", "--", "python3", "-u", "main.py")
 	serverCmd.Dir = "sample"
 	serverCmd.Stdout = os.Stdout
 	serverCmd.Stderr = os.Stderr
