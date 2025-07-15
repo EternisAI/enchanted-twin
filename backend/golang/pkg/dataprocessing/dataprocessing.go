@@ -595,7 +595,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			}
 			return true, nil
 		}
-	case constants.ProcessorSyncedDocument:
+	default:
 		source, err := misc.NewTextDocumentProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
@@ -623,8 +623,6 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		s.logger.Info("Successfully processed and stored documents", "count", len(documents))
 		s.runConsolidationAfterBulkImport(ctx, "synced-document", len(documents))
 		return true, nil
-	default:
-		return false, fmt.Errorf("unsupported source: %s", sourceType)
 	}
 }
 
