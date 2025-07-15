@@ -3,6 +3,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { omnibarStore } from './stores'
+import liquidGlass from 'electron-liquid-glass'
 
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 
@@ -90,13 +91,13 @@ class WindowManagerImpl implements WindowManager {
       maxHeight: 500,
       minWidth: 500,
       maxWidth: 800,
-      show: false,
+      show: true,
+      transparent: true,
       // backgroundColor: '#00000000',
       frame: false,
-      transparent: true,
       alwaysOnTop: true,
       skipTaskbar: true,
-      resizable: true,
+      resizable: false,
       movable: true,
       minimizable: false,
       maximizable: false,
@@ -107,7 +108,7 @@ class WindowManagerImpl implements WindowManager {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         nodeIntegration: false,
-        contextIsolation: true
+        contextIsolation: false
       }
     })
 
@@ -151,7 +152,16 @@ class WindowManagerImpl implements WindowManager {
       omnibarWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/omnibar-overlay`)
     } else {
       omnibarWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-        hash: 'omnibar-overlay'
+        hash: '/omnibar-overlay'
+      })
+      omnibarWindow.webContents.once('did-finish-load', () => {
+        // 🪄 Apply effect, get handle
+        const glassId = liquidGlass.addView(omnibarWindow.getNativeWindowHandle(), {
+          /* options */
+        })
+        console.log(glassId)
+
+        // Experimental, undocumented private APIs
       })
     }
 

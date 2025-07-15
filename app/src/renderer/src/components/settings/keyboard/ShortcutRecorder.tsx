@@ -109,7 +109,7 @@ export function ShortcutRecorder({
     if (modifiers.includes('Alt')) orderedModifiers.push('Alt')
     if (modifiers.includes('Shift')) orderedModifiers.push('Shift')
 
-    return [...orderedModifiers, ...regularKeys].join('+')
+    return [...orderedModifiers, ...regularKeys].join(' ')
   }, [])
 
   useEffect(() => {
@@ -215,7 +215,8 @@ export function ShortcutRecorder({
   }
 
   const formatDisplayValue = (shortcut: string): string => {
-    const parts = shortcut.split('+')
+    // Handle both '+' and space separators for backward compatibility
+    const parts = shortcut.includes('+') ? shortcut.split('+') : shortcut.split(' ')
     return formatShortcut(parts)
   }
 
@@ -236,11 +237,13 @@ export function ShortcutRecorder({
         className={cn('min-w-[120px] font-mono text-sm', isRecording && 'animate-pulse')}
         onClick={handleClick}
       >
-        {isRecording
-          ? displayKeys || 'Press keys...'
-          : value
-            ? formatDisplayValue(value)
-            : 'Not set'}
+        {isRecording ? (
+          displayKeys || 'Press keys...'
+        ) : value ? (
+          <kbd>{formatDisplayValue(value)}</kbd>
+        ) : (
+          'Not set'
+        )}
       </Button>
       {value && !isRecording && (
         <Button

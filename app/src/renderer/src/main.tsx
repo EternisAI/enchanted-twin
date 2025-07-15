@@ -43,7 +43,8 @@ function App() {
       <TTSProvider>
         <ApolloClientProvider>
           <GoLogsProvider>
-            <div className="flex flex-col h-full w-full">
+            {/* <AppInitialize> */}
+            <div className="flex flex-col h-screen w-screen bg-background">
               <DependenciesGate>
                 <AuthProvider>
                   <InvitationGate>

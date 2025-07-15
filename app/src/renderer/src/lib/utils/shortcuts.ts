@@ -6,7 +6,8 @@ export function formatShortcutForDisplay(shortcut: string): string {
   if (!shortcut) return ''
 
   const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0
-  const parts = shortcut.split('+')
+  // Handle both '+' and space separators for backward compatibility
+  const parts = shortcut.includes('+') ? shortcut.split('+') : shortcut.split(' ')
 
   const symbols: Record<string, string> = {
     CommandOrControl: isMac ? '⌘' : 'Ctrl',
