@@ -51,15 +51,94 @@ function OmnibarOverlay() {
     }
   }, [query])
 
-  const windowHeight = useMotionValue(64)
-  const containerHeight = useMotionValue(64)
-  const currentHeight = useRef(64)
+  const windowHeight = useMotionValue(68)
 
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.focus()
     }
   }, [])
+
+  // Auto-resize textarea fallback for browsers without field-sizing support
+  useEffect(() => {
+    if (!textareaRef.current) return
+
+    const textarea = textareaRef.current
+
+    // Check if field-sizing is supported
+    const supportsFieldSizing = CSS.supports('field-sizing', 'content')
+
+    if (!supportsFieldSizing) {
+      // Manual auto-resize for browsers without field-sizing
+      const adjustHeight = () => {
+        textarea.style.height = 'auto'
+        textarea.style.height = `${textarea.scrollHeight}px`
+      }
+
+      // Initial adjustment
+      adjustHeight()
+
+      // Adjust on input
+      textarea.addEventListener('input', adjustHeight)
+
+      return () => {
+        textarea.removeEventListener('input', adjustHeight)
+      }
+    }
+  }, [])
+
+  // Use ResizeObserver to detect textarea size changes and resize window
+  useEffect(() => {
+    if (!textareaRef.current) return
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = entry.borderBoxSize?.[0]?.blockSize || entry.contentRect.height
+
+        // Calculate window height based on textarea + padding + results
+        const padding = 36 // 20px top (pt-5) + 16px bottom (pb-4)
+        const itemHeight = 36
+        const gapHeight = 12
+
+        const resultCount =
+          debouncedQuery.trim() && filteredChats.length > 0
+            ? Math.min(filteredChats.length + 1, 8)
+            : 0
+
+        const resultsHeight = resultCount > 0 ? gapHeight + resultCount * itemHeight : 0
+        const targetHeight = padding + height + resultsHeight
+
+        // Animate window height for smooth resize
+        animate(windowHeight, targetHeight, {
+          type: 'spring',
+          stiffness: 500,
+          damping: 35,
+          mass: 0.5,
+          onUpdate: (latest) => {
+            // Resize the actual window
+            if (window.api?.resizeOmnibarWindow) {
+              ;(
+                window.api.resizeOmnibarWindow as unknown as (
+                  width: number,
+                  height: number
+                ) => Promise<{ success: boolean; error?: string }>
+              )(500, Math.ceil(latest)).catch(() => {})
+            }
+          },
+          onComplete: () => {
+            // Ensure final values match
+            windowHeight.set(targetHeight)
+          }
+        })
+      }
+    })
+
+    resizeObserver.observe(textareaRef.current)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [debouncedQuery, filteredChats.length, windowHeight])
 
   const handleCreateChat = useCallback(async () => {
     if (!query.trim()) return
@@ -131,153 +210,162 @@ function OmnibarOverlay() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedIndex, filteredChats])
 
-  // Calculate and animate window height based on state
-  useEffect(() => {
-    const windowWidth = 500
-    const baseHeight = 64 // Match the initial window height from windows.ts
-    const itemHeight = 36 // Height per result item
-
-    // Calculate current result count
-    const resultCount =
-      debouncedQuery.trim() && filteredChats.length > 0
-        ? Math.min(filteredChats.length + 1, 8) // +1 for "new chat", cap at 8
-        : 0
-
-    const targetHeight = baseHeight + resultCount * itemHeight
-
-    // Always animate to the target height, regardless of previous state
-    animate(windowHeight, targetHeight, {
-      type: 'spring',
-      stiffness: 200,
-      damping: 23,
-      onUpdate: (latest) => {
-        containerHeight.set(latest)
-        if (window.api?.resizeOmnibarWindow) {
-          ;(
-            window.api.resizeOmnibarWindow as unknown as (
-              width: number,
-              height: number
-            ) => Promise<{ success: boolean; error?: string }>
-          )(windowWidth, Math.ceil(latest)).catch(() => {})
-        }
-      }
-    })
-
-    currentHeight.current = targetHeight
-  }, [debouncedQuery, filteredChats.length, windowHeight, containerHeight])
-
   // This is the overlay window - just the omnibar component without any chrome
   return (
-    <SyncedThemeProvider>
-      <FocusLock returnFocus>
-        <motion.div
-          initial={{ scale: 0.95, opacity: 0, y: -5 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ type: 'spring', damping: 55, stiffness: 350 }}
-          className="w-full h-full !bg-transparent border-0 shadow-none"
-          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-        >
-          <motion.form onSubmit={handleSubmit} className="w-full h-full">
-            <motion.div
-              ref={contentRef}
-              data-omnibar-content
-              className={cn('flex flex-col gap-3 p-4 justify-center w-full  mx-auto')}
-              transition={{ type: 'spring', damping: 55, stiffness: 350 }}
-              style={{ maxHeight: containerHeight }}
-            >
-              <div className="flex justify-center items-center gap-3 h-full">
-                <textarea
-                  ref={textareaRef}
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value)
-                    setSelectedIndex(0)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSubmit(e as React.FormEvent)
-                    }
-                  }}
-                  placeholder="What would you like to discuss?"
-                  className="flex-1 !bg-transparent !h-full flex justify-center items-center !text-base !rounded-none transparent text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
-                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                  rows={1}
-                />
+    <>
+      <style>{`
+        .auto-sizing-textarea {
+          field-sizing: content;
+          min-height: 1.5rem;
+          max-height: 15rem;
+          display: block;
+        }
+        
+        @supports not (field-sizing: content) {
+          /* Fallback for browsers that don't support field-sizing */
+          .auto-sizing-textarea {
+            min-height: 1.5rem;
+            max-height: 15rem;
+          }
+        }
+        
+        textarea::-webkit-scrollbar {
+          width: 4px;
+        }
+        textarea::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        textarea::-webkit-scrollbar-thumb {
+          background-color: rgba(155, 155, 155, 0.5);
+          border-radius: 2px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover {
+          background-color: rgba(155, 155, 155, 0.7);
+        }
+      `}</style>
+      <SyncedThemeProvider>
+        <FocusLock returnFocus>
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0, y: -5 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ type: 'spring', damping: 55, stiffness: 350 }}
+            className="w-full h-full !bg-transparent border-0 shadow-none overflow-visible"
+            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+          >
+            <motion.form onSubmit={handleSubmit} className="w-full h-full overflow-visible">
+              <motion.div
+                ref={contentRef}
+                data-omnibar-content
+                className={cn('flex flex-col gap-3 px-4 pt-5 pb-4 w-full mx-auto')}
+                transition={{ type: 'spring', damping: 55, stiffness: 350 }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 flex items-center">
+                    <textarea
+                      ref={textareaRef}
+                      value={query}
+                      onChange={(e) => {
+                        setQuery(e.target.value)
+                        setSelectedIndex(0)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleSubmit(e as React.FormEvent)
+                        }
+                      }}
+                      placeholder="What would you like to discuss?"
+                      className="w-full !bg-transparent overflow-y-auto !text-base !rounded-none text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 leading-normal auto-sizing-textarea"
+                      style={
+                        {
+                          lineHeight: '1.5rem',
+                          // @ts-ignore - WebkitAppRegion is a valid CSS property for Electron
+                          WebkitAppRegion: 'no-drag'
+                        } as React.CSSProperties
+                      }
+                      rows={1}
+                    />
+                  </div>
+
+                  <motion.div
+                    layout="position"
+                    className="flex items-center"
+                    initial={{ opacity: 0 }}
+                    animate={{
+                      opacity: debouncedQuery.trim() && filteredChats.length === 0 ? 1 : 0,
+                      scale: debouncedQuery.trim() && filteredChats.length === 0 ? 1 : 0.8
+                    }}
+                    exit={{ opacity: 0 }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 30
+                    }}
+                  >
+                    <SendButton
+                      onSend={handleCreateChat}
+                      isWaitingTwinResponse={false}
+                      text={query}
+                    />
+                  </motion.div>
+                </div>
+
                 <AnimatePresence>
-                  {debouncedQuery.trim() && filteredChats.length === 0 && (
+                  {debouncedQuery && filteredChats.length > 0 && (
                     <motion.div
-                      layout="position"
-                      className="self-center"
+                      key="results"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="rounded-lg overflow-hidden"
+                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     >
-                      <SendButton
-                        onSend={handleCreateChat}
-                        isWaitingTwinResponse={false}
-                        text={query}
-                      />
+                      <LayoutGroup>
+                        <div className="py-1">
+                          {filteredChats.map((chat, index) => (
+                            <motion.button
+                              key={chat.id}
+                              type="button"
+                              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                              onClick={() => handleOpenChat(chat.id)}
+                              className={cn(
+                                'flex w-full items-center justify-between px-3 py-2 text-left text-sm text-muted-foreground transition-colors rounded-md duration-100',
+                                'hover:bg-sidebar-accent',
+                                selectedIndex === index &&
+                                  'bg-sidebar-accent text-sidebar-primary rounded-md'
+                              )}
+                            >
+                              <span className="truncate">{chat.name}</span>
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            </motion.button>
+                          ))}
+                          {debouncedQuery.trim() && (
+                            <button
+                              type="button"
+                              onClick={handleCreateChat}
+                              className={cn(
+                                'flex text-muted-foreground w-full items-center justify-between px-3 py-2 text-left text-sm',
+                                'hover:bg-sidebar-accent',
+                                selectedIndex === filteredChats.length &&
+                                  'bg-sidebar-accent rounded-md font-medium'
+                              )}
+                            >
+                              <span>New chat: &quot;{debouncedQuery}&quot;</span>
+                              <Send className="h-4 w-4 text-muted-foreground" />
+                            </button>
+                          )}
+                        </div>
+                      </LayoutGroup>
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </div>
-
-              <AnimatePresence>
-                {debouncedQuery && filteredChats.length > 0 && (
-                  <motion.div
-                    key="results"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="rounded-lg overflow-hidden"
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                  >
-                    <LayoutGroup>
-                      <div className="py-1">
-                        {filteredChats.map((chat, index) => (
-                          <motion.button
-                            key={chat.id}
-                            type="button"
-                            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                            onClick={() => handleOpenChat(chat.id)}
-                            className={cn(
-                              'flex w-full items-center justify-between px-3 py-2 text-left text-sm text-muted-foreground transition-colors rounded-md duration-100',
-                              'hover:bg-sidebar-accent',
-                              selectedIndex === index &&
-                                'bg-sidebar-accent text-sidebar-primary rounded-md'
-                            )}
-                          >
-                            <span className="truncate">{chat.name}</span>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          </motion.button>
-                        ))}
-                        {debouncedQuery.trim() && (
-                          <button
-                            type="button"
-                            onClick={handleCreateChat}
-                            className={cn(
-                              'flex text-muted-foreground w-full items-center justify-between px-3 py-2 text-left text-sm',
-                              'hover:bg-sidebar-accent',
-                              selectedIndex === filteredChats.length &&
-                                'bg-sidebar-accent rounded-md font-medium'
-                            )}
-                          >
-                            <span>New chat: &quot;{debouncedQuery}&quot;</span>
-                            <Send className="h-4 w-4 text-muted-foreground" />
-                          </button>
-                        )}
-                      </div>
-                    </LayoutGroup>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          </motion.form>
-        </motion.div>
-      </FocusLock>
-    </SyncedThemeProvider>
+              </motion.div>
+            </motion.form>
+          </motion.div>
+        </FocusLock>
+      </SyncedThemeProvider>
+    </>
   )
 }
 
