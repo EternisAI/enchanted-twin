@@ -86,8 +86,8 @@ class WindowManagerImpl implements WindowManager {
 
     const omnibarWindow = new BrowserWindow({
       width: 500,
-      height: 64,
-      minHeight: 64,
+      height: 56,
+      minHeight: 56,
       maxHeight: 500,
       minWidth: 500,
       maxWidth: 800,
