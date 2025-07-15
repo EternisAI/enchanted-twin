@@ -65,9 +65,9 @@ func (p *PersistentAnonymizer) anonymizeInMemory(ctx context.Context, messages [
 		anonymizedMessages[i] = anonymizedMsg
 
 		// Merge new rules
-		for token, original := range msgRules {
-			newRules[token] = original
-			workingDict[token] = original
+		for replacementToken, originalValue := range msgRules {
+			newRules[replacementToken] = originalValue
+			workingDict[replacementToken] = originalValue
 		}
 	}
 
@@ -129,9 +129,9 @@ func (p *PersistentAnonymizer) anonymizeWithPersistence(ctx context.Context, con
 		}
 
 		// Merge new rules
-		for token, original := range msgRules {
-			newRules[token] = original
-			workingDict[token] = original
+		for replacementToken, originalValue := range msgRules {
+			newRules[replacementToken] = originalValue
+			workingDict[replacementToken] = originalValue
 		}
 
 		// Mark message as anonymized
