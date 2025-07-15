@@ -155,8 +155,8 @@ const api = {
     ipcRenderer.on('go-log', listener)
     return () => ipcRenderer.removeListener('go-log', listener)
   },
-  openMainWindowWithChat: (chatId?: string, initialMessage?: string) =>
-    ipcRenderer.invoke('open-main-window-with-chat', chatId, initialMessage),
+  openMainWindowWithChat: (chatId?: string, initialMessage?: string, reasoning?: boolean) =>
+    ipcRenderer.invoke('open-main-window-with-chat', chatId, initialMessage, reasoning),
   onNavigateTo: (callback: (url: string) => void) => {
     const listener = (_: unknown, url: string) => callback(url)
     ipcRenderer.on('navigate-to', listener)

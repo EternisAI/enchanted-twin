@@ -392,9 +392,9 @@ export function registerIpcHandlers() {
 
   ipcMain.handle(
     'open-main-window-with-chat',
-    async (_, chatId?: string, initialMessage?: string) => {
+    async (_, chatId?: string, initialMessage?: string, reasoning?: boolean) => {
       try {
-        log.info(`Opening main window with chat: ${chatId}, message: ${initialMessage}`)
+        log.info(`Opening main window with chat: ${chatId}, message: ${initialMessage}, reasoning: ${reasoning}`)
         let windowWasCreated = false
 
         // Create main window if it doesn't exist
@@ -412,9 +412,14 @@ export function registerIpcHandlers() {
           windowManager.mainWindow.focus()
 
           if (chatId) {
-            const url = initialMessage
-              ? `/chat/${chatId}?initialMessage=${encodeURIComponent(initialMessage)}`
-              : `/chat/${chatId}`
+            let url = `/chat/${chatId}`
+            if (initialMessage) {
+              url += `?initialMessage=${encodeURIComponent(initialMessage)}`
+            }
+            if (reasoning !== undefined) {
+              const sep = url.includes('?') ? '&' : '?'
+              url += `${sep}reasoning=${reasoning}`
+            }
 
             log.info(`Navigation URL: ${url}`)
 

@@ -155,7 +155,7 @@ function OmnibarOverlay() {
 
       if (newChatId) {
         // Open the main window with the new chat
-        window.api.openMainWindowWithChat?.(newChatId, query)
+        window.api.openMainWindowWithChat?.(newChatId, query, true)
 
         // Refetch all chats
         client.cache.evict({ fieldName: 'getChats' })

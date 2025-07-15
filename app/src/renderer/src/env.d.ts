@@ -128,7 +128,8 @@ interface IApi {
   onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => () => void
   openMainWindowWithChat: (
     chatId?: string,
-    initialMessage?: string
+    initialMessage?: string,
+    reasoning?: boolean
   ) => Promise<{ success: boolean; error?: string }>
   onNavigateTo: (callback: (url: string) => void) => () => void
   resizeOmnibarWindow: (
