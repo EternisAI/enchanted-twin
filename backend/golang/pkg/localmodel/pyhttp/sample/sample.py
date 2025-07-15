@@ -11,7 +11,7 @@ class Model:
 
     def load(self):
         print(f"Loading {self.model_name}...")
-        time.sleep(5)  # Simulate model loading
+        time.sleep(1)  # Simulate model loading
         self.is_loaded = True
         print(f"{self.model_name} loaded successfully!")
 
