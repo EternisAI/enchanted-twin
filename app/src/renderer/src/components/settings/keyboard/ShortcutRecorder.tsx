@@ -109,7 +109,7 @@ export function ShortcutRecorder({
     if (modifiers.includes('Alt')) orderedModifiers.push('Alt')
     if (modifiers.includes('Shift')) orderedModifiers.push('Shift')
 
-    return [...orderedModifiers, ...regularKeys].join(' ')
+    return [...orderedModifiers, ...regularKeys].join('+')
   }, [])
 
   useEffect(() => {
