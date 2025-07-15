@@ -69,6 +69,8 @@ function OmnibarResults({
             <button
               type="button"
               onClick={handleCreateChat}
+              role="option"
+              aria-selected={selectedIndex === filteredChats.length}
               className={cn(
                 'flex text-muted-foreground w-full items-center justify-between px-3 py-2 text-left text-sm',
                 'hover:bg-sidebar-accent',
