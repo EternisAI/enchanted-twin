@@ -29,6 +29,7 @@ type Config struct {
 	ProxyTeeURL        string
 	UseLocalModel      string
 	UseLocalAnonymizer string
+	AnonymizerType     string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -73,6 +74,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
 		UseLocalModel:      getEnv("USE_LOCAL_MODEL", "", printEnv),
 		UseLocalAnonymizer: getEnv("USE_LOCAL_ANONYMIZER", "", printEnv),
+		AnonymizerType:     getEnv("ANONYMIZER_TYPE", "no-op", printEnv),
 	}
 	return conf, nil
 }
