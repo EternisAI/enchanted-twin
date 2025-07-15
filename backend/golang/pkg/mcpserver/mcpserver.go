@@ -127,6 +127,9 @@ func (s *service) ConnectMCPServer(
 			if s.config == nil {
 				return nil, fmt.Errorf("config is nil, cannot connect to Enchanted MCP server")
 			}
+			if s.config.EnchantedMcpURL == "" {
+				return nil, fmt.Errorf("ENCHANTED_MCP_URL is not configured")
+			}
 			// In case there is google oauth token, refresh it
 			_, err := auth.RefreshOAuthToken(ctx, log.Default(), s.store, "google")
 			if err != nil {
@@ -166,7 +169,7 @@ func (s *service) ConnectMCPServer(
 
 			_, err = mcpClient.Initialize(ctx, initRequest)
 			if err != nil {
-				return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
+				return nil, fmt.Errorf("failed to initialize MCP client at %s: %w", s.config.EnchantedMcpURL, err)
 			}
 
 			client = mcpClient
