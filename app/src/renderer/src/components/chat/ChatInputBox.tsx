@@ -40,7 +40,7 @@ export default function ChatInputBox({
   return (
     <motion.div
       layoutId="message-input-container"
-      transition={{ type: 'spring', stiffness: 350, damping: 55 }}
+      transition={{ type: 'spring', stiffness: 200, damping: 30 }}
       onLayoutAnimationComplete={onLayoutAnimationComplete}
       className="relative z-50 flex items-center gap-2 w-full border border-border rounded-lg px-2.5 py-0 dark:bg-background focus-within:bg-white focus-within:shadow-xl dark:focus-within:border-primary/25 transition-shadow duration-200"
     >
