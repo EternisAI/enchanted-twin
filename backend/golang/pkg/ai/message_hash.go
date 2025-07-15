@@ -23,8 +23,8 @@ func (h *MessageHasher) GetMessageHash(message openai.ChatCompletionMessageParam
 	// Create deterministic JSON representation
 	jsonBytes, err := json.Marshal(hashData)
 	if err != nil {
-		// Fallback to string representation if JSON fails
-		jsonBytes = []byte(fmt.Sprintf("%+v", hashData))
+		// Fallback to deterministic string representation if JSON fails
+		jsonBytes = []byte(h.deterministicStringify(hashData))
 	}
 
 	// Generate SHA256 hash
@@ -38,7 +38,7 @@ func (h *MessageHasher) extractHashableFields(message openai.ChatCompletionMessa
 	if err != nil {
 		return map[string]interface{}{
 			"error":   err.Error(),
-			"message": fmt.Sprintf("%+v", message),
+			"message": h.deterministicStringify(message),
 		}
 	}
 
@@ -185,4 +185,54 @@ func (h *MessageHasher) GetConversationHash(conversationID string, messages []op
 
 	hash := sha256.Sum256([]byte(combinedString))
 	return fmt.Sprintf("%x", hash)
+}
+
+// deterministicStringify creates a deterministic string representation of any value
+// by sorting map keys to ensure consistent output regardless of Go's map iteration order.
+func (h *MessageHasher) deterministicStringify(v interface{}) string {
+	return h.stringifyValue(v, 0)
+}
+
+// stringifyValue recursively converts a value to a deterministic string representation.
+func (h *MessageHasher) stringifyValue(v interface{}, depth int) string {
+	if depth > 100 { // Prevent infinite recursion
+		return "<max_depth_exceeded>"
+	}
+
+	switch val := v.(type) {
+	case nil:
+		return "<nil>"
+	case bool:
+		return fmt.Sprintf("%t", val)
+	case int, int8, int16, int32, int64:
+		return fmt.Sprintf("%d", val)
+	case uint, uint8, uint16, uint32, uint64:
+		return fmt.Sprintf("%d", val)
+	case float32, float64:
+		return fmt.Sprintf("%g", val)
+	case string:
+		return fmt.Sprintf("%q", val)
+	case []interface{}:
+		var parts []string
+		for i, item := range val {
+			parts = append(parts, fmt.Sprintf("[%d]:%s", i, h.stringifyValue(item, depth+1)))
+		}
+		return fmt.Sprintf("[%s]", strings.Join(parts, ","))
+	case map[string]interface{}:
+		// Sort keys for deterministic output
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		var parts []string
+		for _, k := range keys {
+			parts = append(parts, fmt.Sprintf("%s:%s", k, h.stringifyValue(val[k], depth+1)))
+		}
+		return fmt.Sprintf("{%s}", strings.Join(parts, ","))
+	default:
+		// For other types, use reflection to get type info and fallback to fmt
+		return fmt.Sprintf("<%T>%+v", val, val)
+	}
 }
