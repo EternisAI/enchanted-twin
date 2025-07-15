@@ -6,7 +6,7 @@ import time
 def main():
     print("Starting model server...")
     print("Loading LLM model (simulated)...")
-    time.sleep(5)  # Simulate 5 second model loading
+    time.sleep(2)  # Simulate 2 second model loading
     print("Model loaded successfully!")
     
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
