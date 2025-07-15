@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -14,9 +16,100 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// ExtractFactsFromDocument routes fact extraction based on document type.
-// This is pure business logic extracted from the adapter.
-// Returns the extracted facts. The source document is already known by the caller.
+func extractJSONFromContent(content string) (string, error) {
+	content = strings.TrimSpace(content)
+
+	content = strings.ReplaceAll(content, "│", "")
+	content = strings.TrimSpace(content)
+
+	jsonRegex := regexp.MustCompile(`(?s)<json>\s*(.*?)\s*</json>`)
+	matches := jsonRegex.FindStringSubmatch(content)
+
+	if len(matches) > 1 {
+		jsonContent := strings.TrimSpace(matches[1])
+		jsonContent = strings.ReplaceAll(jsonContent, "│", "")
+		return strings.TrimSpace(jsonContent), nil
+	}
+
+	if strings.HasPrefix(content, "{") && strings.HasSuffix(content, "}") {
+		return content, nil
+	}
+
+	return "", fmt.Errorf("no valid JSON found in content")
+}
+
+func parseFactsFromContentField(llmResponse openai.ChatCompletionMessage, sourceDoc memory.Document, docType string, logger *log.Logger) []*memory.MemoryFact {
+	if llmResponse.Content == "" {
+		return nil
+	}
+
+	logger.Debug("Raw content before parsing", "content", llmResponse.Content)
+	jsonContent, err := extractJSONFromContent(llmResponse.Content)
+	if err != nil {
+		logger.Debug("Failed to extract JSON from content field", "error", err, "content_preview", llmResponse.Content[:min(200, len(llmResponse.Content))])
+		return nil
+	}
+
+	logger.Debug("Extracted JSON from content field", "json", jsonContent)
+
+	var args ExtractMemoryFactsToolArguments
+	if err := json.Unmarshal([]byte(jsonContent), &args); err != nil {
+		logger.Error("FAILED to unmarshal JSON from content field", "error", err, "json", jsonContent)
+		return nil
+	}
+
+	logger.Debug("Successfully parsed structured facts from content field", "count", len(args.Facts))
+
+	if len(args.Facts) == 0 {
+		logger.Warn("Content field returned zero facts for "+docType, "id", sourceDoc.ID())
+		return nil
+	}
+
+	var extractedFacts []*memory.MemoryFact
+	for factIdx := range args.Facts {
+		memoryFact := &args.Facts[factIdx]
+
+		memoryFact.ID = uuid.New().String()
+		memoryFact.Source = sourceDoc.Source()
+		memoryFact.Content = memoryFact.GenerateContent()
+		if timestamp := sourceDoc.Timestamp(); timestamp != nil {
+			memoryFact.Timestamp = *timestamp
+		} else {
+			memoryFact.Timestamp = time.Now()
+		}
+
+		if memoryFact.DocumentReferences == nil {
+			memoryFact.DocumentReferences = []string{sourceDoc.ID()}
+		}
+
+		if filePath := sourceDoc.FilePath(); filePath != "" {
+			memoryFact.FilePath = filePath
+		}
+
+		logger.Debug(docType+" Fact (from content)",
+			"index", factIdx+1,
+			"id", memoryFact.ID,
+			"category", memoryFact.Category,
+			"subject", memoryFact.Subject,
+			"attribute", memoryFact.Attribute,
+			"value", memoryFact.Value,
+			"importance", memoryFact.Importance,
+			"sensitivity", memoryFact.Sensitivity,
+			"source", memoryFact.Source)
+
+		extractedFacts = append(extractedFacts, memoryFact)
+	}
+
+	return extractedFacts
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func ExtractFactsFromDocument(ctx context.Context, doc memory.Document, completionsService *ai.Service, completionsModel string, logger *log.Logger) ([]*memory.MemoryFact, error) {
 	switch typedDoc := doc.(type) {
 	case *memory.ConversationDocument:
@@ -44,12 +137,22 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		return []*memory.MemoryFact{}, nil
 	}
 
+	// Use anti-duplication prompt for twin chat conversations
+	var systemPrompt string
+	if convDoc.Source() == "chat" {
+		systemPrompt = TwinChatFactExtractionPrompt
+		logger.Debug("Using twin chat anti-duplication prompt", "source", convDoc.Source())
+	} else {
+		systemPrompt = FactExtractionPrompt
+		logger.Debug("Using standard fact extraction prompt", "source", convDoc.Source())
+	}
+
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(FactExtractionPrompt),
+		openai.SystemMessage(systemPrompt),
 		openai.UserMessage(content),
 	}
 
-	logger.Debug("Sending conversation to LLM", "system_prompt_length", len(FactExtractionPrompt), "json_length", len(content))
+	logger.Debug("Sending conversation to LLM", "system_prompt_length", len(systemPrompt), "json_length", len(content))
 
 	result, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel, ai.Background)
 	if err != nil {
@@ -62,11 +165,9 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 	logger.Debug("Response Content", "content", llmResponse.Content)
 	logger.Debug("Tool Calls Count", "count", len(llmResponse.ToolCalls))
 
-	if len(llmResponse.ToolCalls) == 0 {
-		logger.Warn("No tool calls returned for conversation - fact extraction may have failed", "id", convDoc.ID())
-	}
-
 	var extractedFacts []*memory.MemoryFact
+
+	// First, try to extract facts from tool calls
 	for _, toolCall := range llmResponse.ToolCalls {
 		logger.Debug("Tool Call", "name", toolCall.Function.Name)
 		logger.Debug("Arguments", "args", toolCall.Function.Arguments)
@@ -100,11 +201,16 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			}
 
 			memoryFact.Content = memoryFact.GenerateContent()
-			if timestamp := sourceDoc.Timestamp(); timestamp != nil {
-				memoryFact.Timestamp = *timestamp
-			} else {
-				memoryFact.Timestamp = time.Now() // fallback if no timestamp available
+
+			if len(convDoc.Conversation) > 0 {
+				// Use the timestamp from the conversation messages for temporal context
+				firstMessageTime := convDoc.Conversation[0].Time
+				temporalContext := firstMessageTime.Format("2006-01-02") // YYYY-MM-DD format
+				memoryFact.TemporalContext = &temporalContext
 			}
+
+			// Timestamp is always when the fact was processed, not when the conversation happened
+			memoryFact.Timestamp = time.Now()
 
 			// Set document reference
 			if memoryFact.DocumentReferences == nil {
@@ -123,6 +229,14 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 				"source", memoryFact.Source)
 
 			extractedFacts = append(extractedFacts, memoryFact)
+		}
+	}
+
+	if len(extractedFacts) == 0 && len(llmResponse.ToolCalls) == 0 {
+		logger.Debug("No tool calls found, attempting to parse facts from content field")
+
+		if llmResponse.Content != "" {
+			extractedFacts = parseFactsFromContentField(llmResponse, sourceDoc, "conversation", logger)
 		}
 	}
 
@@ -173,11 +287,8 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 
 	logger.Debug("LLM Response for document", "id", textDoc.ID(), "content", llmResponse.Content, "tool_calls_count", len(llmResponse.ToolCalls))
 
-	if len(llmResponse.ToolCalls) == 0 {
-		logger.Warn("No tool calls returned for document - fact extraction may have failed", "id", textDoc.ID())
-	}
-
 	var extractedFacts []*memory.MemoryFact
+
 	for i, toolCall := range llmResponse.ToolCalls {
 		logger.Debug("Tool Call", "index", i+1, "name", toolCall.Function.Name)
 		logger.Debug("Arguments", "args", toolCall.Function.Arguments)
@@ -202,15 +313,17 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		for factIdx := range args.Facts {
 			memoryFact := &args.Facts[factIdx]
 
-			// Set required fields that LLM doesn't provide
 			memoryFact.ID = uuid.New().String()
 			memoryFact.Source = sourceDoc.Source()
 			memoryFact.Content = memoryFact.GenerateContent()
+
 			if timestamp := sourceDoc.Timestamp(); timestamp != nil {
-				memoryFact.Timestamp = *timestamp
-			} else {
-				memoryFact.Timestamp = time.Now() // fallback if no timestamp available
+				temporalContext := timestamp.Format("2006-01-02") // YYYY-MM-DD format
+				memoryFact.TemporalContext = &temporalContext
 			}
+
+			// Timestamp is always when the fact was processed, not when the document was created
+			memoryFact.Timestamp = time.Now()
 
 			// Set document reference
 			if memoryFact.DocumentReferences == nil {
@@ -233,6 +346,14 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 				"source", memoryFact.Source)
 
 			extractedFacts = append(extractedFacts, memoryFact)
+		}
+	}
+
+	if len(extractedFacts) == 0 && len(llmResponse.ToolCalls) == 0 {
+		logger.Debug("No tool calls found, attempting to parse facts from content field")
+
+		if llmResponse.Content != "" {
+			extractedFacts = parseFactsFromContentField(llmResponse, sourceDoc, "document", logger)
 		}
 	}
 

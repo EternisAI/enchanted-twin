@@ -122,6 +122,7 @@ func TestUsernameExtraction(t *testing.T) {
 
 	if sourceUsername == nil {
 		t.Fatal("Expected username to be extracted, but got nil")
+		return
 	}
 
 	if sourceUsername.Username != "@JohnDoe" {
@@ -155,6 +156,7 @@ func TestUsernameExtraction(t *testing.T) {
 
 	if conversationDoc == nil {
 		t.Fatal("Expected to find conversation document")
+		return
 	}
 
 	messages := conversationDoc.Conversation
@@ -440,6 +442,7 @@ func TestUsernameExtractionAndDocumentGeneration(t *testing.T) {
 
 	if sourceUsername == nil {
 		t.Fatal("Expected username to be extracted and stored")
+		return
 	}
 
 	if sourceUsername.Username != "@JohnDoe" {
@@ -460,6 +463,7 @@ func TestUsernameExtractionAndDocumentGeneration(t *testing.T) {
 
 	if conversationDoc == nil {
 		t.Fatal("Expected to find conversation document")
+		return
 	}
 
 	// Step 5: Verify the username is trimmed in the document (no @ prefix)

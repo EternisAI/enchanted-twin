@@ -77,7 +77,7 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     fileFilters: [{ name: 'Google Takeout', extensions: ['zip'] }]
   },
   {
-    name: 'misc',
+    name: 'synced-document',
     label: 'Files',
     description: 'Import your files',
     selectType: 'files',
