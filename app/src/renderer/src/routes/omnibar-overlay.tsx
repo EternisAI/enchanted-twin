@@ -16,6 +16,67 @@ import { SendButton } from '../components/chat/MessageInput'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { SyncedThemeProvider } from '@renderer/components/SyncedThemeProvider'
 
+function OmnibarResults({
+  debouncedQuery,
+  filteredChats,
+  selectedIndex,
+  handleOpenChat,
+  handleCreateChat
+}: {
+  debouncedQuery: string
+  filteredChats: { id: string; name: string }[]
+  selectedIndex: number
+  handleOpenChat: (chatId: string) => void
+  handleCreateChat: () => void
+}) {
+  return (
+    <motion.div
+      key="results"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="rounded-lg overflow-auto max-h-[280px] relative"
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+    >
+      <LayoutGroup>
+        <div className="py-1">
+          {filteredChats.map((chat, index) => (
+            <motion.button
+              key={chat.id}
+              type="button"
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+              onClick={() => handleOpenChat(chat.id)}
+              className={cn(
+                'flex w-full items-center justify-between px-3 py-2 text-left text-sm text-muted-foreground transition-colors rounded-md duration-100',
+                'hover:bg-sidebar-accent',
+                selectedIndex === index && 'bg-sidebar-accent text-sidebar-primary rounded-md'
+              )}
+            >
+              <span className="truncate">{chat.name}</span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </motion.button>
+          ))}
+          {debouncedQuery.trim() && (
+            <button
+              type="button"
+              onClick={handleCreateChat}
+              className={cn(
+                'flex text-muted-foreground w-full items-center justify-between px-3 py-2 text-left text-sm',
+                'hover:bg-sidebar-accent',
+                selectedIndex === filteredChats.length && 'bg-sidebar-accent rounded-md font-medium'
+              )}
+            >
+              <span>New chat: &quot;{debouncedQuery}&quot;</span>
+              <Send className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+      </LayoutGroup>
+    </motion.div>
+  )
+}
+
 function OmnibarOverlay() {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -312,52 +373,13 @@ function OmnibarOverlay() {
 
                 <AnimatePresence>
                   {debouncedQuery && filteredChats.length > 0 && (
-                    <motion.div
-                      key="results"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="rounded-lg overflow-auto max-h-[280px]"
-                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    >
-                      <LayoutGroup>
-                        <div className="py-1">
-                          {filteredChats.map((chat, index) => (
-                            <motion.button
-                              key={chat.id}
-                              type="button"
-                              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                              onClick={() => handleOpenChat(chat.id)}
-                              className={cn(
-                                'flex w-full items-center justify-between px-3 py-2 text-left text-sm text-muted-foreground transition-colors rounded-md duration-100',
-                                'hover:bg-sidebar-accent',
-                                selectedIndex === index &&
-                                  'bg-sidebar-accent text-sidebar-primary rounded-md'
-                              )}
-                            >
-                              <span className="truncate">{chat.name}</span>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            </motion.button>
-                          ))}
-                          {debouncedQuery.trim() && (
-                            <button
-                              type="button"
-                              onClick={handleCreateChat}
-                              className={cn(
-                                'flex text-muted-foreground w-full items-center justify-between px-3 py-2 text-left text-sm',
-                                'hover:bg-sidebar-accent',
-                                selectedIndex === filteredChats.length &&
-                                  'bg-sidebar-accent rounded-md font-medium'
-                              )}
-                            >
-                              <span>New chat: &quot;{debouncedQuery}&quot;</span>
-                              <Send className="h-4 w-4 text-muted-foreground" />
-                            </button>
-                          )}
-                        </div>
-                      </LayoutGroup>
-                    </motion.div>
+                    <OmnibarResults
+                      debouncedQuery={debouncedQuery}
+                      filteredChats={filteredChats}
+                      selectedIndex={selectedIndex}
+                      handleOpenChat={handleOpenChat}
+                      handleCreateChat={handleCreateChat}
+                    />
                   )}
                 </AnimatePresence>
               </motion.div>
