@@ -33,18 +33,6 @@ type MockCompletionsService struct {
 	mock.Mock
 }
 
-type MockServiceWithRawCompletions struct {
-	*MockCompletionsService
-}
-
-func (m *MockServiceWithRawCompletions) RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error) {
-	args := m.Called(ctx, messages, tools, model)
-	if result, ok := args.Get(0).(PrivateCompletionResult); ok {
-		return result, args.Error(1)
-	}
-	return PrivateCompletionResult{}, args.Error(1)
-}
-
 func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	args := m.Called(ctx, messages, tools, model, priority)
 	if result, ok := args.Get(0).(PrivateCompletionResult); ok {
