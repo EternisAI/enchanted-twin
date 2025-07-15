@@ -14,7 +14,6 @@ import (
 
 type StreamDelta = ai.StreamDelta
 
-// ExecuteStreamWithPrivacy executes agent with privacy-enabled streaming and tool support.
 func (a *Agent) ExecuteStreamWithPrivacy(
 	ctx context.Context,
 	messages []openai.ChatCompletionMessageParamUnion,
