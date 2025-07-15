@@ -2,6 +2,7 @@ package ai
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -185,14 +186,10 @@ func BenchmarkSortingApproach_ReplaceAll(b *testing.B) {
 			sortedReplacements = append(sortedReplacements, replacement{original: original, token: token})
 		}
 
-		// Sort by length descending
-		for i := 0; i < len(sortedReplacements); i++ {
-			for j := i + 1; j < len(sortedReplacements); j++ {
-				if len(sortedReplacements[i].original) < len(sortedReplacements[j].original) {
-					sortedReplacements[i], sortedReplacements[j] = sortedReplacements[j], sortedReplacements[i]
-				}
-			}
-		}
+		// Sort by length descending using Go's built-in sort
+		sort.Slice(sortedReplacements, func(i, j int) bool {
+			return len(sortedReplacements[i].original) > len(sortedReplacements[j].original)
+		})
 
 		// Apply replacements
 		for _, repl := range sortedReplacements {
@@ -258,14 +255,10 @@ func BenchmarkSortingApproach_ManyPatterns(b *testing.B) {
 			sortedReplacements = append(sortedReplacements, replacement{original: original, token: token})
 		}
 
-		// Sort by length descending - O(n log n)
-		for i := 0; i < len(sortedReplacements); i++ {
-			for j := i + 1; j < len(sortedReplacements); j++ {
-				if len(sortedReplacements[i].original) < len(sortedReplacements[j].original) {
-					sortedReplacements[i], sortedReplacements[j] = sortedReplacements[j], sortedReplacements[i]
-				}
-			}
-		}
+		// Sort by length descending using Go's built-in sort - O(n log n)
+		sort.Slice(sortedReplacements, func(i, j int) bool {
+			return len(sortedReplacements[i].original) > len(sortedReplacements[j].original)
+		})
 
 		// Apply replacements
 		for _, repl := range sortedReplacements {
