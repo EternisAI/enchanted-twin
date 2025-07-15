@@ -1,17 +1,18 @@
 package pysocket
 
 import (
-	"bufio"
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"net"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"time"
 )
 
 const (
-	serverHost = "localhost"
-	serverPort = "8080"
+	serverURL = "http://localhost:8080"
 )
 
 type Client struct {
@@ -43,9 +44,9 @@ func NewClient() (*Client, error) {
 func (c *Client) waitForServerReady(timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		conn, err := net.Dial("tcp", net.JoinHostPort(serverHost, serverPort))
+		resp, err := http.Get(serverURL + "/infer")
 		if err == nil {
-			_ = conn.Close()
+			_ = resp.Body.Close()
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -54,31 +55,37 @@ func (c *Client) waitForServerReady(timeout time.Duration) error {
 }
 
 func (c *Client) Infer(input string) (string, error) {
-	conn, err := net.Dial("tcp", net.JoinHostPort(serverHost, serverPort))
+	requestBody := map[string]string{"input": input}
+	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
-		return "", fmt.Errorf("failed to connect to server: %w", err)
+		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
-	defer func() { _ = conn.Close() }()
 
-	// Send the infer command with input data
-	message := fmt.Sprintf("infer:%s\n", input)
-	_, err = conn.Write([]byte(message))
+	resp, err := http.Post(serverURL+"/infer", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "", fmt.Errorf("failed to send command: %w", err)
+		return "", fmt.Errorf("failed to send request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("server returned status %d", resp.StatusCode)
 	}
 
-	// Read the response
-	scanner := bufio.NewScanner(conn)
-	if scanner.Scan() {
-		response := scanner.Text()
-		return response, nil
-	}
-
-	if err := scanner.Err(); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
-	return "", fmt.Errorf("no response received")
+	var response map[string]string
+	if err := json.Unmarshal(body, &response); err != nil {
+		return "", fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if errorMsg, exists := response["error"]; exists {
+		return "", fmt.Errorf("server error: %s", errorMsg)
+	}
+
+	return response["output"], nil
 }
 
 func (c *Client) Close() error {
