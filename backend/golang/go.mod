@@ -96,10 +96,11 @@ require (
 	github.com/docker/docker v28.0.1+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
+	github.com/gen2brain/go-fitz v1.24.15 // indirect
 	github.com/getsentry/sentry-go v0.30.0 // indirect
 	github.com/go-ego/gse v0.80.3 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -135,6 +136,7 @@ require (
 	github.com/ikawaha/kagome-dict/ipa v1.2.0 // indirect
 	github.com/ikawaha/kagome/v2 v2.10.0 // indirect
 	github.com/johnbellone/grpc-middleware-sentry v0.4.0 // indirect
+	github.com/jupiterrider/ffi v0.5.0 // indirect
 	github.com/karrick/godirwalk v1.15.3 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
