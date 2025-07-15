@@ -31,9 +31,6 @@ function OmnibarOverlay() {
     fetchPolicy: 'cache-first', // Use cache if available
     skip: false // Always try to fetch, even if not authenticated
   })
-
-  console.log('chatsData', chatsData)
-
   const chats = chatsData?.getChats || []
   const filteredChats = chats.filter((chat) =>
     chat.name.toLowerCase().includes(debouncedQuery.toLowerCase())
@@ -54,9 +51,9 @@ function OmnibarOverlay() {
     }
   }, [query])
 
-  const windowHeight = useMotionValue(64)
-  const containerHeight = useMotionValue(64)
-  const currentHeight = useRef(64)
+  const windowHeight = useMotionValue(56)
+  const containerHeight = useMotionValue(56)
+  const currentHeight = useRef(56)
   const previousResultCount = useRef(0)
 
   useEffect(() => {
@@ -139,7 +136,7 @@ function OmnibarOverlay() {
   useEffect(() => {
     const windowWidth = 500
     const baseHeight = 64
-    const itemHeight = 48 // Height per result item
+    const itemHeight = 36 // Height per result item
 
     // Calculate current result count
     const resultCount =
@@ -187,7 +184,7 @@ function OmnibarOverlay() {
           className="w-full h-full !bg-transparent border-0 shadow-none"
           style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
-          <motion.form onSubmit={handleSubmit} className="w-full">
+          <motion.form onSubmit={handleSubmit} className="w-full h-full">
             <motion.div
               ref={contentRef}
               data-omnibar-content
@@ -195,7 +192,7 @@ function OmnibarOverlay() {
               transition={{ type: 'spring', damping: 55, stiffness: 350 }}
               style={{ maxHeight: containerHeight }}
             >
-              <div className="flex justify-center items-center gap-3 h-full min-h-10">
+              <div className="flex justify-center items-center gap-3 h-full">
                 <textarea
                   ref={textareaRef}
                   value={query}
