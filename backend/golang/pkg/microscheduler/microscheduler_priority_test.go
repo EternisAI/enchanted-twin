@@ -334,6 +334,34 @@ func TestPriorityPreemption(t *testing.T) {
 
 	if len(executionOrder) != 2 {
 		t.Errorf("Expected 2 completed tasks, got %d", len(executionOrder))
+		return
+	}
+
+	// Verify that UI task completed before background task (priority preemption)
+	uiTaskFound := false
+	backgroundTaskFound := false
+	uiCompletedFirst := false
+
+	for _, entry := range executionOrder {
+		if strings.Contains(entry, "UI:") {
+			uiTaskFound = true
+			if !backgroundTaskFound {
+				uiCompletedFirst = true
+			}
+		}
+		if strings.Contains(entry, "Background:") {
+			backgroundTaskFound = true
+		}
+	}
+
+	if !uiTaskFound {
+		t.Error("UI task should have been executed")
+	}
+	if !backgroundTaskFound {
+		t.Error("Background task should have been executed")
+	}
+	if !uiCompletedFirst {
+		t.Error("UI task should have completed before background task (priority preemption failed)")
 	}
 
 	t.Logf("Priority preemption execution order: %v", executionOrder)
