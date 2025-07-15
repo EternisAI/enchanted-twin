@@ -21,7 +21,7 @@ const MAX_STEPS = 10
 type Agent struct {
 	logger           *log.Logger
 	nc               *nats.Conn
-	aiService        *ai.Service
+	aiService        AIService
 	CompletionsModel string
 	ReasoningModel   string
 	PreToolCallback  func(toolCall openai.ChatCompletionMessageToolCall)
@@ -31,7 +31,7 @@ type Agent struct {
 func NewAgent(
 	logger *log.Logger,
 	nc *nats.Conn,
-	aiService *ai.Service,
+	aiService AIService,
 	completionsModel string,
 	reasoningModel string,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
@@ -54,6 +54,7 @@ type AgentResponse struct {
 	ToolResults      []types.ToolResult
 	ImageURLs        []string
 	ReplacementRules map[string]string
+	Errors           []string // Tool execution errors
 }
 
 func (r AgentResponse) String() string {
