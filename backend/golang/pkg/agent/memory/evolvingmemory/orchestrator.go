@@ -170,13 +170,7 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 				"batchSize", len(facts),
 				"totalStoredSoFar", totalStoredFacts)
 
-			if err := storageImpl.StoreFactsDirectly(ctx, facts, func(processed, total int) {
-				progressCh <- Progress{
-					Processed: totalStoredFacts + processed,
-					Total:     maxResults,
-					Stage:     "storage",
-				}
-			}); err != nil {
+			if err := storageImpl.StoreFactsDirectly(ctx, facts, nil); err != nil {
 				return fmt.Errorf("failed to store batch: %w", err)
 			}
 
