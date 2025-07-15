@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"time"
 )
 
 const (
@@ -30,7 +31,26 @@ func NewClient() (*Client, error) {
 
 	client.serverCmd = serverCmd
 
+	// Wait for server to be ready
+	if err := client.waitForServerReady(10 * time.Second); err != nil {
+		client.Close()
+		return nil, fmt.Errorf("server failed to start: %w", err)
+	}
+
 	return client, nil
+}
+
+func (c *Client) waitForServerReady(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := net.Dial("tcp", net.JoinHostPort(serverHost, serverPort))
+		if err == nil {
+			conn.Close()
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("server not ready within %v", timeout)
 }
 
 func (c *Client) Infer(input string) (string, error) {
