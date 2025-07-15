@@ -2,13 +2,19 @@ package microscheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
 )
+
+// ErrTaskInterrupted is returned when a task is interrupted during execution.
+var ErrTaskInterrupted = errors.New("task interrupted")
+
+// ErrTaskInterruptedTimeout is returned when a task is interrupted but doesn't respond within timeout.
+var ErrTaskInterruptedTimeout = errors.New("task interrupted and rescheduled due to timeout")
 
 type Priority int
 
@@ -142,7 +148,7 @@ func (w *WorkerProcessor) ProcessWithInterruption(req TaskRequest) InterruptedTa
 		case <-w.interrupt:
 			w.logger.Debug("Task interrupted during execution", "processorID", w.ID, "taskName", req.Task.Name)
 			return InterruptedTaskResult{
-				TaskResult:  TaskResult{Value: nil, Error: fmt.Errorf("task interrupted")},
+				TaskResult:  TaskResult{Value: nil, Error: ErrTaskInterrupted},
 				Interrupted: true,
 			}
 		}
@@ -158,7 +164,7 @@ func (w *WorkerProcessor) ProcessWithInterruption(req TaskRequest) InterruptedTa
 	case <-w.interrupt:
 		w.logger.Debug("Task interrupted before compute", "processorID", w.ID, "taskName", req.Task.Name)
 		return InterruptedTaskResult{
-			TaskResult:  TaskResult{Value: nil, Error: fmt.Errorf("task interrupted")},
+			TaskResult:  TaskResult{Value: nil, Error: ErrTaskInterrupted},
 			Interrupted: true,
 		}
 	default:
@@ -255,7 +261,7 @@ func (w *WorkerProcessor) processTask(req TaskRequest) InterruptedTaskResult {
 	select {
 	case result := <-done:
 		// Check if the task was interrupted internally via CheckAndConsumeInterrupt
-		interrupted := result.err != nil && strings.Contains(result.err.Error(), "interrupted")
+		interrupted := result.err != nil && (errors.Is(result.err, ErrTaskInterrupted) || errors.Is(result.err, ErrTaskInterruptedTimeout))
 		return InterruptedTaskResult{
 			TaskResult:   TaskResult{Value: result.value, Error: result.err},
 			Interrupted:  interrupted,
@@ -464,7 +470,7 @@ func (e *TaskExecutor) handleInterruptRequest(processor *WorkerProcessor, backgr
 		e.logger.Warn("Background task did not respond to interrupt within timeout")
 		// Force reschedule the background task and send error back to original caller
 		e.rescheduleTask(backgroundReq)
-		backgroundReq.Done <- TaskResult{Value: nil, Error: fmt.Errorf("task interrupted and rescheduled due to timeout")}
+		backgroundReq.Done <- TaskResult{Value: nil, Error: ErrTaskInterruptedTimeout}
 	}
 
 	// Process the interrupting request
