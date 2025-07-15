@@ -122,7 +122,7 @@ export const UnifiedDataSourceCard = ({
             {importingSource || isBeingProcessed ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Importing...
+                {/* Importing... */}
               </>
             ) : pendingSource ? (
               <>

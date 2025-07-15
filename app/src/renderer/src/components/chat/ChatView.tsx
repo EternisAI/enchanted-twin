@@ -116,7 +116,7 @@ export default function ChatView({ chat }: ChatViewProps) {
                     <TooltipTrigger asChild>
                       <Button
                         onClick={() => setIsAnonymized(!isAnonymized)}
-                        className="p-2 rounded-md bg-accent cursor-pointer hover:bg-accent/50"
+                        className="p-2 rounded-md bg-accent no-drag cursor-pointer hover:bg-accent/50"
                         variant="ghost"
                         size="sm"
                       >
