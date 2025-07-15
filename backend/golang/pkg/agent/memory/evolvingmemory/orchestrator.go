@@ -89,7 +89,6 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			return
 		}
 
-		// Step 1: Chunk documents
 		var chunkedDocs []memory.Document
 		for _, doc := range documents {
 			chunks := doc.Chunk()
@@ -111,7 +110,6 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			return
 		}
 
-		// Step 2: Create extraction jobs
 		extractJobs := make([]DocumentExtractionJob, len(chunkedDocs))
 		for i, doc := range chunkedDocs {
 			extractJobs[i] = DocumentExtractionJob{
@@ -127,13 +125,11 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			"workers", config.Workers,
 			"timeout", config.FactExtractionTimeout)
 
-		// Step 3: Run extraction in parallel
 		extractPool := NewWorkerPool[DocumentExtractionJob](config.Workers, o.logger)
 		extractionResults := extractPool.Process(ctx, extractJobs, config.FactExtractionTimeout)
 
 		o.logger.Info("ProcessDocuments: Worker pool created, starting result collection")
 
-		// Step 4: Process and store facts in batches
 		var currentBatch []FactResult
 		var totalStoredFacts int
 
@@ -147,7 +143,6 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		resultCount := 0
 		maxResults := len(extractJobs)
 
-		// Create storage implementation for batching
 		storageImpl := &StorageImpl{
 			logger:       o.logger,
 			orchestrator: o,
@@ -155,7 +150,6 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			engine:       o.engine,
 		}
 
-		// Helper function to store a batch of facts
 		storeBatch := func(batch []FactResult) error {
 			if len(batch) == 0 {
 				return nil
@@ -257,7 +251,6 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			}
 		}
 
-		// Store any remaining facts in the final batch
 		if len(currentBatch) > 0 {
 			o.logger.Info("ProcessDocuments: Storing final batch",
 				"finalBatchSize", len(currentBatch),
