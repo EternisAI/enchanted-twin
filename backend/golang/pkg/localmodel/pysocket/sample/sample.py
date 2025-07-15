@@ -59,16 +59,18 @@ class ModelServer:
                 if not data:
                     break
                     
-                command = data.decode('utf-8').strip()
-                logger.info(f"Received command: {command}")
+                message = data.decode('utf-8').strip()
+                logger.info(f"Received message: {message}")
                 
-                if command == 'infer':
-                    logger.info("Processing inference request...")
+                if message.startswith('infer:'):
+                    # Extract the input after 'infer:'
+                    input_text = message[6:]  # Remove 'infer:' prefix
+                    logger.info(f"Processing inference request with input: {input_text}")
                     time.sleep(0.1)  # Sleep for 100ms
-                    response = "Inference completed successfully\n"
+                    response = f"Processed: {input_text}\n"
                     client_socket.send(response.encode('utf-8'))
                 else:
-                    response = f"Unknown command: {command}\n"
+                    response = f"Unknown message format: {message}\n"
                     client_socket.send(response.encode('utf-8'))
                     
         except Exception as e:

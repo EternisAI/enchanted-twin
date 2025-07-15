@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 )
 
@@ -21,6 +22,8 @@ func NewClient() (*Client, error) {
 
 	// Start the Python server
 	serverCmd := exec.Command("python3", "sample/sample.py")
+	serverCmd.Stdout = os.Stdout
+	serverCmd.Stderr = os.Stderr
 	if err := serverCmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start Python server: %w", err)
 	}
@@ -37,8 +40,9 @@ func (c *Client) Infer(input string) (string, error) {
 	}
 	defer conn.Close()
 
-	// Send the infer command
-	_, err = conn.Write([]byte("infer\n"))
+	// Send the infer command with input data
+	message := fmt.Sprintf("infer:%s\n", input)
+	_, err = conn.Write([]byte(message))
 	if err != nil {
 		return "", fmt.Errorf("failed to send command: %w", err)
 	}
