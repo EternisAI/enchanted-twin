@@ -18,7 +18,10 @@ type MockLlamaAnonymizer struct {
 
 func (m *MockLlamaAnonymizer) Anonymize(ctx context.Context, text string) (map[string]string, error) {
 	args := m.Called(ctx, text)
-	return args.Get(0).(map[string]string), args.Error(1) //nolint:errcheck
+	if result, ok := args.Get(0).(map[string]string); ok {
+		return result, args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
 func (m *MockLlamaAnonymizer) Close() error {
@@ -39,7 +42,10 @@ type MockServiceWithRawCompletions struct {
 // RawCompletions method to support the LLM anonymizer type check.
 func (m *MockServiceWithRawCompletions) RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error) {
 	args := m.Called(ctx, messages, tools, model)
-	return args.Get(0).(PrivateCompletionResult), args.Error(1) //nolint:errcheck
+	if result, ok := args.Get(0).(PrivateCompletionResult); ok {
+		return result, args.Error(1)
+	}
+	return PrivateCompletionResult{}, args.Error(1)
 }
 
 func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
