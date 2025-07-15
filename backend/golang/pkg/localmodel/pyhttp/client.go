@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -16,11 +17,14 @@ const (
 )
 
 type Client struct {
+	logger    *slog.Logger
 	serverCmd *exec.Cmd
 }
 
-func NewClient() (*Client, error) {
-	client := &Client{}
+func NewClient(logger *slog.Logger) (*Client, error) {
+	client := &Client{
+		logger: logger,
+	}
 
 	// Start the Python server with unbuffered output
 	serverCmd := exec.Command("python3", "-u", "sample/sample.py")
@@ -55,6 +59,8 @@ func (c *Client) waitForServerReady(timeout time.Duration) error {
 }
 
 func (c *Client) Infer(input string) (string, error) {
+	start := time.Now()
+
 	requestBody := map[string]string{"input": input}
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
@@ -84,6 +90,9 @@ func (c *Client) Infer(input string) (string, error) {
 	if errorMsg, exists := response["error"]; exists {
 		return "", fmt.Errorf("server error: %s", errorMsg)
 	}
+
+	elapsed := time.Since(start)
+	c.logger.Info("inference completed", "duration", elapsed, "input", input)
 
 	return response["output"], nil
 }

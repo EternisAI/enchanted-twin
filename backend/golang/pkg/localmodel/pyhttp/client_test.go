@@ -1,13 +1,14 @@
 package pyhttp
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestPySocketInfer(t *testing.T) {
-	client, err := NewClient()
+	client, err := NewClient(slog.Default())
 	assert.NoError(t, err)
 	defer func() { _ = client.Close() }()
 
