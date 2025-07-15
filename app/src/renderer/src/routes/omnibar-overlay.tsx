@@ -51,10 +51,9 @@ function OmnibarOverlay() {
     }
   }, [query])
 
-  const windowHeight = useMotionValue(56)
-  const containerHeight = useMotionValue(56)
-  const currentHeight = useRef(56)
-  const previousResultCount = useRef(0)
+  const windowHeight = useMotionValue(64)
+  const containerHeight = useMotionValue(64)
+  const currentHeight = useRef(64)
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -135,7 +134,7 @@ function OmnibarOverlay() {
   // Calculate and animate window height based on state
   useEffect(() => {
     const windowWidth = 500
-    const baseHeight = 64
+    const baseHeight = 64 // Match the initial window height from windows.ts
     const itemHeight = 36 // Height per result item
 
     // Calculate current result count
@@ -144,19 +143,13 @@ function OmnibarOverlay() {
         ? Math.min(filteredChats.length + 1, 8) // +1 for "new chat", cap at 8
         : 0
 
-    // Only animate if result count changed
-    if (resultCount === previousResultCount.current) return
-    previousResultCount.current = resultCount
-
     const targetHeight = baseHeight + resultCount * itemHeight
 
-    if (Math.abs(targetHeight - currentHeight.current) < 1) return
-
-    // Animate both window and container height together
+    // Always animate to the target height, regardless of previous state
     animate(windowHeight, targetHeight, {
       type: 'spring',
-      stiffness: 350,
-      damping: 55,
+      stiffness: 200,
+      damping: 23,
       onUpdate: (latest) => {
         containerHeight.set(latest)
         if (window.api?.resizeOmnibarWindow) {
