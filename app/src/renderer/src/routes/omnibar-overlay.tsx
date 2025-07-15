@@ -271,7 +271,7 @@ function OmnibarOverlay() {
                               'flex text-muted-foreground w-full items-center justify-between px-3 py-2 text-left text-sm',
                               'hover:bg-sidebar-accent',
                               selectedIndex === filteredChats.length &&
-                                'bg-sidebar-accent text-sidebar-primary-foreground rounded-md'
+                                'bg-sidebar-accent rounded-md font-medium'
                             )}
                           >
                             <span>New chat: &quot;{debouncedQuery}&quot;</span>

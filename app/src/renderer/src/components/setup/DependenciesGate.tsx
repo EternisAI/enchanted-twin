@@ -215,7 +215,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
           <div className="flex flex-col gap-1 text-center items-center">
             <img src={FreysaLoading} alt="Enchanted" className="w-16 h-16" />
             <h1 className="text-lg font-normal text-white">
-              {allDependenciesCompleted ? 'Starting Enchanted' : 'Enchanted is loading'}
+              {allDependenciesCompleted ? 'It begins with Freysa' : 'Enchanted is loading'}
             </h1>
             {!allDependenciesCompleted && <p className="text-xs text-white">~5 minutes</p>}
           </div>
