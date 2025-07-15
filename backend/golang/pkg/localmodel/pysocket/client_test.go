@@ -9,7 +9,7 @@ import (
 func TestPySocketInfer(t *testing.T) {
 	client, err := NewClient()
 	assert.NoError(t, err)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	response, err := client.Infer("test input")
 	assert.NoError(t, err)

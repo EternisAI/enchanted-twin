@@ -33,7 +33,7 @@ func NewClient() (*Client, error) {
 
 	// Wait for server to be ready
 	if err := client.waitForServerReady(10 * time.Second); err != nil {
-		client.Close()
+		_ = client.Close()
 		return nil, fmt.Errorf("server failed to start: %w", err)
 	}
 
@@ -45,7 +45,7 @@ func (c *Client) waitForServerReady(timeout time.Duration) error {
 	for time.Now().Before(deadline) {
 		conn, err := net.Dial("tcp", net.JoinHostPort(serverHost, serverPort))
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -58,7 +58,7 @@ func (c *Client) Infer(input string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to server: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Send the infer command with input data
 	message := fmt.Sprintf("infer:%s\n", input)
@@ -83,8 +83,8 @@ func (c *Client) Infer(input string) (string, error) {
 
 func (c *Client) Close() error {
 	if c.serverCmd != nil && c.serverCmd.Process != nil {
-		c.serverCmd.Process.Kill()
-		c.serverCmd.Wait()
+		_ = c.serverCmd.Process.Kill()
+		_ = c.serverCmd.Wait()
 	}
 	return nil
 }
