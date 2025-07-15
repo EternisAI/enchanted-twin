@@ -49,6 +49,7 @@ function registerStoredShortcuts() {
     globalShortcut.unregisterAll()
     log.info('Unregistered all existing global shortcuts')
 
+    // Get shortcuts from store (electron-store handles defaults automatically)
     const shortcuts = keyboardShortcutsStore.get('shortcuts')
 
     // Register each shortcut

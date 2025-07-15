@@ -3,7 +3,8 @@ import Google from '@renderer/assets/icons/google'
 import Slack from '@renderer/assets/icons/slack'
 import XformerlyTwitter from '@renderer/assets/icons/x'
 import IconContainer from '@renderer/assets/icons/IconContainer'
-import { ComputerIcon, PlugIcon } from 'lucide-react'
+import { PlugIcon } from 'lucide-react'
+import screenpipeIcon from '@renderer/assets/icons/screenpipe.png'
 import enchantedIcon from '@resources/icon.png'
 import freysaIcon from '@resources/freysa.png'
 
@@ -21,7 +22,11 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     scope:
       'openid email profile https://www.googleapis.com/auth/drive https://mail.google.com/ https://www.googleapis.com/auth/calendar',
     description: 'Access Gmail, Google Drive, and Calendar',
-    icon: <Google className="w-10 h-10" />,
+    icon: (
+      <IconContainer>
+        <Google className="size-7" />
+      </IconContainer>
+    ),
     supportsMultipleConnections: true
   },
   SLACK: {
@@ -29,7 +34,11 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     scope:
       'channels:read,groups:read,channels:history,groups:history,im:read,mpim:read,search:read,users:read',
     description: 'Read messages and communicate with your team',
-    icon: <Slack className="w-10 h-10" />,
+    icon: (
+      <IconContainer>
+        <Slack className="size-7" />
+      </IconContainer>
+    ),
     supportsMultipleConnections: true
   },
   TWITTER: {
@@ -38,7 +47,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     description: 'Read and write tweets, manage bookmarks',
     icon: (
       <IconContainer className="bg-foreground">
-        <XformerlyTwitter className="w-7 h-7 text-primary-foreground" />
+        <XformerlyTwitter className="size-7 text-primary-foreground" />
       </IconContainer>
     ),
     supportsMultipleConnections: true
@@ -49,7 +58,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     description: 'Record screen activity for AI context',
     icon: (
       <IconContainer>
-        <ComputerIcon strokeWidth={1.5} className="w-7 h-7" />
+        <img src={screenpipeIcon} alt="Screenpipe" className="size-7" />
       </IconContainer>
     ),
     supportsMultipleConnections: false
@@ -60,7 +69,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     description: 'Connect custom MCP servers',
     icon: (
       <IconContainer>
-        <PlugIcon strokeWidth={1.5} className="w-10 h-10" />
+        <PlugIcon strokeWidth={1.5} className="size-7" />
       </IconContainer>
     ),
     supportsMultipleConnections: true
@@ -68,15 +77,23 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
   ENCHANTED: {
     provider: 'enchanted',
     scope: '',
-    description: 'Enhanced AI capabilities and tools',
-    icon: <img src={enchantedIcon} alt="Enchanted" className="w-10 h-10" />,
+    description: 'Generate images and search the web',
+    icon: (
+      <IconContainer>
+        <img src={enchantedIcon} alt="Essentials" className="size-7" />
+      </IconContainer>
+    ),
     supportsMultipleConnections: false
   },
   FREYSA: {
     provider: 'freysa',
     scope: '',
     description: 'Generate videos with popular templates or create your own',
-    icon: <img src={freysaIcon} alt="Freysa" className="w-10 h-10" />,
+    icon: (
+      <IconContainer>
+        <img src={freysaIcon} alt="Freysa" className="size-7" />
+      </IconContainer>
+    ),
     supportsMultipleConnections: false
   }
 }

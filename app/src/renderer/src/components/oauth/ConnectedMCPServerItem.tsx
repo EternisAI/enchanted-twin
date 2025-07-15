@@ -12,7 +12,7 @@ import {
   AlertDialogCancel
 } from '../ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
-import { Check, Unplug } from 'lucide-react'
+import { Check, Unplug, InfoIcon } from 'lucide-react'
 import { PROVIDER_ICON_MAP, PROVIDER_DESCRIPTION_MAP } from '@renderer/constants/mcpProviders'
 
 interface ConnectedMCPServerItemProps {
@@ -38,18 +38,27 @@ export default function ConnectedMCPServerItem({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="font-semibold text-lg flex items-center justify-between flex-row gap-5">
+      <div className="flex items-center justify-between flex-row gap-5">
         <div className="flex items-center gap-5 flex-1 min-w-0">
           <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center flex-shrink-0">
             {PROVIDER_ICON_MAP[server.type]}
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-0">
-            <span className="font-semibold text-lg leading-none">{server.name}</span>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {PROVIDER_DESCRIPTION_MAP[server.type]}
-            </p>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-lg leading-none">{server.name}</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <InfoIcon className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground transition-colors duration-200" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-md">
+                    <p>{PROVIDER_DESCRIPTION_MAP[server.type]}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             {server.connected && (
-              <div className="flex flex-wrap gap-1">
+              <>
                 {/* Extract connection identifier from envs */}
                 {(() => {
                   const getConnectionIdentifier = () => {
@@ -80,14 +89,16 @@ export default function ConnectedMCPServerItem({
                     (identifier.includes('@') || identifier.includes('.'))
                   ) {
                     return (
-                      <span className="text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-1 rounded-full">
-                        {identifier}
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-1 rounded-full">
+                          {identifier}
+                        </span>
+                      </div>
                     )
                   }
                   return null
                 })()}
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -109,23 +120,14 @@ export default function ConnectedMCPServerItem({
           {/* Disconnect button - fades in on hover */}
           <AlertDialog open={isDisconnectDialogOpen} onOpenChange={setIsDisconnectDialogOpen}>
             <AlertDialogTrigger asChild>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={`absolute right-0 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                      onClick={() => setIsDisconnectDialogOpen(true)}
-                    >
-                      <Unplug className="w-4 h-4" />
-                      Disconnect
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Disconnect server</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Button
+                variant="outline"
+                className={`absolute right-0 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onClick={() => setIsDisconnectDialogOpen(true)}
+              >
+                <Unplug className="w-4 h-4" />
+                Disconnect
+              </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>

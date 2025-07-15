@@ -28,6 +28,7 @@ interface IApi {
   getNativeTheme: () => Promise<'light' | 'dark'>
   setNativeTheme: (theme: 'system' | 'light' | 'dark') => Promise<'light' | 'dark'>
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => void
+  onThemeChanged: (callback: (theme: 'system' | 'light' | 'dark') => void) => () => void
   openOAuthUrl: (url: string, redirectUri?: string) => void
   onOAuthCallback: (callback: (data: { state: string; code: string }) => void) => void
   openLogsFolder: () => Promise<boolean>
@@ -127,7 +128,8 @@ interface IApi {
   onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => () => void
   openMainWindowWithChat: (
     chatId?: string,
-    initialMessage?: string
+    initialMessage?: string,
+    reasoning?: boolean
   ) => Promise<{ success: boolean; error?: string }>
   onNavigateTo: (callback: (url: string) => void) => () => void
   resizeOmnibarWindow: (
