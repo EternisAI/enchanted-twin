@@ -715,7 +715,7 @@ func (s *StorageImpl) IntelligentQuery(ctx context.Context, queryText string, fi
 // This should be called periodically (e.g., after bulk imports complete) rather than
 // after every single document storage operation.
 func (s *StorageImpl) RunConsolidation(ctx context.Context) error {
-	s.logger.Info("Starting manual consolidation pipeline")
+	s.logger.Info("🧠🧠🧠 CONSOLIDATION PIPELINE STARTING 🧠🧠🧠")
 
 	// Get required dependencies for consolidation
 	deps := ConsolidationDependencies{
@@ -772,12 +772,12 @@ func (s *StorageImpl) RunConsolidation(ctx context.Context) error {
 			totalConsolidatedFacts += len(report.ConsolidatedFacts)
 		}
 
-		s.logger.Info("Manual consolidation completed",
+		s.logger.Info("🎉🎉🎉 CONSOLIDATION PIPELINE COMPLETED 🎉🎉🎉",
 			"subjects_processed", len(allReports),
 			"total_source_facts", totalSourceFacts,
 			"total_consolidated_facts", totalConsolidatedFacts)
 	} else {
-		s.logger.Info("No consolidations created (no qualifying facts found)")
+		s.logger.Info("🔍🔍🔍 CONSOLIDATION COMPLETED - NO QUALIFYING FACTS FOUND 🔍🔍🔍")
 	}
 
 	return nil

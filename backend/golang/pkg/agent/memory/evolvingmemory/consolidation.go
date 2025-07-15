@@ -153,11 +153,11 @@ func parseConsolidationResponse(response openai.ChatCompletionMessage, sourceFac
 				Subject:         rawFact.Subject,
 				Attribute:       rawFact.Attribute,
 				Value:           rawFact.Value,
-				TemporalContext: rawFact.TemporalContext,
+				TemporalContext: rawFact.TemporalContext, // Preserve original temporal context
 				Sensitivity:     rawFact.Sensitivity,
 				Importance:      rawFact.Importance,
 				Source:          "consolidation",                            // Mark as consolidated fact
-				Timestamp:       time.Now(),                                 // Current timestamp for consolidation
+				Timestamp:       time.Now(),                                 // Current timestamp for when consolidation was processed
 				Tags:            []string{"consolidated", rawFact.Category}, // Add consolidation tags
 			}
 

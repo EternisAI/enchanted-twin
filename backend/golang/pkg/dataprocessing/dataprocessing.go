@@ -293,24 +293,26 @@ func NewDataProcessingService(openAiService *ai.Service, completionsModel string
 // runConsolidationAfterBulkImport runs consolidation after a bulk data import completes.
 // This should only be called after static data imports (WhatsApp, Telegram, etc.), not individual messages.
 func (s *DataProcessingService) runConsolidationAfterBulkImport(ctx context.Context, dataSource string, documentCount int) {
-	s.logger.Info("Bulk data import completed, starting consolidation pipeline",
+	s.logger.Info("🚀🚀🚀 CONSOLIDATION TRIGGER 🚀🚀🚀 Bulk data import completed, starting consolidation pipeline",
 		"data_source", dataSource,
 		"document_count", documentCount)
 
 	// Run consolidation asynchronously to avoid blocking the import process
 	go func() {
+		s.logger.Info("⚡⚡⚡ CONSOLIDATION STARTING ⚡⚡⚡", "data_source", dataSource)
+
 		// Need to type-assert the memory.Storage to get access to RunConsolidation
 		if memoryStorage, ok := s.memory.(interface{ RunConsolidation(context.Context) error }); ok {
 			if err := memoryStorage.RunConsolidation(ctx); err != nil {
-				s.logger.Error("Consolidation failed after bulk import",
+				s.logger.Error("💥💥💥 CONSOLIDATION FAILED 💥💥💥",
 					"data_source", dataSource,
 					"error", err)
 			} else {
-				s.logger.Info("Consolidation completed after bulk import",
+				s.logger.Info("✅✅✅ CONSOLIDATION COMPLETED SUCCESSFULLY ✅✅✅",
 					"data_source", dataSource)
 			}
 		} else {
-			s.logger.Warn("Memory storage does not support consolidation",
+			s.logger.Warn("⚠️⚠️⚠️ Memory storage does not support consolidation ⚠️⚠️⚠️",
 				"data_source", dataSource)
 		}
 	}()
