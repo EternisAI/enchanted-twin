@@ -44,12 +44,22 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		return []*memory.MemoryFact{}, nil
 	}
 
+	// Use anti-duplication prompt for twin chat conversations
+	var systemPrompt string
+	if convDoc.Source() == "chat" {
+		systemPrompt = TwinChatFactExtractionPrompt
+		logger.Debug("Using twin chat anti-duplication prompt", "source", convDoc.Source())
+	} else {
+		systemPrompt = FactExtractionPrompt
+		logger.Debug("Using standard fact extraction prompt", "source", convDoc.Source())
+	}
+
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(FactExtractionPrompt),
+		openai.SystemMessage(systemPrompt),
 		openai.UserMessage(content),
 	}
 
-	logger.Debug("Sending conversation to LLM", "system_prompt_length", len(FactExtractionPrompt), "json_length", len(content))
+	logger.Debug("Sending conversation to LLM", "system_prompt_length", len(systemPrompt), "json_length", len(content))
 
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {

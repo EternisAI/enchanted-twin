@@ -301,9 +301,14 @@ func (s *DataProcessingService) runConsolidationAfterBulkImport(ctx context.Cont
 	go func() {
 		s.logger.Info("⚡⚡⚡ CONSOLIDATION STARTING ⚡⚡⚡", "data_source", dataSource)
 
+		// FIX: Use a fresh context with timeout instead of the original context
+		// The original context might be canceled by the time consolidation runs
+		consolidationCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+
 		// Need to type-assert the memory.Storage to get access to RunConsolidation
 		if memoryStorage, ok := s.memory.(interface{ RunConsolidation(context.Context) error }); ok {
-			if err := memoryStorage.RunConsolidation(ctx); err != nil {
+			if err := memoryStorage.RunConsolidation(consolidationCtx); err != nil {
 				s.logger.Error("💥💥💥 CONSOLIDATION FAILED 💥💥💥",
 					"data_source", dataSource,
 					"error", err)
