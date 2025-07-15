@@ -13,18 +13,16 @@ import (
 )
 
 type PersistentAnonymizer struct {
-	store        ConversationStore
-	hasher       *MessageHasher
-	logger       *log.Logger
-	tokenCounter map[string]int // Track token counters per conversation
+	store  ConversationStore
+	hasher *MessageHasher
+	logger *log.Logger
 }
 
 func NewPersistentAnonymizer(db *sql.DB, logger *log.Logger) *PersistentAnonymizer {
 	return &PersistentAnonymizer{
-		store:        NewSQLiteConversationStore(db, logger),
-		hasher:       NewMessageHasher(),
-		logger:       logger,
-		tokenCounter: make(map[string]int),
+		store:  NewSQLiteConversationStore(db, logger),
+		hasher: NewMessageHasher(),
+		logger: logger,
 	}
 }
 
