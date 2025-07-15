@@ -188,6 +188,7 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			return nil
 		}
 
+	resultLoop:
 		for {
 			select {
 			case result, ok := <-extractionResults:
@@ -195,7 +196,7 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 					o.logger.Info("ProcessDocuments: All extraction results collected",
 						"totalResults", resultCount,
 						"expectedResults", maxResults)
-					break
+					break resultLoop
 				}
 
 				resultCount++
@@ -231,7 +232,7 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 
 				if resultCount >= maxResults {
 					o.logger.Info("ProcessDocuments: Received all expected results, will store remaining batch")
-					break
+					break resultLoop
 				}
 
 			case <-collectionCtx.Done():
@@ -239,15 +240,15 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 					"collectedResults", resultCount,
 					"expectedResults", maxResults,
 					"remainingBatchSize", len(currentBatch))
-				break
+				break resultLoop
 
 			case <-ctx.Done():
-				o.logger.Warn("ProcessDocuments: Main context cancelled during result collection")
+				o.logger.Warn("ProcessDocuments: Main context canceled during result collection")
 				return
 			}
 
 			if resultCount >= maxResults || collectionCtx.Err() != nil {
-				break
+				break resultLoop
 			}
 		}
 
