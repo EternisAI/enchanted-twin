@@ -365,72 +365,7 @@ func (s *StorageImpl) storeFileDocumentsDirectly(ctx context.Context, documents 
 		callback(len(documentChunks), len(documentChunks))
 	}
 
-	// 🚀 FILE UPLOAD CONSOLIDATION - Only run for file uploads, not chat messages
-	s.logger.Info("File documents stored successfully, starting consolidation pipeline")
-
-	// Get required dependencies for consolidation
-	deps := ConsolidationDependencies{
-		Logger:             s.logger,
-		Storage:            s, // Use the MemoryStorage interface (self)
-		CompletionsService: s.engine.CompletionsService,
-		CompletionsModel:   s.engine.CompletionsModel,
-	}
-
-	// Run consolidation for all canonical semantic subjects
-	consolidationSubjects := ConsolidationSubjects[:]
-
-	var allReports []*ConsolidationReport
-
-	for _, subject := range consolidationSubjects {
-		// Use semantic search with filtering for better results
-		filter := &memory.Filter{
-			Distance:          0.75,                                                  // Allow fairly broad semantic matches
-			Limit:             func() *int { limit := 30; return &limit }(),          // Reasonable limit
-			FactImportanceMin: func() *int { importance := 2; return &importance }(), // Only meaningful facts
-		}
-
-		report, err := ConsolidateMemoriesBySemantic(ctx, subject, filter, deps)
-		if err != nil {
-			s.logger.Warn("Consolidation failed for subject", "subject", subject, "error", err)
-			continue // Don't fail entire process for one subject
-		}
-
-		// Only add reports that actually found facts to consolidate
-		if report.SourceFactCount > 0 {
-			s.logger.Info("Subject consolidation completed",
-				"subject", subject,
-				"source_facts", report.SourceFactCount,
-				"consolidated_facts", len(report.ConsolidatedFacts))
-			allReports = append(allReports, report)
-		}
-	}
-
-	// Store consolidations if any were created
-	if len(allReports) > 0 {
-		err := StoreConsolidationReports(ctx, allReports, s, func(processed, total int) {
-			s.logger.Debug("Storing consolidated facts", "progress", fmt.Sprintf("%d/%d", processed, total))
-		})
-		if err != nil {
-			s.logger.Error("Failed to store consolidation reports", "error", err)
-			// Don't fail the entire Store operation for consolidation issues
-		} else {
-			// Calculate totals for logging
-			totalSourceFacts := 0
-			totalConsolidatedFacts := 0
-			for _, report := range allReports {
-				totalSourceFacts += report.SourceFactCount
-				totalConsolidatedFacts += len(report.ConsolidatedFacts)
-			}
-
-			s.logger.Info("File upload consolidation completed",
-				"subjects_processed", len(allReports),
-				"total_source_facts", totalSourceFacts,
-				"total_consolidated_facts", totalConsolidatedFacts)
-		}
-	} else {
-		s.logger.Info("No consolidations created (no qualifying facts found)")
-	}
-
+	s.logger.Info("File documents stored successfully")
 	return nil
 }
 

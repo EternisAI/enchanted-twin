@@ -290,6 +290,32 @@ func NewDataProcessingService(openAiService *ai.Service, completionsModel string
 	}
 }
 
+// runConsolidationAfterBulkImport runs consolidation after a bulk data import completes.
+// This should only be called after static data imports (WhatsApp, Telegram, etc.), not individual messages.
+func (s *DataProcessingService) runConsolidationAfterBulkImport(ctx context.Context, dataSource string, documentCount int) {
+	s.logger.Info("Bulk data import completed, starting consolidation pipeline",
+		"data_source", dataSource,
+		"document_count", documentCount)
+
+	// Run consolidation asynchronously to avoid blocking the import process
+	go func() {
+		// Need to type-assert the memory.Storage to get access to RunConsolidation
+		if memoryStorage, ok := s.memory.(interface{ RunConsolidation(context.Context) error }); ok {
+			if err := memoryStorage.RunConsolidation(ctx); err != nil {
+				s.logger.Error("Consolidation failed after bulk import",
+					"data_source", dataSource,
+					"error", err)
+			} else {
+				s.logger.Info("Consolidation completed after bulk import",
+					"data_source", dataSource)
+			}
+		} else {
+			s.logger.Warn("Memory storage does not support consolidation",
+				"data_source", dataSource)
+		}
+	}()
+}
+
 func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType string, inputPath string, outputPath string) (bool, error) {
 	if err := validateInputPath(inputPath); err != nil {
 		return false, fmt.Errorf("invalid input path: %v", err)
@@ -357,6 +383,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			}
 
 			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			s.runConsolidationAfterBulkImport(ctx, "telegram", len(documents))
 			return true, nil
 		} else {
 			if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
@@ -398,6 +425,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			}
 
 			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			s.runConsolidationAfterBulkImport(ctx, "slack", len(documents))
 			return true, nil
 		} else {
 			if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
@@ -433,6 +461,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			}
 
 			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			s.runConsolidationAfterBulkImport(ctx, "gmail", len(documents))
 			return true, nil
 		} else {
 			// Save to file for backward compatibility
@@ -475,6 +504,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			}
 
 			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			s.runConsolidationAfterBulkImport(ctx, "x", len(documents))
 			return true, nil
 		} else {
 			if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
@@ -511,6 +541,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			}
 
 			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			s.runConsolidationAfterBulkImport(ctx, "whatsapp", len(documents))
 			return true, nil
 		} else {
 			// Save to file for backward compatibility
@@ -548,6 +579,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			}
 
 			s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+			s.runConsolidationAfterBulkImport(ctx, "chatgpt", len(documents))
 			return true, nil
 		} else {
 			// Save to file for backward compatibility
@@ -582,6 +614,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		}
 
 		s.logger.Info("Successfully processed and stored documents", "count", len(documents))
+		s.runConsolidationAfterBulkImport(ctx, "synced-document", len(documents))
 		return true, nil
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
