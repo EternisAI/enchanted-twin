@@ -4,6 +4,10 @@ import { SettingsContent } from '@renderer/components/settings/SettingsContent'
 import { Brain } from '@renderer/components/graphics/brain'
 import enchantedIcon from '@resources/icon.png'
 import { motion } from 'framer-motion'
+import { Button } from '@renderer/components/ui/button'
+import { useAuth } from '@renderer/contexts/AuthContext'
+import { UsersRoundIcon } from 'lucide-react'
+import { ErrorBoundary } from '@renderer/components/ui/error-boundary'
 
 export const Route = createFileRoute('/settings/about')({
   component: AboutSettings
@@ -35,6 +39,7 @@ const itemVariants = {
 }
 
 function AboutSettings() {
+  const { signOut } = useAuth()
   return (
     <div className="relative h-full">
       <motion.div
@@ -62,7 +67,17 @@ function AboutSettings() {
             Enchanted
           </motion.h1>
           <motion.div variants={itemVariants}>
-            <Versions />
+            <ErrorBoundary
+              componentName="Versions"
+              fallback={
+                <div className="w-full border-none flex flex-col gap-2 items-center text-center">
+                  <h2 className="text-2xl font-semibold">Version Information</h2>
+                  <p className="text-sm text-muted-foreground">Unable to load version details</p>
+                </div>
+              }
+            >
+              <Versions />
+            </ErrorBoundary>
           </motion.div>
           <motion.p className="text-sm text-muted-foreground" variants={itemVariants}>
             Made with 💚 by{' '}
@@ -70,6 +85,10 @@ function AboutSettings() {
               Freysa
             </a>
           </motion.p>
+          <Button variant="outline" className="flex items-center justify-start" onClick={signOut}>
+            <UsersRoundIcon className="mr-2" />
+            Sign Out
+          </Button>
         </motion.div>
       </SettingsContent>
     </div>
