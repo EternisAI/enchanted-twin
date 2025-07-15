@@ -570,12 +570,36 @@ func (r *queryResolver) GetDataSources(ctx context.Context) ([]*model.DataSource
 
 	modelDataSources := make([]*model.DataSource, len(dbDataSources))
 	for i, ds := range dbDataSources {
+		// Compute IsProcessed based on processed_path being non-null
+		isProcessed := ds.ProcessedPath != nil && *ds.ProcessedPath != ""
+
+		// Get HasError from database (default to false if null)
+		hasError := ds.HasError != nil && *ds.HasError
+
+		// Get IsIndexed from database (default to false if null)
+		isIndexed := ds.IsIndexed != nil && *ds.IsIndexed
+
+		// Determine IndexProgress based on processing status
+		var indexProgress int32 = 0
+		if isProcessed && !isIndexed {
+			// If processed but not indexed, show some progress
+			// This will be updated by the subscription for real-time progress
+			if ds.ProcessingStatus == "indexing" {
+				indexProgress = 10 // Show some progress for active indexing
+			}
+		} else if isIndexed {
+			indexProgress = 100 // Complete
+		}
+
 		modelDataSources[i] = &model.DataSource{
-			ID:        ds.ID,
-			Name:      ds.Name,
-			Path:      ds.Path,
-			UpdatedAt: ds.UpdatedAt,
-			IsIndexed: ds.IsIndexed != nil && *ds.IsIndexed,
+			ID:            ds.ID,
+			Name:          ds.Name,
+			Path:          ds.Path,
+			UpdatedAt:     ds.UpdatedAt,
+			IsProcessed:   isProcessed,
+			IsIndexed:     isIndexed,
+			IndexProgress: indexProgress,
+			HasError:      hasError,
 		}
 	}
 	return modelDataSources, nil
@@ -593,6 +617,32 @@ func (r *queryResolver) GetOAuthStatus(ctx context.Context) ([]*model.OAuthStatu
 		results[i] = &db
 	}
 	return results, nil
+}
+
+// GetConnectedAccounts is the resolver for the getConnectedAccounts field.
+func (r *queryResolver) GetConnectedAccounts(ctx context.Context) ([]*model.OAuthAccount, error) {
+	// Get all OAuth tokens from the database
+	allTokens, err := r.Store.GetAllOAuthTokens(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
+	}
+
+	// Convert to OAuthAccount model
+	accounts := make([]*model.OAuthAccount, 0, len(allTokens))
+	for _, token := range allTokens {
+		// Check if token is still active (not expired and not in error state)
+		isActive := !token.Error && (token.ExpiresAt.IsZero() || token.ExpiresAt.After(time.Now()))
+
+		account := &model.OAuthAccount{
+			Provider:  token.Provider,
+			Username:  token.Username,
+			ExpiresAt: token.ExpiresAt.Format(time.RFC3339),
+			IsActive:  isActive,
+		}
+		accounts = append(accounts, account)
+	}
+
+	return accounts, nil
 }
 
 // GetChatSuggestions is the resolver for the getChatSuggestions field.
@@ -1329,3 +1379,36 @@ type (
 	subscriptionResolver struct{ *Resolver }
 	userProfileResolver  struct{ *Resolver }
 )
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	func (r *queryResolver) GetAccounts(ctx context.Context) ([]*model.OAuthAccount, error) {
+	// Get all OAuth tokens from the database
+	allTokens, err := r.Store.GetAllOAuthTokens(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
+	}
+
+	// Convert to OAuthAccount model
+	accounts := make([]*model.OAuthAccount, 0, len(allTokens))
+	for _, token := range allTokens {
+		// Check if token is still active (not expired and not in error state)
+		isActive := !token.Error && (token.ExpiresAt.IsZero() || token.ExpiresAt.After(time.Now()))
+
+		account := &model.OAuthAccount{
+			Provider:  token.Provider,
+			Username:  token.Username,
+			ExpiresAt: token.ExpiresAt.Format(time.RFC3339),
+			IsActive:  isActive,
+		}
+		accounts = append(accounts, account)
+	}
+
+	return accounts, nil
+}
+*/

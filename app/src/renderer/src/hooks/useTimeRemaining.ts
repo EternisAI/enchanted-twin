@@ -5,7 +5,7 @@ interface TimeRemainingState {
   isCalculating: boolean
 }
 
-export function useTimeRemaining(progress: number | undefined) {
+export function useTimeRemaining(progress: number | undefined, startTime: number | undefined) {
   const [state, setState] = useState<TimeRemainingState>({
     timeRemaining: '',
     isCalculating: false
@@ -21,17 +21,17 @@ export function useTimeRemaining(progress: number | undefined) {
       return
     }
 
+    const now = Date.now()
+
     // Reset if progress went backwards
     if (progress < lastProgressRef.current) {
       startTimeRef.current = null
       progressUpdatesRef.current = 0
     }
 
-    const now = Date.now()
-
     // Initialize start time if not set
     if (startTimeRef.current === null) {
-      startTimeRef.current = now
+      startTimeRef.current = startTime ?? now
       lastProgressRef.current = progress
       progressUpdatesRef.current = 1
       setState({ timeRemaining: '...', isCalculating: true })
@@ -72,7 +72,7 @@ export function useTimeRemaining(progress: number | undefined) {
     }
 
     lastProgressRef.current = progress
-  }, [progress])
+  }, [progress, startTime])
 
   return state
 }

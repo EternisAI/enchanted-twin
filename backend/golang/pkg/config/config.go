@@ -4,35 +4,31 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	CompletionsAPIURL         string
-	CompletionsAPIKey         string
-	CompletionsModel          string
-	ReasoningModel            string
-	GraphqlPort               string
-	EmbeddingsAPIURL          string
-	EmbeddingsAPIKey          string
-	EmbeddingsModel           string
-	DBPath                    string
-	AppDataPath               string
-	WatchDirectoryPath        string
-	TelegramToken             string
-	TelegramChatServer        string
-	ContainerRuntime          string
-	WeaviatePort              string
-	EnchantedMcpURL           string
-	ProxyTeeURL               string
-	PrivateCompletionsEnabled bool
-	PrivateCompletionsWorkers int
-	AnonymizerType            string
-	MockAnonymizerDelay       string
-	UseLocalModel             string
+	CompletionsAPIURL  string
+	CompletionsAPIKey  string
+	CompletionsModel   string
+	ReasoningModel     string
+	GraphqlPort        string
+	EmbeddingsAPIURL   string
+	EmbeddingsAPIKey   string
+	EmbeddingsModel    string
+	DBPath             string
+	AppDataPath        string
+	WatchDirectoryPath string
+	TelegramToken      string
+	TelegramChatServer string
+	ContainerRuntime   string
+	WeaviatePort       string
+	EnchantedMcpURL    string
+	ProxyTeeURL        string
+	UseLocalModel      string
+	UseLocalAnonymizer string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -58,32 +54,25 @@ func getEnvOrPanic(key string, printEnv bool) string {
 func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
 
-	privateCompletionsEnabled, _ := strconv.ParseBool(getEnv("PRIVATE_COMPLETIONS_ENABLED", "true", printEnv))
-	privateCompletionsWorkers, _ := strconv.Atoi(getEnv("PRIVATE_COMPLETIONS_WORKERS", "1", printEnv))
-
 	conf := &Config{
-		CompletionsAPIURL:         getEnv("COMPLETIONS_API_URL", "https://api.openai.com/v1", printEnv),
-		CompletionsAPIKey:         getEnv("COMPLETIONS_API_KEY", "", printEnv),
-		CompletionsModel:          getEnv("COMPLETIONS_MODEL", "gpt-4.1-mini", printEnv),
-		ReasoningModel:            getEnv("REASONING_MODEL", "gpt-4.1-mini", printEnv),
-		GraphqlPort:               getEnv("GRAPHQL_PORT", "44999", printEnv),
-		EmbeddingsAPIURL:          getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
-		EmbeddingsModel:           getEnv("EMBEDDINGS_MODEL", "text-embedding-3-small", printEnv),
-		EmbeddingsAPIKey:          getEnv("EMBEDDINGS_API_KEY", "", printEnv),
-		DBPath:                    getEnv("DB_PATH", "./output/sqlite/store.db", printEnv),
-		AppDataPath:               getEnv("APP_DATA_PATH", "./output", printEnv),
-		WatchDirectoryPath:        getEnv("WATCH_DIRECTORY_PATH", "", printEnv),
-		TelegramToken:             getEnv("TELEGRAM_TOKEN", "", printEnv),
-		TelegramChatServer:        getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
-		ContainerRuntime:          getEnv("CONTAINER_RUNTIME", "podman", printEnv),
-		WeaviatePort:              getEnv("WEAVIATE_PORT", "51414", printEnv),
-		EnchantedMcpURL:           getEnv("ENCHANTED_MCP_URL", "", printEnv),
-		ProxyTeeURL:               getEnv("PROXY_TEE_URL", "", printEnv),
-		PrivateCompletionsEnabled: privateCompletionsEnabled,
-		PrivateCompletionsWorkers: privateCompletionsWorkers,
-		AnonymizerType:            getEnv("ANONYMIZER_TYPE", "no-op", printEnv),
-		MockAnonymizerDelay:       getEnv("MOCK_ANONYMIZER_DELAY", "10ms", printEnv),
-		UseLocalModel:             getEnv("USE_LOCAL_MODEL", "", printEnv),
+		CompletionsAPIURL:  getEnv("COMPLETIONS_API_URL", "https://api.openai.com/v1", printEnv),
+		CompletionsAPIKey:  getEnv("COMPLETIONS_API_KEY", "", printEnv),
+		CompletionsModel:   getEnv("COMPLETIONS_MODEL", "gpt-4.1-mini", printEnv),
+		ReasoningModel:     getEnv("REASONING_MODEL", "gpt-4.1-mini", printEnv),
+		GraphqlPort:        getEnv("GRAPHQL_PORT", "44999", printEnv),
+		EmbeddingsAPIURL:   getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
+		EmbeddingsModel:    getEnv("EMBEDDINGS_MODEL", "text-embedding-3-small", printEnv),
+		EmbeddingsAPIKey:   getEnv("EMBEDDINGS_API_KEY", "", printEnv),
+		DBPath:             getEnv("DB_PATH", "./output/sqlite/store.db", printEnv),
+		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
+		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
+		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
+		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
+		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
+		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
+		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
+		UseLocalModel:      getEnv("USE_LOCAL_MODEL", "", printEnv),
+		UseLocalAnonymizer: getEnv("USE_LOCAL_ANONYMIZER", "", printEnv),
 	}
 	return conf, nil
 }

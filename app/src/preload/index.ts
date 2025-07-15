@@ -74,7 +74,9 @@ const api = {
     start: () => ipcRenderer.invoke('screenpipe:start'),
     stop: () => ipcRenderer.invoke('screenpipe:stop'),
     getAutoStart: () => ipcRenderer.invoke('screenpipe:get-auto-start'),
-    setAutoStart: (enabled: boolean) => ipcRenderer.invoke('screenpipe:set-auto-start', enabled)
+    setAutoStart: (enabled: boolean) => ipcRenderer.invoke('screenpipe:set-auto-start', enabled),
+    storeRestartIntent: (route: string, showModal: boolean) =>
+      ipcRenderer.invoke('screenpipe:store-restart-intent', route, showModal)
   },
   launch: {
     onProgress: (
@@ -199,6 +201,10 @@ const api = {
   clipboard: {
     writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
     readText: () => ipcRenderer.invoke('clipboard:readText')
+  },
+  tts: {
+    generate: (text: string, firebaseToken: string) =>
+      ipcRenderer.invoke('tts:generate', text, firebaseToken)
   }
 }
 
