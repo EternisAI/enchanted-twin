@@ -34,6 +34,7 @@ export default function useOnboardingChat() {
   const [assistantMessageStack, setAssistantMessageStack] = useState<Set<string>>(
     new Set([INITIAL_AGENT_MESSAGE])
   )
+  const [shouldFinalizeAfterSpeech, setShouldFinalizeAfterSpeech] = useState(false)
 
   const [createChat] = useMutation(CreateChatDocument)
   const [updateProfile] = useMutation(UpdateProfileDocument)
@@ -87,6 +88,11 @@ export default function useOnboardingChat() {
 
       const result = JSON.parse(toolCall.result?.content || '{}')
 
+      window.api.analytics.capture('onboarding_completed', {
+        name: result?.name || 'No name',
+        context: result?.context || 'No context'
+      })
+
       updateProfile({
         variables: {
           input: {
@@ -96,12 +102,18 @@ export default function useOnboardingChat() {
         }
       })
 
-      setTimeout(() => {
-        setTriggerAnimation(true)
-        cleanupChat()
-      }, 14000)
+      setShouldFinalizeAfterSpeech(true)
     }
   })
+
+  const finalizeOnboarding = async () => {
+    setTriggerAnimation(true)
+    await cleanupChat()
+    setTimeout(() => {
+      completeOnboarding()
+      navigate({ to: '/' })
+    }, 1000)
+  }
 
   const skipOnboarding = async () => {
     await cleanupChat()
@@ -123,8 +135,10 @@ export default function useOnboardingChat() {
     lastAgentMessage,
     chatId,
     triggerAnimation,
+    shouldFinalizeAfterSpeech,
     createOnboardingChat,
     skipOnboarding,
-    cleanupChat
+    cleanupChat,
+    finalizeOnboarding
   }
 }

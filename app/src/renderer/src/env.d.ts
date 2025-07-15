@@ -61,6 +61,7 @@ interface IApi {
     stop: () => Promise<boolean>
     getAutoStart: () => Promise<boolean>
     setAutoStart: (enabled: boolean) => Promise<boolean>
+    storeRestartIntent: (route: string, showModal: boolean) => Promise<void>
   }
   launch: {
     onProgress: (
