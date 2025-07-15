@@ -50,6 +50,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/localmodel/jinaaiembedding"
 	"github.com/EternisAI/enchanted-twin/pkg/localmodel/llama1b"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
+	"github.com/EternisAI/enchanted-twin/pkg/microscheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -147,6 +148,32 @@ func main() {
 		}
 		logger.Info("Local anonymizer model initialized successfully")
 	}
+
+	// Initialize anonymizer manager and private completions service
+	var anonymizerManager *ai.AnonymizerManager
+	if envs.UseLocalAnonymizer == "true" && localAnonymizer != nil {
+		logger.Info("Initializing local anonymizer manager")
+		anonymizerManager = ai.NewLocalAnonymizerManager(localAnonymizer, store.DB().DB, logger)
+	} else {
+		logger.Info("Initializing LLM anonymizer manager")
+		anonymizerManager = ai.NewLLMAnonymizerManager(aiCompletionsService, envs.CompletionsModel, store.DB().DB, logger)
+	}
+
+	// Create private completions service
+	privateCompletionsService, err := ai.NewPrivateCompletionsService(ai.PrivateCompletionsConfig{
+		CompletionsService: aiCompletionsService,
+		AnonymizerManager:  anonymizerManager,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		logger.Error("Failed to create private completions service", "error", err)
+		panic(errors.Wrap(err, "Failed to create private completions service"))
+	}
+
+	// Enable private completions in the AI service
+	aiCompletionsService.EnablePrivateCompletions(privateCompletionsService, microscheduler.UI)
+	logger.Info("Private completions service enabled")
 
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
@@ -477,7 +504,17 @@ func main() {
 	<-signalChan
 	logger.Info("Server shutting down...")
 
-	// Cleanup local anonymizer
+	// Cleanup services
+	if privateCompletionsService != nil {
+		privateCompletionsService.Shutdown()
+		logger.Info("Private completions service shut down")
+	}
+
+	if anonymizerManager != nil {
+		anonymizerManager.Shutdown()
+		logger.Info("Anonymizer manager shut down")
+	}
+
 	if localAnonymizer != nil {
 		if err := localAnonymizer.Close(); err != nil {
 			logger.Error("Error closing local anonymizer", "error", err)
