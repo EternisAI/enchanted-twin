@@ -4,25 +4,44 @@ import json
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+class Model:
+    def __init__(self):
+        self.is_loaded = False
+        self.model_name = "FakeModel-v1.0"
+
+    def load(self):
+        print(f"Loading {self.model_name}...")
+        time.sleep(5)  # Simulate model loading
+        self.is_loaded = True
+        print(f"{self.model_name} loaded successfully!")
+
+    def infer(self, input_text):
+        if not self.is_loaded:
+            raise RuntimeError("Model not loaded")
+
+        print(f"Processing inference: {input_text}")
+        time.sleep(0.1)  # Simulate inference time
+        return f"Processed: {input_text}"
+
+model = Model()
+
 class ModelHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/infer':
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
-            
+
             try:
                 data = json.loads(post_data.decode('utf-8'))
                 input_text = data.get('input', '')
-                print(f"Processing inference: {input_text}")
-                
-                time.sleep(0.1)  # Sleep for 100ms
-                response = f"Processed: {input_text}"
-                
+
+                response = model.infer(input_text)
+
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({"output": response}).encode('utf-8'))
-                
+
             except json.JSONDecodeError:
                 self.send_response(400)
                 self.send_header('Content-Type', 'application/json')
@@ -37,13 +56,11 @@ class ModelHandler(BaseHTTPRequestHandler):
 
 def main():
     print("Starting model server...")
-    print("Loading LLM model (simulated)...")
-    time.sleep(5)  # Simulate model loading
-    print("Model loaded successfully!")
-    
+    model.load()
+
     server = HTTPServer(('localhost', 8080), ModelHandler)
     print("Server listening on localhost:8080")
-    
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
