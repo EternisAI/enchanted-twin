@@ -79,13 +79,11 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		defer close(progressCh)
 		defer close(errorCh)
 
-		// DEBUG: Confirm ProcessDocuments is being called
 		o.logger.Info("ProcessDocuments: Starting processing pipeline",
 			"documentCount", len(documents),
 			"workers", config.Workers,
 			"timeout", config.FactExtractionTimeout)
 
-		// Validate configuration
 		if config.Workers <= 0 {
 			errorCh <- fmt.Errorf("invalid worker count: %d, must be > 0", config.Workers)
 			return
@@ -96,15 +94,8 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		for _, doc := range documents {
 			chunks := doc.Chunk()
 			chunkedDocs = append(chunkedDocs, chunks...)
-
-			// DEBUG: Log chunking details
-			o.logger.Debug("ProcessDocuments: Chunked document",
-				"originalDocID", doc.ID(),
-				"chunkCount", len(chunks),
-				"totalChunksSoFar", len(chunkedDocs))
 		}
 
-		// DEBUG: Log chunking summary
 		o.logger.Info("ProcessDocuments: Document chunking completed",
 			"originalDocs", len(documents),
 			"totalChunks", len(chunkedDocs))
@@ -131,7 +122,6 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			}
 		}
 
-		// DEBUG: Log extraction job creation
 		o.logger.Info("ProcessDocuments: Created extraction jobs",
 			"jobCount", len(extractJobs),
 			"workers", config.Workers,
@@ -141,20 +131,16 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		extractPool := NewWorkerPool[DocumentExtractionJob](config.Workers, o.logger)
 		extractionResults := extractPool.Process(ctx, extractJobs, config.FactExtractionTimeout)
 
-		// DEBUG: Log worker pool creation
 		o.logger.Info("ProcessDocuments: Worker pool created, starting result collection")
 
-		// Step 4: NEW BATCHED FLOW - Process and store facts in batches
-		const batchSize = 5
+		// Step 4: Process and store facts in batches
 		var currentBatch []FactResult
 		var totalStoredFacts int
 
-		// DEBUG: Add logging to identify where this loop gets stuck
 		o.logger.Info("ProcessDocuments: Starting to collect extraction results with batching",
 			"expectedResults", len(extractJobs),
-			"batchSize", batchSize)
+			"batchSize", config.BatchSize)
 
-		// Create a timeout context for result collection to prevent hanging
 		collectionCtx, cancel := context.WithTimeout(ctx, config.FactExtractionTimeout)
 		defer cancel()
 
@@ -175,7 +161,6 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 				return nil
 			}
 
-			// Convert FactResults to MemoryFacts
 			var facts []*memory.MemoryFact
 			for _, factResult := range batch {
 				if factResult.Fact != nil {
@@ -191,11 +176,10 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 				"batchSize", len(facts),
 				"totalStoredSoFar", totalStoredFacts)
 
-			// Store the batch
 			if err := storageImpl.StoreFactsDirectly(ctx, facts, func(processed, total int) {
 				progressCh <- Progress{
 					Processed: totalStoredFacts + processed,
-					Total:     maxResults, // Approximate total
+					Total:     maxResults,
 					Stage:     "storage",
 				}
 			}); err != nil {
@@ -210,12 +194,10 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			return nil
 		}
 
-		// Use a timeout to prevent hanging on result collection
 		for {
 			select {
 			case result, ok := <-extractionResults:
 				if !ok {
-					// Channel closed, all results collected
 					o.logger.Info("ProcessDocuments: All extraction results collected",
 						"totalResults", resultCount,
 						"expectedResults", maxResults)
@@ -233,15 +215,13 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 					continue
 				}
 
-				// Add facts from this result to current batch
 				currentBatch = append(currentBatch, result.Result...)
 				o.logger.Debug("ProcessDocuments: Added facts from result",
 					"resultIndex", resultCount,
 					"factsInResult", len(result.Result),
 					"currentBatchSize", len(currentBatch))
 
-				// If batch is full, store it
-				if len(currentBatch) >= batchSize {
+				if len(currentBatch) >= config.BatchSize {
 					if err := storeBatch(currentBatch); err != nil {
 						o.logger.Error("ProcessDocuments: Failed to store batch",
 							"error", err,
@@ -252,18 +232,15 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 						}
 						return
 					}
-					// Reset batch
 					currentBatch = nil
 				}
 
-				// If we've received all expected results, break
 				if resultCount >= maxResults {
 					o.logger.Info("ProcessDocuments: Received all expected results, will store remaining batch")
 					break
 				}
 
 			case <-collectionCtx.Done():
-				// Timeout reached, proceed with what we have
 				o.logger.Warn("ProcessDocuments: Result collection timed out, will store remaining batch",
 					"collectedResults", resultCount,
 					"expectedResults", maxResults,
@@ -271,12 +248,10 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 				break
 
 			case <-ctx.Done():
-				// Main context cancelled
 				o.logger.Warn("ProcessDocuments: Main context cancelled during result collection")
 				return
 			}
 
-			// Break out of the for loop if we've collected all results or timed out
 			if resultCount >= maxResults || collectionCtx.Err() != nil {
 				break
 			}
@@ -305,7 +280,6 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			"totalStoredFacts", totalStoredFacts,
 			"expectedResults", len(extractJobs))
 
-		// Final progress update
 		progressCh <- Progress{
 			Processed: totalStoredFacts,
 			Total:     totalStoredFacts,
