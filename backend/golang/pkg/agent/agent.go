@@ -49,10 +49,11 @@ func NewAgent(
 }
 
 type AgentResponse struct {
-	Content     string
-	ToolCalls   []openai.ChatCompletionMessageToolCall
-	ToolResults []types.ToolResult
-	ImageURLs   []string
+	Content          string
+	ToolCalls        []openai.ChatCompletionMessageToolCall
+	ToolResults      []types.ToolResult
+	ImageURLs        []string
+	ReplacementRules map[string]string
 }
 
 func (r AgentResponse) String() string {
@@ -84,25 +85,28 @@ func (a *Agent) Execute(
 	}
 
 	for currentStep < MAX_STEPS {
-		completion, err := a.aiService.Completions(
+		result, err := a.aiService.Completions(
 			ctx,
 			messages,
 			apiToolDefinitions,
 			a.CompletionsModel,
+			ai.UI,
 		)
 		if err != nil {
 			a.logger.Error("Error completing", "error", err)
 			return AgentResponse{}, err
 		}
+		completion := result.Message
 
 		messages = append(messages, completion.ToParam())
 
 		if len(completion.ToolCalls) == 0 {
 			return AgentResponse{
-				Content:     completion.Content,
-				ToolCalls:   toolCalls,
-				ToolResults: toolResults,
-				ImageURLs:   imageURLs,
+				Content:          completion.Content,
+				ToolCalls:        toolCalls,
+				ToolResults:      toolResults,
+				ImageURLs:        imageURLs,
+				ReplacementRules: make(map[string]string),
 			}, nil
 		}
 
@@ -153,9 +157,10 @@ func (a *Agent) Execute(
 	}
 
 	return AgentResponse{
-		Content:     responseContent,
-		ToolCalls:   toolCalls,
-		ToolResults: toolResults,
-		ImageURLs:   imageURLs,
+		Content:          responseContent,
+		ToolCalls:        toolCalls,
+		ToolResults:      toolResults,
+		ImageURLs:        imageURLs,
+		ReplacementRules: make(map[string]string),
 	}, nil
 }
