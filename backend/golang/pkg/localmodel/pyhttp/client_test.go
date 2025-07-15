@@ -8,7 +8,7 @@ import (
 )
 
 func TestPySocketInfer(t *testing.T) {
-	client, err := NewClient(slog.Default())
+	client, err := NewClient(slog.Default(), "sample")
 	assert.NoError(t, err)
 	defer func() { _ = client.Close() }()
 

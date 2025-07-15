@@ -22,14 +22,14 @@ type Client struct {
 	serverCmd *exec.Cmd
 }
 
-func NewClient(logger *slog.Logger) (*Client, error) {
+func NewClient(logger *slog.Logger, projectDir string) (*Client, error) {
 	client := &Client{
 		logger: logger,
 	}
 
 	// Start the Python server with unbuffered output using uv
 	serverCmd := exec.Command("uv", "run", "--", "python3", "-u", "main.py")
-	serverCmd.Dir = "sample"
+	serverCmd.Dir = projectDir
 	serverCmd.Stdout = os.Stdout
 	serverCmd.Stderr = os.Stderr
 	serverCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
