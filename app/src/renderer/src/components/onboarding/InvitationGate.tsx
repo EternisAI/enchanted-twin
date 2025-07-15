@@ -86,9 +86,6 @@ export default function InvitationGate({ children }: { children: React.ReactNode
             <div className="flex flex-col gap-4">
               <GoogleSignInButton />
               <XSignInButton />
-              <p className="text-sm text-center text-white max-w-md mt-3">
-                Everything stays local on your device, <br /> and only you can access it not us.
-              </p>
             </div>
           </div>
         </OnboardingLayout>
@@ -97,7 +94,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   }
 
   return (
-    <InvitationWrapper showTitlebar showAnimation showPrivacyText>
+    <InvitationWrapper showTitlebar showAnimation>
       <OnboardingLayout
         title="Invitation Code"
         subtitle="Enter your invite code to access Enchanted"

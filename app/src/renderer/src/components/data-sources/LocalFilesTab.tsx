@@ -3,6 +3,11 @@ import { Upload, File, Folder, Plus } from 'lucide-react'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
+// Type for Electron File objects which include a path property
+interface ElectronFile extends File {
+  path: string
+}
+
 export default function LocalFilesTab() {
   const [isDragging, setIsDragging] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<string[]>([])
@@ -24,12 +29,35 @@ export default function LocalFilesTab() {
     e.stopPropagation()
     setIsDragging(false)
 
-    const files = Array.from(e.dataTransfer.files)
-    if (files.length > 0) {
+    // In Electron, we can get file paths directly from the drag event
+    const items = e.dataTransfer.items
+    const filePaths: string[] = []
+
+    if (items) {
+      // Use DataTransferItemList interface
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.kind === 'file') {
+          const file = item.getAsFile()
+          if (file && 'path' in file) {
+            // In Electron, File objects have a 'path' property
+            filePaths.push((file as ElectronFile).path)
+          }
+        }
+      }
+    } else if (e.dataTransfer.files.length > 0) {
+      // Fallback to files array
+      const files = Array.from(e.dataTransfer.files)
+      for (const file of files) {
+        if ('path' in file) {
+          // In Electron, File objects have a 'path' property
+          filePaths.push((file as ElectronFile).path)
+        }
+      }
+    }
+
+    if (filePaths.length > 0) {
       try {
-        const filePaths = files.map((file) =>
-          (window.api.getPathForFile as unknown as (file: File) => string)(file)
-        )
         const copiedPaths = await window.api.copyDroppedFiles(filePaths)
         if (copiedPaths && copiedPaths.length > 0) {
           setSelectedFiles((prev) => [...prev, ...copiedPaths])

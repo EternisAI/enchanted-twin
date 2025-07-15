@@ -117,6 +117,13 @@ export function Home() {
     adjustTextareaHeight()
   }, [query])
 
+  useEffect(() => {
+    // Reset showSuggestions when voice mode changes
+    if (isVoiceMode) {
+      setShowSuggestions(false)
+    }
+  }, [isVoiceMode])
+
   const handleNameUpdate = async () => {
     if (!editedName.trim()) {
       toast.error('Name cannot be empty')
@@ -268,6 +275,7 @@ export function Home() {
   }
 
   const twinName = profile?.profile?.name || 'Your Twin'
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   return (
     <motion.div
@@ -360,20 +368,22 @@ export function Home() {
         {isVoiceMode ? (
           <VoiceModeInput onStop={stopVoiceMode} />
         ) : (
-          <motion.div layout="position">
-            <ChatInputBox
-              isVoiceReady={isVoiceReady}
-              query={query}
-              textareaRef={textareaRef}
-              isReasonSelected={isReasonSelected}
-              isVoiceMode={isVoiceMode}
-              onVoiceModeChange={handleToggleToVoiceMode}
-              onInputChange={setQuery}
-              handleSubmit={handleSubmit}
-              setIsReasonSelected={setIsReasonSelected}
-              handleCreateChat={handleCreateChat}
-            />
-          </motion.div>
+          <ChatInputBox
+            isVoiceReady={isVoiceReady}
+            query={query}
+            textareaRef={textareaRef}
+            isReasonSelected={isReasonSelected}
+            isVoiceMode={isVoiceMode}
+            onVoiceModeChange={handleToggleToVoiceMode}
+            onInputChange={setQuery}
+            handleSubmit={handleSubmit}
+            setIsReasonSelected={setIsReasonSelected}
+            handleCreateChat={handleCreateChat}
+            onLayoutAnimationComplete={() => {
+              console.log('Layout animation complete')
+              setShowSuggestions(true)
+            }}
+          />
         )}
 
         <AnimatePresence mode="wait">
@@ -381,21 +391,20 @@ export function Home() {
             <motion.div
               key="suggestions"
               initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              animate={{ opacity: showSuggestions ? 1 : 0 }}
               exit={{ opacity: 0 }}
-              transition={{
-                opacity: { duration: 0.2, delay: 0.4 }
-              }}
+              transition={{ duration: 0.2 }}
               className="relative w-full overflow-hidden"
               layout="position"
             >
-              <div className="bg-background/90 backdrop-blur-sm">
+              <div className="">
                 <ScrollArea className="h-[280px] mt-4 pr-4">
                   {debouncedQuery ? (
                     <>
                       <motion.button
                         initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
+                        animate={{ opacity: showSuggestions ? 1 : 0 }}
+                        exit={{ opacity: 0 }}
                         transition={{ duration: 0.15, delay: 0 }}
                         type="button"
                         onClick={() => {
@@ -414,8 +423,11 @@ export function Home() {
                         <motion.button
                           key={chat.id}
                           initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ duration: 0.15, delay: index * 0.07 + 0.4 }}
+                          animate={{ opacity: showSuggestions ? 1 : 0 }}
+                          transition={{
+                            duration: 0.15,
+                            delay: showSuggestions ? index * 0.07 + 0.4 : 0
+                          }}
                           type="button"
                           onClick={() => {
                             navigate({ to: `/chat/${chat.id}` })
@@ -440,8 +452,11 @@ export function Home() {
                           <motion.button
                             key={chat.id}
                             initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.15, delay: index * 0.07 }}
+                            animate={{ opacity: showSuggestions ? 1 : 0 }}
+                            transition={{
+                              duration: 0.15,
+                              delay: showSuggestions ? index * 0.07 : 0
+                            }}
                             type="button"
                             onClick={() => {
                               if (chat.id.startsWith('dummy')) {

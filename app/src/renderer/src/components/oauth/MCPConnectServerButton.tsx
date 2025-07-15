@@ -10,9 +10,9 @@ export default function ConnectMCPServerButton({ onSuccess }: { onSuccess: () =>
   return (
     <Dialog open={isConnectOpen} onOpenChange={setIsConnectOpen}>
       <DialogTrigger asChild>
-        <Button variant="default" size="lg" className="h-10 rounded-md">
+        <Button variant="outline" size="sm">
           <PlusIcon className="w-4 h-4" />
-          Connect MCP
+          Custom MCP
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
