@@ -155,9 +155,9 @@ func (l *LocalAnonymizer) anonymizeWithPersistence(ctx context.Context, conversa
 		}
 
 		// Merge new rules and update working dictionary
-		for token, original := range msgRules {
-			newRules[token] = original
-			workingDict[token] = original
+		for originalValue, replacement := range msgRules {
+			newRules[originalValue] = replacement
+			workingDict[originalValue] = replacement
 		}
 
 		// Update working dictionary with any new discoveries from temp processing
