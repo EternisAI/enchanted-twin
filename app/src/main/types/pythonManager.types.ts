@@ -27,6 +27,40 @@ export interface LiveKitAgentCallbacks {
   onStateChange?: (state: AgentState) => void
 }
 
+export interface AnonymiserCallbacks {
+  onProgress?: (data: DependencyProgress) => void
+  onModelReady?: (ready: boolean) => void
+  onProcessingComplete?: (result: AnonymiserResult) => void
+}
+
+export interface AnonymiserResult {
+  originalText: string
+  anonymisedText: string
+  entities: Array<{
+    type: string
+    original: string
+    replacement: string
+    start: number
+    end: number
+  }>
+}
+
+export interface AnonymiserConfig {
+  modelName?: string
+  confidenceThreshold?: number
+  enabledEntityTypes?: string[]
+}
+
+export interface PythonEnvironmentConfig {
+  projectName: string
+  dependencies: string[]
+  pythonVersion?: string
+}
+
+export interface PythonEnvironmentCallbacks {
+  onProgress?: (data: DependencyProgress) => void
+}
+
 export interface EnvironmentVariables {
   CHAT_ID: string
   TTS_API_KEY: string
