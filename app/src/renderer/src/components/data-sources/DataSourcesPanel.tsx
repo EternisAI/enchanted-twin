@@ -301,6 +301,7 @@ export function DataSourcesPanel({
     const isWorkflowComplete =
       status === IndexingState.Completed ||
       status === IndexingState.Failed ||
+      status === IndexingState.NotStarted ||
       (!isIndexing && !isProcessing && !isNotStarted)
 
     if (isWorkflowComplete && initiatingDataSources.size > 0) {
