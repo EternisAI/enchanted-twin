@@ -163,6 +163,11 @@ func (m *AnonymizerManager) createAnonymizer() (Anonymizer, func()) {
 
 func getDefaultReplacements() map[string]string {
 	return map[string]string{
+		// Full names (processed first due to length sorting)
+		"John Smith":    "PERSON_001",
+		"Jane Doe":      "PERSON_002",
+		"Alice Johnson": "PERSON_003",
+
 		// Common names
 		"John":    "PERSON_001",
 		"Jane":    "PERSON_002",
