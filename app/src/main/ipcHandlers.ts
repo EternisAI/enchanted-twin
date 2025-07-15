@@ -442,7 +442,7 @@ export function registerIpcHandlers() {
   ipcMain.handle('resize-omnibar-window', async (_, width: number, height: number) => {
     try {
       if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
-        const minHeight = 56 // Match the window's actual minHeight from windows.ts
+        const minHeight = 68 // Match the window's actual minHeight from windows.ts
         const maxHeight = 500
         const constrainedHeight = Math.max(minHeight, Math.min(height, maxHeight))
         windowManager.omnibarWindow.setSize(width, constrainedHeight)
