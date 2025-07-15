@@ -16,8 +16,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// extractJSONFromContent extracts JSON content from LLM response content field
-// when it's wrapped in <json>...</json> tags
 func extractJSONFromContent(content string) (string, error) {
 	content = strings.TrimSpace(content)
 
@@ -40,7 +38,71 @@ func extractJSONFromContent(content string) (string, error) {
 	return "", fmt.Errorf("no valid JSON found in content")
 }
 
-// min returns the minimum of two integers
+func parseFactsFromContentField(llmResponse openai.ChatCompletionMessage, sourceDoc memory.Document, docType string, logger *log.Logger) []*memory.MemoryFact {
+	if llmResponse.Content == "" {
+		return nil
+	}
+
+	logger.Debug("Raw content before parsing", "content", llmResponse.Content)
+	jsonContent, err := extractJSONFromContent(llmResponse.Content)
+	if err != nil {
+		logger.Debug("Failed to extract JSON from content field", "error", err, "content_preview", llmResponse.Content[:min(200, len(llmResponse.Content))])
+		return nil
+	}
+
+	logger.Debug("Extracted JSON from content field", "json", jsonContent)
+
+	var args ExtractMemoryFactsToolArguments
+	if err := json.Unmarshal([]byte(jsonContent), &args); err != nil {
+		logger.Error("FAILED to unmarshal JSON from content field", "error", err, "json", jsonContent)
+		return nil
+	}
+
+	logger.Debug("Successfully parsed structured facts from content field", "count", len(args.Facts))
+
+	if len(args.Facts) == 0 {
+		logger.Warn("Content field returned zero facts for "+docType, "id", sourceDoc.ID())
+		return nil
+	}
+
+	var extractedFacts []*memory.MemoryFact
+	for factIdx := range args.Facts {
+		memoryFact := &args.Facts[factIdx]
+
+		memoryFact.ID = uuid.New().String()
+		memoryFact.Source = sourceDoc.Source()
+		memoryFact.Content = memoryFact.GenerateContent()
+		if timestamp := sourceDoc.Timestamp(); timestamp != nil {
+			memoryFact.Timestamp = *timestamp
+		} else {
+			memoryFact.Timestamp = time.Now()
+		}
+
+		if memoryFact.DocumentReferences == nil {
+			memoryFact.DocumentReferences = []string{sourceDoc.ID()}
+		}
+
+		if filePath := sourceDoc.FilePath(); filePath != "" {
+			memoryFact.FilePath = filePath
+		}
+
+		logger.Debug(docType+" Fact (from content)",
+			"index", factIdx+1,
+			"id", memoryFact.ID,
+			"category", memoryFact.Category,
+			"subject", memoryFact.Subject,
+			"attribute", memoryFact.Attribute,
+			"value", memoryFact.Value,
+			"importance", memoryFact.Importance,
+			"sensitivity", memoryFact.Sensitivity,
+			"source", memoryFact.Source)
+
+		extractedFacts = append(extractedFacts, memoryFact)
+	}
+
+	return extractedFacts
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -48,9 +110,6 @@ func min(a, b int) int {
 	return b
 }
 
-// ExtractFactsFromDocument routes fact extraction based on document type.
-// This is pure business logic extracted from the adapter.
-// Returns the extracted facts. The source document is already known by the caller.
 func ExtractFactsFromDocument(ctx context.Context, doc memory.Document, completionsService *ai.Service, completionsModel string, logger *log.Logger) ([]*memory.MemoryFact, error) {
 	switch typedDoc := doc.(type) {
 	case *memory.ConversationDocument:
@@ -161,59 +220,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		logger.Debug("No tool calls found, attempting to parse facts from content field")
 
 		if llmResponse.Content != "" {
-			logger.Debug("Raw content before parsing", "content", llmResponse.Content)
-			jsonContent, err := extractJSONFromContent(llmResponse.Content)
-			if err != nil {
-				logger.Debug("Failed to extract JSON from content field", "error", err, "content_preview", llmResponse.Content[:min(200, len(llmResponse.Content))])
-			} else {
-				logger.Debug("Extracted JSON from content field", "json", jsonContent)
-
-				var args ExtractMemoryFactsToolArguments
-				if err := json.Unmarshal([]byte(jsonContent), &args); err != nil {
-					logger.Error("FAILED to unmarshal JSON from content field", "error", err, "json", jsonContent)
-				} else {
-					logger.Debug("Successfully parsed structured facts from content field", "count", len(args.Facts))
-
-					if len(args.Facts) == 0 {
-						logger.Warn("Content field returned zero facts for conversation", "id", convDoc.ID())
-					}
-
-					for factIdx := range args.Facts {
-						memoryFact := &args.Facts[factIdx]
-
-						memoryFact.ID = uuid.New().String()
-						memoryFact.Source = sourceDoc.Source()
-
-						if filePath := sourceDoc.FilePath(); filePath != "" {
-							memoryFact.FilePath = filePath
-						}
-
-						memoryFact.Content = memoryFact.GenerateContent()
-						if timestamp := sourceDoc.Timestamp(); timestamp != nil {
-							memoryFact.Timestamp = *timestamp
-						} else {
-							memoryFact.Timestamp = time.Now()
-						}
-
-						if memoryFact.DocumentReferences == nil {
-							memoryFact.DocumentReferences = []string{sourceDoc.ID()}
-						}
-
-						logger.Debug("Conversation Fact (from content)",
-							"index", factIdx+1,
-							"id", memoryFact.ID,
-							"category", memoryFact.Category,
-							"subject", memoryFact.Subject,
-							"attribute", memoryFact.Attribute,
-							"value", memoryFact.Value,
-							"importance", memoryFact.Importance,
-							"sensitivity", memoryFact.Sensitivity,
-							"source", memoryFact.Source)
-
-						extractedFacts = append(extractedFacts, memoryFact)
-					}
-				}
-			}
+			extractedFacts = parseFactsFromContentField(llmResponse, sourceDoc, "conversation", logger)
 		}
 	}
 
@@ -325,58 +332,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		logger.Debug("No tool calls found, attempting to parse facts from content field")
 
 		if llmResponse.Content != "" {
-			logger.Debug("Raw content before parsing", "content", llmResponse.Content)
-			jsonContent, err := extractJSONFromContent(llmResponse.Content)
-			if err != nil {
-				logger.Debug("Failed to extract JSON from content field", "error", err, "content_preview", llmResponse.Content[:min(200, len(llmResponse.Content))])
-			} else {
-				logger.Debug("Extracted JSON from content field", "json", jsonContent)
-
-				var args ExtractMemoryFactsToolArguments
-				if err := json.Unmarshal([]byte(jsonContent), &args); err != nil {
-					logger.Error("FAILED to unmarshal JSON from content field", "error", err, "json", jsonContent)
-				} else {
-					logger.Debug("Successfully parsed structured facts from content field", "count", len(args.Facts))
-
-					if len(args.Facts) == 0 {
-						logger.Warn("Content field returned zero facts for document", "id", textDoc.ID())
-					}
-
-					for factIdx := range args.Facts {
-						memoryFact := &args.Facts[factIdx]
-
-						memoryFact.ID = uuid.New().String()
-						memoryFact.Source = sourceDoc.Source()
-						memoryFact.Content = memoryFact.GenerateContent()
-						if timestamp := sourceDoc.Timestamp(); timestamp != nil {
-							memoryFact.Timestamp = *timestamp
-						} else {
-							memoryFact.Timestamp = time.Now()
-						}
-
-						if memoryFact.DocumentReferences == nil {
-							memoryFact.DocumentReferences = []string{sourceDoc.ID()}
-						}
-
-						if filePath := sourceDoc.FilePath(); filePath != "" {
-							memoryFact.FilePath = filePath
-						}
-
-						logger.Debug("Text Document Fact (from content)",
-							"index", factIdx+1,
-							"id", memoryFact.ID,
-							"category", memoryFact.Category,
-							"subject", memoryFact.Subject,
-							"attribute", memoryFact.Attribute,
-							"value", memoryFact.Value,
-							"importance", memoryFact.Importance,
-							"sensitivity", memoryFact.Sensitivity,
-							"source", memoryFact.Source)
-
-						extractedFacts = append(extractedFacts, memoryFact)
-					}
-				}
-			}
+			extractedFacts = parseFactsFromContentField(llmResponse, sourceDoc, "document", logger)
 		}
 	}
 
