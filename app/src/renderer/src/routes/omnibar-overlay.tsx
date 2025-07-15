@@ -38,6 +38,8 @@ function OmnibarResults({
       transition={{ duration: 0.2 }}
       className="rounded-lg overflow-auto max-h-[280px] relative"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      role="listbox"
+      aria-label="Chat search results"
     >
       <LayoutGroup>
         <div className="py-1">
@@ -121,6 +123,12 @@ function OmnibarOverlay() {
       }
     }
   }, [query])
+
+  useEffect(() => {
+    const showNewChat = debouncedQuery.trim() !== ''
+    const maxIndex = Math.max(0, showNewChat ? filteredChats.length : filteredChats.length - 1)
+    setSelectedIndex((prev) => Math.max(0, Math.min(prev, maxIndex)))
+  }, [debouncedQuery, filteredChats.length])
 
   const windowHeight = useMotionValue(68)
 
@@ -269,7 +277,9 @@ function OmnibarOverlay() {
       }
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex((prev) => Math.min(prev + 1, filteredChats.length))
+        const showNewChat = debouncedQuery.trim() !== ''
+        const maxIndex = Math.max(0, showNewChat ? filteredChats.length : filteredChats.length - 1)
+        setSelectedIndex((prev) => Math.min(prev + 1, maxIndex))
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
@@ -279,7 +289,7 @@ function OmnibarOverlay() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedIndex, filteredChats])
+  }, [filteredChats, debouncedQuery])
 
   // This is the overlay window - just the omnibar component without any chrome
   return (
