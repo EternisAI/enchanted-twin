@@ -39,7 +39,15 @@ export function UserMessageBubble({
     >
       <div className="flex flex-col gap-1 max-w-md">
         <div className="bg-accent text-foreground rounded-lg px-4 py-2 max-w-md relative group">
-          {message.text && <p>{anonymizeText(message.text, chatPrivacyDict, isAnonymized)}</p>}
+          {message.text && (
+            <p>
+              <AnonymizedContent
+                text={message.text}
+                chatPrivacyDict={chatPrivacyDict}
+                isAnonymized={isAnonymized}
+              />
+            </p>
+          )}
           {message.imageUrls.length > 0 && (
             <div className="grid grid-cols-4 gap-y-4 my-2">
               {message.imageUrls.map((url, i) => (
@@ -63,7 +71,16 @@ export function UserMessageBubble({
   )
 }
 
-export function AssistantMessageBubble({ message }: { message: Message }) {
+export function AssistantMessageBubble({
+  message,
+  isAnonymized = false,
+  chatPrivacyDict
+}: {
+  message: Message
+  isAnonymized?: boolean
+  chatPrivacyDict: string | null
+}) {
+  console.log('chatPrivacyDict', chatPrivacyDict)
   const { speak, stop, isSpeaking } = useTTS()
   const { thinkingText, replyText } = useMemo(
     () => extractReasoningAndReply(message.text || ''),
@@ -124,12 +141,23 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
                 'mt-2 text-muted-foreground text-sm italic bg-muted p-3 rounded-lg border border-border'
               )}
             >
-              {thinkingText}
+              <AnonymizedContent
+                text={thinkingText}
+                chatPrivacyDict={chatPrivacyDict}
+                isAnonymized={isAnonymized}
+              />
             </CollapsibleContent>
           </Collapsible>
         )}
 
-        {replyText && shouldShowOriginalContent && <Markdown>{replyText}</Markdown>}
+        {replyText && shouldShowOriginalContent && (
+          <AnonymizedContent
+            text={replyText}
+            chatPrivacyDict={chatPrivacyDict}
+            isAnonymized={isAnonymized}
+            asMarkdown={true}
+          />
+        )}
         {message.imageUrls.length > 0 && (
           <div className="grid grid-cols-4 gap-y-4 my-2">
             {message.imageUrls.map((url, i) => (
@@ -250,4 +278,24 @@ const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymize
   })
 
   return <span>{parts}</span>
+}
+
+function AnonymizedContent({
+  text,
+  chatPrivacyDict,
+  isAnonymized,
+  asMarkdown = false
+}: {
+  text: string
+  chatPrivacyDict: string | null
+  isAnonymized: boolean
+  asMarkdown?: boolean
+}) {
+  const anonymizedText = anonymizeText(text, chatPrivacyDict, isAnonymized)
+
+  if (typeof anonymizedText === 'string') {
+    return asMarkdown ? <Markdown>{anonymizedText}</Markdown> : <span>{anonymizedText}</span>
+  }
+
+  return <span>{anonymizedText}</span>
 }
