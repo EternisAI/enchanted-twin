@@ -2,16 +2,18 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 type StreamDelta = ai.StreamDelta
 
-// ExecuteStreamWithPrivacy uses privacy-enabled streaming with anonymization.
 func (a *Agent) ExecuteStreamWithPrivacy(
 	ctx context.Context,
 	messages []openai.ChatCompletionMessageParamUnion,
@@ -33,17 +35,87 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 		languageModel = a.ReasoningModel
 	}
 
-	// Use privacy-enabled streaming
-	result, err := a.aiService.CompletionsStreamWithPrivacy(ctx, messages, toolDefs, languageModel, onDelta)
-	if err != nil {
-		return AgentResponse{}, err
+	var allToolCalls []openai.ChatCompletionMessageToolCall
+	var allToolResults []types.ToolResult
+	var allImageURLs []string
+	var finalContent string
+	var finalReplacementRules map[string]string
+	var toolErrors []string
+
+	for currentStep := 0; currentStep < MAX_STEPS; currentStep++ {
+		result, err := a.aiService.CompletionsStreamWithPrivacy(ctx, messages, toolDefs, languageModel, onDelta)
+		if err != nil {
+			return AgentResponse{}, err
+		}
+
+		finalContent = result.Message.Content
+		finalReplacementRules = result.ReplacementRules
+		messages = append(messages, result.Message.ToParam())
+
+		if len(result.Message.ToolCalls) == 0 {
+			break
+		}
+
+		for _, toolCall := range result.Message.ToolCalls {
+			allToolCalls = append(allToolCalls, toolCall)
+
+			if a.PreToolCallback != nil {
+				a.PreToolCallback(toolCall)
+			}
+
+			tool, exists := toolMap[toolCall.Function.Name]
+			if !exists {
+				err := fmt.Sprintf("Tool not found: %s", toolCall.Function.Name)
+				a.logger.Error("Tool not found", "tool_name", toolCall.Function.Name)
+				toolErrors = append(toolErrors, err)
+				continue
+			}
+
+			var args map[string]interface{}
+			if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+				errorMsg := fmt.Sprintf("Failed to parse arguments for tool %s: %v", toolCall.Function.Name, err)
+				a.logger.Error("Failed to parse tool arguments", "error", err)
+				toolErrors = append(toolErrors, errorMsg)
+				continue
+			}
+
+			deAnonymizedArgs := make(map[string]interface{})
+			for key, value := range args {
+				if strValue, ok := value.(string); ok {
+					if realValue, exists := result.ReplacementRules[strValue]; exists {
+						deAnonymizedArgs[key] = realValue
+					} else {
+						deAnonymizedArgs[key] = value
+					}
+				} else {
+					deAnonymizedArgs[key] = value
+				}
+			}
+
+			toolResult, err := tool.Execute(ctx, deAnonymizedArgs)
+			if err != nil {
+				errorMsg := fmt.Sprintf("Tool execution failed for %s: %v", toolCall.Function.Name, err)
+				a.logger.Error("Tool execution failed", "tool_name", toolCall.Function.Name, "error", err)
+				toolErrors = append(toolErrors, errorMsg)
+				continue
+			}
+
+			if a.PostToolCallback != nil {
+				a.PostToolCallback(toolCall, toolResult)
+			}
+
+			allToolResults = append(allToolResults, toolResult)
+			messages = append(messages, openai.ToolMessage(toolResult.Content(), toolCall.ID))
+			allImageURLs = append(allImageURLs, toolResult.ImageURLs()...)
+		}
 	}
 
-	// For now, return basic response - tool calls will be handled in future iterations
 	return AgentResponse{
-		Content:          result.Message.Content,
-		ToolCalls:        result.Message.ToolCalls,
-		ImageURLs:        []string{}, // TODO: Handle image URLs from tools
-		ReplacementRules: result.ReplacementRules,
+		Content:          finalContent,
+		ToolCalls:        allToolCalls,
+		ToolResults:      allToolResults,
+		ImageURLs:        allImageURLs,
+		ReplacementRules: finalReplacementRules,
+		Errors:           toolErrors,
 	}, nil
 }
