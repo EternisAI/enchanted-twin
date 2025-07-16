@@ -107,24 +107,39 @@ func (l *LLMAnonymizer) anonymizeInMemory(ctx context.Context, messages []openai
 	// Create prompt for anonymization
 	combinedText := strings.Join(textContents, "\n\n")
 
-	existingDictJSON, _ := json.Marshal(existingDict)
+	systemPrompt := `You are an anonymizer. Return data in the following format:
+Example
+user: "John Doe is a software engineer at Google"
+assistant: <json>{"John Doe":"Dave Smith","Google":"TechCorp"}</json>
 
-	systemPrompt := fmt.Sprintf(`You are a privacy-focused AI assistant. Your task is to identify personally identifiable information (PII) in the provided text and replace it with anonymized values.
+----------------  REPLACEMENT RULES  ----------------
+- Goal After deanonymising, final answer must equal answer on original text.
 
-Guidelines:
-1. Identify PII including: names, locations, organizations, email addresses, phone numbers, account numbers, addresses, dates of birth, and other sensitive data
-2. Create placeholder tokens following these patterns:
-   - People: PERSON_001, PERSON_002, etc.
-   - Locations: LOCATION_001, LOCATION_002, etc.
-   - Organizations: COMPANY_001, COMPANY_002, etc.
-   - Email addresses: EMAIL_001, EMAIL_002, etc.
-   - Phone numbers: PHONE_001, PHONE_002, etc.
-   - Other sensitive data: SENSITIVE_001, SENSITIVE_002, etc.
-3. Preserve existing mappings from the current dictionary: %s
-4. Only create new tokens for NEW information not already in the existing dictionary
-5. Be conservative - when in doubt, anonymize
+ENTITY-CLASS
+- Personal names Replace private / small-group.  Choose same culture+gender+era; share surnames if originals do.  Keep public figures.
+- Companies/orgs Replace private, niche, employer, partners.  Fake org same industry & size, keep legal suffix.  Keep majors (anon-set ≥ 1 M).
+- Projects / codenames Always replace with neutral two-word alias.
+- Locations Replace addresses/buildings/towns < 100 k pop with same-level synthetic in same state/country.  Keep big cities, states, countries.
+- Dates/times Replace birthdays, invites, exact timestamps.  Shift all mentioned dates by same Δdays; preserve order & granularity.  Keep years, quarters, decades.
+- Identifiers (email, phone, ID, URL) Always replace with format-valid dummy; keep domain class.
+- Money Replace personal amounts, invoices, bids by ×[0.8–1.25].  Keep public list prices & market caps.
+- Quotes If quote embeds PII, swap only those tokens; else keep.
+- DO NOT REPLACE POPULAR PEOPLE NAMES
 
-Use the replace_entities tool to provide your response.`, string(existingDictJSON))
+PRACTICAL EDGE CASES
+– Nicknames → same-length short name.
+– Honorifics kept unless identifying.
+– Preserve script (Kanji→Kanji etc.).
+– Handles with digits keep digit pattern.
+– Chained: "John at Google in Mountain View" → "Lena at TechCorp in Mountain View".
+– Ambiguous? KEEP (precision > recall).
+– Maintain original specificity: coarse = keep, too-fine = replace with diff element of same coarse class.
+
+WHY KEEP BIG CITIES Pop ≥ 1 M already gives anonymity; replacing hurts context.
+
+IMPORTANT Attackers may join many anonymized queries—choose replacements deterministically for same token across session.
+
+Use the replace_entities tool to provide your response. The content you're anonymising below is`
 
 	userPrompt := fmt.Sprintf("Please analyze the following text and create an anonymization dictionary:\n\n%s", combinedText)
 
