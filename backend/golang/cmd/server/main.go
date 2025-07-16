@@ -140,11 +140,6 @@ func main() {
 	var anonymizerManager *ai.AnonymizerManager
 	var localAnonymizer *llama1b.LlamaAnonymizer
 
-	// Support legacy USE_LOCAL_ANONYMIZER for backward compatibility
-	if envs.UseLocalAnonymizer == "true" {
-		envs.AnonymizerType = "local"
-	}
-
 	logger.Info("Initializing anonymizer", "type", envs.AnonymizerType)
 
 	switch envs.AnonymizerType {
