@@ -26,7 +26,12 @@ export default function MessageList({
             chatPrivacyDict={chatPrivacyDict}
           />
         ) : (
-          <AssistantMessageBubble key={msg.id} message={msg} />
+          <AssistantMessageBubble
+            key={msg.id}
+            message={msg}
+            isAnonymized={isAnonymized}
+            chatPrivacyDict={chatPrivacyDict}
+          />
         )
       )}
       {isWaitingTwinResponse && (
