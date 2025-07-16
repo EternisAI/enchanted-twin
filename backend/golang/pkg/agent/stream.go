@@ -37,6 +37,7 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 
 	var allToolCalls []openai.ChatCompletionMessageToolCall
 	var allToolResults []types.ToolResult
+	var allImageURLs []string
 	var finalContent string
 	var finalReplacementRules map[string]string
 	var toolErrors []string
@@ -105,6 +106,7 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 
 			allToolResults = append(allToolResults, toolResult)
 			messages = append(messages, openai.ToolMessage(toolResult.Content(), toolCall.ID))
+			allImageURLs = append(allImageURLs, toolResult.ImageURLs()...)
 		}
 	}
 
@@ -112,7 +114,7 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 		Content:          finalContent,
 		ToolCalls:        allToolCalls,
 		ToolResults:      allToolResults,
-		ImageURLs:        []string{},
+		ImageURLs:        allImageURLs,
 		ReplacementRules: finalReplacementRules,
 		Errors:           toolErrors,
 	}, nil
