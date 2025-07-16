@@ -211,9 +211,9 @@ function RootComponent() {
               {sidebarOpen && isCompleted && (
                 <motion.div
                   key="sidebar"
-                  initial={{ width: 0, opacity: 0, marginRight: 0 }}
-                  animate={{ width: 256, opacity: 1, marginRight: 16 }}
-                  exit={{ width: 0, opacity: 0, marginRight: 0 }}
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 256, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
                   transition={{ type: 'spring', stiffness: 350, damping: 55 }}
                   className="h-full overflow-y-auto"
                 >

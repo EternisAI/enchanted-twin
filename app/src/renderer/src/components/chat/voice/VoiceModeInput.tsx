@@ -4,9 +4,8 @@ import { Mic, MicOff, X } from 'lucide-react'
 import useMicrophonePermission from '@renderer/hooks/useMicrophonePermission'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
 import { Button } from '@renderer/components/ui/button'
-import { Tooltip } from '@renderer/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import { cn } from '@renderer/lib/utils'
-import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip'
 
 // STATES
 // 1. Initializing voice session
@@ -64,7 +63,7 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
         <div className="flex flex-col items-center gap-1 px-4 py-3">
           <Mic className="w-5 h-5 flex-shrink-0" />
           <span className="text-lg font-semibold">Allow Microphone Access</span>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className="text-sm text-muted-foreground">
             To talk to Enchanted, you&apos;ll need to allow microphone access.
           </span>
         </div>
@@ -87,14 +86,14 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex gap-2 justify-center pb-4"
     >
-      <div className="flex p-2 gap-2 max-w-md rounded-full shadow-xl h-14 items-center bg-white">
+      <div className="flex p-2 gap-2 max-w-md rounded-full shadow-xl h-14 items-center bg-card">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               onClick={toggleMute}
               className={cn(
-                '!px-4 !py-4 h-10 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-[#E4E4E7] dark:!bg-gray-800 hover:!bg-gray-200 dark:!hover:!bg-gray-700',
-                isMuted && '!bg-muted-foreground text-white dark:!bg-gray-700'
+                '!px-4 !py-4 h-10 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-card hover:!bg-card/80 dark:!hover:!bg-card/80',
+                isMuted && '!bg-muted text-muted-foreground'
               )}
               variant="outline"
             >
@@ -111,7 +110,7 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
               )}
             </Button>
           </TooltipTrigger>
-          <TooltipContent className="px-3 py-1 bg-gray-100 rounded-lg">
+          <TooltipContent className="px-3 py-1 rounded-lg">
             {isMuted ? 'Unmute' : 'Mute'}
           </TooltipContent>
         </Tooltip>
@@ -119,7 +118,7 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
           <Button
             onClick={onStop}
             className={cn(
-              '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-gray-200 dark:!bg-gray-800 hover:!bg-gray-200 dark:!hover:!bg-gray-700 hover:!text-gray-500 dark:!hover:!text-gray-400'
+              '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-card hover:!bg-card/80 dark:!hover:!bg-card/80 hover:!text-gray-500 dark:!hover:!text-gray-400'
             )}
             variant="outline"
           >

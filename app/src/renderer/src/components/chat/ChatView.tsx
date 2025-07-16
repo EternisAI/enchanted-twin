@@ -13,6 +13,7 @@ import { Switch } from '../ui/switch'
 import { Button } from '../ui/button'
 import { ArrowDown, Eye, EyeClosed } from 'lucide-react'
 import { Fade } from '../ui/blur-fade'
+import { AnimatePresence, motion } from 'framer-motion'
 
 interface ChatViewProps {
   chat: Chat
@@ -40,6 +41,7 @@ export default function ChatView({ chat }: ChatViewProps) {
     setIsReasonSelected
   } = useChat()
 
+  // TODO: replace with intersection observer instead of scroll event listener - performance improvement
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20
@@ -91,7 +93,7 @@ export default function ChatView({ chat }: ChatViewProps) {
   const showAnonymizationToggle = hasUserMessages && privacyDict
 
   return (
-    <div className="flex flex-col h-full w-full items-center relative">
+    <div className="flex flex-col h-full w-full items-center relative ">
       <Fade
         background="var(--color-background)"
         className="w-full h-[100px] absolute top-0 left-0 z-20 pointer-events-none"
@@ -154,16 +156,43 @@ export default function ChatView({ chat }: ChatViewProps) {
       </div>
 
       {/* Scroll to bottom button */}
-      {showScrollToBottom && (
-        <div className="absolute bottom-30 left-1/2 transform -translate-x-1/2 z-10">
-          <Button onClick={scrollToBottom} size="sm" className="rounded-full p-2" variant="outline">
-            <ArrowDown className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
+      <AnimatePresence>
+        {showScrollToBottom && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 0 }}
+            transition={{
+              type: 'spring',
+              stiffness: 350,
+              damping: 20,
+              opacity: {
+                duration: 0.2,
+                ease: 'easeInOut'
+              }
+            }}
+            className="absolute bottom-30 left-1/2 transform -translate-x-1/2 z-10"
+          >
+            <Button
+              onClick={scrollToBottom}
+              className="backdrop-blur-sm !bg-white shadow-sm dark:shadow-none dark:border dark:border-border dark:!bg-black/50 rounded-full p-2"
+              variant="ghost"
+            >
+              <ArrowDown className="w-4 h-4" />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="flex flex-col w-full items-center justify-center px-2">
-        <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">
+      <div className="flex flex-col w-full items-center justify-center px-2 absolute bottom-0 left-0 right-0">
+        <Fade
+          background="var(--color-background)"
+          className="w-full h-[180px] absolute bottom-0 left-0 z-0 pointer-events-none"
+          side="bottom"
+          blur="12px"
+          stop="50%"
+        />
+        <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center relative z-10">
           <VoiceModeToggle
             voiceMode={isVoiceMode}
             setVoiceMode={() => {
