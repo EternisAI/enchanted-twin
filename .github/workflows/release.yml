@@ -105,6 +105,9 @@ jobs:
           VITE_FIREBASE_AUTH_DOMAIN: freysa-prod.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: freysa-prod
           HOLON_API_URL: http://23.22.67.228:8123
+          ANONYMIZER_TYPE: "local"
+          USE_LOCAL_ANONYMIZER: true
+          USE_LOCAL_MODEL: true
 
         run: make build-mac-silicon
 
