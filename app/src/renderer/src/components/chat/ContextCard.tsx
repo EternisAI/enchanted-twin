@@ -1,9 +1,8 @@
 import { gql, useQuery, useMutation } from '@apollo/client'
-import { CheckIcon, PencilIcon, UserIcon, XIcon } from 'lucide-react'
+import { CheckIcon, UserIcon, XIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '../ui/button'
-import { Textarea } from '../ui/textarea'
 import { toast } from 'sonner'
 import { cn } from '@renderer/lib/utils'
 
@@ -134,12 +133,19 @@ export function ContextCard() {
                     exit={{ opacity: 0, y: -5 }}
                     transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
                   >
-                    <Button variant="ghost" size="icon" onClick={handleCancel}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Cancel"
+                      onClick={handleCancel}
+                      disabled={updateLoading}
+                    >
                       <XIcon className="size-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Save changes"
                       onClick={handleSubmit}
                       disabled={updateLoading}
                     >
@@ -198,6 +204,7 @@ export function ContextCard() {
             <Button
               variant="ghost"
               size="sm"
+              aria-label="Personalize"
               onClick={handleStartEditing}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
             >
