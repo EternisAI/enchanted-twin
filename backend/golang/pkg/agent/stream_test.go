@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/log"
@@ -63,6 +64,7 @@ func (m *mockAIService) CompletionsStreamWithPrivacy(
 	}
 
 	// Fallback to single response
+	m.callCount++
 	return m.response, nil
 }
 
@@ -210,6 +212,11 @@ func TestExecuteStreamWithPrivacy_ToolExecutionWithDeAnonymization(t *testing.T)
 		t.Errorf("Expected final content 'Search completed successfully.', got '%s'", response.Content)
 	}
 
+	// Verify no errors for successful execution
+	if len(response.Errors) != 0 {
+		t.Errorf("Expected 0 errors, got %d: %v", len(response.Errors), response.Errors)
+	}
+
 	// Verify replacement rules are preserved
 	if len(response.ReplacementRules) != 2 {
 		t.Errorf("Expected 2 replacement rules, got %d", len(response.ReplacementRules))
@@ -276,6 +283,11 @@ func TestExecuteStreamWithPrivacy_NoToolCalls(t *testing.T) {
 		t.Errorf("Expected 0 tool calls, got %d", len(response.ToolCalls))
 	}
 
+	// Verify no errors for successful execution
+	if len(response.Errors) != 0 {
+		t.Errorf("Expected 0 errors, got %d: %v", len(response.Errors), response.Errors)
+	}
+
 	// Verify replacement rules are preserved
 	if len(response.ReplacementRules) != 1 {
 		t.Errorf("Expected 1 replacement rule, got %d", len(response.ReplacementRules))
@@ -293,22 +305,33 @@ func TestExecuteStreamWithPrivacy_ToolNotFound(t *testing.T) {
 
 	// Create mock AI service with tool call for non-existent tool
 	mockAI := &mockAIService{
-		response: ai.PrivateCompletionResult{
-			Message: openai.ChatCompletionMessage{
-				Role:    "assistant",
-				Content: "I'll use a tool that doesn't exist.",
-				ToolCalls: []openai.ChatCompletionMessageToolCall{
-					{
-						ID:   "call_nonexistent",
-						Type: "function",
-						Function: openai.ChatCompletionMessageToolCallFunction{
-							Name:      "nonexistent_tool",
-							Arguments: `{"query": "test"}`,
+		responses: []ai.PrivateCompletionResult{
+			// First call - return tool call
+			{
+				Message: openai.ChatCompletionMessage{
+					Role:    "assistant",
+					Content: "I'll use a tool that doesn't exist.",
+					ToolCalls: []openai.ChatCompletionMessageToolCall{
+						{
+							ID:   "call_nonexistent",
+							Type: "function",
+							Function: openai.ChatCompletionMessageToolCallFunction{
+								Name:      "nonexistent_tool",
+								Arguments: `{"query": "test"}`,
+							},
 						},
 					},
 				},
+				ReplacementRules: map[string]string{},
 			},
-			ReplacementRules: map[string]string{},
+			// Second call - return final response
+			{
+				Message: openai.ChatCompletionMessage{
+					Role:    "assistant",
+					Content: "Tool execution completed with errors.",
+				},
+				ReplacementRules: map[string]string{},
+			},
 		},
 	}
 
@@ -341,5 +364,15 @@ func TestExecuteStreamWithPrivacy_ToolNotFound(t *testing.T) {
 		t.Errorf("Expected 1 tool call in response, got %d", len(response.ToolCalls))
 	}
 
-	t.Logf("Test passed - tool not found handled gracefully")
+	// Verify that error was recorded in response
+	if len(response.Errors) == 0 {
+		t.Error("Expected tool error to be recorded in response.Errors")
+	}
+
+	// Verify error message contains tool name
+	if len(response.Errors) > 0 && !strings.Contains(response.Errors[0], "nonexistent_tool") {
+		t.Errorf("Expected error message to contain 'nonexistent_tool', got: %s", response.Errors[0])
+	}
+
+	t.Logf("Test passed - tool not found handled gracefully with errors recorded: %v", response.Errors)
 }

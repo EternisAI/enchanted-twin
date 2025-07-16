@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/openai/openai-go"
 
@@ -39,6 +40,7 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 	var allToolResults []types.ToolResult
 	var finalContent string
 	var finalReplacementRules map[string]string
+	var toolErrors []string
 
 	for currentStep := 0; currentStep < MAX_STEPS; currentStep++ {
 		result, err := a.aiService.CompletionsStreamWithPrivacy(ctx, messages, toolDefs, languageModel, onDelta)
@@ -55,19 +57,25 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 		}
 
 		for _, toolCall := range result.Message.ToolCalls {
+			allToolCalls = append(allToolCalls, toolCall)
+
 			if a.PreToolCallback != nil {
 				a.PreToolCallback(toolCall)
 			}
 
 			tool, exists := toolMap[toolCall.Function.Name]
 			if !exists {
+				err := fmt.Sprintf("Tool not found: %s", toolCall.Function.Name)
 				a.logger.Error("Tool not found", "tool_name", toolCall.Function.Name)
+				toolErrors = append(toolErrors, err)
 				continue
 			}
 
 			var args map[string]interface{}
 			if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+				errorMsg := fmt.Sprintf("Failed to parse arguments for tool %s: %v", toolCall.Function.Name, err)
 				a.logger.Error("Failed to parse tool arguments", "error", err)
+				toolErrors = append(toolErrors, errorMsg)
 				continue
 			}
 
@@ -86,7 +94,9 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 
 			toolResult, err := tool.Execute(ctx, deAnonymizedArgs)
 			if err != nil {
+				errorMsg := fmt.Sprintf("Tool execution failed for %s: %v", toolCall.Function.Name, err)
 				a.logger.Error("Tool execution failed", "tool_name", toolCall.Function.Name, "error", err)
+				toolErrors = append(toolErrors, errorMsg)
 				continue
 			}
 
@@ -95,7 +105,6 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 			}
 
 			allToolResults = append(allToolResults, toolResult)
-			allToolCalls = append(allToolCalls, toolCall)
 			messages = append(messages, openai.ToolMessage(toolResult.Content(), toolCall.ID))
 		}
 	}
@@ -106,5 +115,6 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 		ToolResults:      allToolResults,
 		ImageURLs:        []string{},
 		ReplacementRules: finalReplacementRules,
+		Errors:           toolErrors,
 	}, nil
 }

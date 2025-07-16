@@ -115,6 +115,11 @@ func TestExecuteStreamWithPrivacy_MultiStepToolExecution(t *testing.T) {
 		t.Errorf("Expected 1 tool call, got %d", len(response.ToolCalls))
 	}
 
+	// Verify no errors for successful execution
+	if len(response.Errors) != 0 {
+		t.Errorf("Expected 0 errors, got %d: %v", len(response.Errors), response.Errors)
+	}
+
 	// Verify replacement rules are preserved
 	if len(response.ReplacementRules) != 1 {
 		t.Errorf("Expected 1 replacement rule, got %d", len(response.ReplacementRules))
@@ -176,6 +181,11 @@ func TestExecuteStreamWithPrivacy_NoToolCallsMultiStep(t *testing.T) {
 
 	if len(response.ToolResults) != 0 {
 		t.Errorf("Expected 0 tool results, got %d", len(response.ToolResults))
+	}
+
+	// Verify no errors for successful execution
+	if len(response.Errors) != 0 {
+		t.Errorf("Expected 0 errors, got %d: %v", len(response.Errors), response.Errors)
 	}
 
 	// Verify AI service was called only once
@@ -261,5 +271,10 @@ func TestExecuteStreamWithPrivacy_MaxStepsLimit(t *testing.T) {
 	// Verify all tool results were collected
 	if len(response.ToolResults) != MAX_STEPS {
 		t.Errorf("Expected %d tool results, got %d", MAX_STEPS, len(response.ToolResults))
+	}
+
+	// Verify no errors for successful execution
+	if len(response.Errors) != 0 {
+		t.Errorf("Expected 0 errors, got %d: %v", len(response.Errors), response.Errors)
 	}
 }

@@ -54,6 +54,7 @@ type AgentResponse struct {
 	ToolResults      []types.ToolResult
 	ImageURLs        []string
 	ReplacementRules map[string]string
+	Errors           []string // Tool execution errors
 }
 
 func (r AgentResponse) String() string {
