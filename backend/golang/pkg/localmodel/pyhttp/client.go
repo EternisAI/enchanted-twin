@@ -76,7 +76,11 @@ func (c *Client) Infer(input string) (string, error) {
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	resp, err := http.Post(serverURL+"/infer", "application/json", bytes.NewBuffer(jsonData))
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := httpClient.Post(serverURL+"/infer", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}
