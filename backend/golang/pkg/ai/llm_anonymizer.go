@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/log"
@@ -372,57 +371,19 @@ func (l *LLMAnonymizer) anonymizeMessage(message openai.ChatCompletionMessagePar
 }
 
 func (l *LLMAnonymizer) anonymizeText(text string, rules map[string]string) string {
-	anonymized := text
-
-	// Create sorted list of replacements by original length (longest first)
-	type replacement struct {
-		token    string
-		original string
-	}
-
-	var replacements []replacement
+	// Build original -> token mapping from token -> original rules
+	originalToToken := make(map[string]string)
 	for token, original := range rules {
-		replacements = append(replacements, replacement{token: token, original: original})
+		originalToToken[original] = token
 	}
 
-	// Sort by original length descending (longest first)
-	sort.Slice(replacements, func(i, j int) bool {
-		return len(replacements[i].original) > len(replacements[j].original)
-	})
-
-	// Apply replacements (original -> token)
-	for _, repl := range replacements {
-		anonymized = strings.ReplaceAll(anonymized, repl.original, repl.token)
-	}
-
-	return anonymized
+	// Use anonymization replacement (preserving token case)
+	return ApplyAnonymization(text, originalToToken)
 }
 
 func (l *LLMAnonymizer) DeAnonymize(anonymized string, rules map[string]string) string {
-	restored := anonymized
-
-	// Create sorted list of tokens by length (longest first)
-	type tokenReplacement struct {
-		token    string
-		original string
-	}
-
-	var tokens []tokenReplacement
-	for token, original := range rules {
-		tokens = append(tokens, tokenReplacement{token: token, original: original})
-	}
-
-	// Sort by token length descending (longest first)
-	sort.Slice(tokens, func(i, j int) bool {
-		return len(tokens[i].token) > len(tokens[j].token)
-	})
-
-	// Apply rules in reverse (token -> original)
-	for _, tokenRepl := range tokens {
-		restored = strings.ReplaceAll(restored, tokenRepl.token, tokenRepl.original)
-	}
-
-	return restored
+	// Use simple de-anonymization (restore original case)
+	return ApplyDeAnonymization(anonymized, rules)
 }
 
 func (l *LLMAnonymizer) LoadConversationDict(conversationID string) (map[string]string, error) {

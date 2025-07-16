@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/log"
@@ -207,9 +206,6 @@ func (p *PersistentAnonymizer) anonymizeMessage(ctx context.Context, message ope
 }
 
 func (p *PersistentAnonymizer) anonymizeContent(ctx context.Context, content string, workingDict map[string]string) (string, map[string]string, error) {
-	// Use the existing trie-based replacement for efficient anonymization
-	trie := NewReplacementTrie()
-
 	// Build replacement map from working dictionary (reverse mapping)
 	replacements := make(map[string]string)
 	for token, original := range workingDict {
@@ -224,19 +220,18 @@ func (p *PersistentAnonymizer) anonymizeContent(ctx context.Context, content str
 		}
 	}
 
-	// Insert all replacements into trie
-	for original, token := range replacements {
-		trie.Insert(original, token)
-	}
+	// Apply anonymization replacements (preserving token case)
+	anonymized := ApplyAnonymization(content, replacements)
 
-	// Apply replacements
-	anonymized, appliedRules := trie.ReplaceAll(content)
-
-	// Return only new rules (not already in working dictionary)
+	// Build new rules map (only rules that were actually applied)
 	newRules := make(map[string]string)
-	for token, original := range appliedRules {
-		if _, exists := workingDict[token]; !exists {
-			newRules[token] = original
+	for original, token := range replacements {
+		if strings.Contains(content, original) ||
+			strings.Contains(strings.ToLower(content), strings.ToLower(original)) ||
+			strings.Contains(strings.ToUpper(content), strings.ToUpper(original)) {
+			if _, exists := workingDict[token]; !exists {
+				newRules[token] = original
+			}
 		}
 	}
 
@@ -275,31 +270,8 @@ func (p *PersistentAnonymizer) getPredefinedReplacements() map[string]string {
 }
 
 func (p *PersistentAnonymizer) DeAnonymize(anonymized string, rules map[string]string) string {
-	// Use the same de-anonymization logic as mock anonymizer
-	restored := anonymized
-
-	// Create a sorted list of tokens by length (longest first)
-	type tokenReplacement struct {
-		token    string
-		original string
-	}
-
-	var sortedTokens []tokenReplacement
-	for token, original := range rules {
-		sortedTokens = append(sortedTokens, tokenReplacement{token: token, original: original})
-	}
-
-	// Sort by token length descending (longest first)
-	sort.Slice(sortedTokens, func(i, j int) bool {
-		return len(sortedTokens[i].token) > len(sortedTokens[j].token)
-	})
-
-	// Apply rules in reverse (anonymized token -> original) with longest tokens first
-	for _, tokenRepl := range sortedTokens {
-		restored = strings.ReplaceAll(restored, tokenRepl.token, tokenRepl.original)
-	}
-
-	return restored
+	// Use simple de-anonymization (restore original case)
+	return ApplyDeAnonymization(anonymized, rules)
 }
 
 func (p *PersistentAnonymizer) LoadConversationDict(conversationID string) (map[string]string, error) {
