@@ -1,23 +1,22 @@
 import { spawn } from 'node:child_process'
-import { app } from 'electron'
 import log from 'electron-log/main'
 import path from 'node:path'
 import fs from 'node:fs'
 
 import { PythonEnvironmentManager } from './pythonEnvironmentManager'
 import { copyDirectoryRecursive, fileExists } from './helpers'
+import { downloadDependency } from './dependenciesDownload'
+import type { DependencyName } from './types/dependencies'
 
 export class AnonymiserManager {
   private readonly projectName = 'anonymiser'
   private readonly pythonEnv: PythonEnvironmentManager
   private readonly modelPath: string
-  private readonly projectDir: string
   private childProcess: import('child_process').ChildProcess | null = null
 
-  constructor(modelPath: string, projectDir: string, pythonEnv: PythonEnvironmentManager) {
+  constructor(modelPath: string, pythonEnv: PythonEnvironmentManager) {
     this.pythonEnv = pythonEnv
     this.modelPath = modelPath
-    this.projectDir = projectDir
   }
 
   private async setupProjectFiles(): Promise<void> {
@@ -90,17 +89,14 @@ export class AnonymiserManager {
 
     log.info('[Anonymiser] Starting anonymiser service')
 
-    this.childProcess = spawn(
-      this.pythonEnv.getPythonBin(this.projectName),
-      ['anonymizer.py', '--model_path', this.modelPath],
-      {
-        cwd: this.pythonEnv.getProjectDir(this.projectName),
-        env: {
-          ...process.env
-        },
-        stdio: 'pipe'
-      }
-    )
+    this.childProcess = spawn(this.pythonEnv.getPythonBin(this.projectName), ['anonymizer.py'], {
+      cwd: this.pythonEnv.getProjectDir(this.projectName),
+      env: {
+        ...process.env,
+        ANONYMIZER_MODEL_PATH: this.modelPath
+      },
+      stdio: 'pipe'
+    })
 
     this.childProcess.stdout?.on('data', (data) => {
       const output = data.toString().trim()
@@ -129,15 +125,12 @@ export async function startAnonymiserSetup(): Promise<void> {
   try {
     log.info('[Anonymiser] Starting anonymiser setup')
 
-    const modelPath = path.join(
-      app.getPath('appData'),
-      'enchanted',
-      'models',
-      'Llama-3.2-1B-Instruct-CoreML' //@TODO: Double check this path
-    )
+    const downloadResult = await downloadDependency('anonymizer' as DependencyName)
+    const modelPath = downloadResult.path
+    log.info(`[Anonymiser] Using Anonymizer model from: ${modelPath}`)
 
     const pythonEnv = new PythonEnvironmentManager()
-    const anonymiser = new AnonymiserManager(modelPath, '', pythonEnv)
+    const anonymiser = new AnonymiserManager(modelPath, pythonEnv)
 
     await anonymiser.installPackages()
 
