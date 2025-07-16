@@ -96,18 +96,18 @@ export default function ChatView({ chat }: ChatViewProps) {
     <div className="flex flex-col h-full w-full items-center relative ">
       <Fade
         background="var(--color-background)"
-        className="w-full h-[100px] absolute top-0 left-0 z-20 pointer-events-none"
+        className="w-full h-[72px] absolute top-0 left-0 z-20 pointer-events-none"
         side="top"
-        blur="6px"
-        stop="5%"
+        blur="12px"
+        stop="50%"
       />
       <div
         ref={containerRef}
         onScroll={onScroll}
-        className="flex flex-1 flex-col w-full overflow-y-auto pt-10"
+        className="flex flex-1 flex-col w-full overflow-y-auto pt-[72px] px-4"
       >
         <div className="flex w-full justify-center">
-          <div className="flex flex-col max-w-4xl items-center p-4 w-full">
+          <div className="flex flex-col max-w-3xl items-center p-4 w-full">
             <div className="w-full flex flex-col gap-2">
               {chat.category === ChatCategory.Holon && chat.holonThreadId && (
                 <HolonThreadContext threadId={chat.holonThreadId} />
@@ -184,7 +184,7 @@ export default function ChatView({ chat }: ChatViewProps) {
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col w-full items-center justify-center px-2 absolute bottom-0 left-0 right-0">
+      <div className="flex flex-col items-center justify-center px-2 absolute bottom-0 inset-x-4">
         <Fade
           background="var(--color-background)"
           className="w-full h-[180px] absolute bottom-0 left-0 z-0 pointer-events-none"
@@ -192,7 +192,7 @@ export default function ChatView({ chat }: ChatViewProps) {
           blur="12px"
           stop="50%"
         />
-        <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center relative z-10">
+        <div className="pb-4 w-full max-w-3xl flex flex-col gap-4 justify-center items-center relative z-10">
           <VoiceModeToggle
             voiceMode={isVoiceMode}
             setVoiceMode={() => {

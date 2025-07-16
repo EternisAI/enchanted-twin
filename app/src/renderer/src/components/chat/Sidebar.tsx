@@ -99,7 +99,6 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
       return (
         <motion.div
           key={title}
-          className="mb-6"
           initial="hidden"
           animate="visible"
           exit="exit"
@@ -134,8 +133,8 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
 
   return (
     <>
-      <aside className="flex flex-col bg-sidebar text-sidebar-foreground p-4 pt-10 h-full w-64 border-r border-sidebar-border/50">
-        <div className="flex items-center justify-between mb-3">
+      <aside className="flex flex-col bg-sidebar text-sidebar-foreground p-4 px-2 pt-10 h-full w-64 border-r border-sidebar-border/50">
+        <div className="flex items-center justify-between mb-2">
           <motion.div
             className="flex items-center"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -191,40 +190,41 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
             </Tooltip>
           </TooltipProvider>
         </div>
+        <div className="flex flex-col gap-1">
+          <Button
+            variant="ghost"
+            className="group w-full justify-start px-2 text-sidebar-foreground h-9"
+            onClick={handleNewChat}
+          >
+            <Plus className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
+            <span className="text-sm">New chat</span>
+            {shortcuts.newChat?.keys && (
+              <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
+                <kbd className="rounded bg-sidebar-accent px-1.5 py-0.5">
+                  {formatShortcutForDisplay(shortcuts.newChat.keys)}
+                </kbd>
+              </div>
+            )}
+          </Button>
 
-        <Button
-          variant="ghost"
-          className="group w-full justify-start px-2 text-sidebar-foreground h-9 mb-2"
-          onClick={handleNewChat}
-        >
-          <Plus className="w-4 h-4" />
-          <span className="text-sm">New chat</span>
-          {shortcuts.newChat?.keys && (
-            <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
-              <kbd className="rounded bg-sidebar-accent px-1.5 py-0.5">
-                {formatShortcutForDisplay(shortcuts.newChat.keys)}
-              </kbd>
-            </div>
-          )}
-        </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group"
+            onClick={handleNavigateTasks}
+          >
+            <CheckSquare className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
+            <span className="text-sm">Tasks</span>
+          </Button>
 
-        <Button
-          variant="ghost"
-          className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 mb-2"
-          onClick={handleNavigateTasks}
-        >
-          <CheckSquare className="w-4 h-4 text-sidebar-foreground/60" />
-          <span className="text-sm">Tasks</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 mb-1"
-          onClick={() => navigate({ to: '/holon' })}
-        >
-          <Globe className="w-4 h-4 text-sidebar-foreground/60" />
-          <span className="text-sm">Holon Networks</span>
-        </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group"
+            onClick={() => navigate({ to: '/holon' })}
+          >
+            <Globe className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
+            <span className="text-sm">Holon Networks</span>
+          </Button>
+        </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
           <AnimatePresence initial={false} mode="popLayout">

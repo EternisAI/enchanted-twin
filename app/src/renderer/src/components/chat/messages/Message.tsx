@@ -62,7 +62,7 @@ export function UserMessageBubble({
           )}
         </div>
         <div className="flex items-center gap-2 w-full">
-          <div className="text-xs text-muted-foreground">
+          <div className="text-[9px] text-muted-foreground font-mono">
             {new Date(message.createdAt).toLocaleTimeString()}
           </div>
         </div>
@@ -177,7 +177,7 @@ export function AssistantMessageBubble({
                 <ToolCall key={toolCall.id} toolCall={toolCall} />
               ))}
             </div>
-            <div className="text-xs text-left text-muted-foreground ">
+            <div className="text-[9px] text-left text-muted-foreground font-mono">
               {new Date(message.createdAt).toLocaleTimeString()}
             </div>
           </div>
