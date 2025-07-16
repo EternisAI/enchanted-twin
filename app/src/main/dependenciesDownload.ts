@@ -49,7 +49,11 @@ const DEPENDENCIES_CONFIGS: Record<
 
 export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
   const embeddingsDir = path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
-  const anonymizerDir = path.join(DEPENDENCIES_DIR, 'models', 'Llama-3.2-1B-Instruct-CoreML')
+  const anonymizerDir = path.join(
+    DEPENDENCIES_DIR,
+    'models',
+    'eternis_eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k'
+  )
   const onnxDir = path.join(
     DEPENDENCIES_DIR,
     'shared',
