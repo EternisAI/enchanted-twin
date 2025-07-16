@@ -74,14 +74,16 @@ export class AnonymiserManager {
     }
 
     log.info('[Anonymiser] Starting anonymiser service')
+    log.info({ modelPath: this.modelPath })
+    log.info({ uvPath: this.pythonEnv.getUvPath() })
 
-    this.childProcess = spawn(this.pythonEnv.getPythonBin(this.projectName), ['anonymizer.py'], {
+    this.childProcess = spawn(this.pythonEnv.getUvPath(), ['run', 'anonymizer.py'], {
       cwd: this.pythonEnv.getProjectDir(this.projectName),
       env: {
-        ...process.env,
-        ANONYMIZER_MODEL_PATH: this.modelPath
-      },
-      stdio: 'pipe'
+        ...this.pythonEnv.getUvEnv(this.projectName),
+        MODEL_PATH: this.modelPath
+      }
+      // stdio: 'pipe'
     })
 
     this.childProcess.stdout?.on('data', (data) => {
@@ -126,7 +128,7 @@ export async function startAnonymiserSetup(): Promise<void> {
     console.log(anonymiser)
 
     // await anonymiser.installPackages()
-    // await anonymiser.run()
+    await anonymiser.run()
 
     log.info('[Anonymiser] Anonymiser setup completed successfully')
   } catch (error) {

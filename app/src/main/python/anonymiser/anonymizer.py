@@ -6,18 +6,33 @@ from pydantic import BaseModel
 from typing import Any, Optional, Tuple
 from fastapi import FastAPI, HTTPException
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import uvicorn
+
+print("Starting anonymizer service...")
 
 app = FastAPI(title="Enchanted Anonymizer")
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+print(f"Using device: {device}")
 
 model_name = os.environ.get(
     "MODEL_PATH", "eternis/eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k"
 )
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+print(f"Loading model from: {model_name}")
 
-model = AutoModelForCausalLM.from_pretrained(model_name).to(device).eval()
-model.config.use_cache = True
+try:
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    print("Tokenizer loaded successfully")
+
+    model = AutoModelForCausalLM.from_pretrained(model_name).to(device).eval()
+    model.config.use_cache = True
+    print("Model loaded successfully")
+except Exception as e:
+    print(f"Error loading model: {e}")
+    import traceback
+
+    traceback.print_exc()
+    exit(1)
 
 
 class GenerateRequest(BaseModel):
@@ -78,3 +93,15 @@ def extract_first_json(raw: str) -> Tuple[Optional[str], Optional[Any]]:
             except json.JSONDecodeError:
                 pass
     return None, None
+
+
+if __name__ == "__main__":
+    print("Starting FastAPI server on port 8000...")
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+    except Exception as e:
+        print(f"Error starting server: {e}")
+        import traceback
+
+        traceback.print_exc()
+        exit(1)
