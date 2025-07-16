@@ -76,7 +76,7 @@ func (s *PrivateCompletionsService) Completions(ctx context.Context, messages []
 }
 
 func (s *PrivateCompletionsService) CompletionsWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
-	s.logger.Debug("Starting private completion processing", "model", model, "conversationID", conversationID, "messageCount", len(messages), "toolCount", len(tools))
+	s.logger.Debug("Starting private completion processing", "model", model, "conversationID", conversationID, "messageCount", len(messages), "toolCount", len(tools), "priority", priority)
 
 	anonymizedMessages, allRules, err := s.scheduleAnonymization(ctx, conversationID, messages, priority)
 	if err != nil {
@@ -122,36 +122,68 @@ func (s *PrivateCompletionsService) scheduleAnonymization(ctx context.Context, c
 			// Check for context cancellation before starting
 			select {
 			case <-ctx.Done():
+				s.logger.Info("Anonymization canceled by context before starting",
+					"priority", priority, "conversationID", conversationID,
+					"contextErr", ctx.Err())
 				return nil, fmt.Errorf("anonymization canceled before starting: %w", ctx.Err())
 			default:
 			}
 
 			// Check for task interruption before starting
 			if interrupt.CheckAndConsumeInterrupt() {
+				s.logger.Warn("Anonymization task interrupted by scheduler before starting",
+					"priority", priority, "conversationID", conversationID)
 				return nil, fmt.Errorf("anonymization task interrupted before starting")
 			}
 
 			anonymizer := s.anonymizerManager.GetAnonymizer()
-			anonymizedMessages, _, rules, err := anonymizer.AnonymizeMessages(ctx, conversationID, messages, nil, interruptChan)
+
+			// UI tasks should never be interrupted by other tasks, but can still be canceled by creator context
+			// Pass nil for interruptChan if this is a UI task to prevent scheduler interruption
+			var anonymizationInterruptChan <-chan struct{}
+			if priority != microscheduler.UI {
+				anonymizationInterruptChan = interruptChan
+			} else {
+				s.logger.Debug("UI task protected from scheduler interruption",
+					"priority", priority, "conversationID", conversationID)
+			}
+
+			anonymizedMessages, _, rules, err := anonymizer.AnonymizeMessages(ctx, conversationID, messages, nil, anonymizationInterruptChan)
 
 			// Check for context cancellation after anonymization
 			select {
 			case <-ctx.Done():
 				if err != nil {
+					s.logger.Warn("Anonymization failed and context canceled",
+						"priority", priority, "conversationID", conversationID,
+						"contextErr", ctx.Err(), "anonymizationErr", err)
 					return nil, fmt.Errorf("anonymization failed and context canceled: %w (original error: %v)", ctx.Err(), err)
 				}
+				s.logger.Info("Anonymization canceled by context",
+					"priority", priority, "conversationID", conversationID,
+					"contextErr", ctx.Err())
 				return nil, fmt.Errorf("anonymization canceled after completion: %w", ctx.Err())
 			default:
 			}
 
 			// Handle anonymization errors with context information
 			if err != nil {
-				// Check if the error was due to interruption
+				// Check if the error was due to task interruption by scheduler
 				if interrupt.CheckAndConsumeInterrupt() {
+					s.logger.Warn("Anonymization failed due to task interruption by scheduler",
+						"priority", priority, "conversationID", conversationID,
+						"anonymizationErr", err)
 					return nil, fmt.Errorf("anonymization failed due to task interruption: %w", err)
 				}
+				s.logger.Error("Anonymization failed",
+					"priority", priority, "conversationID", conversationID,
+					"error", err)
 				return nil, fmt.Errorf("anonymization failed: %w", err)
 			}
+
+			s.logger.Debug("Anonymization completed successfully",
+				"priority", priority, "conversationID", conversationID,
+				"messageCount", len(anonymizedMessages), "rulesCount", len(rules))
 
 			return AnonymizationResult{
 				Messages: anonymizedMessages,
@@ -208,7 +240,7 @@ func (s *PrivateCompletionsService) CompletionsStream(ctx context.Context, messa
 }
 
 func (s *PrivateCompletionsService) CompletionsStreamWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
-	s.logger.Debug("Starting private completion streaming", "model", model, "conversationID", conversationID, "messageCount", len(messages), "toolCount", len(tools))
+	s.logger.Debug("Starting private completion streaming", "model", model, "conversationID", conversationID, "messageCount", len(messages), "toolCount", len(tools), "priority", priority)
 
 	// 1. Anonymize input messages
 	anonymizedMessages, allRules, err := s.scheduleAnonymization(ctx, conversationID, messages, priority)

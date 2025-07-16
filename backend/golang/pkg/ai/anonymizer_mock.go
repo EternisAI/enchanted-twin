@@ -196,6 +196,7 @@ func (m *MockAnonymizer) processAnonymizationRequest(request anonymizationReques
 		// Check for interruption during processing
 		select {
 		case <-request.interruptChan:
+			m.logger.Warn("Anonymization interrupted by scheduler", "messageIndex", i)
 			return anonymizationResponse{
 				messages: nil,
 				rules:    nil,
@@ -212,6 +213,7 @@ func (m *MockAnonymizer) processAnonymizationRequest(request anonymizationReques
 				// Full delay completed
 			case <-request.interruptChan:
 				// Interrupted by scheduler
+				m.logger.Warn("Message anonymization interrupted by scheduler during delay", "messageIndex", i, "delay", m.Delay)
 				return anonymizationResponse{
 					messages: nil,
 					rules:    nil,
@@ -219,6 +221,7 @@ func (m *MockAnonymizer) processAnonymizationRequest(request anonymizationReques
 				}
 			case <-request.ctx.Done():
 				// Context canceled
+				m.logger.Info("Message anonymization canceled by context during delay", "messageIndex", i, "delay", m.Delay, "contextErr", request.ctx.Err())
 				return anonymizationResponse{
 					messages: nil,
 					rules:    nil,
@@ -258,6 +261,7 @@ func (m *MockAnonymizer) anonymizeMessage(ctx context.Context, message openai.Ch
 	// Check for context cancellation
 	select {
 	case <-ctx.Done():
+		m.logger.Info("Message anonymization canceled by context", "contextErr", ctx.Err())
 		return message, nil, ctx.Err()
 	default:
 	}
