@@ -133,7 +133,6 @@ export async function startAnonymiserSetup(): Promise<void> {
 
   try {
     setupInProgress = true
-    log.info('[Anonymiser] Starting anonymiser setup')
 
     const dependencies = hasDependenciesDownloaded()
 
@@ -143,7 +142,6 @@ export async function startAnonymiserSetup(): Promise<void> {
     }
 
     const modelPath = getDependencyPath('anonymizer' as DependencyName)
-    log.info(`[Anonymiser] Using Anonymizer model from: ${modelPath}`)
 
     const pythonEnv = new PythonEnvironmentManager()
 
