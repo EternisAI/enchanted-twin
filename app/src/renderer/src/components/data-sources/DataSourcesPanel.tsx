@@ -9,6 +9,7 @@ import { DataSourceDialog } from './DataSourceDialog'
 import { Dialog, DialogContent } from '../ui/dialog'
 import { UnifiedDataSourceCard } from './UnifiedDataSourceCard'
 import { SUPPORTED_DATA_SOURCES } from './constants'
+import { Card } from '../ui/card'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -300,6 +301,7 @@ export function DataSourcesPanel({
     const isWorkflowComplete =
       status === IndexingState.Completed ||
       status === IndexingState.Failed ||
+      status === IndexingState.NotStarted ||
       (!isIndexing && !isProcessing && !isNotStarted)
 
     if (isWorkflowComplete && initiatingDataSources.size > 0) {
@@ -346,14 +348,12 @@ export function DataSourcesPanel({
   }, [isIndexing, onIndexingComplete, indexingData?.indexingStatus?.dataSources])
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2 border-b pb-3">
-        <h2 className="text-xl font-bold leading-none">Imports & Takeouts</h2>
-        <p className="text-sm text-muted-foreground">
-          It&apos;s easy, but takes multiple steps to connect & get data from external sources.
-        </p>
+    <Card className="flex flex-col p-0 gap-4 pb-6 mb-20">
+      <header className="flex flex-col gap-2 border-b-[0.5px] p-6 ">
+        <h2 className="text-2xl font-bold leading-none">Import</h2>
+        <p className="text-sm text-muted-foreground">Data from external sources.</p>
       </header>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 w-full">
         {SUPPORTED_DATA_SOURCES.map((source) => (
           <UnifiedDataSourceCard
             key={source.name}
@@ -384,6 +384,6 @@ export function DataSourcesPanel({
           />
         </DialogContent>
       </Dialog>
-    </div>
+    </Card>
   )
 }

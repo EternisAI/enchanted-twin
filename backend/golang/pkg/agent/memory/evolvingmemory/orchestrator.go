@@ -79,21 +79,29 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		defer close(progressCh)
 		defer close(errorCh)
 
-		// Validate configuration
+		o.logger.Info("ProcessDocuments: Starting processing pipeline",
+			"documentCount", len(documents),
+			"workers", config.Workers,
+			"timeout", config.FactExtractionTimeout)
+
 		if config.Workers <= 0 {
 			errorCh <- fmt.Errorf("invalid worker count: %d, must be > 0", config.Workers)
 			return
 		}
 
-		// Step 1: Chunk documents
 		var chunkedDocs []memory.Document
 		for _, doc := range documents {
 			chunks := doc.Chunk()
 			chunkedDocs = append(chunkedDocs, chunks...)
 		}
 
+		o.logger.Info("ProcessDocuments: Document chunking completed",
+			"originalDocs", len(documents),
+			"totalChunks", len(chunkedDocs))
+
 		totalDocuments := len(chunkedDocs)
 		if totalDocuments == 0 {
+			o.logger.Warn("ProcessDocuments: No chunks created from documents")
 			progressCh <- Progress{
 				Processed: 0,
 				Total:     len(documents),
@@ -102,7 +110,6 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			return
 		}
 
-		// Step 2: Create extraction jobs
 		extractJobs := make([]DocumentExtractionJob, len(chunkedDocs))
 		for i, doc := range chunkedDocs {
 			extractJobs[i] = DocumentExtractionJob{
@@ -113,30 +120,29 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			}
 		}
 
-		// Step 3: Run extraction in parallel
+		o.logger.Info("ProcessDocuments: Created extraction jobs",
+			"jobCount", len(extractJobs),
+			"workers", config.Workers,
+			"timeout", config.FactExtractionTimeout)
+
 		extractPool := NewWorkerPool[DocumentExtractionJob](config.Workers, o.logger)
 		extractionResults := extractPool.Process(ctx, extractJobs, config.FactExtractionTimeout)
 
-		// Step 4: NEW SIMPLIFIED FLOW - Collect extracted facts and store directly
-		var allFacts []FactResult
-		for result := range extractionResults {
-			if result.Error != nil {
-				o.logger.Errorf("Extraction failed: %v", result.Error)
-				continue
-			}
+		o.logger.Info("ProcessDocuments: Worker pool created, starting result collection")
 
-			allFacts = append(allFacts, result.Result...)
-		}
+		var currentBatch []FactResult
+		var totalStoredFacts int
 
-		// Step 5: Convert FactResults to MemoryFacts and use modular storage
-		var facts []*memory.MemoryFact
-		for _, factResult := range allFacts {
-			if factResult.Fact != nil {
-				facts = append(facts, factResult.Fact)
-			}
-		}
+		o.logger.Info("ProcessDocuments: Starting to collect extraction results with batching",
+			"expectedResults", len(extractJobs),
+			"batchSize", config.BatchSize)
 
-		// Use the new modular StoreFactsDirectly function
+		collectionCtx, cancel := context.WithTimeout(ctx, config.FactExtractionTimeout)
+		defer cancel()
+
+		resultCount := 0
+		maxResults := len(extractJobs)
+
 		storageImpl := &StorageImpl{
 			logger:       o.logger,
 			orchestrator: o,
@@ -144,24 +150,127 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			engine:       o.engine,
 		}
 
-		if err := storageImpl.StoreFactsDirectly(ctx, facts, func(processed, total int) {
-			progressCh <- Progress{
-				Processed: processed,
-				Total:     total,
-				Stage:     "storage",
+		storeBatch := func(batch []FactResult) error {
+			if len(batch) == 0 {
+				return nil
 			}
-		}); err != nil {
-			select {
-			case errorCh <- fmt.Errorf("modular storage failed: %w", err):
-			case <-ctx.Done():
+
+			var facts []*memory.MemoryFact
+			for _, factResult := range batch {
+				if factResult.Fact != nil {
+					facts = append(facts, factResult.Fact)
+				}
 			}
-			return
+
+			if len(facts) == 0 {
+				return nil
+			}
+
+			o.logger.Info("ProcessDocuments: Storing batch of facts",
+				"batchSize", len(facts),
+				"totalStoredSoFar", totalStoredFacts)
+
+			if err := storageImpl.StoreFactsDirectly(ctx, facts, nil); err != nil {
+				return fmt.Errorf("failed to store batch: %w", err)
+			}
+
+			totalStoredFacts += len(facts)
+			o.logger.Info("ProcessDocuments: Successfully stored batch",
+				"batchSize", len(facts),
+				"totalStoredFacts", totalStoredFacts)
+
+			return nil
 		}
 
-		// Final progress update
+	resultLoop:
+		for {
+			select {
+			case result, ok := <-extractionResults:
+				if !ok {
+					o.logger.Info("ProcessDocuments: All extraction results collected",
+						"totalResults", resultCount,
+						"expectedResults", maxResults)
+					break resultLoop
+				}
+
+				resultCount++
+				o.logger.Debug("ProcessDocuments: Received extraction result",
+					"resultIndex", resultCount,
+					"totalExpected", maxResults,
+					"hasError", result.Error != nil)
+
+				if result.Error != nil {
+					o.logger.Errorf("Extraction failed: %v", result.Error)
+					continue
+				}
+
+				currentBatch = append(currentBatch, result.Result...)
+				o.logger.Debug("ProcessDocuments: Added facts from result",
+					"resultIndex", resultCount,
+					"factsInResult", len(result.Result),
+					"currentBatchSize", len(currentBatch))
+
+				if len(currentBatch) >= config.BatchSize {
+					if err := storeBatch(currentBatch); err != nil {
+						o.logger.Error("ProcessDocuments: Failed to store batch",
+							"error", err,
+							"batchSize", len(currentBatch))
+						select {
+						case errorCh <- fmt.Errorf("batch storage failed: %w", err):
+						case <-ctx.Done():
+						}
+						return
+					}
+					currentBatch = nil
+				}
+
+				if resultCount >= maxResults {
+					o.logger.Info("ProcessDocuments: Received all expected results, will store remaining batch")
+					break resultLoop
+				}
+
+			case <-collectionCtx.Done():
+				o.logger.Warn("ProcessDocuments: Result collection timed out, will store remaining batch",
+					"collectedResults", resultCount,
+					"expectedResults", maxResults,
+					"remainingBatchSize", len(currentBatch))
+				break resultLoop
+
+			case <-ctx.Done():
+				o.logger.Warn("ProcessDocuments: Main context canceled during result collection")
+				return
+			}
+
+			if resultCount >= maxResults || collectionCtx.Err() != nil {
+				break resultLoop
+			}
+		}
+
+		if len(currentBatch) > 0 {
+			o.logger.Info("ProcessDocuments: Storing final batch",
+				"finalBatchSize", len(currentBatch),
+				"totalStoredSoFar", totalStoredFacts)
+
+			if err := storeBatch(currentBatch); err != nil {
+				o.logger.Error("ProcessDocuments: Failed to store final batch",
+					"error", err,
+					"batchSize", len(currentBatch))
+				select {
+				case errorCh <- fmt.Errorf("final batch storage failed: %w", err):
+				case <-ctx.Done():
+				}
+				return
+			}
+		}
+
+		o.logger.Info("ProcessDocuments: Finished processing and storing all facts",
+			"totalResults", resultCount,
+			"totalStoredFacts", totalStoredFacts,
+			"expectedResults", len(extractJobs))
+
 		progressCh <- Progress{
-			Processed: len(allFacts),
-			Total:     totalDocuments,
+			Processed: totalStoredFacts,
+			Total:     totalStoredFacts,
 			Stage:     "completed",
 		}
 	}()

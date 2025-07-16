@@ -1,5 +1,6 @@
 import { Loader } from 'lucide-react'
 
+import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import { useTheme } from '@renderer/lib/theme'
 
 export default function Loading({ description }: { description?: string }) {
@@ -17,8 +18,9 @@ export default function Loading({ description }: { description?: string }) {
         }}
       >
         <div className="flex flex-col gap-12 text-primary-foreground p-10 border border-white/50 rounded-lg bg-white/5 min-w-2xl">
-          <div className="flex flex-col gap-1 text-center">
-            <h1 className="text-lg font-normal text-white">Starting Enchanted</h1>
+          <div className="flex flex-col gap-1 text-center items-center">
+            <img src={FreysaLoading} alt="Enchanted" className="w-16 h-16" />
+            <h1 className="text-lg font-normal text-white">It begins with Freysa</h1>
             {description && <p className="text-md text-white/80">{description}</p>}
           </div>
 

@@ -23,7 +23,7 @@ export default function XSignInButton() {
       <Button
         onClick={handleSignIn}
         disabled={loading || isSigningIn}
-        className="flex items-center space-x-3 px-6 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 w-[200px]"
+        className="flex items-center space-x-3 px-6 py-3 bg-white/14 text-white hover:bg-white/20 disabled:opacity-50 w-[250px]"
       >
         <XformerlyTwitter />
         <span>{isSigningIn || loading ? 'Signing in...' : 'Continue with X'}</span>

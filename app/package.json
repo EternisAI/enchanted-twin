@@ -50,7 +50,6 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
-    "electron-liquid-glass": "^1.0.1",
     "electron-log": "^5.3.3",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.3.9",
@@ -107,6 +106,7 @@
     "prettier": "^3.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "rollup": "4.44.2",
     "typescript": "^5.8.3",
     "vite": "^6.2.6"
   },

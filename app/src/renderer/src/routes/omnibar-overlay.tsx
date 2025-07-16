@@ -15,7 +15,7 @@ import { client } from '@renderer/graphql/lib'
 import FocusLock from 'react-focus-lock'
 import { SendButton } from '../components/chat/MessageInput'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
-import { ThemeProvider } from '@renderer/lib/theme'
+import { SyncedThemeProvider } from '@renderer/components/SyncedThemeProvider'
 import { Button } from '../components/ui/button'
 import MessageList from '../components/chat/MessageList'
 import MessageInput from '../components/chat/MessageInput'
@@ -129,6 +129,79 @@ function OmnibarChatView({ chatId }: { chatId: string }) {
   )
 }
 
+function OmnibarResults({
+  debouncedQuery,
+  filteredChats,
+  selectedIndex,
+  handleOpenChat,
+  handleCreateChat
+}: {
+  debouncedQuery: string
+  filteredChats: { id: string; name: string }[]
+  selectedIndex: number
+  handleOpenChat: (chatId: string) => void
+  handleCreateChat: () => void
+}) {
+  return (
+    <motion.div
+      key="results"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="rounded-lg overflow-auto max-h-[280px] relative"
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      role="listbox"
+      aria-label="Chat search results"
+    >
+      <LayoutGroup>
+        <div className="py-1">
+          {filteredChats.map((chat, index) => (
+            <motion.button
+              key={chat.id}
+              type="button"
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+              onClick={() => handleOpenChat(chat.id)}
+              role="option"
+              aria-selected={selectedIndex === index}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleOpenChat(chat.id)
+                }
+              }}
+              className={cn(
+                'flex w-full items-center justify-between px-3 py-2 text-left text-sm text-muted-foreground transition-colors rounded-md duration-100',
+                'hover:bg-sidebar-accent',
+                selectedIndex === index && 'bg-sidebar-accent text-sidebar-primary rounded-md'
+              )}
+            >
+              <span className="truncate">{chat.name}</span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </motion.button>
+          ))}
+          {debouncedQuery.trim() && (
+            <button
+              type="button"
+              onClick={handleCreateChat}
+              role="option"
+              aria-selected={selectedIndex === filteredChats.length}
+              className={cn(
+                'flex text-muted-foreground w-full items-center justify-between px-3 py-2 text-left text-sm',
+                'hover:bg-sidebar-accent',
+                selectedIndex === filteredChats.length && 'bg-sidebar-accent rounded-md font-medium'
+              )}
+            >
+              <span>New chat: &quot;{debouncedQuery}&quot;</span>
+              <Send className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+      </LayoutGroup>
+    </motion.div>
+  )
+}
+
 function OmnibarOverlay() {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -166,10 +239,16 @@ function OmnibarOverlay() {
     }
   }, [query])
 
-  const windowHeight = useMotionValue(64)
+  useEffect(() => {
+    const showNewChat = debouncedQuery.trim() !== ''
+    const maxIndex = Math.max(0, showNewChat ? filteredChats.length : filteredChats.length - 1)
+    setSelectedIndex((prev) => Math.max(0, Math.min(prev, maxIndex)))
+  }, [debouncedQuery, filteredChats.length])
+
+  const windowHeight = useMotionValue(68)
   const windowWidth = useMotionValue(500)
-  const containerHeight = useMotionValue(64)
-  const currentHeight = useRef(64)
+  const containerHeight = useMotionValue(68)
+  const currentHeight = useRef(68)
   const currentWidth = useRef(500)
   const previousResultCount = useRef(0)
 
@@ -187,101 +266,11 @@ function OmnibarOverlay() {
     }
   }, [activeChatId])
 
-  const handleCreateChat = useCallback(async () => {
-    if (!query.trim()) return
-
-    try {
-      const { data: createData } = await createChat({
-        variables: {
-          name: query,
-          category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
-          initialMessage: query
-        }
-      })
-      const newChatId = createData?.createChat?.id
-
-      if (newChatId) {
-        // Show chat inline
-        setActiveChatId(newChatId)
-        setQuery('')
-        setDebouncedQuery('')
-        // Refetch all chats
-        client.cache.evict({ fieldName: 'getChats' })
-      }
-    } catch (error) {
-      console.error('Failed to create chat:', error)
-    }
-  }, [query, createChat, isVoiceMode])
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (query.trim() && !activeChatId) {
-      if (filteredChats.length > 0 && selectedIndex < filteredChats.length) {
-        const chatId = filteredChats[selectedIndex].id
-        // Show chat inline
-        setActiveChatId(chatId)
-        setQuery('')
-        setDebouncedQuery('')
-      } else {
-        handleCreateChat()
-      }
-    }
-  }
-
-  const handleOpenChat = (chatId: string) => {
-    // Show chat inline
-    setActiveChatId(chatId)
-    setQuery('')
-    setDebouncedQuery('')
-  }
-
-  const handleExpandToMainWindow = () => {
-    if (activeChatId) {
-      window.api.openMainWindowWithChat?.(activeChatId, '')
-      // Reset state and close overlay
-      setActiveChatId(null)
-      setQuery('')
-      window.api.hideOmnibarWindow?.()
-    }
-  }
-
-  const handleCloseChat = () => {
-    setActiveChatId(null)
-    setQuery('')
-    // Focus back on input
-    setTimeout(() => {
-      textareaRef.current?.focus()
-    }, 100)
-  }
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (activeChatId) {
-          handleCloseChat()
-        } else {
-          window.api.hideOmnibarWindow?.()
-        }
-      }
-      if (e.key === 'ArrowDown' && !activeChatId) {
-        e.preventDefault()
-        setSelectedIndex((prev) => Math.min(prev + 1, filteredChats.length))
-      }
-      if (e.key === 'ArrowUp' && !activeChatId) {
-        e.preventDefault()
-        setSelectedIndex((prev) => Math.max(prev - 1, 0))
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedIndex, filteredChats, activeChatId])
-
   // Calculate and animate window dimensions based on state
   useEffect(() => {
     const baseWidth = 500
     const chatWidth = 700
-    const baseHeight = 64
+    const baseHeight = 68
     const itemHeight = 48
     const chatHeight = 500
 
@@ -380,6 +369,99 @@ function OmnibarOverlay() {
     activeChatId
   ])
 
+  const handleCreateChat = useCallback(async () => {
+    if (!query.trim()) return
+
+    try {
+      const { data: createData } = await createChat({
+        variables: {
+          name: query,
+          category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
+          initialMessage: query
+        }
+      })
+      const newChatId = createData?.createChat?.id
+
+      if (newChatId) {
+        // Show chat inline
+        setActiveChatId(newChatId)
+        setQuery('')
+        setDebouncedQuery('')
+
+        // Refetch all chats
+        client.cache.evict({ fieldName: 'getChats' })
+      }
+    } catch (error) {
+      console.error('Failed to create chat:', error)
+    }
+  }, [query, createChat, isVoiceMode])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (query.trim() && !activeChatId) {
+      if (filteredChats.length > 0 && selectedIndex < filteredChats.length) {
+        const chatId = filteredChats[selectedIndex].id
+        // Show chat inline
+        setActiveChatId(chatId)
+        setQuery('')
+        setDebouncedQuery('')
+      } else {
+        handleCreateChat()
+      }
+    }
+  }
+
+  const handleOpenChat = (chatId: string) => {
+    // Show chat inline
+    setActiveChatId(chatId)
+    setQuery('')
+    setDebouncedQuery('')
+  }
+
+  const handleExpandToMainWindow = () => {
+    if (activeChatId) {
+      window.api.openMainWindowWithChat?.(activeChatId, '')
+      // Reset state and close overlay
+      setActiveChatId(null)
+      setQuery('')
+      window.api.hideOmnibarWindow?.()
+    }
+  }
+
+  const handleCloseChat = () => {
+    setActiveChatId(null)
+    setQuery('')
+    // Focus back on input
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 100)
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (activeChatId) {
+          handleCloseChat()
+        } else {
+          window.api.hideOmnibarWindow?.()
+        }
+      }
+      if (e.key === 'ArrowDown' && !activeChatId) {
+        e.preventDefault()
+        const showNewChat = debouncedQuery.trim() !== ''
+        const maxIndex = Math.max(0, showNewChat ? filteredChats.length : filteredChats.length - 1)
+        setSelectedIndex((prev) => Math.min(prev + 1, maxIndex))
+      }
+      if (e.key === 'ArrowUp' && !activeChatId) {
+        e.preventDefault()
+        setSelectedIndex((prev) => Math.max(prev - 1, 0))
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedIndex, filteredChats, activeChatId])
+
   // Prevent blur when showing chat
   useEffect(() => {
     if (activeChatId) {
@@ -394,7 +476,7 @@ function OmnibarOverlay() {
 
   // This is the overlay window - just the omnibar component without any chrome
   return (
-    <ThemeProvider>
+    <SyncedThemeProvider>
       <TooltipProvider>
         <FocusLock returnFocus>
           <motion.div
@@ -495,52 +577,13 @@ function OmnibarOverlay() {
 
                   <AnimatePresence>
                     {debouncedQuery && filteredChats.length > 0 && (
-                      <motion.div
-                        key="results"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="rounded-lg overflow-hidden"
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                      >
-                        <LayoutGroup>
-                          <div className="py-1">
-                            {filteredChats.map((chat, index) => (
-                              <motion.button
-                                key={chat.id}
-                                type="button"
-                                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                                onClick={() => handleOpenChat(chat.id)}
-                                className={cn(
-                                  'flex w-full items-center justify-between px-3 py-2 text-left text-sm text-muted-foreground transition-colors rounded-md duration-100',
-                                  'hover:bg-sidebar-accent',
-                                  selectedIndex === index &&
-                                    'bg-sidebar-accent text-sidebar-primary rounded-md'
-                                )}
-                              >
-                                <span className="truncate">{chat.name}</span>
-                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                              </motion.button>
-                            ))}
-                            {debouncedQuery.trim() && (
-                              <button
-                                type="button"
-                                onClick={handleCreateChat}
-                                className={cn(
-                                  'flex text-muted-foreground w-full items-center justify-between px-3 py-2 text-left text-sm',
-                                  'hover:bg-sidebar-accent',
-                                  selectedIndex === filteredChats.length &&
-                                    'bg-sidebar-accent text-sidebar-primary-foreground rounded-md'
-                                )}
-                              >
-                                <span>New chat: &quot;{debouncedQuery}&quot;</span>
-                                <Send className="h-4 w-4 text-muted-foreground" />
-                              </button>
-                            )}
-                          </div>
-                        </LayoutGroup>
-                      </motion.div>
+                      <OmnibarResults
+                        debouncedQuery={debouncedQuery}
+                        filteredChats={filteredChats}
+                        selectedIndex={selectedIndex}
+                        handleOpenChat={handleOpenChat}
+                        handleCreateChat={handleCreateChat}
+                      />
                     )}
                   </AnimatePresence>
                 </motion.div>
@@ -549,7 +592,7 @@ function OmnibarOverlay() {
           </motion.div>
         </FocusLock>
       </TooltipProvider>
-    </ThemeProvider>
+    </SyncedThemeProvider>
   )
 }
 

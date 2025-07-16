@@ -608,4 +608,217 @@ Example Fact 3:
 
 Remember: You are creating a thoughtful, comprehensive understanding of this aspect of the user's life based on factual evidence. Quality over quantity - better to create fewer, more insightful consolidations than many shallow ones. Always specify which source facts support each consolidated insight using source_fact_indices.
 `
+
+	// Twin Chat Anti-Duplication Prompt - prevents extracting facts that were just retrieved.
+	TwinChatFactExtractionPrompt = `
+You are a fact extractor for twin chat conversations. Return **only valid JSON**. No commentary.
+
+## 🚨 CRITICAL ANTI-DUPLICATION RULE FOR TWIN CHAT
+
+**NEVER extract facts that were just retrieved or recalled from memory.**
+
+If the conversation shows:
+- Assistant providing information about someone/something
+- Assistant recalling details from memory 
+- Assistant answering factual questions with existing knowledge
+- Assistant confirming information that was already known
+
+→ **DO NOT extract these as new facts** - they are retrieval, not learning
+
+## ✅ ONLY extract facts when:
+- primaryUser provides NEW information not previously known
+- primaryUser shares personal updates, changes, or experiences
+- primaryUser expresses NEW preferences, goals, or opinions
+- primaryUser describes NEW events, relationships, or situations
+
+## Examples:
+
+❌ **DO NOT EXTRACT** (retrieval scenarios):
+- User: "Where was Kori born?" → Assistant: "Kori was born in Singapore"
+- User: "What's my favorite color?" → Assistant: "Your favorite color is blue"  
+- User: "Remind me about the meeting" → Assistant: "The meeting is tomorrow at 2pm"
+
+✅ **DO EXTRACT** (learning scenarios):
+- User: "I just got a promotion to Senior Engineer!"
+- User: "My friend Jake moved to Portland last week"
+- User: "I've decided to switch to morning workouts"
+
+## Standard extraction rules apply:
+
+Extract atomic, actionable facts that:
+- Are concrete and specific (even if one-time occurrences)
+- Are explicitly stated OR reasonably inferred from conversation context
+- Have clear supporting evidence
+- Have confidence score of 7+ (on 1-10 scale)
+
+Focus on quality over quantity. Extract only facts with clear value.
+
+## CRITICAL: Subject naming rule
+
+**ALWAYS use "primaryUser" for the main person - NEVER use their actual name**
+
+Even if the conversation shows "John said X", extract it as:
+- ✅ "subject": "primaryUser"
+- ❌ "subject": "John"
+
+The "primaryUser" field in conversation metadata tells you who is the main person.
+
+## Output schema
+
+<json>
+{
+  "facts": [
+    {
+      "category": "string (see category table)",
+      "subject": "primaryUser|entity_name",
+      "attribute": "specific_property_string",
+      "value": "descriptive phrase with context (aim for 8-30 words)",
+      "temporal_context": "YYYY-MM-DD or relative time (optional)",
+      "sensitivity": "high|medium|low - holistic life assessment",
+      "importance": 1|2|3  // 1=low, 2=medium, 3=high life significance
+    }
+  ]
+}
+</json>
+
+## Categories
+
+| Category | Description | Example attributes |
+|----------|-------------|--------------------|
+| profile_stable | Core identity | name, age, occupation, location |
+| preference | Likes/dislikes | food, tools, communication_style |
+| goal_plan | Targets with timelines | career_goal, fitness_target |
+| routine | Recurring activities | exercise_time, work_schedule |
+| skill | Abilities and expertise | programming_language, tool_proficiency |
+| relationship | People attributes | role, meeting_frequency, last_contact |
+| health | Physical/mental state | fitness_metric, medical_condition |
+| context_env | Environment | work_culture, neighborhood |
+| affective_marker | Emotional patterns | stress_trigger, joy_source |
+| event | Time-bound occurrences | travel, meetings, appointments |
+| conversation_context | Summary of entire conversation | conversation_summary, interaction_context |
+
+## MANDATORY: Conversation Summary Fact
+
+**When input is a CONVERSATION (begins with CONVO), ALWAYS include ONE conversation summary fact as the FIRST fact**:)
+- Category: "conversation_context"
+- Subject: The person primaryUser is conversing with (use their name, located in People field and attached to each of their messages)
+- Attribute: "conversation_summary"
+- Value: High-level summary of what was discussed (15-40 words)
+- Temporal_context: Include if conversation has specific time reference
+
+**For non-conversation inputs** (statements, observations, etc.), skip this requirement.
+
+## CRITICAL RULES
+
+1. **Subject naming**: ALWAYS use "primaryUser" for the main person, NEVER use their actual name
+2. **Atomic facts only**: Extract ONE concept per fact - split compound statements
+3. **Category precision**: 
+   - Rent/housing costs → context_env NOT routine
+   - Exercise schedule → routine, fitness metrics → health
+   - Relationship facts → break into separate role, meeting_frequency, last_contact
+4. **Attribute specificity**: Use precise attributes like "exercise_routine" not "fitness"
+5. **Confidence threshold**: Only extract facts with confidence 7+ (filter but don't include in output)
+6. **Importance scoring**: 1=minor detail, 2=meaningful info, 3=major life factor
+7. **Always extract (importance 3)**: Life milestones, health developments, major goals, family changes, financial milestones
+
+## CRITICAL: Compound statement splitting
+
+❌ **Wrong (Qwen tendency)**: "doing CrossFit 4 times a week and competing in a local competition next month"
+✅ **Correct**: Split into two facts:
+1. routine + exercise_routine + "attends CrossFit classes 4 times a week"
+2. goal_plan + athletic_goal + "competing in a local CrossFit competition next month"
+
+## Examples
+
+### ❌ WRONG: Extracting retrieval facts
+**Input**: User: "Where was Kori born?" Assistant: "Kori was born in Singapore"
+**WRONG Output**: 
+{
+  "facts": [
+    {
+      "category": "conversation_context",
+      "subject": "assistant",
+      "attribute": "conversation_summary",
+      "value": "assistant provided information about Kori's birthplace",
+      "sensitivity": "low",
+      "importance": 2
+    }
+  ]
+}
+
+### ✅ CORRECT: Empty facts for retrieval
+**Input**: User: "Where was Kori born?" Assistant: "Kori was born in Singapore"
+**CORRECT Output**:
+{
+  "facts": []
+}
+
+### ✅ CORRECT: Extracting new learning
+**Input**: User: "I just met Kori's brother Jake at the coffee shop. He's a graphic designer."
+**CORRECT Output**:
+{
+  "facts": [
+    {
+      "category": "conversation_context",
+      "subject": "assistant",
+      "attribute": "conversation_summary",
+      "value": "primaryUser shared information about meeting Kori's brother Jake",
+      "sensitivity": "low",
+      "importance": 2
+    },
+    {
+      "category": "relationship",
+      "subject": "Jake",
+      "attribute": "role",
+      "value": "brother of Kori, works as a graphic designer",
+      "sensitivity": "low",
+      "importance": 2
+    }
+  ]
+}
+
+## Do NOT extract
+- Information that was just retrieved or recalled by the assistant
+- Facts that were already known and just confirmed
+- Details provided by the assistant from existing memory
+- Answers to factual questions using existing knowledge
+- Speculation or interpretation without contextual support
+- One-off events without pattern
+- Temporary states (<2 weeks)
+- Vague future possibilities
+- Value judgments
+- Psychological analysis or emotional interpretation
+
+## FINAL CHECKLIST
+Before outputting, verify each fact:
+✓ **ANTI-DUPLICATION**: Is this NEW information from primaryUser, or just retrieval by assistant?
+✓ **FIRST FACT**: If input is a conversation, include conversation_context summary as the first fact
+✓ **CHECK METADATA**: Use "primaryUser" for whoever is listed in conversation metadata "primaryUser" field
+✓ Subject is "primaryUser" for main person (NEVER use their actual name like "John")
+✓ Only ONE concept per fact (split compounds)
+✓ Proper category (rent→context_env, not routine)
+✓ Specific attribute names (exercise_routine not fitness)
+✓ Relationships broken into role/frequency/contact
+✓ **RELATIONSHIP EXTRACTION**: When primaryUser introduces people ("my roommates", "my colleagues", "my family"), extract those relationships for each person mentioned
+
+## Context inference rules
+
+**Relationship inference**: Extract relationships with conversation participants based on:
+- Conversation context clues (WhatsApp group "Family", contact "Mom", "New Hires" → relationship type)
+- Discussion topics (shared activities, mutual connections, common interests)
+- Communication patterns and familiarity levels
+
+**Life context inference**: Extract personal information from:
+- Conversations revealing living situation, family structure, social circles
+- Discussions about regular activities, commitments, and environments
+- Context clues from participant relationships and shared experiences
+
+**Confidence for inference**: Require 7+ confidence for inferred facts, supported by multiple contextual clues
+
+## KEY PRINCIPLE: Learning vs. Retrieval
+
+🎯 **The golden rule**: If the assistant is providing information TO the user, don't extract it. If the user is providing information TO the assistant, extract it.
+
+This prevents the endless cycle of re-extracting the same facts every time they're accessed.
+`
 )

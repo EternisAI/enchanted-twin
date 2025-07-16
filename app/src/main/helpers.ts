@@ -1,6 +1,8 @@
 import { BrowserWindow } from 'electron'
 import log from 'electron-log/main'
 import { nativeTheme } from 'electron/main'
+import fs from 'node:fs'
+import path from 'node:path'
 import waitOn from 'wait-on'
 
 export async function waitForBackend(port: number) {
@@ -131,4 +133,31 @@ export function createSplashWindow(): BrowserWindow {
   })
 
   return splash
+}
+
+export async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function copyDirectoryRecursive(src: string, dest: string): Promise<void> {
+  const stats = await fs.promises.stat(src)
+
+  if (stats.isDirectory()) {
+    await fs.promises.mkdir(dest, { recursive: true })
+    const files = await fs.promises.readdir(src)
+
+    for (const file of files) {
+      const srcPath = path.join(src, file)
+      const destPath = path.join(dest, file)
+      await copyDirectoryRecursive(srcPath, destPath)
+    }
+  } else {
+    await fs.promises.copyFile(src, dest)
+    log.info(`[Anonymiser] Copied ${path.basename(src)} to project directory`)
+  }
 }

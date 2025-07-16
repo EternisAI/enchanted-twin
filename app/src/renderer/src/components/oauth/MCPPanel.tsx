@@ -10,6 +10,8 @@ import { useEffect, useMemo } from 'react'
 import { Skeleton } from '@renderer/components/ui/skeleton'
 import { motion } from 'framer-motion'
 import { PROVIDER_CONFIG } from '@renderer/constants/mcpProviders'
+import ConnectMCPServerButton from './MCPConnectServerButton'
+import { Card } from '../ui/card'
 
 const MCPServerSkeleton = () => (
   <div className="p-4 w-full rounded-md">
@@ -63,16 +65,19 @@ export default function MCPPanel() {
         if (!acc[server.type]) {
           acc[server.type] = []
         }
-        acc[server.type].push(server)
+        acc[server.type]!.push(server)
         return acc
       },
-      {} as Record<McpServerType, typeof allMcpServers>
+      {} as Partial<Record<McpServerType, typeof allMcpServers>>
     )
 
     // Filter out Enchanted servers when Google isn't connected
-    // if (!hasGoogleConnected && grouped[McpServerType.Enchanted]) {
-    //   delete grouped[McpServerType.Enchanted]
-    // }
+    if (!hasGoogleConnected && McpServerType.Enchanted in grouped) {
+      const enchantedGroup = grouped[McpServerType.Enchanted]
+      if (enchantedGroup !== undefined) {
+        delete grouped[McpServerType.Enchanted]
+      }
+    }
 
     return grouped
   }, [allMcpServers])
@@ -80,9 +85,9 @@ export default function MCPPanel() {
   const serverTypes = useMemo(() => {
     return Object.keys(serversByType)
       .map((type) => {
-        const servers = serversByType[type as McpServerType]
+        const servers = serversByType[type as McpServerType]!
         const connectedServers = servers.filter((s) => s.connected)
-        const templateServer = servers[0] // Use first server as template for type info
+        const templateServer = servers[0]!
         const serverType = type as McpServerType
         const providerConfig = PROVIDER_CONFIG[serverType]
 
@@ -103,12 +108,15 @@ export default function MCPPanel() {
   }, [serversByType])
 
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-2 border-b pb-3">
-        <h2 className="text-xl font-bold leading-none">Quick Connect</h2>
-        <p className="text-muted-foreground leading-none text-sm">
-          Takes under 30 seconds to connect.
-        </p>
+    <Card className="flex flex-col gap-4 p-0">
+      <header className="flex gap-2 justify-between items-center border-b-[0.5px] p-6 py-8">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-2xl font-bold leading-none">Quick Connect</h2>
+          <p className="text-muted-foreground leading-none text-sm">
+            Takes under 30 seconds to connect.
+          </p>
+        </div>
+        <ConnectMCPServerButton onSuccess={() => {}} />
       </header>
       <motion.div
         className="flex flex-col gap-4 w-full"
@@ -179,6 +187,6 @@ export default function MCPPanel() {
           </>
         )}
       </motion.div>
-    </div>
+    </Card>
   )
 }
