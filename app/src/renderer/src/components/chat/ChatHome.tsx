@@ -4,8 +4,6 @@ import { Calendar, Search, GraduationCap, Telescope, Brain } from 'lucide-react'
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation, gql } from '@apollo/client'
 import { toast } from 'sonner'
-
-import { Input } from '@renderer/components/ui/input'
 import {
   GetProfileDocument,
   GetChatsDocument,
@@ -23,6 +21,8 @@ import ChatInputBox from './ChatInputBox'
 import VoiceVisualizer from './voice/VoiceVisualizer'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { VoiceModeInput } from './voice/VoiceModeInput'
+import { Button } from '../ui/button'
+import { XIcon, CheckIcon } from 'lucide-react'
 
 interface IndexRouteSearch {
   focusInput?: string
@@ -46,7 +46,6 @@ export function Home() {
   const router = useRouter()
   const searchParams = useSearch({ from: '/' }) as IndexRouteSearch
   const [query, setQuery] = useState('')
-  const [editedName, setEditedName] = useState('')
   const [isEditingName, setIsEditingName] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const debouncedQuery = useDebounce(query, 300)
@@ -57,6 +56,7 @@ export function Home() {
   const [sendMessage] = useMutation(SendMessageDocument)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const nameEditRef = useRef<HTMLParagraphElement>(null)
 
   const chats = chatsData?.getChats || []
   const filteredChats = chats.filter((chat) =>
@@ -125,7 +125,13 @@ export function Home() {
   }, [isVoiceMode])
 
   const handleNameUpdate = async () => {
-    if (!editedName.trim()) {
+    const currentName = nameEditRef.current?.textContent?.trim() || ''
+    if (currentName === twinName) {
+      // If the name is the same as the twin's name, don't update it
+      setIsEditingName(false)
+      return
+    }
+    if (!currentName) {
       toast.error('Name cannot be empty')
       return
     }
@@ -134,7 +140,7 @@ export function Home() {
       await updateProfile({
         variables: {
           input: {
-            name: editedName.trim()
+            name: currentName
           }
         }
       })
@@ -147,12 +153,15 @@ export function Home() {
     }
   }
 
-  const handleNameEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleNameEditKeyDown = (e: React.KeyboardEvent<HTMLParagraphElement>) => {
     if (e.key === 'Enter') {
+      e.preventDefault()
       handleNameUpdate()
     } else if (e.key === 'Escape') {
+      if (nameEditRef.current) {
+        nameEditRef.current.textContent = twinName
+      }
       setIsEditingName(false)
-      setEditedName('')
     }
   }
 
@@ -291,53 +300,91 @@ export function Home() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ type: 'spring', stiffness: 350, damping: 55 }}
-          className="flex flex-col items-center gap-4 w-full py-8"
+          className="flex flex-col items-center gap-4 py-8 px-4 w-full"
         >
-          <motion.div layout="position" className="w-full max-w-md">
-            <AnimatePresence mode="wait">
-              {isEditingName ? (
+          <motion.div className="relative w-fit" layout>
+            {/* Background that expands when editing */}
+            <motion.div
+              className={cn(
+                'absolute inset-0 rounded-lg transition-all duration-300 hover:bg-muted',
+                isEditingName ? 'bg-card' : 'bg-transparent'
+              )}
+              layout
+            />
+
+            <motion.p
+              ref={nameEditRef}
+              contentEditable={isEditingName}
+              suppressContentEditableWarning
+              onKeyDown={handleNameEditKeyDown}
+              onBlur={handleNameUpdate}
+              onFocus={() => {
+                if (!isEditingName) {
+                  setIsEditingName(true)
+                  // Focus after the next render when contentEditable is active
+                  setTimeout(() => {
+                    if (nameEditRef.current) {
+                      nameEditRef.current.focus()
+                    }
+                  }, 0)
+                }
+              }}
+              onSelect={() => {
+                if (!isEditingName) {
+                  setIsEditingName(true)
+                  // Focus after the next render when contentEditable is active
+                  setTimeout(() => {
+                    if (nameEditRef.current) {
+                      nameEditRef.current.focus()
+                    }
+                  }, 0)
+                }
+              }}
+              tabIndex={0}
+              className={cn(
+                'relative cursor-text w-fit z-10 text-2xl font-bold transition-all duration-200 p-2 focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-center',
+                isEditingName
+                  ? '!bg-transparent hover:bg-transparent outline-none border-none !px-24'
+                  : 'rounded-lg hover:bg-transparent'
+              )}
+              style={{ minWidth: '200px' }}
+            >
+              {twinName}
+            </motion.p>
+
+            <AnimatePresence>
+              {isEditingName && (
                 <motion.div
-                  key="name-input"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 z-20"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{
-                    duration: 0.2,
-                    ease: [0.4, 0, 0.2, 1],
-                    layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
-                  }}
-                  layout="position"
-                  className="w-full"
+                  transition={{ duration: 0.1, ease: [0.4, 0, 0.2, 1] }}
                 >
-                  <Input
-                    value={editedName}
-                    onChange={(e) => setEditedName(e.target.value)}
-                    onKeyDown={handleNameEditKeyDown}
-                    onBlur={handleNameUpdate}
-                    autoFocus
-                    className="!text-2xl font-bold text-center min-h-10 w-full mx-auto"
-                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    aria-label="Cancel"
+                    onClick={() => {
+                      if (nameEditRef.current) {
+                        nameEditRef.current.textContent = twinName
+                      }
+                      setIsEditingName(false)
+                    }}
+                  >
+                    <XIcon className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    aria-label="Save changes"
+                    onClick={handleNameUpdate}
+                  >
+                    <CheckIcon className="size-4" />
+                  </Button>
                 </motion.div>
-              ) : (
-                <motion.h1
-                  key="name-display"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{
-                    duration: 0.2,
-                    ease: [0.4, 0, 0.2, 1],
-                    layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
-                  }}
-                  layout="position"
-                  className="text-2xl font-bold cursor-pointer hover:bg-muted/50 rounded-lg transition-all text-center w-fit mx-auto min-h-10 flex items-center justify-center px-4"
-                  onClick={() => {
-                    setEditedName(twinName)
-                    setIsEditingName(true)
-                  }}
-                >
-                  {twinName}
-                </motion.h1>
               )}
             </AnimatePresence>
           </motion.div>

@@ -49,6 +49,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/localmodel/jinaaiembedding"
 	"github.com/EternisAI/enchanted-twin/pkg/localmodel/llama1b"
+	"github.com/EternisAI/enchanted-twin/pkg/localmodel/pyhttp"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/microscheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
@@ -115,7 +116,7 @@ func main() {
 	}
 
 	var aiEmbeddingsService ai.Embedding
-	if envs.UseLocalModel == "true" {
+	if envs.UseLocalEmbedding == "true" {
 		logger.Info("Using local embedding model")
 		sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
 		localEmbeddingModel, err := jinaaiembedding.NewEmbedding(envs.AppDataPath, sharedLibPath)
@@ -139,20 +140,16 @@ func main() {
 	var anonymizerManager *ai.AnonymizerManager
 	var localAnonymizer *llama1b.LlamaAnonymizer
 
-	// Support legacy USE_LOCAL_ANONYMIZER for backward compatibility
-	if envs.UseLocalAnonymizer == "true" {
-		envs.AnonymizerType = "local"
-	}
-
 	logger.Info("Initializing anonymizer", "type", envs.AnonymizerType)
 
 	switch envs.AnonymizerType {
 	case "local":
 		logger.Info("Using local anonymizer model")
-		sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
+		// sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
 
 		var err error
-		localAnonymizer, err = llama1b.NewLlamaAnonymizer(envs.AppDataPath, sharedLibPath)
+		localAnonymizer, err := pyhttp.NewClient(logger)
+		// localAnonymizer, err = llama1b.NewLlamaAnonymizer(envs.AppDataPath, sharedLibPath)
 		if err != nil {
 			logger.Error("Failed to create local anonymizer model", "error", err)
 			panic(errors.Wrap(err, "Failed to create local anonymizer model"))
@@ -539,10 +536,8 @@ func main() {
 		logger.Info("Anonymizer manager shut down")
 	}
 
-	if localAnonymizer != nil {
-		if err := localAnonymizer.Close(); err != nil {
-			logger.Error("Error closing local anonymizer", "error", err)
-		}
+	if err := localAnonymizer.Close(); err != nil {
+		logger.Error("Error closing local anonymizer", "error", err)
 	}
 }
 

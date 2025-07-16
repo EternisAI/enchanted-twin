@@ -1,10 +1,10 @@
 import { gql, useQuery, useMutation } from '@apollo/client'
-import { PencilIcon } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { CheckIcon, UserIcon, XIcon } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '../ui/button'
-import { Textarea } from '../ui/textarea'
 import { toast } from 'sonner'
+import { cn } from '@renderer/lib/utils'
 
 const UPDATE_PROFILE = gql`
   mutation UpdateProfile($input: UpdateProfileInput!) {
@@ -25,7 +25,7 @@ export function ContextCard() {
   const [updateProfile, { loading: updateLoading }] = useMutation(UPDATE_PROFILE)
   const [context, setContext] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-
+  const contextRef = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
     if (userData?.profile?.bio) {
       setContext(userData.profile.bio)
@@ -66,23 +66,30 @@ export function ContextCard() {
   }
 
   return (
-    <motion.div className="relative" transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }} layout>
+    <motion.div
+      className={cn(
+        'relative bg-transparent !w-full rounded-lg p-2 hover:bg-muted focus-within:bg-muted transition-colors',
+        isEditing && '!bg-card'
+      )}
+      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+      layout
+    >
       <AnimatePresence mode="wait">
         {userData?.profile?.bio || isEditing ? (
           <motion.div
             key="context"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className="space-y-2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.1, ease: [0.4, 0, 0.2, 1] }}
+            className="space-y-2 !w-full"
           >
             <AnimatePresence mode="wait">
               {isEditing ? (
                 <motion.div
                   key="editing"
                   layoutId="context-container"
-                  className="relative"
+                  className="relative !w-full"
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.98 }}
@@ -98,35 +105,69 @@ export function ContextCard() {
                     exit={{ opacity: 0, y: 5 }}
                     transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
                     layout="position"
+                    className="relative !w-full pb-8"
                   >
-                    <Textarea
+                    <motion.textarea
+                      layout="position"
                       value={context}
+                      ref={contextRef}
+                      tabIndex={0}
+                      onFocus={() => {
+                        if (!isEditing) {
+                          setIsEditing(true)
+                          // Focus after the next render when contentEditable is active
+                          setTimeout(() => {
+                            if (contextRef.current) {
+                              contextRef.current.focus()
+                            }
+                          }, 0)
+                        }
+                      }}
+                      onSelect={() => {
+                        if (!isEditing) {
+                          setIsEditing(true)
+                        }
+                      }}
                       onChange={(e) => setContext(e.target.value)}
                       onKeyDown={handleKeyDown}
                       onBlur={() => !context.trim() && handleSubmit({} as React.FormEvent)}
                       readOnly={!isEditing}
-                      placeholder="Add context..."
+                      placeholder="Share something about yourself..."
                       onClick={() => !isEditing && setIsEditing(true)}
-                      className={`w-full resize-none transition-all duration-200 rounded-lg ${
-                        !isEditing ? 'min-h-0 max-h-[150px] border-transparent' : 'max-h-[150px]'
-                      }`}
+                      className={cn(
+                        'w-full max-w-full text-sm !bg-transparent hover:bg-transparent outline-none border-none resize-none transition-colors p-2 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                        !isEditing
+                          ? 'min-h-0 w-fit max-h-[150px] border-transparent'
+                          : 'w-fit max-h-[150px]'
+                      )}
                       style={{}}
                       autoFocus={isEditing}
                     />
                   </motion.div>
                   <motion.div
-                    className="flex justify-end gap-2 mt-2"
+                    className="flex justify-end gap-2 mt-2 absolute bottom-1 right-1"
                     initial={{ opacity: 0, y: -5 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -5 }}
                     transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                    layout="position"
                   >
-                    <Button variant="ghost" size="sm" onClick={handleCancel}>
-                      Cancel
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Cancel"
+                      onClick={handleCancel}
+                      disabled={updateLoading}
+                    >
+                      <XIcon className="size-4" />
                     </Button>
-                    <Button size="sm" onClick={handleSubmit} disabled={updateLoading}>
-                      Save
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Save changes"
+                      onClick={handleSubmit}
+                      disabled={updateLoading}
+                    >
+                      <CheckIcon className="size-4" />
                     </Button>
                   </motion.div>
                 </motion.div>
@@ -145,7 +186,7 @@ export function ContextCard() {
                   }}
                 >
                   <motion.p
-                    className={`text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors ${
+                    className={`text-sm text-muted-foreground cursor-pointer p-2 rounded-lg ${
                       context.split('\n').length === 1 ? 'text-center' : 'text-left'
                     }`}
                     onClick={() => setIsEditing(true)}
@@ -175,17 +216,18 @@ export function ContextCard() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className="flex items-center justify-center"
+            className="flex items-center justify-center w-full"
             layout
           >
             <Button
               variant="ghost"
               size="sm"
+              aria-label="Personalize"
               onClick={handleStartEditing}
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground hover:!bg-transparent hover:!border-none hover:!shadow-none"
             >
-              <PencilIcon className="size-4" />
-              Add Context
+              <UserIcon className="size-4" />
+              Personalize
             </Button>
           </motion.div>
         )}
