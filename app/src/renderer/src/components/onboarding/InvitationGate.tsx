@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { OnboardingLayout } from './OnboardingLayout'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
-import { Loader2 } from 'lucide-react'
+import { Loader2, RefreshCcw } from 'lucide-react'
 import { router } from '../../main'
 import { OnboardingVoiceAnimation } from './new/Animations'
 import { useTheme } from '@renderer/lib/theme'
@@ -63,6 +63,23 @@ export default function InvitationGate({ children }: { children: React.ReactNode
               A browser tab will open to login using your Google account
             </h1>
             <Loader2 className="h-8 w-8 animate-spin" />
+
+            <div className="flex flex-col gap-3 mt-4">
+              <p className="text-sm text-muted-foreground text-center">
+                If the browser tab didn&apos;t open or you closed it, you can retry:
+              </p>
+              <div className="flex gap-3 justify-center">
+                <Button
+                  onClick={() => window.location.reload()}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  Retry Login
+                </Button>
+              </div>
+            </div>
           </div>
         </OnboardingLayout>
       </div>
