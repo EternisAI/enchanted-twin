@@ -21,9 +21,13 @@ const DEPENDENCIES_CONFIGS: Record<
     needsExtraction: true
   },
   anonymizer: {
-    url: 'https://d3o88a4htgfnky.cloudfront.net/models/Llama-3.2-1B-Instruct-CoreML.zip',
+    url: 'https://d3o88a4htgfnky.cloudfront.net/models/eternis_eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k.zip',
     name: 'anonymizer',
-    dir: path.join(DEPENDENCIES_DIR, 'models', 'Llama-3.2-1B-Instruct-CoreML'),
+    dir: path.join(
+      DEPENDENCIES_DIR,
+      'models',
+      'eternis_eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k'
+    ),
     needsExtraction: true
   },
   onnx: {
