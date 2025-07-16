@@ -13,6 +13,7 @@ import { Switch } from '../ui/switch'
 import { Button } from '../ui/button'
 import { ArrowDown, Eye, EyeClosed } from 'lucide-react'
 import { Fade } from '../ui/blur-fade'
+import { AnimatePresence, motion } from 'framer-motion'
 
 interface ChatViewProps {
   chat: Chat
@@ -40,6 +41,7 @@ export default function ChatView({ chat }: ChatViewProps) {
     setIsReasonSelected
   } = useChat()
 
+  // TODO: replace with intersection observer instead of scroll event listener - performance improvement
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20
@@ -154,13 +156,34 @@ export default function ChatView({ chat }: ChatViewProps) {
       </div>
 
       {/* Scroll to bottom button */}
-      {showScrollToBottom && (
-        <div className="absolute bottom-30 left-1/2 transform -translate-x-1/2 z-10">
-          <Button onClick={scrollToBottom} size="sm" className="rounded-full p-2" variant="outline">
-            <ArrowDown className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
+      <AnimatePresence>
+        {showScrollToBottom && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            transition={{
+              type: 'spring',
+              stiffness: 350,
+              damping: 35,
+              opacity: {
+                duration: 0.2,
+                ease: 'easeInOut'
+              }
+            }}
+            className="absolute bottom-30 left-1/2 transform -translate-x-1/2 z-10"
+          >
+            <Button
+              onClick={scrollToBottom}
+              size="sm"
+              className="backdrop-blur-sm !bg-white/50 shadow-sm dark:shadow-none dark:border dark:border-border dark:!bg-black/50 rounded-full p-2"
+              variant="ghost"
+            >
+              <ArrowDown className="w-4 h-4" />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex flex-col w-full items-center justify-center px-2">
         <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">
