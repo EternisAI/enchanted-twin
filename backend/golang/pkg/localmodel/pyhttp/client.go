@@ -41,7 +41,7 @@ func NewClient(logger *log.Logger) (*Client, error) {
 
 	// Check if server is already running
 	if err := client.waitForServerReady(5 * time.Second); err != nil {
-		return nil, fmt.Errorf("server is not running: %w", err)
+		return nil, fmt.Errorf("local anonymiser server is not running: %w", err)
 	}
 
 	return client, nil
@@ -96,7 +96,7 @@ func (c *Client) Anonymize(ctx context.Context, prompt string) (map[string]strin
 	}
 
 	elapsed := time.Since(start)
-	c.logger.Info("generate completed", "duration", elapsed, "prompt", prompt)
+	c.logger.Info("generate completed", "duration", elapsed, "prompt", prompt, "response", response.Parsed)
 
 	return response.Parsed, nil
 }
