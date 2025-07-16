@@ -258,12 +258,14 @@ func (s *Service) SendMessage(
 
 	onDelta := func(delta agent.StreamDelta) {
 		payload := model.MessageStreamPayload{
-			MessageID:  assistantMessageId,
-			ImageUrls:  delta.ImageURLs,
-			Chunk:      delta.ContentDelta,
-			Role:       model.RoleAssistant,
-			IsComplete: delta.IsCompleted,
-			CreatedAt:  &createdAt,
+			MessageID:                      assistantMessageId,
+			ImageUrls:                      delta.ImageURLs,
+			Chunk:                          delta.ContentDelta,
+			Role:                           model.RoleAssistant,
+			IsComplete:                     delta.IsCompleted,
+			CreatedAt:                      &createdAt,
+			AccumulatedMessage:             delta.AccumulatedAnonymizedMessage,
+			DeanonymizedAccumulatedMessage: delta.AccumulatedDeanonymizedMessage,
 		}
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 	}
@@ -286,11 +288,13 @@ func (s *Service) SendMessage(
 	if err != nil {
 		// send message to stop progress indicator
 		payload := model.MessageStreamPayload{
-			MessageID:  assistantMessageId,
-			Chunk:      "",
-			Role:       model.RoleAssistant,
-			IsComplete: true,
-			CreatedAt:  &createdAt,
+			MessageID:                      assistantMessageId,
+			Chunk:                          "",
+			Role:                           model.RoleAssistant,
+			IsComplete:                     true,
+			CreatedAt:                      &createdAt,
+			AccumulatedMessage:             "",
+			DeanonymizedAccumulatedMessage: "",
 		}
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 		return nil, err
