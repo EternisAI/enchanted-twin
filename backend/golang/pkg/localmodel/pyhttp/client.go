@@ -40,7 +40,7 @@ func NewClient(logger *log.Logger) (*Client, error) {
 	}
 
 	// Check if server is already running
-	if err := client.waitForServerReady(5 * time.Second); err != nil {
+	if err := client.waitForServerReady(30 * time.Second); err != nil {
 		return nil, fmt.Errorf("local anonymiser server is not running: %w", err)
 	}
 
