@@ -5,22 +5,15 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/openai/openai-go"
-
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 // Mock tool for testing de-anonymization.
 type mockDeAnonymizationTool struct {
 	name         string
-	definition   openai.ChatCompletionToolParam
 	executed     bool
 	receivedArgs map[string]interface{}
 	result       types.ToolResult
-}
-
-func (m *mockDeAnonymizationTool) Definition() openai.ChatCompletionToolParam {
-	return m.definition
 }
 
 func (m *mockDeAnonymizationTool) Execute(ctx context.Context, args map[string]interface{}) (types.ToolResult, error) {
