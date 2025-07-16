@@ -21,7 +21,7 @@ import { cleanupGoServer } from './goServer'
 // import { startKokoro, cleanupKokoro } from './kokoroManager'
 import { startLiveKitSetup, cleanupLiveKitAgent } from './livekitManager'
 import { initializeAnalytics } from './analytics'
-import { keyboardShortcutsStore } from './stores'
+import { keyboardShortcutsStore, voiceStore } from './stores'
 
 // const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
 
@@ -117,6 +117,8 @@ app.on('activate', function () {
 
 app.on('before-quit', () => {
   log.info('App before-quit event triggered')
+
+  voiceStore.set('isVoiceMode', false)
 
   // Set the quitting flag so omnibar window can close properly
   windowManager.setAppQuitting(true)
