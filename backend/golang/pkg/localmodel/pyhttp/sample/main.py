@@ -11,7 +11,7 @@ class Model:
 
     def load(self):
         print(f"Loading {self.model_name}...")
-        time.sleep(5)  # Simulate model loading
+        time.sleep(1)  # Simulate model loading
         self.is_loaded = True
         print(f"{self.model_name} loaded successfully!")
 
@@ -60,7 +60,7 @@ def main():
 
     server = HTTPServer(('localhost', 0), ModelHandler)
     port = server.server_address[1]
-    print(f"SERVER_PORT:{port}")
+    print(f"SERVER_PORT:{port}") # Important for go client to know the port
 
     try:
         server.serve_forever()

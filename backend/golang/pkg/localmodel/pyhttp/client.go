@@ -62,12 +62,8 @@ func NewClient(logger *slog.Logger, projectDir string) (*Client, error) {
 	}
 
 	client.serverURL = fmt.Sprintf("http://localhost:%d", port)
-	logger.Info("Python server started", "url", client.serverURL)
 
-	if err := client.waitForServerReady(10 * time.Second); err != nil {
-		_ = client.Close()
-		return nil, fmt.Errorf("server failed to start: %w", err)
-	}
+	logger.Info("Python server started", "url", client.serverURL)
 
 	return client, nil
 }
@@ -85,19 +81,6 @@ func (c *Client) parsePortFromOutput(stdout io.ReadCloser) (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("port not found in server output")
-}
-
-func (c *Client) waitForServerReady(timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		resp, err := http.Get(c.serverURL + "/infer")
-		if err == nil {
-			_ = resp.Body.Close()
-			return nil
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return fmt.Errorf("server not ready within %v", timeout)
 }
 
 func (c *Client) Infer(input string) (string, error) {
