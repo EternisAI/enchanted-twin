@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
@@ -199,13 +198,8 @@ func (l *LocalAnonymizer) anonymizeWithPersistence(ctx context.Context, conversa
 
 // DeAnonymize implements the Anonymizer interface.
 func (l *LocalAnonymizer) DeAnonymize(anonymized string, rules map[string]string) string {
-	// Create reverse mapping
-	reverseRules := make(map[string]string)
-	for original, replacement := range rules {
-		reverseRules[replacement] = original
-	}
-
-	return l.applyReplacements(anonymized, reverseRules)
+	// Use simple de-anonymization (restore original case)
+	return ApplyDeAnonymization(anonymized, rules)
 }
 
 // LoadConversationDict implements the Anonymizer interface.
@@ -294,32 +288,6 @@ func (l *LocalAnonymizer) replaceMessageContent(message openai.ChatCompletionMes
 }
 
 func (l *LocalAnonymizer) applyReplacements(text string, rules map[string]string) string {
-	result := text
-	// Sort replacements by length (longest first) to avoid partial replacements
-	var sortedRules []struct {
-		original    string
-		replacement string
-	}
-	for original, replacement := range rules {
-		sortedRules = append(sortedRules, struct {
-			original    string
-			replacement string
-		}{original, replacement})
-	}
-
-	// Sort by length descending
-	for i := 0; i < len(sortedRules); i++ {
-		for j := i + 1; j < len(sortedRules); j++ {
-			if len(sortedRules[i].original) < len(sortedRules[j].original) {
-				sortedRules[i], sortedRules[j] = sortedRules[j], sortedRules[i]
-			}
-		}
-	}
-
-	// Apply replacements
-	for _, rule := range sortedRules {
-		result = strings.ReplaceAll(result, rule.original, rule.replacement)
-	}
-
-	return result
+	// Use anonymization replacement (preserving token case)
+	return ApplyAnonymization(text, rules)
 }

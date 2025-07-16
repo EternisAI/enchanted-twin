@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -311,31 +310,17 @@ func (m *MockAnonymizer) anonymizeContent(ctx context.Context, content string) (
 	default:
 	}
 
-	anonymized := content
+	// Apply anonymization replacements (preserving token case)
+	anonymized := ApplyAnonymization(content, m.PredefinedReplacements)
+
+	// Build rules map for de-anonymization
 	rules := make(map[string]string)
-
-	// Create a sorted list of replacements by length (longest first) to ensure longer strings are processed first
-	type replacement struct {
-		original string
-		token    string
-	}
-
-	var sortedReplacements []replacement
 	for original, token := range m.PredefinedReplacements {
-		sortedReplacements = append(sortedReplacements, replacement{original: original, token: token})
-	}
-
-	// Sort by length descending (longest first)
-	sort.Slice(sortedReplacements, func(i, j int) bool {
-		return len(sortedReplacements[i].original) > len(sortedReplacements[j].original)
-	})
-
-	// Apply predefined replacements in order (longest first)
-	for _, repl := range sortedReplacements {
-		if strings.Contains(anonymized, repl.original) {
-			anonymized = strings.ReplaceAll(anonymized, repl.original, repl.token)
-			rules[repl.token] = repl.original // Store replacement -> original mapping
-			m.logger.Debug("Applied anonymization", "original", repl.original, "replacement", repl.token)
+		if strings.Contains(content, original) ||
+			strings.Contains(strings.ToLower(content), strings.ToLower(original)) ||
+			strings.Contains(strings.ToUpper(content), strings.ToUpper(original)) {
+			rules[token] = original // Store replacement -> original mapping
+			m.logger.Debug("Applied anonymization", "original", original, "replacement", token)
 		}
 	}
 
@@ -345,28 +330,8 @@ func (m *MockAnonymizer) anonymizeContent(ctx context.Context, content string) (
 }
 
 func (m *MockAnonymizer) DeAnonymize(anonymized string, rules map[string]string) string {
-	restored := anonymized
-
-	// Create a sorted list of tokens by length (longest first) to ensure longer tokens are processed first
-	type tokenReplacement struct {
-		token    string
-		original string
-	}
-
-	var sortedTokens []tokenReplacement
-	for token, original := range rules {
-		sortedTokens = append(sortedTokens, tokenReplacement{token: token, original: original})
-	}
-
-	// Sort by token length descending (longest first)
-	sort.Slice(sortedTokens, func(i, j int) bool {
-		return len(sortedTokens[i].token) > len(sortedTokens[j].token)
-	})
-
-	// Apply rules in reverse (anonymized token -> original) with longest tokens first
-	for _, tokenRepl := range sortedTokens {
-		restored = strings.ReplaceAll(restored, tokenRepl.token, tokenRepl.original)
-	}
+	// Apply simple de-anonymization (restore original case)
+	restored := ApplyDeAnonymization(anonymized, rules)
 
 	m.logger.Debug("De-anonymization complete", "anonymizedLength", len(anonymized), "restoredLength", len(restored))
 
