@@ -13,8 +13,8 @@ import (
 
 	"github.com/KSpaceer/goppt"
 	"github.com/charmbracelet/log"
+	"github.com/gen2brain/go-fitz"
 	"github.com/guylaor/goword"
-	"github.com/ledongthuc/pdf"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/constants"
@@ -203,28 +203,25 @@ func (s *TextDocumentProcessor) IsHumanReadableContent(ctx context.Context, cont
 
 // ExtractTextFromPDF extracts text content from a PDF file.
 func (s *TextDocumentProcessor) ExtractTextFromPDF(filePath string) (string, error) {
-	f, r, err := pdf.Open(filePath)
+	doc, err := fitz.New(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open PDF file %s: %w", filePath, err)
 	}
 	defer func() {
-		if err := f.Close(); err != nil {
+		if err := doc.Close(); err != nil {
 			s.logger.Warn("failed to close PDF file", "filePath", filePath, "error", err)
 		}
 	}()
 
 	var textBuilder strings.Builder
-	totalPage := r.NumPage()
+	totalPages := doc.NumPage()
 
-	for pageIndex := 1; pageIndex <= totalPage; pageIndex++ {
-		p := r.Page(pageIndex)
-		if p.V.IsNull() {
-			continue
-		}
-
-		text, err := p.GetPlainText(nil)
+	for pageIndex := 0; pageIndex < totalPages; pageIndex++ {
+		text, err := doc.Text(pageIndex)
 		if err != nil {
-			return "", fmt.Errorf("failed to extract text from page %d of PDF file %s: %w", pageIndex, filePath, err)
+			s.logger.Warn("failed to extract text from page",
+				"page", pageIndex, "filePath", filePath, "error", err)
+			continue
 		}
 		textBuilder.WriteString(text)
 		textBuilder.WriteString("\n\n")
