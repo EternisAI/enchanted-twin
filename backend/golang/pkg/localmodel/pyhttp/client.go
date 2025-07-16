@@ -1,6 +1,7 @@
 package pyhttp
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,17 +10,16 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
-)
-
-const (
-	serverURL = "http://localhost:8080"
 )
 
 type Client struct {
 	logger    *slog.Logger
 	serverCmd *exec.Cmd
+	serverURL string
 }
 
 func NewClient(logger *slog.Logger, projectDir string) (*Client, error) {
@@ -34,17 +34,35 @@ func NewClient(logger *slog.Logger, projectDir string) (*Client, error) {
 		logger: logger,
 	}
 
+	logger.Info("Starting Python server", "projectDir", projectDir)
+
 	// Start the Python server with unbuffered output using uv
 	serverCmd := exec.Command("uv", "run", "--", "python3", "-u", "main.py")
 	serverCmd.Dir = projectDir
-	serverCmd.Stdout = os.Stdout
+
+	// Create pipes to capture output
+	stdout, err := serverCmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
 	serverCmd.Stderr = os.Stderr
 	serverCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
 	if err := serverCmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start Python server: %w", err)
 	}
 
 	client.serverCmd = serverCmd
+
+	// Parse the port from server output
+	port, err := client.parsePortFromOutput(stdout)
+	if err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("failed to get server port: %w", err)
+	}
+
+	client.serverURL = fmt.Sprintf("http://localhost:%d", port)
+	logger.Info("Python server started", "url", client.serverURL)
 
 	if err := client.waitForServerReady(10 * time.Second); err != nil {
 		_ = client.Close()
@@ -54,10 +72,25 @@ func NewClient(logger *slog.Logger, projectDir string) (*Client, error) {
 	return client, nil
 }
 
+func (c *Client) parsePortFromOutput(stdout io.ReadCloser) (int, error) {
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if portStr, found := strings.CutPrefix(line, "SERVER_PORT:"); found {
+			port, err := strconv.Atoi(portStr)
+			if err != nil {
+				return 0, fmt.Errorf("failed to parse port: %w", err)
+			}
+			return port, nil
+		}
+	}
+	return 0, fmt.Errorf("port not found in server output")
+}
+
 func (c *Client) waitForServerReady(timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		resp, err := http.Get(serverURL + "/infer")
+		resp, err := http.Get(c.serverURL + "/infer")
 		if err == nil {
 			_ = resp.Body.Close()
 			return nil
@@ -80,7 +113,7 @@ func (c *Client) Infer(input string) (string, error) {
 		Timeout: 30 * time.Second,
 	}
 
-	resp, err := httpClient.Post(serverURL+"/infer", "application/json", bytes.NewBuffer(jsonData))
+	resp, err := httpClient.Post(c.serverURL+"/infer", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}
