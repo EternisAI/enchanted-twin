@@ -21,7 +21,6 @@ type Config struct {
 	DBPath             string
 	AppDataPath        string
 	WatchDirectoryPath string
-	TelegramToken      string
 	TelegramChatServer string
 	ContainerRuntime   string
 	WeaviatePort       string
@@ -65,7 +64,6 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EmbeddingsAPIKey:   getEnv("EMBEDDINGS_API_KEY", "", printEnv),
 		DBPath:             getEnv("DB_PATH", "./output/sqlite/store.db", printEnv),
 		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
-		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),

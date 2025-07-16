@@ -92,7 +92,6 @@ type GetUpdatesResponse struct {
 
 type TelegramService struct {
 	Logger           *log.Logger
-	Token            string
 	Client           *http.Client
 	Store            *db.Store
 	AiService        *ai.Service
@@ -107,7 +106,6 @@ type TelegramService struct {
 
 type TelegramServiceInput struct {
 	Logger           *log.Logger
-	Token            string
 	Client           *http.Client
 	Store            *db.Store
 	AiService        *ai.Service
@@ -122,7 +120,6 @@ type TelegramServiceInput struct {
 func NewTelegramService(input TelegramServiceInput) *TelegramService {
 	return &TelegramService{
 		Logger:           input.Logger,
-		Token:            input.Token,
 		Store:            input.Store,
 		Client:           &http.Client{Timeout: time.Second * 30},
 		AiService:        input.AiService,
@@ -142,18 +139,6 @@ func (s *TelegramService) CreateChat(
 	chatUUID string,
 ) (int, error) {
 	err := s.Store.SetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID), strconv.Itoa(chatID))
-	if err != nil {
-		return 0, err
-	}
-	return chatID, nil
-}
-
-func (s *TelegramService) GetChatID(ctx context.Context) (int, error) {
-	chatUUID, err := s.Store.GetValue(ctx, TelegramChatUUIDKey)
-	if err != nil {
-		return 0, err
-	}
-	chatID, err := s.GetChatIDFromChatUUID(ctx, chatUUID)
 	if err != nil {
 		return 0, err
 	}
@@ -217,74 +202,6 @@ func (s *TelegramService) Execute(
 	return response, nil
 }
 
-func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, error) {
-	lastUpdateID, err := s.Store.GetValue(ctx, TelegramLastUpdateIDKey)
-	if err != nil {
-		lastUpdateID = "0"
-	}
-
-	lastUpdateIDInt, err := strconv.Atoi(lastUpdateID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert last update ID to int: %w", err)
-	}
-
-	url := fmt.Sprintf(
-		"%s/bot%s/getUpdates?offset=%d&limit=10",
-		TelegramAPIBase,
-		s.Token,
-		lastUpdateIDInt,
-	)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := s.Client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			s.Logger.Warn("Failed to close response body", "error", err)
-		}
-	}()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var result struct {
-		OK     bool     `json:"ok"`
-		Result []Update `json:"result"`
-	}
-
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if !result.OK {
-		return nil, fmt.Errorf("telegram API returned error: %s", string(body))
-	}
-
-	messages := make([]Message, 0, len(result.Result))
-	for _, update := range result.Result {
-		messages = append(messages, update.Message)
-		if update.UpdateID > lastUpdateIDInt {
-			lastUpdateIDInt = update.UpdateID
-		}
-	}
-
-	err = s.Store.SetValue(ctx, TelegramLastUpdateIDKey, strconv.Itoa(lastUpdateIDInt))
-	if err != nil {
-		s.Logger.Error("Failed to store last update ID", "error", err)
-	}
-
-	return messages, nil
-}
-
 func (s *TelegramService) TransformToOpenAIMessages(
 	messages []Message,
 ) []openai.ChatCompletionMessageParamUnion {
@@ -303,57 +220,6 @@ func (s *TelegramService) TransformToOpenAIMessages(
 	}
 
 	return openAIMessages
-}
-
-func (s *TelegramService) SendMessage(ctx context.Context, chatID int, message string) error {
-	url := fmt.Sprintf("%s/bot%s/sendMessage", TelegramAPIBase, s.Token)
-	body := map[string]any{
-		"chat_id":    chatID,
-		"text":       message,
-		"parse_mode": "HTML",
-	}
-	jsonBody, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("marshal body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	s.Logger.Info("Sending message to Telegram", "url", url, "body", body)
-
-	resp, err := s.Client.Do(req)
-	if err != nil {
-		return fmt.Errorf("send request: %w", err)
-	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			s.Logger.Warn("Failed to close response body", "error", err)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("telegram API non-OK status: %d", resp.StatusCode)
-	}
-
-	var result struct {
-		OK          bool   `json:"ok"`
-		Description string `json:"description"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("decode response: %w", err)
-	}
-
-	if !result.OK {
-		return fmt.Errorf("telegram API error: %s", result.Description)
-	}
-
-	return nil
 }
 
 func (s *TelegramService) transformWebSocketDataToMessage(ctx context.Context, data struct {
@@ -867,7 +733,7 @@ func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *Telegr
 		_, exists := toolRegistry.Get("telegram_send_message")
 
 		if errTelegramEnabled == nil && telegramEnabled == "true" && !exists {
-			telegramTool, err := NewTelegramSendMessageTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
+			telegramTool, err := NewTelegramSendMessageTool(logger, store, envs.TelegramChatServer)
 			if err == nil {
 				err = toolRegistry.Register(telegramTool)
 				if err == nil {

@@ -17,17 +17,12 @@ import (
 
 type TelegramSendMessageTool struct {
 	Logger        *log.Logger
-	Token         string
 	Store         *config.Queries
 	ChatServerUrl string
 }
 
-func NewTelegramSendMessageTool(logger *log.Logger, token string, store *config.Queries, chatServerUrl string) (*TelegramSendMessageTool, error) {
-	if token == "" {
-		logger.Error("TELEGRAM_TOKEN environment variable not set")
-		return nil, fmt.Errorf("TELEGRAM_TOKEN environment variable not set")
-	}
-	return &TelegramSendMessageTool{Logger: logger, Token: token, Store: store, ChatServerUrl: chatServerUrl}, nil
+func NewTelegramSendMessageTool(logger *log.Logger, store *config.Queries, chatServerUrl string) (*TelegramSendMessageTool, error) {
+	return &TelegramSendMessageTool{Logger: logger, Store: store, ChatServerUrl: chatServerUrl}, nil
 }
 
 func generateQRCodePNGDataURL(data string) (string, error) {
@@ -40,14 +35,6 @@ func generateQRCodePNGDataURL(data string) (string, error) {
 }
 
 func (t *TelegramSendMessageTool) Execute(ctx context.Context, input map[string]any) (agenttypes.ToolResult, error) {
-	if t.Token == "" {
-		return &agenttypes.StructuredToolResult{
-			ToolName:   "telegram",
-			ToolParams: input,
-			ToolError:  "telegram token not set",
-		}, fmt.Errorf("telegram token not set")
-	}
-
 	message, ok := input["message"].(string)
 	if !ok {
 		return &agenttypes.StructuredToolResult{
@@ -126,28 +113,15 @@ func (t *TelegramSendMessageTool) Definition() openai.ChatCompletionToolParam {
 
 type TelegramSetupTool struct {
 	Logger        *log.Logger
-	Token         string
 	Store         *db.Store
 	ChatServerUrl string
 }
 
-func NewTelegramSetupTool(logger *log.Logger, token string, store *db.Store, chatServerUrl string) (*TelegramSetupTool, error) {
-	if token == "" {
-		logger.Error("TELEGRAM_TOKEN environment variable not set")
-		return nil, fmt.Errorf("TELEGRAM_TOKEN environment variable not set")
-	}
-	return &TelegramSetupTool{Logger: logger, Token: token, Store: store, ChatServerUrl: chatServerUrl}, nil
+func NewTelegramSetupTool(logger *log.Logger, store *db.Store, chatServerUrl string) (*TelegramSetupTool, error) {
+	return &TelegramSetupTool{Logger: logger, Store: store, ChatServerUrl: chatServerUrl}, nil
 }
 
 func (t *TelegramSetupTool) Execute(ctx context.Context, input map[string]any) (agenttypes.ToolResult, error) {
-	if t.Token == "" {
-		return &agenttypes.StructuredToolResult{
-			ToolName:   "telegram",
-			ToolParams: input,
-			ToolError:  "telegram token not set",
-		}, fmt.Errorf("telegram token not set")
-	}
-
 	chatUUID, err := t.Store.GetValue(ctx, TelegramChatUUIDKey)
 	if err != nil || chatUUID == "" {
 		t.Logger.Error("error getting chat UUID", "error", err)
