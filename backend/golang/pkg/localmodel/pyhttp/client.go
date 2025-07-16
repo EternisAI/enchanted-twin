@@ -23,6 +23,13 @@ type Client struct {
 }
 
 func NewClient(logger *slog.Logger, projectDir string) (*Client, error) {
+	if projectDir == "" {
+		return nil, fmt.Errorf("projectDir cannot be empty")
+	}
+	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("project directory does not exist: %s", projectDir)
+	}
+
 	client := &Client{
 		logger: logger,
 	}
@@ -39,7 +46,6 @@ func NewClient(logger *slog.Logger, projectDir string) (*Client, error) {
 
 	client.serverCmd = serverCmd
 
-	// Wait for server to be ready
 	if err := client.waitForServerReady(10 * time.Second); err != nil {
 		_ = client.Close()
 		return nil, fmt.Errorf("server failed to start: %w", err)
