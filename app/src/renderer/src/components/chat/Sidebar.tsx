@@ -190,7 +190,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
             </Tooltip>
           </TooltipProvider>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 mb-2">
           <Button
             variant="ghost"
             className="group w-full justify-start px-2 text-sidebar-foreground h-9"
