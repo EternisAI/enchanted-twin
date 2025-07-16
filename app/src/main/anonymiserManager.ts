@@ -62,11 +62,6 @@ export class AnonymiserManager {
     log.info('[Anonymiser] Anonymiser files created successfully')
   }
 
-  async installPackages(): Promise<void> {
-    log.info('[Anonymiser] Installing packages')
-    log.info('[Anonymiser] Package installation completed')
-  }
-
   async run(): Promise<void> {
     if (this.childProcess) {
       log.warn('[Anonymiser] Anonymiser is already running')
@@ -107,10 +102,37 @@ export class AnonymiserManager {
 
     log.info('[Anonymiser] Anonymiser service started successfully')
   }
+
+  isRunning(): boolean {
+    return this.childProcess !== null && !this.childProcess.killed
+  }
+
+  async cleanup(): Promise<void> {
+    if (this.childProcess) {
+      log.info('[Anonymiser] Stopping anonymiser service')
+      this.childProcess.kill()
+      this.childProcess = null
+    }
+  }
 }
 
+let anonymiserInstance: AnonymiserManager | null = null
+let setupCompleted = false
+let setupInProgress = false
+
 export async function startAnonymiserSetup(): Promise<void> {
+  if (anonymiserInstance && setupCompleted && anonymiserInstance.isRunning()) {
+    log.info('[Anonymiser] Anonymiser already set up and running, skipping setup')
+    return
+  }
+
+  if (setupInProgress) {
+    log.info('[Anonymiser] Anonymiser setup already in progress, skipping')
+    return
+  }
+
   try {
+    setupInProgress = true
     log.info('[Anonymiser] Starting anonymiser setup')
 
     const dependencies = hasDependenciesDownloaded()
@@ -124,14 +146,42 @@ export async function startAnonymiserSetup(): Promise<void> {
     log.info(`[Anonymiser] Using Anonymizer model from: ${modelPath}`)
 
     const pythonEnv = new PythonEnvironmentManager()
-    const anonymiser = new AnonymiserManager(modelPath, pythonEnv)
-    console.log(anonymiser)
+
+    // Create instance only if it doesn't exist
+    if (!anonymiserInstance) {
+      anonymiserInstance = new AnonymiserManager(modelPath, pythonEnv)
+    }
 
     // await anonymiser.installPackages()
-    await anonymiser.run()
+    await anonymiserInstance.run()
+    setupCompleted = true
 
     log.info('[Anonymiser] Anonymiser setup completed successfully')
   } catch (error) {
     log.error('[Anonymiser] Failed to setup anonymiser:', error)
+    setupCompleted = false
+  } finally {
+    setupInProgress = false
+  }
+}
+
+export async function cleanupAnonymiser(): Promise<void> {
+  if (anonymiserInstance) {
+    await anonymiserInstance.cleanup()
+    anonymiserInstance = null
+  }
+  setupCompleted = false
+  setupInProgress = false
+}
+
+export function getAnonymiserStatus(): {
+  isRunning: boolean
+  isSetup: boolean
+  setupInProgress: boolean
+} {
+  return {
+    isRunning: anonymiserInstance?.isRunning() ?? false,
+    isSetup: setupCompleted,
+    setupInProgress
   }
 }
