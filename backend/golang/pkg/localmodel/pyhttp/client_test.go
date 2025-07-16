@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPySocketInfer(t *testing.T) {
+func TestPyHttpInfer(t *testing.T) {
 	client, err := NewClient(slog.Default(), "sample")
 	assert.NoError(t, err)
 	defer func() { _ = client.Close() }()
