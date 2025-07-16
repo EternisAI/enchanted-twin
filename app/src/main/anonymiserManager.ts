@@ -64,20 +64,6 @@ export class AnonymiserManager {
 
   async installPackages(): Promise<void> {
     log.info('[Anonymiser] Installing packages')
-
-    await this.setupProjectFiles()
-
-    const dependencies = [
-      'transformers>=4.30.0',
-      'torch>=2.0.0',
-      'spacy>=3.6.0',
-      'presidio-analyzer>=2.2.0',
-      'presidio-anonymizer>=2.2.0',
-      'datasets>=2.14.0',
-      'accelerate>=0.21.0'
-    ]
-
-    await this.pythonEnv.installDependencies(this.projectName, dependencies)
     log.info('[Anonymiser] Package installation completed')
   }
 
@@ -137,8 +123,10 @@ export async function startAnonymiserSetup(): Promise<void> {
 
     const pythonEnv = new PythonEnvironmentManager()
     const anonymiser = new AnonymiserManager(modelPath, pythonEnv)
+    console.log(anonymiser)
 
-    await anonymiser.installPackages()
+    // await anonymiser.installPackages()
+    // await anonymiser.run()
 
     log.info('[Anonymiser] Anonymiser setup completed successfully')
   } catch (error) {
