@@ -541,10 +541,8 @@ func main() {
 		logger.Info("Anonymizer manager shut down")
 	}
 
-	if localAnonymizer != nil {
-		if err := localAnonymizer.Close(); err != nil {
-			logger.Error("Error closing local anonymizer", "error", err)
-		}
+	if err := localAnonymizer.Close(); err != nil {
+		logger.Error("Error closing local anonymizer", "error", err)
 	}
 }
 
