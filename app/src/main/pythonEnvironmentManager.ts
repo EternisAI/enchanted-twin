@@ -70,6 +70,10 @@ export class PythonEnvironmentManager {
     return path.join(venvDir, sub)
   }
 
+  getUvPath(): string {
+    return this.UV_PATH
+  }
+
   getUvEnv(projectName: string): Record<string, string> {
     const venvDir = this.getVenvDir(projectName)
     const bin =
