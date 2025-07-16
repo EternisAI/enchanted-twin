@@ -134,7 +134,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
 
   return (
     <>
-      <aside className="flex flex-col bg-sidebar text-sidebar-foreground p-4 pt-10 h-full w-64">
+      <aside className="flex flex-col bg-sidebar text-sidebar-foreground p-4 pt-10 h-full w-64 border-r border-sidebar-border/50">
         <div className="flex items-center justify-between mb-3">
           <motion.div
             className="flex items-center"
@@ -198,7 +198,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           onClick={handleNewChat}
         >
           <Plus className="w-4 h-4" />
-          <span className="text-base">New chat</span>
+          <span className="text-sm">New chat</span>
           {shortcuts.newChat?.keys && (
             <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
               <kbd className="rounded bg-sidebar-accent px-1.5 py-0.5">
@@ -214,7 +214,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           onClick={handleNavigateTasks}
         >
           <CheckSquare className="w-4 h-4 text-sidebar-foreground/60" />
-          <span className="text-base">Tasks</span>
+          <span className="text-sm">Tasks</span>
         </Button>
 
         <Button
@@ -223,7 +223,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           onClick={() => navigate({ to: '/holon' })}
         >
           <Globe className="w-4 h-4 text-sidebar-foreground/60" />
-          <span className="text-base">Holon Networks</span>
+          <span className="text-sm">Holon Networks</span>
         </Button>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
@@ -264,7 +264,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           >
             <div className="flex items-center gap-2">
               <SettingsIcon className="w-4 h-4 mr-2" />
-              <span className="text-base">Settings</span>
+              <span className="text-sm">Settings</span>
             </div>
             {shortcuts.openSettings?.keys && (
               <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
@@ -324,7 +324,7 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
           }
         }
       }}
-      className={cn('flex items-center h-fit gap-2 justify-between rounded-md group text-base', {
+      className={cn('flex items-center h-fit gap-2 justify-between rounded-md group text-sm', {
         'bg-sidebar-accent text-sidebar-accent-foreground font-medium': isActive,
         'hover:bg-sidebar-accent/50 text-sidebar-foreground/80': !isActive
       })}

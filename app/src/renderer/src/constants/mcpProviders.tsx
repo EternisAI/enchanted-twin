@@ -27,7 +27,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
         <Google className="size-7" />
       </IconContainer>
     ),
-    supportsMultipleConnections: true
+    supportsMultipleConnections: false
   },
   SLACK: {
     provider: 'slack',
@@ -39,7 +39,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
         <Slack className="size-7" />
       </IconContainer>
     ),
-    supportsMultipleConnections: true
+    supportsMultipleConnections: false
   },
   TWITTER: {
     provider: 'twitter',
@@ -50,7 +50,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
         <XformerlyTwitter className="size-7 text-primary-foreground" />
       </IconContainer>
     ),
-    supportsMultipleConnections: true
+    supportsMultipleConnections: false
   },
   SCREENPIPE: {
     provider: 'screenpipe',
@@ -72,7 +72,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
         <PlugIcon strokeWidth={1.5} className="size-7" />
       </IconContainer>
     ),
-    supportsMultipleConnections: true
+    supportsMultipleConnections: false
   },
   ENCHANTED: {
     provider: 'enchanted',
