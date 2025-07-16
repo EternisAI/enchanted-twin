@@ -175,8 +175,7 @@ export default function ChatView({ chat }: ChatViewProps) {
           >
             <Button
               onClick={scrollToBottom}
-              size="sm"
-              className="backdrop-blur-sm !bg-white/50 shadow-sm dark:shadow-none dark:border dark:border-border dark:!bg-black/50 rounded-full p-2"
+              className="backdrop-blur-sm !bg-white shadow-sm dark:shadow-none dark:border dark:border-border dark:!bg-black/50 rounded-full p-2"
               variant="ghost"
             >
               <ArrowDown className="w-4 h-4" />
