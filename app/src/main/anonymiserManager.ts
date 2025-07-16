@@ -5,7 +5,7 @@ import fs from 'node:fs'
 
 import { PythonEnvironmentManager } from './pythonEnvironmentManager'
 import { copyDirectoryRecursive, fileExists } from './helpers'
-import { downloadDependency } from './dependenciesDownload'
+import { getDependencyPath, hasDependenciesDownloaded } from './dependenciesDownload'
 import type { DependencyName } from './types/dependencies'
 
 export class AnonymiserManager {
@@ -125,8 +125,14 @@ export async function startAnonymiserSetup(): Promise<void> {
   try {
     log.info('[Anonymiser] Starting anonymiser setup')
 
-    const downloadResult = await downloadDependency('anonymizer' as DependencyName)
-    const modelPath = downloadResult.path
+    const dependencies = hasDependenciesDownloaded()
+
+    if (!dependencies.anonymizer) {
+      log.warn('[Anonymiser] Anonymizer model not yet downloaded, skipping setup')
+      return
+    }
+
+    const modelPath = getDependencyPath('anonymizer' as DependencyName)
     log.info(`[Anonymiser] Using Anonymizer model from: ${modelPath}`)
 
     const pythonEnv = new PythonEnvironmentManager()

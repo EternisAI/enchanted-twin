@@ -47,18 +47,19 @@ const DEPENDENCIES_CONFIGS: Record<
   }
 }
 
+export function getDependencyPath(dependencyName: DependencyName): string {
+  const cfg = DEPENDENCIES_CONFIGS[dependencyName]
+  if (!cfg) {
+    throw new Error(`Unknown dependency: ${dependencyName}`)
+  }
+  return cfg.dir
+}
+
 export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
-  const embeddingsDir = path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
-  const anonymizerDir = path.join(DEPENDENCIES_DIR, 'models', 'Llama-3.2-1B-Instruct-CoreML')
-  const onnxDir = path.join(
-    DEPENDENCIES_DIR,
-    'shared',
-    'lib',
-    process.platform === 'darwin' && process.arch === 'arm64'
-      ? 'onnxruntime-osx-arm64-1.22.0'
-      : 'onnxruntime-linux-x64-1.22.0'
-  )
-  const LLMCLIFile = path.join(DEPENDENCIES_DIR, 'shared', 'lib', 'LLMCLI')
+  const embeddingsDir = getDependencyPath('embeddings')
+  const anonymizerDir = getDependencyPath('anonymizer')
+  const onnxDir = getDependencyPath('onnx')
+  const LLMCLIFile = getDependencyPath('LLMCLI')
 
   console.log('onnxDir', onnxDir)
   console.log('LLMCLIFile', LLMCLIFile)
