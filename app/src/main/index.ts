@@ -20,6 +20,7 @@ import { cleanupOAuthServer } from './oauthHandler'
 import { cleanupGoServer } from './goServer'
 // import { startKokoro, cleanupKokoro } from './kokoroManager'
 import { startLiveKitSetup, cleanupLiveKitAgent } from './livekitManager'
+import { startAnonymiserSetup } from './anonymiserManager'
 import { initializeAnalytics } from './analytics'
 import { keyboardShortcutsStore } from './stores'
 
@@ -85,6 +86,7 @@ app.whenReady().then(async () => {
   setupLiveKitCleanup(mainWindow)
 
   startLiveKitSetup(mainWindow)
+  startAnonymiserSetup()
   autoStartScreenpipeIfEnabled()
 
   electronApp.setAppUserModelId('com.electron')

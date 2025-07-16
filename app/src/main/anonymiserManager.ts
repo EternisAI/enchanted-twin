@@ -1,7 +1,11 @@
 import { spawn } from 'node:child_process'
+import { app } from 'electron'
 import log from 'electron-log/main'
+import path from 'node:path'
+import fs from 'node:fs'
 
 import { PythonEnvironmentManager } from './pythonEnvironmentManager'
+import { copyDirectoryRecursive, fileExists } from './helpers'
 
 export class AnonymiserManager {
   private readonly projectName = 'anonymiser'
@@ -19,6 +23,42 @@ export class AnonymiserManager {
   private async setupProjectFiles(): Promise<void> {
     log.info('[Anonymiser] Setting up anonymiser files')
     await this.pythonEnv.ensureProjectDirectory(this.projectName)
+
+    const runtimeProjectDir = this.pythonEnv.getProjectDir(this.projectName)
+    const stamp = path.join(runtimeProjectDir, '.anonymiser-files-copied')
+
+    if (await fileExists(stamp)) {
+      log.info('[Anonymiser] Anonymiser files already copied, skipping setup')
+      return
+    }
+
+    const sourcePaths = [
+      path.join(__dirname, 'python', 'anonymiser'),
+      path.join(__dirname, '..', '..', '..', 'src', 'main', 'python', 'anonymiser'),
+      path.join(process.cwd(), 'app', 'src', 'main', 'python', 'anonymiser')
+    ]
+
+    let sourceDir: string | null = null
+
+    for (const sourcePath of sourcePaths) {
+      try {
+        if (await fileExists(sourcePath)) {
+          sourceDir = sourcePath
+          log.info(`[Anonymiser] Found anonymiser source at: ${sourcePath}`)
+          break
+        }
+      } catch {
+        // Continue to next path
+      }
+    }
+
+    if (!sourceDir) {
+      throw new Error('[Anonymiser] Failed to find anonymiser source files from any location')
+    }
+
+    await copyDirectoryRecursive(sourceDir, runtimeProjectDir)
+
+    await fs.promises.writeFile(stamp, '')
 
     log.info('[Anonymiser] Anonymiser files created successfully')
   }
@@ -52,9 +92,9 @@ export class AnonymiserManager {
 
     this.childProcess = spawn(
       this.pythonEnv.getPythonBin(this.projectName),
-      ['anonymiser.py', '--model_path', this.modelPath],
+      ['anonymizer.py', '--model_path', this.modelPath],
       {
-        cwd: this.projectDir,
+        cwd: this.pythonEnv.getProjectDir(this.projectName),
         env: {
           ...process.env
         },
@@ -82,5 +122,27 @@ export class AnonymiserManager {
     })
 
     log.info('[Anonymiser] Anonymiser service started successfully')
+  }
+}
+
+export async function startAnonymiserSetup(): Promise<void> {
+  try {
+    log.info('[Anonymiser] Starting anonymiser setup')
+
+    const modelPath = path.join(
+      app.getPath('appData'),
+      'enchanted',
+      'models',
+      'Llama-3.2-1B-Instruct-CoreML' //@TODO: Double check this path
+    )
+
+    const pythonEnv = new PythonEnvironmentManager()
+    const anonymiser = new AnonymiserManager(modelPath, '', pythonEnv)
+
+    await anonymiser.installPackages()
+
+    log.info('[Anonymiser] Anonymiser setup completed successfully')
+  } catch (error) {
+    log.error('[Anonymiser] Failed to setup anonymiser:', error)
   }
 }

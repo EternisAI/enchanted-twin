@@ -23,14 +23,39 @@ function copyPythonFilesPlugin() {
 
       if (fs.existsSync(pythonSrcDir)) {
         fs.mkdirSync(pythonOutDir, { recursive: true })
-        const files = fs.readdirSync(pythonSrcDir)
 
-        for (const file of files) {
-          if (file.endsWith('.py')) {
-            const srcFile = resolve(pythonSrcDir, file)
-            const outFile = resolve(pythonOutDir, file)
-            fs.copyFileSync(srcFile, outFile)
-            console.log(`Copied ${file} to output directory`)
+        // Function to recursively copy directories
+        function copyRecursive(src: string, dest: string) {
+          const stats = fs.statSync(src)
+
+          if (stats.isDirectory()) {
+            if (!fs.existsSync(dest)) {
+              fs.mkdirSync(dest, { recursive: true })
+            }
+            const files = fs.readdirSync(src)
+            for (const file of files) {
+              copyRecursive(resolve(src, file), resolve(dest, file))
+            }
+          } else {
+            fs.copyFileSync(src, dest)
+            console.log(`Copied ${src} to ${dest}`)
+          }
+        }
+
+        const items = fs.readdirSync(pythonSrcDir)
+
+        for (const item of items) {
+          const srcPath = resolve(pythonSrcDir, item)
+          const destPath = resolve(pythonOutDir, item)
+
+          if (fs.statSync(srcPath).isDirectory()) {
+            // Copy entire directory structure
+            copyRecursive(srcPath, destPath)
+            console.log(`Copied directory ${item} to output directory`)
+          } else if (item.endsWith('.py')) {
+            // Copy individual Python files
+            fs.copyFileSync(srcPath, destPath)
+            console.log(`Copied ${item} to output directory`)
           }
         }
       }
