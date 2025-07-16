@@ -8,6 +8,7 @@ import split2 from 'split2'
 
 import { createErrorWindow, waitForBackend } from './helpers'
 import { capture } from './analytics'
+import { startAnonymiserSetup } from './anonymiserManager'
 
 let goServerProcess: ChildProcess | null = null
 // let splashWindow: BrowserWindow | null = null
@@ -34,6 +35,10 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
   const goBinaryPath = !IS_PRODUCTION
     ? join(__dirname, '..', '..', 'resources', executable)
     : join(process.resourcesPath, 'resources', executable)
+
+  // Start anonymiser setup after Go server is ready
+  log.info('Go server ready, starting anonymiser setup...')
+  startAnonymiserSetup()
 
   if (IS_PRODUCTION) {
     const success = await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
