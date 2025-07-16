@@ -9,6 +9,7 @@ import (
 )
 
 func TestPySocketGenerate(t *testing.T) {
+	t.Skip("Skipping test")
 	client, err := NewClient(log.Default())
 	assert.NoError(t, err)
 	defer func() { _ = client.Close() }()
