@@ -58,10 +58,10 @@ func TestLocalAnonymizer_AnonymizeMessages_MemoryOnly(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, anonymizedMessages, 1)
-	assert.Contains(t, updatedDict, "John")
-	assert.Equal(t, "PERSON_001", updatedDict["John"])
-	assert.Contains(t, newRules, "John")
-	assert.Equal(t, "PERSON_001", newRules["John"])
+	assert.Contains(t, updatedDict, "PERSON_001")
+	assert.Equal(t, "John", updatedDict["PERSON_001"])
+	assert.Contains(t, newRules, "PERSON_001")
+	assert.Equal(t, "John", newRules["PERSON_001"])
 
 	mockLlama.AssertExpectations(t)
 }
@@ -97,15 +97,15 @@ func TestLocalAnonymizer_AnonymizeMessages_Persistent(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, anonymizedMessages, 1)
-	assert.Contains(t, updatedDict, "John")
-	assert.Equal(t, "PERSON_001", updatedDict["John"])
-	assert.Contains(t, newRules, "John")
+	assert.Contains(t, updatedDict, "PERSON_001")
+	assert.Equal(t, "John", updatedDict["PERSON_001"])
+	assert.Contains(t, newRules, "PERSON_001")
 
 	// Verify data was persisted
 	dict, err := anonymizer.LoadConversationDict(conversationID)
 	assert.NoError(t, err)
-	assert.Contains(t, dict, "John")
-	assert.Equal(t, "PERSON_001", dict["John"])
+	assert.Contains(t, dict, "PERSON_001")
+	assert.Equal(t, "John", dict["PERSON_001"])
 
 	// Verify message was marked as anonymized
 	messageHash := anonymizer.GetMessageHash(messages[0])
@@ -128,7 +128,7 @@ func TestLocalAnonymizer_AnonymizeMessages_PersistentDeduplication(t *testing.T)
 		openai.UserMessage("Hello John, how are you?"),
 	}
 
-	existingDict := map[string]string{"John": "PERSON_001"}
+	existingDict := map[string]string{"PERSON_001": "John"}
 	interruptChan := make(chan struct{})
 	conversationID := "test-conversation-2"
 
@@ -151,8 +151,8 @@ func TestLocalAnonymizer_AnonymizeMessages_PersistentDeduplication(t *testing.T)
 
 	assert.NoError(t, err)
 	assert.Len(t, anonymizedMessages, 1)
-	assert.Contains(t, updatedDict, "John")
-	assert.Equal(t, "PERSON_001", updatedDict["John"])
+	assert.Contains(t, updatedDict, "PERSON_001")
+	assert.Equal(t, "John", updatedDict["PERSON_001"])
 	assert.Empty(t, newRules) // No new rules should be created
 
 	// Mock service should not be called since message was already anonymized
@@ -202,7 +202,7 @@ func TestLocalAnonymizer_AnonymizeMessages_ExistingDictMerge(t *testing.T) {
 
 	// Pre-populate conversation dictionary
 	conversationID := "test-conversation-4"
-	storedDict := map[string]string{"Alice": "PERSON_001"}
+	storedDict := map[string]string{"PERSON_001": "Alice"}
 	err := anonymizer.SaveConversationDict(conversationID, storedDict)
 	require.NoError(t, err)
 
@@ -215,7 +215,7 @@ func TestLocalAnonymizer_AnonymizeMessages_ExistingDictMerge(t *testing.T) {
 	}
 
 	// Provide existing dictionary that should merge with stored one
-	existingDict := map[string]string{"Bob": "PERSON_003"}
+	existingDict := map[string]string{"PERSON_003": "Bob"}
 	interruptChan := make(chan struct{})
 
 	anonymizedMessages, updatedDict, newRules, err := anonymizer.AnonymizeMessages(
@@ -230,18 +230,18 @@ func TestLocalAnonymizer_AnonymizeMessages_ExistingDictMerge(t *testing.T) {
 	assert.Len(t, anonymizedMessages, 1)
 
 	// Should contain all three mappings
-	assert.Contains(t, updatedDict, "Alice") // From stored dict
-	assert.Contains(t, updatedDict, "Bob")   // From existing dict
-	assert.Contains(t, updatedDict, "John")  // From new discovery
+	assert.Contains(t, updatedDict, "PERSON_001") // From stored dict
+	assert.Contains(t, updatedDict, "PERSON_003") // From existing dict
+	assert.Contains(t, updatedDict, "PERSON_002") // From new discovery
 
-	assert.Equal(t, "PERSON_001", updatedDict["Alice"])
-	assert.Equal(t, "PERSON_003", updatedDict["Bob"])
-	assert.Equal(t, "PERSON_002", updatedDict["John"])
+	assert.Equal(t, "Alice", updatedDict["PERSON_001"])
+	assert.Equal(t, "Bob", updatedDict["PERSON_003"])
+	assert.Equal(t, "John", updatedDict["PERSON_002"])
 
 	// Only new discovery should be in newRules
 	assert.Len(t, newRules, 1)
-	assert.Contains(t, newRules, "John")
-	assert.Equal(t, "PERSON_002", newRules["John"])
+	assert.Contains(t, newRules, "PERSON_002")
+	assert.Equal(t, "John", newRules["PERSON_002"])
 
 	mockLlama.AssertExpectations(t)
 }
@@ -333,9 +333,9 @@ func TestLocalAnonymizer_DeAnonymize(t *testing.T) {
 	anonymizer := NewLocalAnonymizer(mockLlama, db, logger)
 
 	rules := map[string]string{
-		"John":     "PERSON_001",
-		"Jane":     "PERSON_002",
-		"New York": "LOCATION_001",
+		"PERSON_001":   "John",
+		"PERSON_002":   "Jane",
+		"LOCATION_001": "New York",
 	}
 
 	anonymizedText := "Hello PERSON_001, are you visiting LOCATION_001 with PERSON_002?"
@@ -435,6 +435,7 @@ func TestLocalAnonymizer_ApplyReplacements(t *testing.T) {
 	logger := log.New(nil)
 	anonymizer := NewLocalAnonymizer(mockLlama, db, logger)
 
+	// applyReplacements uses internal format (original -> token) for anonymization
 	rules := map[string]string{
 		"John":     "PERSON_001",
 		"Jane":     "PERSON_002",
@@ -528,7 +529,7 @@ func TestLocalAnonymizer_DuplicateRuleHandling(t *testing.T) {
 	}
 
 	// Provide existing dictionary with the same rule
-	existingDict := map[string]string{"John": "PERSON_001"}
+	existingDict := map[string]string{"PERSON_001": "John"}
 	interruptChan := make(chan struct{})
 
 	// Test memory-only mode
@@ -541,8 +542,8 @@ func TestLocalAnonymizer_DuplicateRuleHandling(t *testing.T) {
 	)
 
 	assert.NoError(t, err)
-	assert.Contains(t, updatedDict, "John")
-	assert.Equal(t, "PERSON_001", updatedDict["John"])
+	assert.Contains(t, updatedDict, "PERSON_001")
+	assert.Equal(t, "John", updatedDict["PERSON_001"])
 	assert.Empty(t, newRules) // No new rules should be created for existing mappings
 
 	mockLlama.AssertExpectations(t)
