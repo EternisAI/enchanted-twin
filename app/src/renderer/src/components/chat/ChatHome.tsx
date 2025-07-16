@@ -300,7 +300,7 @@ export function Home() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ type: 'spring', stiffness: 350, damping: 55 }}
-          className="flex flex-col items-center gap-4 py-8 px-4 w-full"
+          className="flex flex-col items-center py-8 px-4 w-full"
         >
           <motion.div className="relative w-fit" layout>
             {/* Background that expands when editing */}

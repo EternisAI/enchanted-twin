@@ -200,9 +200,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
             <span className="text-sm">New chat</span>
             {shortcuts.newChat?.keys && (
               <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
-                <kbd className="rounded bg-sidebar-accent px-1.5 py-0.5">
-                  {formatShortcutForDisplay(shortcuts.newChat.keys)}
-                </kbd>
+                {formatShortcutForDisplay(shortcuts.newChat.keys)}
               </div>
             )}
           </Button>
@@ -256,21 +254,19 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           )}
         </div>
 
-        <div className="pt-2 border-t border-sidebar-border/50 shrink-0">
+        <div className="shrink-0">
           <Button
             variant="ghost"
             className="w-full justify-between px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group"
             onClick={() => navigate({ to: '/settings' })}
           >
             <div className="flex items-center gap-2">
-              <SettingsIcon className="w-4 h-4 mr-2" />
+              <SettingsIcon className="w-4 h-4" />
               <span className="text-sm">Settings</span>
             </div>
             {shortcuts.openSettings?.keys && (
               <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
-                <kbd className="rounded bg-muted px-1.5 py-0.5">
-                  {formatShortcutForDisplay(shortcuts.openSettings.keys)}
-                </kbd>
+                {formatShortcutForDisplay(shortcuts.openSettings.keys)}
               </div>
             )}
           </Button>
