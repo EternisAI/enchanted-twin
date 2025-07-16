@@ -27,8 +27,7 @@ type Config struct {
 	WeaviatePort       string
 	EnchantedMcpURL    string
 	ProxyTeeURL        string
-	UseLocalModel      string
-	UseLocalAnonymizer string
+	UseLocalEmbedding  string
 	AnonymizerType     string
 }
 
@@ -72,8 +71,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
-		UseLocalModel:      getEnv("USE_LOCAL_MODEL", "", printEnv),
-		UseLocalAnonymizer: getEnv("USE_LOCAL_ANONYMIZER", "", printEnv),
+		UseLocalEmbedding:  getEnv("USE_LOCAL_EMBEDDINGS", "", printEnv),
 		AnonymizerType:     getEnv("ANONYMIZER_TYPE", "llm", printEnv),
 	}
 	return conf, nil
