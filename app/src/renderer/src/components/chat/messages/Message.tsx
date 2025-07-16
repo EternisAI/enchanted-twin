@@ -158,7 +158,7 @@ export function AssistantMessageBubble({
             asMarkdown={true}
           />
         )}
-        {message.imageUrls.length > 0 && (
+        {/* {message.imageUrls.length > 0 && (
           <div className="grid grid-cols-4 gap-y-4 my-2">
             {message.imageUrls.map((url, i) => (
               <ImagePreview
@@ -169,7 +169,7 @@ export function AssistantMessageBubble({
               />
             ))}
           </div>
-        )}
+        )} */}
         <div className="flex flex-row items-center gap-4 justify-between w-full">
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-4 items-center">
@@ -280,6 +280,27 @@ const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymize
   return <span>{parts}</span>
 }
 
+function anonymizeTextForMarkdown(
+  text: string,
+  privacyDictJson: string | null,
+  isAnonymized: boolean
+): string {
+  if (!privacyDictJson || !isAnonymized) return text
+
+  const privacyDict = JSON.parse(privacyDictJson) as Record<string, string>
+
+  let result = text
+
+  Object.entries(privacyDict).forEach(([original, replacement]) => {
+    const regex = new RegExp(`(${original})`, 'gi')
+    result = result.replace(regex, () => {
+      return `<span class="bg-muted-foreground text-secondary px-1.25 py-0.25 rounded text-foreground font-medium">${replacement}</span>`
+    })
+  })
+
+  return result
+}
+
 function AnonymizedContent({
   text,
   chatPrivacyDict,
@@ -291,11 +312,10 @@ function AnonymizedContent({
   isAnonymized: boolean
   asMarkdown?: boolean
 }) {
-  const anonymizedText = anonymizeText(text, chatPrivacyDict, isAnonymized)
-
-  if (typeof anonymizedText === 'string') {
-    return asMarkdown ? <Markdown>{anonymizedText}</Markdown> : <span>{anonymizedText}</span>
+  if (asMarkdown) {
+    const mdText = anonymizeTextForMarkdown(text, chatPrivacyDict, isAnonymized)
+    return <Markdown>{mdText}</Markdown>
+  } else {
+    return anonymizeText(text, chatPrivacyDict, isAnonymized)
   }
-
-  return <span>{anonymizedText}</span>
 }
