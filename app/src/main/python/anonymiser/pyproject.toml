@@ -1,0 +1,30 @@
+[project]
+name = "enchanted-anonymizer"
+version = "0.1.0"
+description = "FastAPI wrapper around Qwen-0.6B anonymizer model"
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "torch",
+  "transformers",
+  "transformers-cfg"
+]
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "ruff"
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+# If you plan to distribute an *offline* wheelhouse, uncomment the section
+# below and delete the default-groups line above.
+# [[tool.uv.index]]
+# url     = "./wheelhouse"   # relative path or file:// URL
+# format  = "flat"           # a directory full of .whl files
+# default = true             # substitute PyPI entirely

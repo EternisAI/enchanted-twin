@@ -5,7 +5,6 @@ export function usePrivacyDictUpdate(chatId: string, onUpdate: (privacyDict: str
   useSubscription(PrivacyDictUpdatedDocument, {
     variables: { chatId },
     onData: ({ data }) => {
-      console.log('data', data.data?.privacyDictUpdated.privacyDictJson)
       onUpdate(data.data?.privacyDictUpdated.privacyDictJson)
     }
   })
