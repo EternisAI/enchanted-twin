@@ -1,4 +1,4 @@
-package pyhttp
+package pylocal
 
 import (
 	"log/slog"

@@ -21,9 +21,13 @@ const DEPENDENCIES_CONFIGS: Record<
     needsExtraction: true
   },
   anonymizer: {
-    url: 'https://d3o88a4htgfnky.cloudfront.net/models/Llama-3.2-1B-Instruct-CoreML.zip',
+    url: 'https://d3o88a4htgfnky.cloudfront.net/models/eternis_eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k.zip',
     name: 'anonymizer',
-    dir: path.join(DEPENDENCIES_DIR, 'models', 'Llama-3.2-1B-Instruct-CoreML'),
+    dir: path.join(
+      DEPENDENCIES_DIR,
+      'models',
+      'eternis_eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k'
+    ),
     needsExtraction: true
   },
   onnx: {
@@ -43,32 +47,73 @@ const DEPENDENCIES_CONFIGS: Record<
   }
 }
 
+export function getDependencyPath(dependencyName: DependencyName): string {
+  const cfg = DEPENDENCIES_CONFIGS[dependencyName]
+  if (!cfg) {
+    throw new Error(`Unknown dependency: ${dependencyName}`)
+  }
+  return cfg.dir
+}
+
+function isDependencyProperlyDownloaded(dependencyName: DependencyName): boolean {
+  const cfg = DEPENDENCIES_CONFIGS[dependencyName]
+  if (!cfg) {
+    return false
+  }
+
+  const dependencyPath = cfg.dir
+
+  if (!cfg.needsExtraction) {
+    return fs.existsSync(dependencyPath)
+  }
+
+  // For extracted dependencies, check if directory exists and has extracted content
+  if (!fs.existsSync(dependencyPath)) {
+    return false
+  }
+
+  try {
+    const files = fs.readdirSync(dependencyPath)
+
+    // Directory must have files
+    if (files.length === 0) {
+      return false
+    }
+
+    // Filter out archive files - we want extracted content, not just downloaded archives
+    const nonArchiveFiles = files.filter((file) => {
+      const ext = path.extname(file).toLowerCase()
+      return !ext.match(/\.(zip|tar|tgz|tar\.gz)$/)
+    })
+
+    if (nonArchiveFiles.length === 0) {
+      return false
+    }
+
+    const validFiles = nonArchiveFiles.filter((file) => {
+      const filePath = path.join(dependencyPath, file)
+      const stat = fs.statSync(filePath)
+
+      if (stat.isDirectory()) {
+        return true
+      }
+
+      return stat.size > 0
+    })
+
+    return validFiles.length > 0
+  } catch (error) {
+    console.error(`[Dependencies] Error checking ${dependencyName}:`, error)
+    return false
+  }
+}
+
 export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
-  const embeddingsDir = path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en')
-  const anonymizerDir = path.join(DEPENDENCIES_DIR, 'models', 'Llama-3.2-1B-Instruct-CoreML')
-  const onnxDir = path.join(
-    DEPENDENCIES_DIR,
-    'shared',
-    'lib',
-    process.platform === 'darwin' && process.arch === 'arm64'
-      ? 'onnxruntime-osx-arm64-1.22.0'
-      : 'onnxruntime-linux-x64-1.22.0'
-  )
-  const LLMCLIFile = path.join(DEPENDENCIES_DIR, 'shared', 'lib', 'LLMCLI')
-
-  console.log('onnxDir', onnxDir)
-  console.log('LLMCLIFile', LLMCLIFile)
-
-  const embeddingsExists = fs.existsSync(embeddingsDir) && fs.readdirSync(embeddingsDir).length > 0
-  const anonymizerExists = fs.existsSync(anonymizerDir) && fs.readdirSync(anonymizerDir).length > 0
-  const onnxExists = fs.existsSync(onnxDir) && fs.readdirSync(onnxDir).length > 0
-  const LLMCLIExists = fs.existsSync(LLMCLIFile)
-
   return {
-    embeddings: embeddingsExists,
-    anonymizer: anonymizerExists,
-    onnx: onnxExists,
-    LLMCLI: LLMCLIExists
+    embeddings: isDependencyProperlyDownloaded('embeddings'),
+    anonymizer: isDependencyProperlyDownloaded('anonymizer'),
+    onnx: isDependencyProperlyDownloaded('onnx'),
+    LLMCLI: isDependencyProperlyDownloaded('LLMCLI')
   }
 }
 
