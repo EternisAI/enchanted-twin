@@ -4,6 +4,10 @@ import { SettingsContent } from '@renderer/components/settings/SettingsContent'
 import { Brain } from '@renderer/components/graphics/brain'
 import enchantedIcon from '@resources/icon.png'
 import { motion } from 'framer-motion'
+import { Button } from '@renderer/components/ui/button'
+import { useAuth } from '@renderer/contexts/AuthContext'
+import { LogOutIcon } from 'lucide-react'
+import { ErrorBoundary } from '@renderer/components/ui/error-boundary'
 
 export const Route = createFileRoute('/settings/about')({
   component: AboutSettings
@@ -35,15 +39,18 @@ const itemVariants = {
 }
 
 function AboutSettings() {
+  const { signOut } = useAuth()
   return (
     <div className="relative h-full">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.15 }}
         transition={{ duration: 2, ease: 'easeOut', delay: 1 }}
-        className="absolute inset-0 z-0 opacity-15 h-screen isolate bg-radial from-[#667eea] to-[#764ba2]"
+        className="absolute inset-0 z-0 opacity-10 h-screen isolate"
       >
-        <Brain />
+        <ErrorBoundary componentName="Versions" fallback={<></>}>
+          <Brain />
+        </ErrorBoundary>
       </motion.div>
       <SettingsContent className="p-0 gap-5 relative z-10 flex flex-col items-center justify-center">
         <motion.div
@@ -70,6 +77,12 @@ function AboutSettings() {
               Freysa
             </a>
           </motion.p>
+          <motion.div variants={itemVariants}>
+            <Button variant="ghost" className="flex items-center justify-start" onClick={signOut}>
+              <LogOutIcon className="mr-2" />
+              Sign Out
+            </Button>
+          </motion.div>
         </motion.div>
       </SettingsContent>
     </div>

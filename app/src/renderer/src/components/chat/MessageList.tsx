@@ -6,30 +6,37 @@ type MessageListProps = {
   messages: Message[]
   isWaitingTwinResponse: boolean
   chatPrivacyDict: string | null
+  isAnonymized?: boolean
 }
 
 export default function MessageList({
   messages,
   isWaitingTwinResponse,
-  chatPrivacyDict
+  chatPrivacyDict,
+  isAnonymized = false
 }: MessageListProps) {
   return (
-    <div className="flex flex-col gap-10 w-full">
+    <div className="flex flex-col gap-10 w-full pb-20">
       {messages.map((msg) =>
         msg.role === Role.User ? (
           <UserMessageBubble
             key={msg.id}
             message={msg}
-            showAnonymize={true}
+            isAnonymized={isAnonymized}
             chatPrivacyDict={chatPrivacyDict}
           />
         ) : (
-          <AssistantMessageBubble key={msg.id} message={msg} />
+          <AssistantMessageBubble
+            key={msg.id}
+            message={msg}
+            isAnonymized={isAnonymized}
+            chatPrivacyDict={chatPrivacyDict}
+          />
         )
       )}
       {isWaitingTwinResponse && (
         <motion.div
-          className="text-sm text-muted-foreground italic px-3 py-1 bg-accent rounded-md w-fit"
+          className="text-sm text-muted-foreground italic px-3 py-1 bg-transparent rounded-md w-fit"
           initial="initial"
           animate="animate"
           variants={{
@@ -37,12 +44,37 @@ export default function MessageList({
             animate: { opacity: 1, y: 0 }
           }}
         >
-          <div className="flex items-center justify-center gap-1 h-5">
+          <div className="flex items-center justify-center gap-1 h-4">
             {[...Array(3)].map((_, i) => (
-              <div
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                animate={{
+                  opacity: [0.5, 0.8, 0.5],
+                  y: [2, -2, 2],
+                  scale: [0.9, 1, 0.9]
+                }}
+                transition={{
+                  y: {
+                    duration: 1,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                    delay: i * 0.15
+                  },
+                  opacity: {
+                    duration: 1,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                    delay: i * 0.15
+                  },
+                  scale: {
+                    duration: 1,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                    delay: i * 0.15
+                  }
+                }}
                 key={i}
-                className="h-2 w-2 bg-gray-500 rounded-full animate-bounce"
-                style={{ animationDelay: `${i * 0.15}s` }}
+                className="h-2 w-2 bg-accent-foreground rounded-full"
               />
             ))}
           </div>

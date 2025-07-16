@@ -42,7 +42,10 @@ export function registerIpcHandlers() {
     windowManager.processPendingNavigation()
 
     // Process restart intent if present
-    const restartIntent = screenpipeStore.get('restartIntent')
+    const restartIntent = screenpipeStore.get('restartIntent') as {
+      route: string
+      showModal: boolean
+    } | null
     if (restartIntent) {
       log.info(
         `Processing restart intent: ${restartIntent.route}, modal: ${restartIntent.showModal}`
@@ -101,6 +104,15 @@ export function registerIpcHandlers() {
     } else {
       nativeTheme.themeSource = theme
     }
+    
+    // Broadcast theme change to all windows
+    if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+      windowManager.mainWindow.webContents.send('theme-changed', theme)
+    }
+    if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
+      windowManager.omnibarWindow.webContents.send('theme-changed', theme)
+    }
+    
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   })
 
@@ -130,8 +142,12 @@ export function registerIpcHandlers() {
 
   nativeTheme.on('updated', () => {
     const newTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-    if (windowManager.mainWindow) {
+    // Broadcast to all windows
+    if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
       windowManager.mainWindow.webContents.send('native-theme-updated', newTheme)
+    }
+    if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
+      windowManager.omnibarWindow.webContents.send('native-theme-updated', newTheme)
     }
   })
 
@@ -376,9 +392,9 @@ export function registerIpcHandlers() {
 
   ipcMain.handle(
     'open-main-window-with-chat',
-    async (_, chatId?: string, initialMessage?: string) => {
+    async (_, chatId?: string, initialMessage?: string, reasoning?: boolean) => {
       try {
-        log.info(`Opening main window with chat: ${chatId}, message: ${initialMessage}`)
+        log.info(`Opening main window with chat: ${chatId}, message: ${initialMessage}, reasoning: ${reasoning}`)
         let windowWasCreated = false
 
         // Create main window if it doesn't exist
@@ -396,9 +412,14 @@ export function registerIpcHandlers() {
           windowManager.mainWindow.focus()
 
           if (chatId) {
-            const url = initialMessage
-              ? `/chat/${chatId}?initialMessage=${encodeURIComponent(initialMessage)}`
-              : `/chat/${chatId}`
+            let url = `/chat/${chatId}`
+            if (initialMessage) {
+              url += `?initialMessage=${encodeURIComponent(initialMessage)}`
+            }
+            if (reasoning !== undefined) {
+              const sep = url.includes('?') ? '&' : '?'
+              url += `${sep}reasoning=${reasoning}`
+            }
 
             log.info(`Navigation URL: ${url}`)
 
@@ -426,7 +447,7 @@ export function registerIpcHandlers() {
   ipcMain.handle('resize-omnibar-window', async (_, width: number, height: number) => {
     try {
       if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
-        const minHeight = 80
+        const minHeight = 68 // Match the window's actual minHeight from windows.ts
         const maxHeight = 500
         const constrainedHeight = Math.max(minHeight, Math.min(height, maxHeight))
         windowManager.omnibarWindow.setSize(width, constrainedHeight)

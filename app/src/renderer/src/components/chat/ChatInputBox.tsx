@@ -1,5 +1,4 @@
-import React from 'react'
-import { Textarea } from '../ui/textarea'
+import React, { useEffect } from 'react'
 import { TooltipContent } from '../ui/tooltip'
 import { TooltipTrigger } from '../ui/tooltip'
 import { Tooltip } from '../ui/tooltip'
@@ -21,6 +20,7 @@ type ChatInputBoxProps = {
   isVoiceMode: boolean
   onVoiceModeChange: (toggleSidebar?: boolean) => void
   handleCreateChat: () => void
+  onLayoutAnimationComplete?: () => void
 }
 
 export default function ChatInputBox({
@@ -33,63 +33,152 @@ export default function ChatInputBox({
   handleSubmit,
   setIsReasonSelected,
   handleCreateChat,
-  onVoiceModeChange
+  onVoiceModeChange,
+  onLayoutAnimationComplete
 }: ChatInputBoxProps) {
-  return (
-    <motion.div
-      layoutId="message-input-container"
-      transition={{ type: 'spring', stiffness: 350, damping: 55 }}
-      className="relative z-50 flex items-center gap-2 w-full border border-border rounded-lg px-2.5 py-0 dark:bg-background focus-within:bg-white focus-within:shadow-xl dark:focus-within:border-primary/25 transition-shadow duration-200"
-    >
-      <Textarea
-        ref={textareaRef}
-        value={query}
-        onChange={(e) => onInputChange(e.target.value)}
-        onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            handleSubmit(e)
-          }
-        }}
-        placeholder="What's on your mind?"
-        className="!text-base !bg-transparent flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[50px]"
-        rows={1}
-      />
+  // Auto-resize textarea fallback for browsers without field-sizing support
+  useEffect(() => {
+    if (!textareaRef.current) return
 
-      <motion.div className="flex items-center gap-2">
-        {!isVoiceMode && (
-          <ReasoningButton
-            isSelected={isReasonSelected}
-            onClick={() => setIsReasonSelected(!isReasonSelected)}
-            disabled={isVoiceMode}
-          />
-        )}
-        {(query.length > 0 || isVoiceMode) && (
-          <SendButton
-            className="w-9 h-9"
-            text={query}
-            onSend={() => {
-              handleCreateChat()
-            }}
-            isWaitingTwinResponse={false}
-          />
-        )}
-        {!isVoiceMode && query.length === 0 && (
-          <EnableVoiceModeButton
-            onClick={() => {
-              onVoiceModeChange(false)
-            }}
-            isVoiceReady={isVoiceReady}
-          />
-        )}
-        {isVoiceMode && (
-          <DisableVoiceModeButton
-            onClick={() => onVoiceModeChange(false)}
-            isVoiceReady={isVoiceReady}
-          />
-        )}
+    const textarea = textareaRef.current
+
+    // Check if field-sizing is supported
+    const supportsFieldSizing = CSS.supports('field-sizing', 'content')
+
+    if (!supportsFieldSizing) {
+      // Manual auto-resize for browsers without field-sizing
+      const adjustHeight = () => {
+        textarea.style.height = 'auto'
+        textarea.style.height = `${textarea.scrollHeight}px`
+      }
+
+      // Initial adjustment
+      adjustHeight()
+
+      // Adjust on input
+      textarea.addEventListener('input', adjustHeight)
+
+      return () => {
+        textarea.removeEventListener('input', adjustHeight)
+      }
+    }
+  }, [textareaRef])
+
+  return (
+    <>
+      <style>{`
+        .auto-sizing-textarea {
+          field-sizing: content;
+          min-height: 50px;
+          max-height: 240px;
+        }
+        
+        @supports not (field-sizing: content) {
+          /* Fallback for browsers that don't support field-sizing */
+          .auto-sizing-textarea {
+            min-height: 50px;
+            max-height: 240px;
+          }
+        }
+        
+        .auto-sizing-textarea::-webkit-scrollbar {
+          width: 4px;
+        }
+        .auto-sizing-textarea::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .auto-sizing-textarea::-webkit-scrollbar-thumb {
+          background-color: rgba(155, 155, 155, 0.5);
+          border-radius: 2px;
+        }
+        .auto-sizing-textarea::-webkit-scrollbar-thumb:hover {
+          background-color: rgba(155, 155, 155, 0.7);
+        }
+      `}</style>
+      <motion.div
+        layoutId="message-input-container"
+        transition={{
+          layout: { type: 'spring', stiffness: 200, damping: 30 }
+        }}
+        onLayoutAnimationComplete={onLayoutAnimationComplete}
+        className="relative overflow-hidden px-3 z-50 w-full flex items-center gap-2 border border-border rounded-lg dark:bg-background bg-white focus-within:shadow-xl dark:focus-within:border-primary/25 transition-shadow duration-200"
+      >
+        <motion.textarea
+          layout="position"
+          ref={textareaRef}
+          value={query}
+          onChange={(e) => onInputChange(e.target.value)}
+          onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleSubmit(e)
+            }
+          }}
+          placeholder="What's on your mind?"
+          className="outline-none !text-base !bg-transparent flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-auto min-h-[50px] max-h-[240px] auto-sizing-textarea"
+          rows={1}
+        />
+
+        <motion.div
+          layout="position"
+          className="flex items-center justify-end gap-2"
+          transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
+        >
+          <AnimatePresence mode="popLayout" initial={false}>
+            {!isVoiceMode && (
+              <motion.div
+                key="reasoning"
+                layout="position"
+                transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
+              >
+                <ReasoningButton
+                  isSelected={isReasonSelected}
+                  onClick={() => setIsReasonSelected(!isReasonSelected)}
+                  disabled={isVoiceMode}
+                />
+              </motion.div>
+            )}
+            {!isVoiceMode && query.length === 0 ? (
+              <motion.div
+                key="talk"
+                layoutId="action-button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
+                className="flex items-center justify-end w-fit h-9"
+              >
+                <EnableVoiceModeButton
+                  onClick={() => {
+                    onVoiceModeChange(false)
+                  }}
+                  isVoiceReady={isVoiceReady}
+                />
+              </motion.div>
+            ) : query.length > 0 || isVoiceMode ? (
+              <motion.div
+                key="send"
+                layoutId="action-button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
+                className="flex items-center justify-end w-9 h-9"
+              >
+                <SendButton
+                  className="w-9 h-9"
+                  text={query}
+                  onSend={() => {
+                    handleCreateChat()
+                  }}
+                  isWaitingTwinResponse={false}
+                />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </>
   )
 }
 
@@ -104,9 +193,10 @@ function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          size="icon"
           onClick={onClick}
           className={cn(
-            '!px-2.5 rounded-full transition-all duration-200 shadow-none hover:shadow-lg active:shadow-sm border-none',
+            'rounded-full transition-all duration-200 shadow-none hover:shadow-lg active:shadow-sm border-none',
             isSelected
               ? '!text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
               : '!bg-muted/50 dark:!bg-muted'
@@ -148,9 +238,9 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
               key="off"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="flex items-center gap-2"
             >
@@ -182,9 +272,9 @@ export function DisableVoiceModeButton({ onClick }: VoiceModeButtonProps) {
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key="stop"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
               className="absolute inset-0 flex items-center justify-center"
             >

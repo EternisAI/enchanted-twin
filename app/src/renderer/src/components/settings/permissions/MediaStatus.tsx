@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
 import {
-  Camera,
   Mic,
   Monitor,
   CheckCircle2,
@@ -12,7 +11,7 @@ import {
 } from 'lucide-react'
 import { DetailCard } from './DetailCard'
 
-type MediaType = 'camera' | 'microphone' | 'screen'
+type MediaType = 'microphone' | 'screen'
 type MediaStatusType =
   | 'granted'
   | 'not-determined'
@@ -21,16 +20,16 @@ type MediaStatusType =
   | 'unavailable'
   | 'loading'
 
-const types: MediaType[] = ['camera', 'microphone', 'screen']
+const types: MediaType[] = ['microphone', 'screen']
 
 const typeConfig: Record<MediaType, { icon: LucideIcon; title: string }> = {
-  camera: { icon: Camera, title: 'Camera' },
+  // camera: { icon: Camera, title: 'Camera' },
   microphone: { icon: Mic, title: 'Microphone' },
   screen: { icon: Monitor, title: 'Screen Recording' }
 }
 
 const explanations: Record<MediaType, string> = {
-  camera: 'Capture your facial expressions. (coming soon)',
+  // camera: 'Capture your facial expressions. (coming soon)',
   microphone: 'Speak with your Twin naturally.',
   screen: 'Twin understands and remembers your activity.'
 }
@@ -86,12 +85,10 @@ const getStatusConfig = (status: MediaStatusType) => {
 
 export default function MediaStatus() {
   const [status, setStatus] = useState<Record<MediaType, MediaStatusType>>({
-    camera: 'loading',
     microphone: 'loading',
     screen: 'loading'
   })
   const [isLoading, setIsLoading] = useState<Record<MediaType, boolean>>({
-    camera: true,
     microphone: true,
     screen: true
   })

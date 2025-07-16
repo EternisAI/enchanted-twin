@@ -9,6 +9,9 @@ import { getToolConfig } from '../config'
 import { getMockFrequencyData } from '@renderer/lib/utils'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
 import { VoiceModeInput } from './VoiceModeInput'
+import { Button } from '@renderer/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
+import { Eye, EyeClosed } from 'lucide-react'
 
 interface VoiceModeChatViewProps {
   chat: Chat
@@ -20,6 +23,8 @@ interface VoiceModeChatViewProps {
   error: string
   isWaitingTwinResponse: boolean
   chatPrivacyDict: string | null
+  isAnonymized: boolean
+  setIsAnonymized: (isAnonymized: boolean) => void
 }
 
 export default function VoiceModeChatView({
@@ -29,7 +34,9 @@ export default function VoiceModeChatView({
   historicToolCalls,
   stopVoiceMode,
   error,
-  chatPrivacyDict
+  chatPrivacyDict,
+  isAnonymized,
+  setIsAnonymized
 }: VoiceModeChatViewProps) {
   const { isAgentSpeaking } = useVoiceAgent()
 
@@ -44,9 +51,36 @@ export default function VoiceModeChatView({
   const currentToolCall = activeToolCalls.find((tc) => !tc.isCompleted)
   const { toolUrl } = getToolConfig(currentToolCall?.name || '')
 
+  const hasUserMessages = messages.some((msg) => msg.role === Role.User)
+  const showAnonymizationToggle = hasUserMessages && chatPrivacyDict
+
   return (
     <div className="flex h-full w-full items-center ">
       <div className="flex flex-col h-full w-full items-center relative">
+        {showAnonymizationToggle && (
+          <div className="absolute top-4 right-4 z-20">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setIsAnonymized(!isAnonymized)}
+                  className="p-2 rounded-md bg-accent/80 cursor-pointer hover:bg-accent backdrop-blur-sm"
+                  variant="ghost"
+                  size="sm"
+                >
+                  {isAnonymized ? (
+                    <EyeClosed className="h-4 w-4 text-primary" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-primary" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isAnonymized ? 'Show original messages' : 'Anonymize messages'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        )}
+
         <motion.div
           className="relative flex-1 w-full"
           initial={{ opacity: 0 }}
@@ -70,7 +104,11 @@ export default function VoiceModeChatView({
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
             >
-              <UserMessageBubble message={lastUserMessage} chatPrivacyDict={chatPrivacyDict} />
+              <UserMessageBubble
+                message={lastUserMessage}
+                chatPrivacyDict={chatPrivacyDict}
+                isAnonymized={isAnonymized}
+              />
             </motion.div>
           )}
           {error && (

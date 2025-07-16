@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/log v0.4.2
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/g8rswimmer/go-twitter/v2 v2.1.5
+	github.com/gen2brain/go-fitz v1.24.15
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-openapi/loads v0.22.0
 	github.com/go-openapi/strfmt v0.23.0
@@ -18,7 +19,6 @@ require (
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
-	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.10.9
 	github.com/lnquy/cron v1.1.1
 	github.com/mark3labs/mcp-go v0.33.0
@@ -96,7 +96,7 @@ require (
 	github.com/docker/docker v28.0.1+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
@@ -135,6 +135,7 @@ require (
 	github.com/ikawaha/kagome-dict/ipa v1.2.0 // indirect
 	github.com/ikawaha/kagome/v2 v2.10.0 // indirect
 	github.com/johnbellone/grpc-middleware-sentry v0.4.0 // indirect
+	github.com/jupiterrider/ffi v0.5.0 // indirect
 	github.com/karrick/godirwalk v1.15.3 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect

@@ -2,16 +2,7 @@ import React from 'react'
 import { Message, ToolCall as ToolCallType } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
-import {
-  CheckCircle,
-  ChevronRight,
-  Eye,
-  EyeClosed,
-  Lightbulb,
-  LoaderIcon,
-  Volume2,
-  VolumeOff
-} from 'lucide-react'
+import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
 import { extractReasoningAndReply, getToolConfig } from '@renderer/components/chat/config'
 import { Badge } from '@renderer/components/ui/badge'
 import ImagePreview from './ImagePreview'
@@ -22,7 +13,7 @@ import {
   CollapsibleTrigger
 } from '@renderer/components/ui/collapsible'
 import { useTTS } from '@renderer/hooks/useTTS'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
@@ -32,15 +23,13 @@ const messageAnimation = {
 
 export function UserMessageBubble({
   message,
-  showAnonymize = false,
+  isAnonymized = false,
   chatPrivacyDict
 }: {
   message: Message
   chatPrivacyDict: string | null
-  showAnonymize?: boolean
+  isAnonymized?: boolean
 }) {
-  const [isAnonymized, setIsAnonymized] = useState(false)
-
   return (
     <motion.div
       className="flex justify-end"
@@ -50,7 +39,15 @@ export function UserMessageBubble({
     >
       <div className="flex flex-col gap-1 max-w-md">
         <div className="bg-accent text-foreground rounded-lg px-4 py-2 max-w-md relative group">
-          {message.text && <p>{anonymizeText(message.text, chatPrivacyDict, isAnonymized)}</p>}
+          {message.text && (
+            <p>
+              <AnonymizedContent
+                text={message.text}
+                chatPrivacyDict={chatPrivacyDict}
+                isAnonymized={isAnonymized}
+              />
+            </p>
+          )}
           {message.imageUrls.length > 0 && (
             <div className="grid grid-cols-4 gap-y-4 my-2">
               {message.imageUrls.map((url, i) => (
@@ -65,21 +62,6 @@ export function UserMessageBubble({
           )}
         </div>
         <div className="flex items-center gap-2 w-full">
-          {showAnonymize && (
-            <button
-              onClick={() => setIsAnonymized(!isAnonymized)}
-              className="p-1 rounded-md bg-accent cursor-pointer hover:bg-accent/50"
-              style={{ pointerEvents: 'auto' }}
-              tabIndex={-1}
-              aria-label={isAnonymized ? 'Show original message' : 'Anonymize message'}
-            >
-              {isAnonymized ? (
-                <EyeClosed className="h-4 w-4 text-primary" />
-              ) : (
-                <Eye className="h-4 w-4 text-primary" />
-              )}
-            </button>
-          )}
           <div className="text-xs text-muted-foreground">
             {new Date(message.createdAt).toLocaleTimeString()}
           </div>
@@ -89,7 +71,16 @@ export function UserMessageBubble({
   )
 }
 
-export function AssistantMessageBubble({ message }: { message: Message }) {
+export function AssistantMessageBubble({
+  message,
+  isAnonymized = false,
+  chatPrivacyDict
+}: {
+  message: Message
+  isAnonymized?: boolean
+  chatPrivacyDict: string | null
+}) {
+  console.log('chatPrivacyDict', chatPrivacyDict)
   const { speak, stop, isSpeaking } = useTTS()
   const { thinkingText, replyText } = useMemo(
     () => extractReasoningAndReply(message.text || ''),
@@ -150,12 +141,23 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
                 'mt-2 text-muted-foreground text-sm italic bg-muted p-3 rounded-lg border border-border'
               )}
             >
-              {thinkingText}
+              <AnonymizedContent
+                text={thinkingText}
+                chatPrivacyDict={chatPrivacyDict}
+                isAnonymized={isAnonymized}
+              />
             </CollapsibleContent>
           </Collapsible>
         )}
 
-        {replyText && shouldShowOriginalContent && <Markdown>{replyText}</Markdown>}
+        {replyText && shouldShowOriginalContent && (
+          <AnonymizedContent
+            text={replyText}
+            chatPrivacyDict={chatPrivacyDict}
+            isAnonymized={isAnonymized}
+            asMarkdown={true}
+          />
+        )}
         {message.imageUrls.length > 0 && (
           <div className="grid grid-cols-4 gap-y-4 my-2">
             {message.imageUrls.map((url, i) => (
@@ -276,4 +278,24 @@ const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymize
   })
 
   return <span>{parts}</span>
+}
+
+function AnonymizedContent({
+  text,
+  chatPrivacyDict,
+  isAnonymized,
+  asMarkdown = false
+}: {
+  text: string
+  chatPrivacyDict: string | null
+  isAnonymized: boolean
+  asMarkdown?: boolean
+}) {
+  const anonymizedText = anonymizeText(text, chatPrivacyDict, isAnonymized)
+
+  if (typeof anonymizedText === 'string') {
+    return asMarkdown ? <Markdown>{anonymizedText}</Markdown> : <span>{anonymizedText}</span>
+  }
+
+  return <span>{anonymizedText}</span>
 }

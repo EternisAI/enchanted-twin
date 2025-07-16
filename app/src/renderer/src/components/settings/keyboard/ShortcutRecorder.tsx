@@ -109,7 +109,7 @@ export function ShortcutRecorder({
     if (modifiers.includes('Alt')) orderedModifiers.push('Alt')
     if (modifiers.includes('Shift')) orderedModifiers.push('Shift')
 
-    return [...orderedModifiers, ...regularKeys].join(' ')
+    return [...orderedModifiers, ...regularKeys].join('+')
   }, [])
 
   useEffect(() => {
@@ -191,9 +191,8 @@ export function ShortcutRecorder({
       CommandOrControl: isMac ? '⌘' : 'Ctrl',
       Command: '⌘',
       Cmd: '⌘',
-      Meta: isMac ? '⌘' : 'Ctrl',
-      Control: 'Ctrl',
-      Ctrl: 'Ctrl',
+      Control: isMac ? '^' : 'Control',
+      Ctrl: isMac ? 'Ctrl' : 'Control',
       Alt: isMac ? '⌥' : 'Alt',
       Option: '⌥',
       Shift: '⇧',

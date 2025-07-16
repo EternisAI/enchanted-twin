@@ -291,7 +291,7 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 
 func checkPortsAvailable(ip string, ports []int) error {
 	for _, port := range ports {
-		addr := fmt.Sprintf("%s:%d", ip, port)
+		addr := net.JoinHostPort(ip, fmt.Sprintf("%d", port))
 		conn, err := net.Dial("tcp", addr)
 		if err == nil {
 			if closeErr := conn.Close(); closeErr != nil {
