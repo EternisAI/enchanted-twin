@@ -116,7 +116,7 @@ func main() {
 	}
 
 	var aiEmbeddingsService ai.Embedding
-	if envs.UseLocalModel == "true" {
+	if envs.UseLocalEmbedding == "true" {
 		logger.Info("Using local embedding model")
 		sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
 		localEmbeddingModel, err := jinaaiembedding.NewEmbedding(envs.AppDataPath, sharedLibPath)
