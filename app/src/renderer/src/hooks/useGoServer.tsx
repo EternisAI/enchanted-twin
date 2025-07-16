@@ -135,7 +135,7 @@ export function useGoServer() {
   }, [])
 
   const initializeIfNeeded = useCallback(async () => {
-    if (state.initializing) {
+    if (state.initializing || state.isRunning) {
       return { success: true }
     }
 
@@ -157,7 +157,7 @@ export function useGoServer() {
       })
       throw error
     }
-  }, [start, state.initializing])
+  }, [start, state.initializing, state.isRunning])
 
   const retry = useCallback(async () => {
     setState((prev) => ({ ...prev, error: undefined }))

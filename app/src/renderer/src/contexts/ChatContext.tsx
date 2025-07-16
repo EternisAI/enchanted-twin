@@ -139,6 +139,8 @@ export function ChatProvider({
   }, [])
 
   useMessageSubscription(chat.id, (message) => {
+    if (!isVoiceMode) return
+
     if (message.role !== Role.User) {
       upsertMessage(message)
       window.api.analytics.capture('message_received', {
@@ -146,7 +148,7 @@ export function ChatProvider({
       })
     }
 
-    if (message.role === Role.User && isVoiceMode) {
+    if (message.role === Role.User) {
       upsertMessage(message)
       window.api.analytics.capture('voice_message_sent', {
         tools: message.toolCalls.map((tool) => tool.name)
@@ -157,10 +159,10 @@ export function ChatProvider({
   useMessageStreamSubscription(chat.id, (data) => {
     const { messageId, accumulatedMessage, deanonymizedAccumulatedMessage, imageUrls } = data
     const existingMessage = messages.find((m) => m.id === messageId)
-    
+
     // Use deanonymized content for display, fallback to accumulated if not available
     const messageText = deanonymizedAccumulatedMessage || accumulatedMessage || ''
-    
+
     if (!existingMessage) {
       if (lastMessageStartTime) {
         window.api.analytics.capture('message_response_time', {

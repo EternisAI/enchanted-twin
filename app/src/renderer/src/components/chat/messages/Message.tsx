@@ -158,7 +158,7 @@ export function AssistantMessageBubble({
             asMarkdown={true}
           />
         )}
-        {message.imageUrls.length > 0 && (
+        {/* {message.imageUrls.length > 0 && (
           <div className="grid grid-cols-4 gap-y-4 my-2">
             {message.imageUrls.map((url, i) => (
               <ImagePreview
@@ -169,7 +169,7 @@ export function AssistantMessageBubble({
               />
             ))}
           </div>
-        )}
+        )} */}
         <div className="flex flex-row items-center gap-4 justify-between w-full">
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-4 items-center">
