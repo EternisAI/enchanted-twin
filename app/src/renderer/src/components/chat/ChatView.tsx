@@ -93,7 +93,7 @@ export default function ChatView({ chat }: ChatViewProps) {
   const showAnonymizationToggle = hasUserMessages && privacyDict
 
   return (
-    <div className="flex flex-col h-full w-full items-center relative">
+    <div className="flex flex-col h-full w-full items-center relative ">
       <Fade
         background="var(--color-background)"
         className="w-full h-[100px] absolute top-0 left-0 z-20 pointer-events-none"
@@ -184,8 +184,15 @@ export default function ChatView({ chat }: ChatViewProps) {
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col w-full items-center justify-center px-2">
-        <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">
+      <div className="flex flex-col w-full items-center justify-center px-2 absolute bottom-0 left-0 right-0">
+        <Fade
+          background="var(--color-background)"
+          className="w-full h-[180px] absolute bottom-0 left-0 z-0 pointer-events-none"
+          side="bottom"
+          blur="12px"
+          stop="50%"
+        />
+        <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center relative z-10">
           <VoiceModeToggle
             voiceMode={isVoiceMode}
             setVoiceMode={() => {
