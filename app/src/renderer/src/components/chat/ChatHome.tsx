@@ -481,7 +481,7 @@ export function Home() {
                             setQuery('')
                           }}
                           className={cn(
-                            'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
+                            'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md text-secondary-foreground',
                             'hover:bg-muted/80',
                             selectedIndex === index + 1 && 'bg-primary/10 text-primary'
                           )}
@@ -514,8 +514,8 @@ export function Home() {
                               }
                             }}
                             className={cn(
-                              'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
-                              'hover:bg-muted/80',
+                              'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md text-muted-foreground',
+                              'hover:bg-accent',
                               selectedIndex === index && 'bg-primary/10 text-primary',
                               isEmphasized &&
                                 'relative before:absolute before:inset-0 before:rounded-'
