@@ -43,6 +43,7 @@ class GenerateRequest(BaseModel):
 @app.post("/generate")
 async def generate(req: GenerateRequest):
     try:
+        print(f"Generating for input: {req.prompt}")
         tensor_inputs = {
             k: v.to(device) for k, v in chat_input(tokenizer, req.prompt).items()
         }
@@ -73,6 +74,7 @@ async def generate(req: GenerateRequest):
                 break
 
         extracted_json, parsed_json = extract_first_json(text)
+        print(f"Extracted JSON: {extracted_json['parsed']}")
         return {
             "genetated": text,
             "extracted": extracted_json,
