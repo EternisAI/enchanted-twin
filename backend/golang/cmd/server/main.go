@@ -116,7 +116,7 @@ func main() {
 	}
 
 	var aiEmbeddingsService ai.Embedding
-	if envs.UseLocalModel == "true" {
+	if envs.UseLocalEmbedding == "true" {
 		logger.Info("Using local embedding model")
 		sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
 		localEmbeddingModel, err := jinaaiembedding.NewEmbedding(envs.AppDataPath, sharedLibPath)
@@ -139,11 +139,6 @@ func main() {
 	// Initialize anonymizer based on type
 	var anonymizerManager *ai.AnonymizerManager
 	var localAnonymizer *llama1b.LlamaAnonymizer
-
-	// Support legacy USE_LOCAL_ANONYMIZER for backward compatibility
-	if envs.UseLocalAnonymizer == "true" {
-		envs.AnonymizerType = "local"
-	}
 
 	logger.Info("Initializing anonymizer", "type", envs.AnonymizerType)
 

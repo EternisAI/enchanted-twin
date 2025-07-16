@@ -38,7 +38,6 @@ export function registerIpcHandlers() {
 
   // Handle renderer ready state for navigation
   ipcMain.on('renderer-ready', () => {
-    log.info('Renderer process is ready for navigation')
     windowManager.processPendingNavigation()
 
     // Process restart intent if present
@@ -104,7 +103,7 @@ export function registerIpcHandlers() {
     } else {
       nativeTheme.themeSource = theme
     }
-    
+
     // Broadcast theme change to all windows
     if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
       windowManager.mainWindow.webContents.send('theme-changed', theme)
@@ -112,7 +111,7 @@ export function registerIpcHandlers() {
     if (windowManager.omnibarWindow && !windowManager.omnibarWindow.isDestroyed()) {
       windowManager.omnibarWindow.webContents.send('theme-changed', theme)
     }
-    
+
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   })
 
@@ -394,7 +393,9 @@ export function registerIpcHandlers() {
     'open-main-window-with-chat',
     async (_, chatId?: string, initialMessage?: string, reasoning?: boolean) => {
       try {
-        log.info(`Opening main window with chat: ${chatId}, message: ${initialMessage}, reasoning: ${reasoning}`)
+        log.info(
+          `Opening main window with chat: ${chatId}, message: ${initialMessage}, reasoning: ${reasoning}`
+        )
         let windowWasCreated = false
 
         // Create main window if it doesn't exist
@@ -679,11 +680,10 @@ export function registerIpcHandlers() {
       const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
       const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
 
-      log.info('Initializing Go server via IPC request')
+      log.info('Callign Initializing Go server via IPC request')
       const success = await initializeGoServer(IS_PRODUCTION, DEFAULT_BACKEND_PORT)
 
       if (success) {
-        log.info('Go server initialized successfully via IPC')
         return { success: true }
       } else {
         log.error('Failed to initialize Go server via IPC')

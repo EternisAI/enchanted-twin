@@ -38,16 +38,16 @@ const settingsTabs = [
     icon: Info,
     path: '/settings/about'
   },
-  ...(process.env.NODE_ENV === 'development'
-    ? [
-        {
-          value: 'advanced',
-          label: 'Advanced',
-          icon: Settings2,
-          path: '/settings/advanced'
-        }
-      ]
-    : [])
+  // ...(process.env.NODE_ENV === 'development'
+  // ? [
+  {
+    value: 'advanced',
+    label: 'Advanced',
+    icon: Settings2,
+    path: '/settings/advanced'
+  }
+  // ]
+  // : [])
 ]
 
 function SettingsLayout() {
