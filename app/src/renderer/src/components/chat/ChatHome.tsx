@@ -288,18 +288,21 @@ export function Home() {
 
   const initShowSuggestionsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (initShowSuggestionsTimeout.current && !showSuggestions) {
-      clearTimeout(initShowSuggestionsTimeout.current)
+    if (showSuggestions) {
+      if (initShowSuggestionsTimeout.current) {
+        clearTimeout(initShowSuggestionsTimeout.current)
+      }
+    } else {
+      initShowSuggestionsTimeout.current = setTimeout(() => {
+        setShowSuggestions(true)
+      }, 1000)
     }
-    initShowSuggestionsTimeout.current = setTimeout(() => {
-      setShowSuggestions(true)
-    }, 1000)
     return () => {
       if (initShowSuggestionsTimeout.current) {
         clearTimeout(initShowSuggestionsTimeout.current)
       }
     }
-  }, [showSuggestions])
+  }, [showSuggestions, setShowSuggestions])
 
   return (
     <motion.div
