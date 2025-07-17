@@ -99,7 +99,7 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 			ID:      "freysa-video",
 			Name:    "Freysa Video",
 			Command: "url",
-			Args:    []string{"https://freysa-video-mcp-dev.up.railway.app/mcp"},
+			Args:    []string{"https://freysa-video-mcp-production.up.railway.app/mcp"},
 			Enabled: enabled,
 			Type:    model.MCPServerTypeFreysa,
 		},
