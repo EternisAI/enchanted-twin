@@ -56,8 +56,6 @@ anonymize this:`),
 	startIndex := strings.Index(response.Content, "{")
 	endIndex := strings.LastIndex(response.Content, "}")
 	jsonStr := strings.TrimSpace(response.Content[startIndex : endIndex+1])
-
-	// Fix single quotes to double quotes for valid JSON
 	jsonStr = strings.ReplaceAll(jsonStr, "'", "\"")
 
 	var result map[string]string
