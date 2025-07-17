@@ -48,8 +48,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/localmodel/jinaaiembedding"
-	"github.com/EternisAI/enchanted-twin/pkg/localmodel/llama1b"
-	"github.com/EternisAI/enchanted-twin/pkg/localmodel/pyhttp"
+	"github.com/EternisAI/enchanted-twin/pkg/localmodel/ollama"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/microscheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
@@ -138,22 +137,14 @@ func main() {
 
 	// Initialize anonymizer based on type
 	var anonymizerManager *ai.AnonymizerManager
-	var localAnonymizer *llama1b.LlamaAnonymizer
+	var localAnonymizer ollama.OllamaClient
 
 	logger.Info("Initializing anonymizer", "type", envs.AnonymizerType)
 
 	switch envs.AnonymizerType {
 	case "local":
 		logger.Info("Using local anonymizer model")
-		// sharedLibPath := filepath.Join(envs.AppDataPath, "shared", "lib")
-
-		var err error
-		localAnonymizer, err := pyhttp.NewClient(logger)
-		// localAnonymizer, err = llama1b.NewLlamaAnonymizer(envs.AppDataPath, sharedLibPath)
-		if err != nil {
-			logger.Error("Failed to create local anonymizer model", "error", err)
-			panic(errors.Wrap(err, "Failed to create local anonymizer model"))
-		}
+		localAnonymizer = ollama.NewOllamaClient("http://localhost:11435", "qwen3-0.6b-q4_k_m")
 		logger.Info("Local anonymizer model initialized successfully")
 		anonymizerManager = ai.NewLocalAnonymizerManager(localAnonymizer, store.DB().DB, logger)
 
