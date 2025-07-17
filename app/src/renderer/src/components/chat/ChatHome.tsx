@@ -306,8 +306,8 @@ export function Home() {
             {/* Background that expands when editing */}
             <motion.div
               className={cn(
-                'absolute inset-0 rounded-lg transition-all duration-300 hover:bg-muted',
-                isEditingName ? 'bg-card' : 'bg-transparent'
+                'absolute inset-0 rounded-lg transition-all duration-300 hover:bg-popover',
+                isEditingName ? 'bg-popover' : 'bg-transparent'
               )}
               layout
             />
