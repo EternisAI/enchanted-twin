@@ -3,6 +3,7 @@ package ollama
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -17,15 +18,15 @@ type OllamaClient struct {
 	model  string
 }
 
-func NewOllamaClient(baseURL string, model string) OllamaClient {
+func NewOllamaClient(baseURL string, model string) *OllamaClient {
 	client := openai.NewClient(
 		option.WithAPIKey(""),
 		option.WithBaseURL(baseURL),
 	)
-	return OllamaClient{client: &client, model: model}
+	return &OllamaClient{client: &client, model: model}
 }
 
-func (c OllamaClient) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
+func (c *OllamaClient) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
 	completion, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: messages,
 		Model:    model,
@@ -36,7 +37,7 @@ func (c OllamaClient) Completions(ctx context.Context, messages []openai.ChatCom
 	return completion.Choices[0].Message, err
 }
 
-func (c OllamaClient) Anonymize(ctx context.Context, prompt string) (map[string]string, error) {
+func (c *OllamaClient) Anonymize(ctx context.Context, prompt string) (map[string]string, error) {
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(`/no_think You are an anonymizer.
 Return ONLY <json>{"orig": "replacement", …}</json>.
@@ -52,14 +53,21 @@ anonymize this:`),
 		return nil, err
 	}
 
+	startIndex := strings.Index(response.Content, "{")
+	endIndex := strings.LastIndex(response.Content, "}")
+	jsonStr := strings.TrimSpace(response.Content[startIndex : endIndex+1])
+
+	// Fix single quotes to double quotes for valid JSON
+	jsonStr = strings.ReplaceAll(jsonStr, "'", "\"")
+
 	var result map[string]string
-	if err := json.Unmarshal([]byte(response.Content), &result); err != nil {
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		return nil, err
 	}
 
 	return result, nil
 }
 
-func (c OllamaClient) Close() error {
+func (c *OllamaClient) Close() error {
 	return nil
 }
