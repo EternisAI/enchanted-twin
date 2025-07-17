@@ -37,7 +37,7 @@ func (c *OllamaClient) Completions(ctx context.Context, messages []openai.ChatCo
 
 func (c *OllamaClient) Anonymize(ctx context.Context, model string, prompt string) (map[string]string, error) {
 	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage("you are an anonymizer, return only in JSON"),
+		openai.SystemMessage("you are an anonymizer, return only in JSON. Example `{\"name\": \"Alice\", \"company\": \"Google\"}`"),
 		openai.UserMessage(prompt),
 	}
 
