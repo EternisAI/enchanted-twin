@@ -94,10 +94,11 @@ ${text}
       }
 
       try {
-        console.log('jsonMatch', jsonMatch)
         // Replace single quotes with double quotes for valid JSON
         const jsonString = jsonMatch[1].replace(/'/g, '"')
         const anonymizationMap = JSON.parse(jsonString)
+
+        console.log('anonymizationMap', anonymizationMap)
 
         // Apply anonymization replacements
         let anonymizedText = text
