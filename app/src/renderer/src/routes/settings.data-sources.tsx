@@ -26,7 +26,7 @@ function ImportDataSettings() {
     <SettingsContent>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex flex-col gap-6 w-full items-start justify-center  pb-10">
-          <h1 className="text-4xl tracking-tight text-center font-semibold">Connections</h1>
+          <h1 className="text-4xl tracking-tight text-center font-bold">Connections</h1>
           <TabsList>
             <TabsTrigger value="available">
               <NetworkIcon className="w-4 h-4" /> Available
