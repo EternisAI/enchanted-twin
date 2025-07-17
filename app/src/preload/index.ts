@@ -203,6 +203,11 @@ const api = {
     cleanup: () => ipcRenderer.invoke('go-server:cleanup'),
     getStatus: () => ipcRenderer.invoke('go-server:status')
   },
+  llamacpp: {
+    start: () => ipcRenderer.invoke('llamacpp:start'),
+    cleanup: () => ipcRenderer.invoke('llamacpp:cleanup'),
+    getStatus: () => ipcRenderer.invoke('llamacpp:status')
+  },
   clipboard: {
     writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
     readText: () => ipcRenderer.invoke('clipboard:readText')
