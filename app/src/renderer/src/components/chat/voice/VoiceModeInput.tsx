@@ -22,7 +22,9 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
   if (!isLiveKitSessionReady) {
     return (
       <motion.div
+        key="initializing-voice-session"
         initial={{ opacity: 0, y: 20 }}
+        exit={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className="flex flex-col gap-4 items-center pb-4"
@@ -55,7 +57,9 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
   if (microphoneStatus !== 'granted') {
     return (
       <motion.div
+        key="allow-microphone-access"
         initial={{ opacity: 0, y: 20 }}
+        exit={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className="flex flex-col gap-4 items-center pb-4"
@@ -81,7 +85,9 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
 
   return (
     <motion.div
+      key="voice-mode-input"
       initial={{ opacity: 0, y: 20 }}
+      exit={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       layout
       transition={{ duration: 0.3, ease: 'easeOut' }}

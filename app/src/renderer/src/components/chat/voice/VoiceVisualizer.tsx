@@ -41,7 +41,7 @@ export default function VoiceVisualizer({
     >
       <Canvas
         style={{ position: 'absolute', inset: 0 }}
-        camera={{ position: [0, 0, 6], fov: 60 }}
+        camera={{ position: [0, 0, 3], fov: 90 }}
         gl={{ antialias: true }}
       >
         <CubeParticles
