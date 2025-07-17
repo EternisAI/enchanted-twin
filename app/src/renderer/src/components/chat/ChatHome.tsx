@@ -311,7 +311,6 @@ export function Home() {
       transition={{ type: 'spring', stiffness: 350, damping: 55 }}
       className="flex flex-col w-full max-w-2xl mx-auto px-4 h-full justify-center"
     >
-      {/* <div className="absolute bottom-0 inset-x-0 h-[30vh] bg-radial from-transparent via-[#f00] to-[#000] origin-bottom z-10" /> */}
       {!isVoiceMode && (
         <motion.div
           key="header"
