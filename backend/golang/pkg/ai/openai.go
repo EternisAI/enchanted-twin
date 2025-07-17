@@ -128,10 +128,10 @@ func (s *Service) EnablePrivateCompletions(privateCompletions PrivateCompletions
 }
 
 // CompletionsStreamWithPrivacy provides streaming with private completions support.
-func (s *Service) CompletionsStreamWithPrivacy(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
+func (s *Service) CompletionsStreamWithPrivacy(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
 	// Always use private completions if available
 	if s.privateCompletions != nil {
-		return s.privateCompletions.CompletionsStream(ctx, messages, tools, model, s.defaultPriority, onDelta)
+		return s.privateCompletions.CompletionsStreamWithContext(ctx, conversationID, messages, tools, model, s.defaultPriority, onDelta)
 	}
 
 	// Fallback to regular streaming (without anonymization)

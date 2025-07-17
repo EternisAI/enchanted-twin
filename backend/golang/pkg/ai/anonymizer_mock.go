@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -314,19 +313,14 @@ func (m *MockAnonymizer) anonymizeContent(ctx context.Context, content string) (
 	default:
 	}
 
-	// Apply anonymization replacements (preserving token case)
-	anonymized := ApplyAnonymization(content, m.PredefinedReplacements)
-
-	// Build rules map for de-anonymization
-	rules := make(map[string]string)
+	// Use replacement trie to find actual matches and build rules
+	trie := NewReplacementTrie()
 	for original, token := range m.PredefinedReplacements {
-		if strings.Contains(content, original) ||
-			strings.Contains(strings.ToLower(content), strings.ToLower(original)) ||
-			strings.Contains(strings.ToUpper(content), strings.ToUpper(original)) {
-			rules[token] = original // Store replacement -> original mapping
-			m.logger.Debug("Applied anonymization", "original", original, "replacement", token)
-		}
+		trie.Insert(original, token)
 	}
+
+	// Apply anonymization and get the actual replacement rules used
+	anonymized, rules := trie.ReplaceAll(content)
 
 	m.logger.Debug("Anonymization complete", "originalLength", len(content), "anonymizedLength", len(anonymized), "rulesCount", len(rules))
 

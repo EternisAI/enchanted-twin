@@ -11,6 +11,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/microscheduler"
 )
 
+const (
+	// EmptyConversationID indicates memory-only mode without persistent caching.
+	EmptyConversationID = ""
+)
+
 type PrivateCompletionsService struct {
 	completionsService CompletionsService
 	anonymizerManager  *AnonymizerManager
@@ -72,7 +77,7 @@ func (s *PrivateCompletionsService) Shutdown() {
 
 func (s *PrivateCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	// Call new method with empty conversation ID (memory-only mode)
-	return s.CompletionsWithContext(ctx, "", messages, tools, model, priority)
+	return s.CompletionsWithContext(ctx, EmptyConversationID, messages, tools, model, priority)
 }
 
 func (s *PrivateCompletionsService) CompletionsWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
@@ -148,7 +153,7 @@ func (s *PrivateCompletionsService) scheduleAnonymization(ctx context.Context, c
 					"priority", priority, "conversationID", conversationID)
 			}
 
-			anonymizedMessages, _, rules, err := anonymizer.AnonymizeMessages(ctx, conversationID, messages, nil, anonymizationInterruptChan)
+			anonymizedMessages, rules, _, err := anonymizer.AnonymizeMessages(ctx, conversationID, messages, nil, anonymizationInterruptChan)
 
 			// Check for context cancellation after anonymization
 			select {
@@ -236,7 +241,7 @@ func (s *PrivateCompletionsService) deAnonymizeMessage(message openai.ChatComple
 
 func (s *PrivateCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
 	// Call new method with empty conversation ID (memory-only mode)
-	return s.CompletionsStreamWithContext(ctx, "", messages, tools, model, priority, onDelta)
+	return s.CompletionsStreamWithContext(ctx, EmptyConversationID, messages, tools, model, priority, onDelta)
 }
 
 func (s *PrivateCompletionsService) CompletionsStreamWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
