@@ -8,7 +8,6 @@ import split2 from 'split2'
 
 import { createErrorWindow, waitForBackend } from './helpers'
 import { capture } from './analytics'
-import { startAnonymiserSetup, cleanupAnonymiser } from './anonymiserManager'
 import { startLlamaCppSetup, cleanupLlamaCpp } from './llamaCppServer'
 
 let goServerProcess: ChildProcess | null = null
@@ -39,7 +38,7 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
     ? join(__dirname, '..', '..', 'resources', executable)
     : join(process.resourcesPath, 'resources', executable)
 
-  startAnonymiserSetup()
+  // startAnonymiserSetup()
   startLlamaCppSetup()
 
   if (IS_PRODUCTION) {
@@ -173,7 +172,6 @@ export function cleanupGoServer() {
     goServerProcess = null
   }
 
-  cleanupAnonymiser()
   cleanupLlamaCpp()
 }
 
