@@ -90,7 +90,7 @@ export default function Markdown({ children }: { children: string }) {
       rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
       components={{
         p: ({ children, ...props }) => (
-          <p className="font-normal leading-relaxed mb-3" {...props}>
+          <p className="font-normal leading-relaxed mb-0 [&+p]:mt-4" {...props}>
             {children}
           </p>
         ),
@@ -200,12 +200,12 @@ export default function Markdown({ children }: { children: string }) {
         ),
         hr: (props) => <hr className="my-6 border-t border-border" {...props} />,
         h1: ({ children, ...props }) => (
-          <h1 className="text-2xl font-bold mt-8 mb-4 leading-tight" {...props}>
+          <h1 className="text-2xl font-bold mt-8 mb-3 leading-tight" {...props}>
             {children}
           </h1>
         ),
         h2: ({ children, ...props }) => (
-          <h2 className="text-xl font-bold mt-6 mb-3 leading-tight" {...props}>
+          <h2 className="text-xl font-bold mt-6 mb-2 leading-tight" {...props}>
             {children}
           </h2>
         ),
