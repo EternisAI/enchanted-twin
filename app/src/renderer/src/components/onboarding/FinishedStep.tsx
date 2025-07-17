@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from '@apollo/client'
 import { gql } from '@apollo/client'
 import { OnboardingLayout } from './OnboardingLayout'
@@ -69,7 +70,7 @@ export function FinishedStep() {
   const { data } = useQuery(GET_PROFILE)
 
   const indexedSources =
-    data?.profile?.connectedDataSources?.filter((source) => source.isIndexed) || []
+    data?.profile?.connectedDataSources?.filter((source: any) => source.isIndexed) || []
 
   return (
     <OnboardingLayout
@@ -80,7 +81,7 @@ export function FinishedStep() {
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Indexed Sources</h3>
           <div className="grid gap-4">
-            {indexedSources.map((source) => (
+            {indexedSources.map((source: any) => (
               <div key={source.id} className="flex items-center gap-3 p-4 border rounded-lg">
                 <CheckCircle2 className="h-5 w-5 text-green-500" />
                 <div>
@@ -95,7 +96,7 @@ export function FinishedStep() {
         <div className="space-y-4">
           <h3 className="text-lg font-medium">What you can do now</h3>
           <div className="grid gap-4">
-            {indexedSources.map((source) => (
+            {indexedSources.map((source: any) => (
               <div key={source.id} className="space-y-3">
                 <h4 className="font-medium">{source.name}</h4>
                 <div className="grid gap-3">
