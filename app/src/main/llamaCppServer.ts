@@ -110,8 +110,7 @@ export class LlamaCppServerManager {
   private findLlamaServerExecutable(): string | null {
     const llamaCppPath = getDependencyPath('LLAMACCP')
     const possibleExecutables = [
-      path.join(llamaCppPath, 'llama-server'),
-      path.join(llamaCppPath, 'bin', 'llama-server'),
+      path.join(llamaCppPath, 'build', 'bin', 'llama-server'),
       path.join(llamaCppPath, 'llama-server.exe') // Windows
     ]
 
