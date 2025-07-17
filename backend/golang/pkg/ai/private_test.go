@@ -140,6 +140,116 @@ func TestPrivateCompletionsServiceMessageInterruption(t *testing.T) {
 	t.Logf("Successfully interrupted after %v", elapsed)
 }
 
+func TestPrivateCompletionsServiceUITasksNotInterrupted(t *testing.T) {
+	logger := log.New(nil)
+
+	// Create anonymizer with 100ms delay
+	anonymizerManager := NewMockAnonymizerManager(100*time.Millisecond, true, logger)
+	defer anonymizerManager.Shutdown()
+
+	mockService := &mockCompletionsService{
+		response: openai.ChatCompletionMessage{
+			Content: "UI task completed successfully",
+		},
+	}
+
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: mockService,
+		AnonymizerManager:  anonymizerManager,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create private service: %v", err)
+	}
+
+	ctx := context.Background()
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("UI task that should NOT be interrupted"),
+	}
+
+	start := time.Now()
+	result, err := privateService.Completions(ctx, messages, nil, "test-model", UI)
+	elapsed := time.Since(start)
+
+	t.Logf("UI task took %v", elapsed)
+
+	// UI tasks should complete successfully even with delays
+	if err != nil {
+		t.Errorf("UI task should not be interrupted, but got error: %v", err)
+	}
+
+	// Should have completed the full anonymization delay
+	if elapsed < 100*time.Millisecond {
+		t.Errorf("Expected UI task to complete full delay (>=100ms), but took %v", elapsed)
+	}
+
+	// Should have proper response
+	if result.Message.Content != "UI task completed successfully" {
+		t.Errorf("Expected proper response, got: %v", result.Message.Content)
+	}
+
+	t.Logf("UI task completed successfully after %v", elapsed)
+}
+
+func TestPrivateCompletionsServiceUITasksCanBeCanceledByContext(t *testing.T) {
+	logger := log.New(nil)
+
+	// Create anonymizer with 200ms delay
+	anonymizerManager := NewMockAnonymizerManager(200*time.Millisecond, true, logger)
+	defer anonymizerManager.Shutdown()
+
+	mockService := &mockCompletionsService{
+		response: openai.ChatCompletionMessage{
+			Content: "This response shouldn't be reached",
+		},
+	}
+
+	privateService, err := NewPrivateCompletionsService(PrivateCompletionsConfig{
+		CompletionsService: mockService,
+		AnonymizerManager:  anonymizerManager,
+		ExecutorWorkers:    1,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create private service: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("UI task that should be canceled by context"),
+	}
+
+	// Cancel the context after 100ms to interrupt the 200ms anonymization delay
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	_, err = privateService.Completions(ctx, messages, nil, "test-model", UI)
+	elapsed := time.Since(start)
+
+	t.Logf("UI task took %v", elapsed)
+
+	// Should be canceled by context
+	if err == nil {
+		t.Errorf("Expected error due to context cancellation, got nil")
+	}
+
+	// Error should indicate cancellation
+	if !strings.Contains(err.Error(), "canceled") {
+		t.Errorf("Expected error to contain 'canceled', got: %v", err)
+	}
+
+	// Should have been canceled before the full delay
+	if elapsed >= 200*time.Millisecond {
+		t.Errorf("Expected cancellation before full delay (200ms), but took %v", elapsed)
+	}
+
+	t.Logf("UI task successfully canceled by context after %v", elapsed)
+}
+
 type mockCompletionsService struct {
 	response openai.ChatCompletionMessage
 	err      error
