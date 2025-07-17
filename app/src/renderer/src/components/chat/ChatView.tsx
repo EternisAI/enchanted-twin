@@ -7,11 +7,11 @@ import VoiceModeChatView from './voice/ChatVoiceModeView'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { useChat } from '@renderer/contexts/ChatContext'
 import HolonThreadContext from '../holon/HolonThreadContext'
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Button } from '../ui/button'
-import { ArrowDown, Eye, EyeClosed } from 'lucide-react'
+import { ArrowDown } from 'lucide-react'
 import { Fade } from '../ui/blur-fade'
 import { AnimatePresence, motion } from 'framer-motion'
+import { AnonToggleButton } from './AnonToggleButton'
 
 interface ChatViewProps {
   chat: Chat
@@ -111,26 +111,7 @@ export default function ChatView({ chat }: ChatViewProps) {
                 <HolonThreadContext threadId={chat.holonThreadId} />
               )}
               {showAnonymizationToggle && (
-                <div className="absolute top-4 right-4 flex justify-end mb-2 z-40">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={() => setIsAnonymized(!isAnonymized)}
-                        className="p-2 rounded-md no-drag backdrop-blur-sm"
-                        variant="ghost"
-                      >
-                        {isAnonymized ? (
-                          <EyeClosed className="h-4 w-4 text-primary" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-primary" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{isAnonymized ? 'Show original messages' : 'Anonymize messages'}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+                <AnonToggleButton isAnonymized={isAnonymized} setIsAnonymized={setIsAnonymized} />
               )}
               <MessageList
                 messages={messages}
