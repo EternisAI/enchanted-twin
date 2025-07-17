@@ -1,12 +1,19 @@
 import { Button } from '@renderer/components/ui/button'
-import { FolderOpen, Trash2, UsersRoundIcon } from 'lucide-react'
+import { FolderOpen, Trash2, UsersRoundIcon, Server } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ContinueSetupButton } from '../ContinueSetupButton'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
 
 export default function AdminPanel() {
   const { signOut } = useAuth()
+  const {
+    status: llamacppStatus,
+    start: startLlamaCpp,
+    cleanup: cleanupLlamaCpp,
+    loading: llamacppLoading
+  } = useLlamaCpp()
   const [isLoading, setIsLoading] = useState({
     logs: false,
     app: false,
@@ -121,6 +128,50 @@ export default function AdminPanel() {
         Sign Out
       </Button>
       {process.env.NODE_ENV === 'development' && <ContinueSetupButton />}
+
+      <div className="mt-6 p-4 border rounded-lg">
+        <h3 className="text-sm font-medium mb-3 flex items-center">
+          <Server className="mr-2 h-4 w-4" />
+          LlamaCpp Server Status
+        </h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span>Status:</span>
+            <span className={llamacppStatus.isRunning ? 'text-green-600' : 'text-red-600'}>
+              {llamacppStatus.isRunning ? 'Running' : 'Stopped'}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span>Setup:</span>
+            <span className={llamacppStatus.isSetup ? 'text-green-600' : 'text-yellow-600'}>
+              {llamacppStatus.isSetup ? 'Complete' : 'Incomplete'}
+            </span>
+          </div>
+          {llamacppStatus.setupInProgress && (
+            <div className="flex justify-between">
+              <span>Setup Progress:</span>
+              <span className="text-blue-600">In Progress</span>
+            </div>
+          )}
+        </div>
+        <div className="mt-3 flex gap-2">
+          <Button
+            size="sm"
+            onClick={startLlamaCpp}
+            disabled={llamacppLoading || llamacppStatus.isRunning}
+          >
+            {llamacppLoading ? 'Starting...' : 'Start Server'}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={cleanupLlamaCpp}
+            disabled={llamacppLoading || !llamacppStatus.isRunning}
+          >
+            {llamacppLoading ? 'Stopping...' : 'Stop Server'}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
