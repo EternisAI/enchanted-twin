@@ -1,10 +1,18 @@
 import log from 'electron-log/main'
-import { AgentState, DependencyProgress, LiveKitAgentBootstrap } from './pythonManager'
+import { AgentState, DependencyProgress } from './types/pythonManager.types'
+import { LiveKitAgentBootstrap } from './livekitAgent'
 
 let livekitAgent: LiveKitAgentBootstrap | null = null
 let sessionReady = false
+let setupCompleted = false
 
 export async function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
+  // Check if LiveKit is already set up
+  if (livekitAgent && setupCompleted) {
+    log.info('LiveKit agent already set up, skipping initialization')
+    return livekitAgent
+  }
+
   const agentProgress = (data: DependencyProgress) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       log.info(`[LiveKit] Emitting launch-progress: ${data.progress}, Status: ${data.status}`)
@@ -27,16 +35,24 @@ export async function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
     }
   }
 
-  livekitAgent = new LiveKitAgentBootstrap({
-    onProgress: agentProgress,
-    onSessionReady: agentSessionReady,
-    onStateChange: agentStateChange
-  })
+  if (!livekitAgent) {
+    livekitAgent = new LiveKitAgentBootstrap({
+      onProgress: agentProgress,
+      onSessionReady: agentSessionReady,
+      onStateChange: agentStateChange
+    })
+  }
 
   try {
+    // NOTE: This assumes the Python environment (UV, Python, venv) is already set up
+    // by the application initialization process. The LiveKit agent only handles
+    // its own files and dependencies.
     await livekitAgent.setup()
+    setupCompleted = true
+    log.info('LiveKit agent setup completed successfully')
   } catch (error) {
     log.error('Failed to setup LiveKit agent environment:', error)
+    setupCompleted = false
   }
 
   return livekitAgent
@@ -105,6 +121,8 @@ export async function cleanupLiveKitAgent() {
     await livekitAgent.cleanup()
     livekitAgent = null
   }
+
+  setupCompleted = false
 }
 
 export function muteLiveKitAgent(): boolean {

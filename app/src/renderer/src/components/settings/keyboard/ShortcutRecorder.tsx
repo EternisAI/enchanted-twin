@@ -109,7 +109,7 @@ export function ShortcutRecorder({
     if (modifiers.includes('Alt')) orderedModifiers.push('Alt')
     if (modifiers.includes('Shift')) orderedModifiers.push('Shift')
 
-    return [...orderedModifiers, ...regularKeys].join(' ')
+    return [...orderedModifiers, ...regularKeys].join('+')
   }, [])
 
   useEffect(() => {
@@ -234,7 +234,7 @@ export function ShortcutRecorder({
       <Button
         variant={isRecording ? 'default' : 'outline'}
         size="sm"
-        className={cn('min-w-[120px] font-mono text-sm', isRecording && 'animate-pulse')}
+        className={cn('min-w-[120px] font-kbd text-sm', isRecording && 'animate-pulse')}
         onClick={handleClick}
       >
         {isRecording ? (
@@ -249,7 +249,7 @@ export function ShortcutRecorder({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 hover:bg-destructive/10"
+          className="h-8 w-8 hover:bg-destructive/10 font-kbd"
           onClick={() => onChange('')}
           title="Remove shortcut"
         >

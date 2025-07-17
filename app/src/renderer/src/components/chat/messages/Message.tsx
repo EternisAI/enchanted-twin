@@ -24,22 +24,34 @@ const messageAnimation = {
 export function UserMessageBubble({
   message,
   isAnonymized = false,
-  chatPrivacyDict
+  chatPrivacyDict,
+  showTimestamp = true,
+  className
 }: {
   message: Message
   chatPrivacyDict: string | null
   isAnonymized?: boolean
+  showTimestamp?: boolean
+  className?: string
 }) {
   return (
     <motion.div
-      className="flex justify-end"
+      className={cn('flex justify-end', className)}
       initial="initial"
       animate="animate"
       variants={messageAnimation}
     >
       <div className="flex flex-col gap-1 max-w-md">
         <div className="bg-accent text-foreground rounded-lg px-4 py-2 max-w-md relative group">
-          {message.text && <p>{anonymizeText(message.text, chatPrivacyDict, isAnonymized)}</p>}
+          {message.text && (
+            <p>
+              <AnonymizedContent
+                text={message.text}
+                chatPrivacyDict={chatPrivacyDict}
+                isAnonymized={isAnonymized}
+              />
+            </p>
+          )}
           {message.imageUrls.length > 0 && (
             <div className="grid grid-cols-4 gap-y-4 my-2">
               {message.imageUrls.map((url, i) => (
@@ -53,17 +65,28 @@ export function UserMessageBubble({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 w-full">
-          <div className="text-xs text-muted-foreground">
-            {new Date(message.createdAt).toLocaleTimeString()}
+        {showTimestamp && (
+          <div className="flex justify-end items-center gap-2 w-full">
+            <div className="text-[9px] text-muted-foreground font-mono">
+              {new Date(message.createdAt).toLocaleTimeString()}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </motion.div>
   )
 }
 
-export function AssistantMessageBubble({ message }: { message: Message }) {
+export function AssistantMessageBubble({
+  message,
+  isAnonymized = false,
+  chatPrivacyDict
+}: {
+  message: Message
+  isAnonymized?: boolean
+  chatPrivacyDict: string | null
+}) {
+  console.log('chatPrivacyDict', chatPrivacyDict)
   const { speak, stop, isSpeaking } = useTTS()
   const { thinkingText, replyText } = useMemo(
     () => extractReasoningAndReply(message.text || ''),
@@ -87,7 +110,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="flex flex-col text-foreground py-2 max-w-[90%] relative group">
+      <div className="flex flex-col text-foreground py-1 max-w-[90%] relative group">
         {thinkingText && (
           <Collapsible className="flex flex-col gap-2 pb-2">
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground cursor-pointer hover:underline group">
@@ -124,13 +147,24 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
                 'mt-2 text-muted-foreground text-sm italic bg-muted p-3 rounded-lg border border-border'
               )}
             >
-              {thinkingText}
+              <AnonymizedContent
+                text={thinkingText}
+                chatPrivacyDict={chatPrivacyDict}
+                isAnonymized={isAnonymized}
+              />
             </CollapsibleContent>
           </Collapsible>
         )}
 
-        {replyText && shouldShowOriginalContent && <Markdown>{replyText}</Markdown>}
-        {message.imageUrls.length > 0 && (
+        {replyText && shouldShowOriginalContent && (
+          <AnonymizedContent
+            text={replyText}
+            chatPrivacyDict={chatPrivacyDict}
+            isAnonymized={isAnonymized}
+            asMarkdown={true}
+          />
+        )}
+        {/* {message.imageUrls.length > 0 && (
           <div className="grid grid-cols-4 gap-y-4 my-2">
             {message.imageUrls.map((url, i) => (
               <ImagePreview
@@ -141,20 +175,20 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
               />
             ))}
           </div>
-        )}
-        <div className="flex flex-row items-center gap-4 justify-between w-full">
+        )} */}
+        <div className="flex flex-row items-start gap-4 justify-between w-full">
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-4 items-center">
               {message.toolCalls.map((toolCall) => (
                 <ToolCall key={toolCall.id} toolCall={toolCall} />
               ))}
             </div>
-            <div className="text-xs text-left text-muted-foreground ">
+            <div className="text-[9px] text-muted-foreground font-mono">
               {new Date(message.createdAt).toLocaleTimeString()}
             </div>
           </div>
           {replyText && replyText.trim() && (
-            <span className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="flex items-center opacity-0 focus-within:opacity-100 group-hover:opacity-100 transition-opacity">
               {isSpeaking ? (
                 <button
                   onClick={stop}
@@ -163,7 +197,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
                   tabIndex={-1}
                   aria-label="Stop message audio"
                 >
-                  <VolumeOff className="h-5 w-5 text-primary" />
+                  <VolumeOff className="h-4 w-4 text-primary" />
                 </button>
               ) : (
                 <button
@@ -173,7 +207,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
                   tabIndex={-1}
                   aria-label="Play message audio"
                 >
-                  <Volume2 className="h-5 w-5 text-primary" />
+                  <Volume2 className="h-4 w-4 text-primary" />
                 </button>
               )}
             </span>
@@ -235,7 +269,7 @@ const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymize
               return (
                 <span
                   key={`${original}-${index}`}
-                  className="bg-muted-foreground text-secondary px-1.25 py-0.25 rounded text-foreground font-medium"
+                  className="bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium"
                 >
                   {replacement}
                 </span>
@@ -250,4 +284,44 @@ const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymize
   })
 
   return <span>{parts}</span>
+}
+
+function anonymizeTextForMarkdown(
+  text: string,
+  privacyDictJson: string | null,
+  isAnonymized: boolean
+): string {
+  if (!privacyDictJson || !isAnonymized) return text
+
+  const privacyDict = JSON.parse(privacyDictJson) as Record<string, string>
+
+  let result = text
+
+  Object.entries(privacyDict).forEach(([original, replacement]) => {
+    const regex = new RegExp(`(${original})`, 'gi')
+    result = result.replace(regex, () => {
+      return `<span class="bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium">${replacement}</span>`
+    })
+  })
+
+  return result
+}
+
+function AnonymizedContent({
+  text,
+  chatPrivacyDict,
+  isAnonymized,
+  asMarkdown = false
+}: {
+  text: string
+  chatPrivacyDict: string | null
+  isAnonymized: boolean
+  asMarkdown?: boolean
+}) {
+  if (asMarkdown) {
+    const mdText = anonymizeTextForMarkdown(text, chatPrivacyDict, isAnonymized)
+    return <Markdown>{mdText}</Markdown>
+  } else {
+    return anonymizeText(text, chatPrivacyDict, isAnonymized)
+  }
 }

@@ -4,6 +4,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
@@ -16,16 +17,15 @@ type Config struct {
 	BaseUrl string
 }
 
-var (
-	_ Embedding  = (*Service)(nil)
-	_ Completion = (*Service)(nil)
-)
+var _ Embedding = (*Service)(nil)
 
 type Service struct {
-	client         *openai.Client
-	logger         *log.Logger
-	getAccessToken func() (string, error)
-	opts           []option.RequestOption
+	client             *openai.Client
+	logger             *log.Logger
+	getAccessToken     func() (string, error)
+	opts               []option.RequestOption
+	privateCompletions PrivateCompletions // Optional private completions service
+	defaultPriority    Priority           // Default priority for private completions
 }
 
 func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Service {
@@ -77,13 +77,130 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 	return completion.Choices[0].Message, nil
 }
 
-func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
-	return s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
+// Completions provides the main completion interface - now always returns PrivateCompletionResult.
+func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+	// Always use private completions (with fallback for backward compatibility)
+	if s.privateCompletions != nil {
+		return s.privateCompletions.Completions(ctx, messages, tools, model, priority)
+	}
+
+	// Fallback to regular completion and wrap in PrivateCompletionResult
+	message, err := s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
 		Messages:    messages,
 		Model:       model,
 		Tools:       tools,
 		Temperature: param.Opt[float64]{Value: 1.0},
 	})
+	if err != nil {
+		return PrivateCompletionResult{}, err
+	}
+
+	return PrivateCompletionResult{
+		Message:          message,
+		ReplacementRules: make(map[string]string), // Empty rules when not using private completions
+	}, nil
+}
+
+// RawCompletions bypasses private completions and calls the underlying completion service directly.
+// This is used internally by the private completions service to avoid circular dependencies.
+func (s *Service) RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error) {
+	// Always call the raw completion method, bypassing private completions
+	message, err := s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
+		Messages:    messages,
+		Model:       model,
+		Tools:       tools,
+		Temperature: param.Opt[float64]{Value: 1.0},
+	})
+	if err != nil {
+		return PrivateCompletionResult{}, err
+	}
+
+	return PrivateCompletionResult{
+		Message:          message,
+		ReplacementRules: make(map[string]string), // Empty rules when not using private completions
+	}, nil
+}
+
+// EnablePrivateCompletions configures the service to use private completions.
+func (s *Service) EnablePrivateCompletions(privateCompletions PrivateCompletions, defaultPriority Priority) {
+	s.privateCompletions = privateCompletions
+	s.defaultPriority = defaultPriority
+}
+
+// CompletionsStreamWithPrivacy provides streaming with private completions support.
+func (s *Service) CompletionsStreamWithPrivacy(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
+	// Always use private completions if available
+	if s.privateCompletions != nil {
+		return s.privateCompletions.CompletionsStreamWithContext(ctx, conversationID, messages, tools, model, s.defaultPriority, onDelta)
+	}
+
+	// Fallback to regular streaming (without anonymization)
+	stream := s.CompletionsStream(ctx, messages, tools, model)
+
+	var accumulatedContent strings.Builder
+	var finalMessage openai.ChatCompletionMessage
+	var toolCalls []openai.ChatCompletionMessageToolCall
+
+fallbackLoop:
+	for {
+		select {
+		case delta, ok := <-stream.Content:
+			if !ok {
+				stream.Content = nil
+			} else {
+				accumulatedContent.WriteString(delta.ContentDelta)
+				currentAccumulated := accumulatedContent.String()
+
+				// Call onDelta with regular content (no anonymization)
+				if onDelta != nil {
+					onDelta(StreamDelta{
+						ContentDelta:                   delta.ContentDelta,
+						IsCompleted:                    delta.IsCompleted,
+						AccumulatedAnonymizedMessage:   currentAccumulated, // Same content
+						AccumulatedDeanonymizedMessage: currentAccumulated, // Same content
+					})
+				}
+
+				if delta.IsCompleted {
+					finalMessage.Content = currentAccumulated
+					finalMessage.Role = "assistant"
+				}
+			}
+
+		case toolCall, ok := <-stream.ToolCalls:
+			if !ok {
+				stream.ToolCalls = nil
+			} else {
+				toolCalls = append(toolCalls, toolCall)
+			}
+
+		case err, ok := <-stream.Err:
+			if !ok {
+				stream.Err = nil
+			} else {
+				if err != nil {
+					return PrivateCompletionResult{}, err
+				}
+			}
+
+		case <-ctx.Done():
+			return PrivateCompletionResult{}, ctx.Err()
+		}
+
+		// Check if all channels are closed
+		if stream.Content == nil && stream.ToolCalls == nil && stream.Err == nil {
+			break fallbackLoop
+		}
+	}
+
+	if len(toolCalls) > 0 {
+		finalMessage.ToolCalls = toolCalls
+	}
+
+	return PrivateCompletionResult{
+		Message:          finalMessage,
+		ReplacementRules: make(map[string]string), // Empty rules when not using private completions
+	}, nil
 }
 
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {

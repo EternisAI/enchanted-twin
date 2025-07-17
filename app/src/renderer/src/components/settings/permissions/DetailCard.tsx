@@ -38,9 +38,9 @@ export function DetailCard({
           <IconComponent className={cn('h-7 w-7', statusInfo.color)} />
         </IconContainer>
         <div className="flex flex-col w-full">
-          <span className="font-semibold capitalize leading-none text-lg">{title}</span>
+          <span className="font-semibold capitalize leading-none text-base">{title}</span>
           {explanation && (
-            <p className="text-sm text-muted-foreground mt-1 text-balance">{explanation}</p>
+            <p className="text-xs text-muted-foreground mt-1 text-balance">{explanation}</p>
           )}
         </div>
         <Button variant="outline" onClick={onButtonClick} disabled={isLoading}>

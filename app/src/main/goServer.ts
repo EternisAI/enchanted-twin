@@ -8,12 +8,15 @@ import split2 from 'split2'
 
 import { createErrorWindow, waitForBackend } from './helpers'
 import { capture } from './analytics'
+import { startAnonymiserSetup, cleanupAnonymiser } from './anonymiserManager'
 
 let goServerProcess: ChildProcess | null = null
-// let splashWindow: BrowserWindow | null = null
 
 export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND_PORT: number) {
-  // splashWindow = createSplashWindow()
+  if (goServerProcess && !goServerProcess.killed) {
+    log.info('[GO] Go server is already running, skipping initialization')
+    return true
+  }
 
   const userDataPath = app.getPath('userData')
   const dbDir = join(userDataPath, 'db')
@@ -35,19 +38,13 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
     ? join(__dirname, '..', '..', 'resources', executable)
     : join(process.resourcesPath, 'resources', executable)
 
+  startAnonymiserSetup()
+
   if (IS_PRODUCTION) {
     const success = await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
-    // if (splashWindow && !splashWindow.isDestroyed()) {
-    //   splashWindow.close()
-    //   splashWindow = null
-    // }
     return success
   } else {
     log.info('Running in development mode - packaged Go server not started')
-    // if (splashWindow && !splashWindow.isDestroyed()) {
-    //   splashWindow.close()
-    //   splashWindow = null
-    // }
     return true
   }
 }
@@ -173,6 +170,8 @@ export function cleanupGoServer() {
     }
     goServerProcess = null
   }
+
+  cleanupAnonymiser()
 }
 
 export function isGoServerRunning(): boolean {

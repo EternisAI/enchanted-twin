@@ -16,7 +16,7 @@ export default function MessageList({
   isAnonymized = false
 }: MessageListProps) {
   return (
-    <div className="flex flex-col gap-10 w-full">
+    <div className="flex flex-col gap-5 w-full pb-20">
       {messages.map((msg) =>
         msg.role === Role.User ? (
           <UserMessageBubble
@@ -26,7 +26,12 @@ export default function MessageList({
             chatPrivacyDict={chatPrivacyDict}
           />
         ) : (
-          <AssistantMessageBubble key={msg.id} message={msg} />
+          <AssistantMessageBubble
+            key={msg.id}
+            message={msg}
+            isAnonymized={isAnonymized}
+            chatPrivacyDict={chatPrivacyDict}
+          />
         )
       )}
       {isWaitingTwinResponse && (

@@ -127,7 +127,7 @@ export function OnboardingVoiceAnimation({
   }, [run, getFreqData, layerCount])
 
   return (
-    <div className="absolute top-[535px] left-0 w-screen h-screen flex justify-center items-center overflow-hidden pointer-events-none">
+    <div className="absolute bottom-0 translate-y-2/3 left-0 w-screen h-screen flex justify-center items-center  pointer-events-none">
       {sizes.map((size, index) => (
         <div
           key={size}

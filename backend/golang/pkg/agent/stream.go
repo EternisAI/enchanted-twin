@@ -4,23 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/openai/openai-go"
-	"github.com/pkg/errors"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-type StreamDelta struct {
-	ContentDelta string
-	IsCompleted  bool
-	ImageURLs    []string
-}
+type StreamDelta = ai.StreamDelta
 
-func (a *Agent) ExecuteStream(
+func (a *Agent) ExecuteStreamWithPrivacy(
 	ctx context.Context,
+	conversationID string,
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
 	onDelta func(StreamDelta),
@@ -35,140 +31,92 @@ func (a *Agent) ExecuteStream(
 		toolMap[d.Function.Name] = t
 	}
 
-	var (
-		finalContent string
-		allCalls     []openai.ChatCompletionMessageToolCall
-		allResults   []types.ToolResult
-		allImages    []string
-	)
-
-	runTool := func(tc openai.ChatCompletionMessageToolCall) (types.ToolResult, error) {
-		a.logger.Debug("Pre tool callback", "tool_call", tc)
-		if a.PreToolCallback != nil {
-			a.PreToolCallback(tc)
-		}
-		tool, ok := toolMap[tc.Function.Name]
-		if !ok {
-			return nil, fmt.Errorf("tool %q not found", tc.Function.Name)
-		}
-		var args map[string]any
-		if tc.Function.Arguments != "" {
-			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-				a.logger.Error("failed to unmarshal tool arguments", "error", err, "arguments", tc.Function.Arguments)
-				return nil, errors.Wrap(err, "failed to unmarshal tool arguments")
-			}
-		}
-		toolResult, err := tool.Execute(ctx, args)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to execute tool")
-		}
-
-		a.logger.Debug("Post tool callback", "result", toolResult)
-		if a.PostToolCallback != nil {
-			a.PostToolCallback(tc, toolResult)
-		}
-
-		if urls := toolResult.ImageURLs(); len(urls) > 0 {
-			allImages = append(allImages, urls...)
-		}
-		return toolResult, nil
-	}
-
 	languageModel := a.CompletionsModel
 	if reasoning {
 		languageModel = a.ReasoningModel
 	}
 
-	for step := 0; step < MAX_STEPS; step++ {
-		stepContent := ""
-		stepCalls := []openai.ChatCompletionMessageToolCall{}
-		stepResults := []types.ToolResult{}
+	var allToolCalls []openai.ChatCompletionMessageToolCall
+	var allToolResults []types.ToolResult
+	var allImageURLs []string
+	var finalContent string
+	var finalReplacementRules map[string]string
+	var toolErrors []string
 
-		stream := a.aiService.CompletionsStream(ctx, messages, toolDefs, languageModel)
-
-	loop:
-		for {
-			select {
-			case delta, ok := <-stream.Content:
-				if ok {
-					stepContent += delta.ContentDelta
-					if onDelta != nil {
-						onDelta(StreamDelta{
-							ContentDelta: delta.ContentDelta,
-							IsCompleted:  delta.IsCompleted,
-						})
-					}
-				} else {
-					stream.Content = nil
-				}
-
-			case tc, ok := <-stream.ToolCalls:
-				a.logger.Debug("stream tool call", "tool_call", tc.RawJSON())
-				if ok {
-					res, err := runTool(tc)
-					if err != nil {
-						return AgentResponse{}, err
-					}
-					stepCalls = append(stepCalls, tc)
-					stepResults = append(stepResults, res)
-
-					// Send image URLs if any
-					imageURLs := res.ImageURLs()
-					if len(imageURLs) > 0 {
-						onDelta(StreamDelta{
-							ImageURLs: imageURLs,
-						})
-					}
-				} else {
-					stream.ToolCalls = nil
-				}
-
-			case err, ok := <-stream.Err:
-				if ok && err != nil {
-					return AgentResponse{}, err
-				}
-				stream.Err = nil
-
-			case <-ctx.Done():
-				return AgentResponse{}, ctx.Err()
-			}
-
-			if stream.Content == nil && stream.ToolCalls == nil && stream.Err == nil {
-				break loop
-			}
+	for currentStep := 0; currentStep < MAX_STEPS; currentStep++ {
+		result, err := a.aiService.CompletionsStreamWithPrivacy(ctx, conversationID, messages, toolDefs, languageModel, onDelta)
+		if err != nil {
+			return AgentResponse{}, err
 		}
 
-		// append chat messages for next round
-		if stepContent != "" || len(stepCalls) > 0 {
-			messages = append(messages, openai.ChatCompletionMessage{
-				Role:      "assistant",
-				Content:   stepContent,
-				ToolCalls: stepCalls,
-			}.ToParam())
-		}
-		for i, call := range stepCalls {
-			messages = append(messages, openai.ToolMessage(stepResults[i].Content(), call.ID))
-		}
+		finalContent = result.Message.Content
+		finalReplacementRules = result.ReplacementRules
+		messages = append(messages, result.Message.ToParam())
 
-		// keep global history
-		allCalls = append(allCalls, stepCalls...)
-		allResults = append(allResults, stepResults...)
-		if stepContent != "" {
-			finalContent = stepContent
-		}
-
-		// finished when no tool-calls in this step
-		if len(stepCalls) == 0 {
+		if len(result.Message.ToolCalls) == 0 {
 			break
 		}
-		// small yield helps fairness when tight-looping
-		time.Sleep(0)
+
+		for _, toolCall := range result.Message.ToolCalls {
+			allToolCalls = append(allToolCalls, toolCall)
+
+			if a.PreToolCallback != nil {
+				a.PreToolCallback(toolCall)
+			}
+
+			tool, exists := toolMap[toolCall.Function.Name]
+			if !exists {
+				err := fmt.Sprintf("Tool not found: %s", toolCall.Function.Name)
+				a.logger.Error("Tool not found", "tool_name", toolCall.Function.Name)
+				toolErrors = append(toolErrors, err)
+				continue
+			}
+
+			var args map[string]interface{}
+			if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+				errorMsg := fmt.Sprintf("Failed to parse arguments for tool %s: %v", toolCall.Function.Name, err)
+				a.logger.Error("Failed to parse tool arguments", "error", err)
+				toolErrors = append(toolErrors, errorMsg)
+				continue
+			}
+
+			deAnonymizedArgs := make(map[string]interface{})
+			for key, value := range args {
+				if strValue, ok := value.(string); ok {
+					if realValue, exists := result.ReplacementRules[strValue]; exists {
+						deAnonymizedArgs[key] = realValue
+					} else {
+						deAnonymizedArgs[key] = value
+					}
+				} else {
+					deAnonymizedArgs[key] = value
+				}
+			}
+
+			toolResult, err := tool.Execute(ctx, deAnonymizedArgs)
+			if err != nil {
+				errorMsg := fmt.Sprintf("Tool execution failed for %s: %v", toolCall.Function.Name, err)
+				a.logger.Error("Tool execution failed", "tool_name", toolCall.Function.Name, "error", err)
+				toolErrors = append(toolErrors, errorMsg)
+				continue
+			}
+
+			if a.PostToolCallback != nil {
+				a.PostToolCallback(toolCall, toolResult)
+			}
+
+			allToolResults = append(allToolResults, toolResult)
+			messages = append(messages, openai.ToolMessage(toolResult.Content(), toolCall.ID))
+			allImageURLs = append(allImageURLs, toolResult.ImageURLs()...)
+		}
 	}
 
 	return AgentResponse{
-		Content:     finalContent,
-		ToolCalls:   allCalls,
-		ToolResults: allResults,
-		ImageURLs:   allImages,
+		Content:          finalContent,
+		ToolCalls:        allToolCalls,
+		ToolResults:      allToolResults,
+		ImageURLs:        allImageURLs,
+		ReplacementRules: finalReplacementRules,
+		Errors:           toolErrors,
 	}, nil
 }
