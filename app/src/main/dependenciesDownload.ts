@@ -30,6 +30,13 @@ const DEPENDENCIES_CONFIGS: Record<
     ),
     needsExtraction: true
   },
+  LLAMACCP: {
+    //@TODO: Add different versions for linux, windows and intel mac
+    url: 'https://github.com/ggml-org/llama.cpp/releases/download/b5916/llama-b5916-bin-macos-arm64.zip',
+    name: 'llamacpp',
+    dir: path.join(DEPENDENCIES_DIR, 'models', 'llamacpp'),
+    needsExtraction: true
+  },
   onnx: {
     url:
       process.platform === 'darwin' && process.arch === 'arm64'
@@ -113,7 +120,8 @@ export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
     embeddings: isDependencyProperlyDownloaded('embeddings'),
     anonymizer: isDependencyProperlyDownloaded('anonymizer'),
     onnx: isDependencyProperlyDownloaded('onnx'),
-    LLMCLI: isDependencyProperlyDownloaded('LLMCLI')
+    LLMCLI: isDependencyProperlyDownloaded('LLMCLI'),
+    LLAMACCP: isDependencyProperlyDownloaded('LLAMACCP')
   }
 }
 
