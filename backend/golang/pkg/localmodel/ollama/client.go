@@ -3,6 +3,7 @@ package ollama
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/log"
@@ -39,6 +40,28 @@ func (c *OllamaClient) Completions(ctx context.Context, messages []openai.ChatCo
 	return completion.Choices[0].Message, err
 }
 
+func (c *OllamaClient) deserializeAnonymizationResponse(content string) (map[string]string, error) {
+	startIndex := strings.Index(content, "{")
+	if startIndex == -1 {
+		return nil, fmt.Errorf("no JSON object found in response")
+	}
+
+	endIndex := strings.LastIndex(content, "}")
+	if endIndex == -1 || endIndex <= startIndex {
+		return nil, fmt.Errorf("malformed JSON object in response")
+	}
+
+	jsonStr := strings.TrimSpace(content[startIndex : endIndex+1])
+	jsonStr = strings.ReplaceAll(jsonStr, "'", "\"")
+
+	var result map[string]string
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+	}
+
+	return result, nil
+}
+
 func (c *OllamaClient) Anonymize(ctx context.Context, prompt string) (map[string]string, error) {
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(`/no_think You are an anonymizer.
@@ -50,23 +73,31 @@ anonymize this:`),
 		openai.UserMessage(prompt),
 	}
 
-	response, err := c.Completions(ctx, messages, nil, c.model)
-	if err != nil {
-		return nil, err
+	const maxRetries = 3
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		response, err := c.Completions(ctx, messages, nil, c.model)
+		if err != nil {
+			lastErr = err
+			c.logger.Warn("Anonymization completion failed", "attempt", attempt, "error", err)
+			continue
+		}
+
+		c.logger.Info("Local anonymizer response", "attempt", attempt, "original", prompt, "content", response.Content)
+
+		result, err := c.deserializeAnonymizationResponse(response.Content)
+		if err != nil {
+			lastErr = err
+			c.logger.Warn("Anonymization deserialization failed", "attempt", attempt, "error", err)
+			continue
+		}
+		c.logger.Info("Anonymization result", "result", result)
+
+		return result, nil
 	}
-	c.logger.Info("Local anonymizer response", "content", response.Content)
 
-	startIndex := strings.Index(response.Content, "{")
-	endIndex := strings.LastIndex(response.Content, "}")
-	jsonStr := strings.TrimSpace(response.Content[startIndex : endIndex+1])
-	jsonStr = strings.ReplaceAll(jsonStr, "'", "\"")
-
-	var result map[string]string
-	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	return nil, fmt.Errorf("anonymization failed after %d attempts: %w", maxRetries, lastErr)
 }
 
 func (c *OllamaClient) Close() error {
