@@ -115,7 +115,7 @@ export default function ChatInputBox({
             }
           }}
           placeholder="What's on your mind?"
-          className="outline-none !text-base !bg-transparent flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-auto min-h-[50px] max-h-[240px] auto-sizing-textarea"
+          className="outline-none !bg-transparent flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-auto min-h-[50px] max-h-[240px] auto-sizing-textarea"
           rows={1}
         />
 

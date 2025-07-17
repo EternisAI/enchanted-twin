@@ -91,7 +91,7 @@ export default function MessageInput({
           rows={1}
           autoFocus
           placeholder={placeholder}
-          className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
+          className="flex-1 placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
         />
         <div className="flex justify-end items-center gap-3">
           {!voiceMode && (
