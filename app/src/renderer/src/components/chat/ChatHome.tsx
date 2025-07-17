@@ -23,6 +23,7 @@ import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { VoiceModeInput } from './voice/VoiceModeInput'
 import { Button } from '../ui/button'
 import { XIcon, CheckIcon } from 'lucide-react'
+import { anonymizeText } from '@renderer/lib/utils/anonymizer'
 
 interface IndexRouteSearch {
   focusInput?: string
@@ -167,10 +168,12 @@ export function Home() {
 
   const handleCreateChat = useCallback(
     async (chatTitle?: string, isVoiceMode?: boolean) => {
-      const message = query || chatTitle || ''
-      if (!message.trim()) return
+      const userMessage = query || chatTitle || ''
+      if (!userMessage.trim()) return
 
       try {
+        const message = await anonymizeText(userMessage)
+
         const reducedMessage = message.length > 100 ? message.slice(0, 100) + '...' : message
         const { data: createData } = await createChat({
           variables: {
@@ -183,13 +186,13 @@ export function Home() {
         if (newChatId) {
           navigate({
             to: `/chat/${newChatId}`,
-            search: { initialMessage: query, reasoning: isReasonSelected }
+            search: { initialMessage: message, reasoning: isReasonSelected }
           })
 
           sendMessage({
             variables: {
               chatId: newChatId,
-              text: query,
+              text: message,
               reasoning: isReasonSelected,
               voice: isVoiceMode || false
             }

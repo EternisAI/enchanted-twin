@@ -17,4 +17,3 @@ export {
 // Re-export managers
 export { PythonEnvironmentManager } from './pythonEnvironmentManager'
 export { LiveKitAgentBootstrap } from './livekitAgent'
-export { AnonymiserManager } from './anonymiserManager'
