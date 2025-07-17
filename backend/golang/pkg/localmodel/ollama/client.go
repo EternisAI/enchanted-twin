@@ -2,10 +2,12 @@ package ollama
 
 import (
 	"context"
+	"encoding/json"
 
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
+
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 var _ ai.Completion = (*OllamaClient)(nil)
@@ -31,4 +33,23 @@ func (c *OllamaClient) Completions(ctx context.Context, messages []openai.ChatCo
 		Model:    model,
 	})
 	return completion.Choices[0].Message, err
+}
+
+func (c *OllamaClient) Anonymize(ctx context.Context, prompt string) (map[string]string, error) {
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage("you are an anonymizer, return only in JSON"),
+		openai.UserMessage(prompt),
+	}
+
+	response, err := c.Completions(ctx, messages, nil, "")
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]string
+	if err := json.Unmarshal([]byte(response.Content), &result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
