@@ -6,7 +6,7 @@ import {
 } from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
 import { toast } from 'sonner'
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { Skeleton } from '@renderer/components/ui/skeleton'
 import { motion } from 'framer-motion'
 import { PROVIDER_CONFIG } from '@renderer/constants/mcpProviders'
@@ -40,24 +40,6 @@ export default function MCPPanel() {
 
   const allMcpServers = useMemo(() => data?.getMCPServers || [], [data])
 
-  // Enchanted server is only allowed if Google is connected
-  const hasGoogleConnected = useMemo(
-    () => allMcpServers.some((server) => server.type === McpServerType.Google && server.connected),
-    [allMcpServers]
-  )
-
-  useEffect(() => {
-    if (allMcpServers.length === 0) return
-
-    const enchantedServer = allMcpServers.find(
-      (server) => server.type === McpServerType.Enchanted && server.connected
-    )
-
-    if (enchantedServer && !hasGoogleConnected) {
-      deleteMcpServer({ variables: { id: enchantedServer.id } })
-    }
-  }, [allMcpServers, hasGoogleConnected, deleteMcpServer])
-
   const serversByType = useMemo(() => {
     const grouped = allMcpServers.reduce(
       (acc, server) => {
@@ -70,16 +52,8 @@ export default function MCPPanel() {
       {} as Partial<Record<McpServerType, typeof allMcpServers>>
     )
 
-    // Filter out Enchanted servers when Google isn't connected
-    if (!hasGoogleConnected && McpServerType.Enchanted in grouped) {
-      const enchantedGroup = grouped[McpServerType.Enchanted]
-      if (enchantedGroup !== undefined) {
-        delete grouped[McpServerType.Enchanted]
-      }
-    }
-
     return grouped
-  }, [allMcpServers, hasGoogleConnected])
+  }, [allMcpServers])
 
   const serverTypes = useMemo(() => {
     return Object.keys(serversByType)

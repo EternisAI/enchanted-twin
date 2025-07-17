@@ -12,7 +12,10 @@ import { useMutation, useQuery } from '@apollo/client'
 import {
   StoreTokenDocument,
   GetWhitelistStatusDocument,
-  ActivateInviteCodeDocument
+  ActivateInviteCodeDocument,
+  ConnectMcpServerDocument,
+  McpServerType,
+  GetMcpServersDocument
 } from '@renderer/graphql/generated/graphql'
 import { toast } from 'sonner'
 
@@ -74,6 +77,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   })
 
+  const [connectMcpServer] = useMutation(ConnectMcpServerDocument, {
+    onCompleted: () => {
+      console.log('[Auth] Enchanted MCP server auto-connected successfully')
+    },
+    onError: (error) => {
+      console.error('[Auth] Failed to auto-connect Enchanted MCP server:', error)
+    }
+  })
+
+  const { data: mcpServersData } = useQuery(GetMcpServersDocument, {
+    skip: !user || !hasUpdatedToken,
+    fetchPolicy: 'network-only'
+  })
+
   const activateInviteCode = async (inviteCode: string) => {
     if (!inviteCode.trim()) {
       throw new Error('Please enter an invite code')
@@ -115,6 +132,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearInterval(interval)
     }
   }, [user, storeToken])
+
+  // Auto-connect to Enchanted MCP server after successful login
+  useEffect(() => {
+    if (user && hasUpdatedToken && mcpServersData) {
+      const autoConnectEnchantedMCP = async () => {
+        try {
+          const enchantedServer = mcpServersData.getMCPServers?.find(
+            server => server.type === McpServerType.Enchanted && server.connected
+          )
+          
+          if (enchantedServer) {
+            console.log('[Auth] Enchanted MCP server already connected, skipping auto-connect')
+            return
+          }
+
+          console.log('[Auth] Auto-connecting to Enchanted MCP server...')
+          await connectMcpServer({
+            variables: {
+              input: {
+                name: 'Starter',
+                type: McpServerType.Enchanted,
+                command: 'npx',
+                args: [],
+                envs: []
+              }
+            }
+          })
+        } catch (error) {
+          console.error('[Auth] Auto-connect failed, user can connect manually:', error)
+        }
+      }
+
+      autoConnectEnchantedMCP()
+    }
+  }, [user, hasUpdatedToken, mcpServersData, connectMcpServer])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
