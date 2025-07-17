@@ -207,7 +207,8 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
 
           <Button
             variant="ghost"
-            className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group"
+            data-active={location.pathname === '/tasks'}
+            className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent"
             onClick={handleNavigateTasks}
           >
             <CheckSquare className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
@@ -216,7 +217,8 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
 
           <Button
             variant="ghost"
-            className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group"
+            data-active={location.pathname === '/holon'}
+            className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent"
             onClick={() => navigate({ to: '/holon' })}
           >
             <Globe className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
