@@ -137,7 +137,7 @@ func main() {
 
 	// Initialize anonymizer based on type
 	var anonymizerManager *ai.AnonymizerManager
-	var localAnonymizer ollama.OllamaClient
+	var localAnonymizer *ollama.OllamaClient
 
 	logger.Info("Initializing anonymizer", "type", envs.AnonymizerType)
 

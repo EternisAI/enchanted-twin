@@ -34,7 +34,7 @@ export class LlamaCppServerManager {
   private readonly modelPath: string
   private readonly port: number
 
-  constructor(modelPath: string, port: number = 8000) {
+  constructor(modelPath: string, port: number = 11435) {
     this.modelPath = modelPath
     this.port = port
   }
@@ -189,7 +189,7 @@ export async function startLlamaCppSetup(): Promise<void> {
 
     // Create instance only if it doesn't exist
     if (!llamaCppInstance) {
-      llamaCppInstance = new LlamaCppServerManager(modelPath, 8000)
+      llamaCppInstance = new LlamaCppServerManager(modelPath, 11435)
     }
 
     await llamaCppInstance.run()
