@@ -68,7 +68,7 @@ export function ContextCard() {
   return (
     <motion.div
       className={cn(
-        'relative bg-transparent !w-full rounded-lg p-2 hover:bg-muted focus-within:bg-muted transition-colors',
+        'relative bg-transparent !w-full rounded-lg p-2 hover:bg-muted focus-within:bg-muted transition-colors max-w-md mx-auto',
         isEditing && '!bg-card'
       )}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
@@ -135,10 +135,8 @@ export function ContextCard() {
                       placeholder="Share something about yourself..."
                       onClick={() => !isEditing && setIsEditing(true)}
                       className={cn(
-                        'w-full max-w-full text-sm !bg-transparent hover:bg-transparent outline-none border-none resize-none transition-colors p-2 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
-                        !isEditing
-                          ? 'min-h-0 w-fit max-h-[150px] border-transparent'
-                          : 'w-fit max-h-[150px]'
+                        'w-full  text-sm !bg-transparent hover:bg-transparent outline-none border-none resize-none transition-colors p-2 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                        !isEditing ? 'min-h-0 max-h-[150px] border-transparent' : 'max-h-[150px]'
                       )}
                       style={{}}
                       autoFocus={isEditing}

@@ -7,9 +7,7 @@ import VoiceModeChatView from './voice/ChatVoiceModeView'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { useChat } from '@renderer/contexts/ChatContext'
 import HolonThreadContext from '../holon/HolonThreadContext'
-import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
-import { Switch } from '../ui/switch'
 import { Button } from '../ui/button'
 import { ArrowDown, Eye, EyeClosed } from 'lucide-react'
 import { Fade } from '../ui/blur-fade'
@@ -193,21 +191,19 @@ export default function ChatView({ chat }: ChatViewProps) {
           stop="50%"
         />
         <div className="pb-4 w-full max-w-3xl flex flex-col gap-4 justify-center items-center relative z-10">
-          <VoiceModeToggle
-            voiceMode={isVoiceMode}
-            setVoiceMode={() => {
-              if (isVoiceMode) {
-                stopVoiceMode()
-              } else {
-                startVoiceMode(chat.id)
-              }
-            }}
-          />
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
             onSend={sendMessage}
             onStop={() => {
               setIsWaitingTwinResponse(false)
+            }}
+            voiceMode={isVoiceMode}
+            onVoiceModeChange={() => {
+              if (isVoiceMode) {
+                stopVoiceMode()
+              } else {
+                startVoiceMode(chat.id)
+              }
             }}
             isReasonSelected={isReasonSelected}
             onReasonToggle={setIsReasonSelected}
@@ -215,39 +211,5 @@ export default function ChatView({ chat }: ChatViewProps) {
         </div>
       </div>
     </div>
-  )
-}
-
-function VoiceModeToggle({
-  voiceMode,
-  setVoiceMode
-}: {
-  voiceMode: boolean
-  setVoiceMode: (voiceMode: boolean) => void
-}) {
-  const { isVoiceReady } = useDependencyStatus()
-
-  return (
-    <Tooltip>
-      <div className="flex justify-end w-full gap-2">
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-2">
-            <Switch
-              id="voiceMode"
-              className="data-[state=unchecked]:bg-foreground/30 cursor-pointer"
-              checked={voiceMode}
-              onCheckedChange={() => {
-                setVoiceMode(!voiceMode)
-              }}
-              disabled={!voiceMode && !isVoiceReady}
-            />
-            <label className="text-sm" htmlFor="voiceMode">
-              Voice Mode
-            </label>
-          </div>
-        </TooltipTrigger>
-      </div>
-      {!isVoiceReady && <TooltipContent>Installing dependencies...</TooltipContent>}
-    </Tooltip>
   )
 }

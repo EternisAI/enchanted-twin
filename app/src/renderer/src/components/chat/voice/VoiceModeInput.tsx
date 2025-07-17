@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Mic, MicOff, X } from 'lucide-react'
+import { MessageSquareIcon, Mic, MicOff } from 'lucide-react'
 
 import useMicrophonePermission from '@renderer/hooks/useMicrophonePermission'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
@@ -83,17 +83,19 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
+      layout
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex gap-2 justify-center pb-4"
     >
-      <div className="flex p-2 gap-2 max-w-md rounded-full shadow-xl h-14 items-center bg-card">
+      <motion.div className="flex p-2 gap-2 max-w-md rounded-full shadow-xl h-14 items-center bg-card">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               onClick={toggleMute}
               className={cn(
-                '!px-4 !py-4 h-10 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-card hover:!bg-card/80 dark:!hover:!bg-card/80',
-                isMuted && '!bg-muted text-muted-foreground'
+                '!px-4 !py-4 h-10 rounded-full transition-all shadow-none hover:shadow-none active:shadow-none border-none !bg-accent hover:!bg-accent/70 dark:!hover:!bg-accent/70',
+                isMuted &&
+                  'text-muted-foreground !bg-red-100 hover:!bg-red-200/70 dark:!bg-red-200/70 dark:!hover:!bg-red-200/70'
               )}
               variant="outline"
             >
@@ -118,14 +120,14 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
           <Button
             onClick={onStop}
             className={cn(
-              '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-card hover:!bg-card/80 dark:!hover:!bg-card/80 hover:!text-gray-500 dark:!hover:!text-gray-400'
+              '!px-2.5 bg-muted rounded-full transition-all shadow-none hover:shadow-none active:shadow-none border-none hover:!bg-muted/80 dark:!hover:!bg-muted/80 hover:!text-gray-500 dark:!hover:!text-gray-400'
             )}
             variant="outline"
           >
-            <X className="w-4 h-4" />
+            <MessageSquareIcon className="w-4 h-4" />
           </Button>
         )}
-      </div>
+      </motion.div>
     </motion.div>
   )
 }

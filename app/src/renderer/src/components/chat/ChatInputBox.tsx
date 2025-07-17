@@ -146,7 +146,6 @@ export default function ChatInputBox({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
-                className="flex items-center justify-end w-fit h-9"
               >
                 <EnableVoiceModeButton
                   onClick={() => {
@@ -163,10 +162,8 @@ export default function ChatInputBox({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
-                className="flex items-center justify-end w-9 h-9"
               >
                 <SendButton
-                  className="w-9 h-9"
                   text={query}
                   onSend={() => {
                     handleCreateChat()
@@ -224,6 +221,8 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          variant="outline"
+          size="icon"
           onClick={() => {
             if (isVoiceReady) {
               onClick()
@@ -232,7 +231,7 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
             }
           }}
           className={cn(
-            '!px-4.5 relative rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none'
+            'relative rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none text-amber-600 hover:text-amber-600 hover:bg-amber-100/50'
           )}
         >
           <AnimatePresence mode="wait" initial={false}>
@@ -245,7 +244,6 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
               className="flex items-center gap-2"
             >
               <AudioLines className="w-4 h-4" />
-              Talk
             </motion.span>
           </AnimatePresence>
         </Button>

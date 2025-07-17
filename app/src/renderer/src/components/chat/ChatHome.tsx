@@ -388,7 +388,7 @@ export function Home() {
               )}
             </AnimatePresence>
           </motion.div>
-          <motion.div layout="position">
+          <motion.div layout="position" className="w-full mt-2">
             <ContextCard />
           </motion.div>
         </motion.div>

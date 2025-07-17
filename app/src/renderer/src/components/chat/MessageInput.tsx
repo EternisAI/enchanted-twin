@@ -3,8 +3,10 @@ import { Button } from '../ui/button'
 import { ArrowUp, Lightbulb, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
+
 import { Tooltip, TooltipContent } from '../ui/tooltip'
 import { TooltipTrigger } from '@radix-ui/react-tooltip'
+import { EnableVoiceModeButton } from './ChatInputBox'
 
 type MessageInputProps = {
   onSend: (text: string, reasoning: boolean, voice: boolean) => void
@@ -14,6 +16,7 @@ type MessageInputProps = {
   onReasonToggle?: (reasoningSelected: boolean) => void
   voiceMode?: boolean
   placeholder?: string
+  onVoiceModeChange?: () => void
 }
 
 export default function MessageInput({
@@ -23,7 +26,8 @@ export default function MessageInput({
   isReasonSelected,
   onReasonToggle,
   voiceMode = false,
-  placeholder = "What's on your mind?"
+  placeholder = "What's on your mind?",
+  onVoiceModeChange
 }: MessageInputProps) {
   const [text, setText] = useState('')
 
@@ -111,12 +115,32 @@ export default function MessageInput({
               </TooltipContent>
             </Tooltip>
           )}
-          <SendButton
-            onSend={handleSend}
-            isWaitingTwinResponse={isWaitingTwinResponse}
-            onStop={onStop}
-            text={text}
-          />
+          <AnimatePresence mode="wait">
+            {text.trim() ? (
+              <motion.div
+                key="send-button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <SendButton
+                  onSend={handleSend}
+                  isWaitingTwinResponse={isWaitingTwinResponse}
+                  onStop={onStop}
+                  text={text}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="voice-mode-button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <EnableVoiceModeButton onClick={() => onVoiceModeChange?.()} isVoiceReady={true} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </motion.div>
