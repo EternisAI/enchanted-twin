@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useSidebarStore } from './sidebar'
 import { auth } from '../firebase'
+
 interface VoiceStore {
   isVoiceMode: boolean
 
@@ -17,12 +18,16 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
     window.api.livekit.start(chatId, isOnboarding, token)
     const { setOpen } = useSidebarStore.getState()
     setOpen(false)
+
+    window.api.voiceStore.set('isVoiceMode', true)
     set({ isVoiceMode: true })
   },
   stopVoiceMode: async () => {
-    set({ isVoiceMode: false })
     await window.api.livekit.stop()
     const { setOpen } = useSidebarStore.getState()
     setOpen(true)
+
+    window.api.voiceStore.set('isVoiceMode', false)
+    set({ isVoiceMode: false })
   }
 }))
