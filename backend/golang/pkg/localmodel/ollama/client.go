@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 
@@ -16,14 +18,15 @@ var _ ai.Completion = (*OllamaClient)(nil)
 type OllamaClient struct {
 	client *openai.Client
 	model  string
+	logger *log.Logger
 }
 
-func NewOllamaClient(baseURL string, model string) *OllamaClient {
+func NewOllamaClient(baseURL string, model string, logger *log.Logger) *OllamaClient {
 	client := openai.NewClient(
 		option.WithAPIKey(""),
 		option.WithBaseURL(baseURL),
 	)
-	return &OllamaClient{client: &client, model: model}
+	return &OllamaClient{client: &client, model: model, logger: logger}
 }
 
 func (c *OllamaClient) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
@@ -52,6 +55,7 @@ anonymize this:`),
 	if err != nil {
 		return nil, err
 	}
+	c.logger.Info("Local anonymizer response", "content", response.Content)
 
 	startIndex := strings.Index(response.Content, "{")
 	endIndex := strings.LastIndex(response.Content, "}")

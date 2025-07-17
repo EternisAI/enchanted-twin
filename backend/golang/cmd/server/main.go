@@ -144,7 +144,7 @@ func main() {
 	switch envs.AnonymizerType {
 	case "local":
 		logger.Info("Using local anonymizer model")
-		localAnonymizer = ollama.NewOllamaClient("http://localhost:11435", "qwen3-0.6b-q4_k_m")
+		localAnonymizer = ollama.NewOllamaClient("http://localhost:11435", "qwen3-0.6b-q4_k_m", logger)
 		logger.Info("Local anonymizer model initialized successfully")
 		anonymizerManager = ai.NewLocalAnonymizerManager(localAnonymizer, store.DB().DB, logger)
 
