@@ -286,6 +286,21 @@ export function Home() {
   const twinName = profile?.profile?.name || 'Your Twin'
   const [showSuggestions, setShowSuggestions] = useState(false)
 
+  const initShowSuggestionsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (initShowSuggestionsTimeout.current && !showSuggestions) {
+      clearTimeout(initShowSuggestionsTimeout.current)
+    }
+    initShowSuggestionsTimeout.current = setTimeout(() => {
+      setShowSuggestions(true)
+    }, 1000)
+    return () => {
+      if (initShowSuggestionsTimeout.current) {
+        clearTimeout(initShowSuggestionsTimeout.current)
+      }
+    }
+  }, [showSuggestions])
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -441,7 +456,10 @@ export function Home() {
               animate={{ opacity: showSuggestions ? 1 : 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full overflow-hidden"
+              className={cn(
+                'relative w-full overflow-hidden',
+                !showSuggestions && 'pointer-events-none'
+              )}
               layout="position"
             >
               <div className="">
