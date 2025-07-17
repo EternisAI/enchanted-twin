@@ -7,14 +7,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 import { ImportAndIndexStep } from './ImportAndIndexStep'
 
-// import { DotBlobContainer } from '../graphics/dot-blob/container'
 import PermissionsStep from './PermissionsStep'
 
 const OnboardingBackground = memo(function OnboardingBackground() {
   return (
     <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-0 opacity-35 dark:opacity-100">
       <div className="w-full h-full bg-gradient-to-b from-background to-background/50 absolute inset-0 z-20" />
-      <div className="w-full h-full relative z-0">{/* <DotBlobContainer /> */}</div>
+      <div className="w-full h-full relative z-0" />
     </div>
   )
 })
