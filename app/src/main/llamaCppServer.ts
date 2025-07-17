@@ -34,11 +34,7 @@ export class LlamaCppServerManager {
   private readonly modelPath: string
   private readonly port: number
 
-<<<<<<< HEAD
   constructor(modelPath: string, port: number = 11435) {
-=======
-  constructor(modelPath: string, port: number = 11434) {
->>>>>>> 8f03e0611faa9ed24ff2e158dd18a5a08259bf18
     this.modelPath = modelPath
     this.port = port
   }
