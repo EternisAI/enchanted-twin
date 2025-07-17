@@ -116,18 +116,14 @@ export default function ChatView({ chat }: ChatViewProps) {
                     <TooltipTrigger asChild>
                       <Button
                         onClick={() => setIsAnonymized(!isAnonymized)}
-                        className="p-2 rounded-md bg-accent no-drag cursor-pointer hover:bg-accent/50"
+                        className="p-2 rounded-md no-drag backdrop-blur-sm"
                         variant="ghost"
-                        size="sm"
                       >
                         {isAnonymized ? (
                           <EyeClosed className="h-4 w-4 text-primary" />
                         ) : (
                           <Eye className="h-4 w-4 text-primary" />
                         )}
-                        <span className="ml-2 text-sm">
-                          {isAnonymized ? 'Show original' : 'Show anonymized'}
-                        </span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
