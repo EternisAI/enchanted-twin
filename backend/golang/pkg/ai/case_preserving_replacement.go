@@ -1,9 +1,22 @@
 package ai
 
 import (
+	"sort"
 	"strings"
 	"unicode"
 )
+
+// sortKeysByLengthDesc sorts map keys by descending length.
+func sortKeysByLengthDesc(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return len(keys[i]) > len(keys[j])
+	})
+	return keys
+}
 
 // CasePreservingReplacer handles case-preserving string replacement.
 type CasePreservingReplacer struct {
@@ -22,19 +35,7 @@ func (r *CasePreservingReplacer) Replace(text string) string {
 	result := text
 
 	// Sort rules by length (longest first) to avoid partial matches
-	sortedRules := make([]string, 0, len(r.rules))
-	for original := range r.rules {
-		sortedRules = append(sortedRules, original)
-	}
-
-	// Sort by length descending
-	for i := 0; i < len(sortedRules); i++ {
-		for j := i + 1; j < len(sortedRules); j++ {
-			if len(sortedRules[i]) < len(sortedRules[j]) {
-				sortedRules[i], sortedRules[j] = sortedRules[j], sortedRules[i]
-			}
-		}
-	}
+	sortedRules := sortKeysByLengthDesc(r.rules)
 
 	// Apply replacements with case preservation
 	for _, original := range sortedRules {
@@ -202,19 +203,7 @@ func ApplyDeAnonymization(text string, rules map[string]string) string {
 	result := text
 
 	// Sort rules by token length (longest first) to avoid partial matches
-	sortedRules := make([]string, 0, len(rules))
-	for token := range rules {
-		sortedRules = append(sortedRules, token)
-	}
-
-	// Sort by length descending
-	for i := 0; i < len(sortedRules); i++ {
-		for j := i + 1; j < len(sortedRules); j++ {
-			if len(sortedRules[i]) < len(sortedRules[j]) {
-				sortedRules[i], sortedRules[j] = sortedRules[j], sortedRules[i]
-			}
-		}
-	}
+	sortedRules := sortKeysByLengthDesc(rules)
 
 	// Apply simple string replacement (restore original case)
 	for _, token := range sortedRules {
@@ -234,19 +223,7 @@ func ApplyAnonymization(text string, rules map[string]string) string {
 	result := text
 
 	// Sort rules by length (longest first) to avoid partial matches
-	sortedRules := make([]string, 0, len(rules))
-	for original := range rules {
-		sortedRules = append(sortedRules, original)
-	}
-
-	// Sort by length descending
-	for i := 0; i < len(sortedRules); i++ {
-		for j := i + 1; j < len(sortedRules); j++ {
-			if len(sortedRules[i]) < len(sortedRules[j]) {
-				sortedRules[i], sortedRules[j] = sortedRules[j], sortedRules[i]
-			}
-		}
-	}
+	sortedRules := sortKeysByLengthDesc(rules)
 
 	// Apply replacements (case-insensitive matching but keep token case unchanged)
 	for _, original := range sortedRules {
