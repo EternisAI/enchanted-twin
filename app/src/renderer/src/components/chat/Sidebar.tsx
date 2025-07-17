@@ -149,7 +149,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
                     variant="ghost"
                     size="icon"
                     onClick={() => setSidebarOpen(false)}
-                    className="text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent h-7 w-7"
+                    className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
                   >
                     <PanelLeftClose className="w-4 h-4" />
                   </Button>
@@ -174,7 +174,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
                   variant="ghost"
                   size="icon"
                   onClick={openOmnibar}
-                  className="text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent h-7 w-7"
+                  className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
                 >
                   <SearchIcon className="w-4 h-4" />
                 </Button>
