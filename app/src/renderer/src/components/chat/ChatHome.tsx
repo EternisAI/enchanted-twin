@@ -186,6 +186,7 @@ export function Home() {
             search: { initialMessage: query, reasoning: isReasonSelected }
           })
 
+          //@TODO: Add anonymization here
           sendMessage({
             variables: {
               chatId: newChatId,
