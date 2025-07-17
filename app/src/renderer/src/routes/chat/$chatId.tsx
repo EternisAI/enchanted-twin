@@ -4,6 +4,7 @@ import { ChatProvider } from '@renderer/contexts/ChatContext'
 import { client } from '@renderer/graphql/lib'
 import { createFileRoute } from '@tanstack/react-router'
 import { GetChatDocument } from '@renderer/graphql/generated/graphql'
+import { TypingIndicator } from '@renderer/components/chat/TypingIndicator'
 
 interface ChatSearchParams {
   initialMessage?: string
@@ -43,16 +44,8 @@ export const Route = createFileRoute('/chat/$chatId')({
   },
   pendingComponent: () => {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <div className="flex items-center justify-center gap-2 h-20">
-          {[...Array(3)].map((_, i) => (
-            <div
-              key={i}
-              className="h-3 w-3 bg-green-500 rounded-full animate-bounce"
-              style={{ animationDelay: `${i * 0.15}s` }}
-            />
-          ))}
-        </div>
+      <div className="flex flex-col items-center justify-center h-full w-full">
+        <TypingIndicator />
       </div>
     )
   },
