@@ -214,7 +214,8 @@ export function ContextCard() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className="flex items-center justify-center w-full"
+            className="flex items-center justify-center w-full cursor-pointer"
+            onClick={handleStartEditing}
             layout
           >
             <Button
