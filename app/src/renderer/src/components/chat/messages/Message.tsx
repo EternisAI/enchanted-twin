@@ -263,7 +263,7 @@ const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymize
               return (
                 <span
                   key={`${original}-${index}`}
-                  className="bg-muted-foreground px-1.25 py-0.25 rounded text-foreground font-medium"
+                  className="bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium"
                 >
                   {replacement}
                 </span>
@@ -294,7 +294,7 @@ function anonymizeTextForMarkdown(
   Object.entries(privacyDict).forEach(([original, replacement]) => {
     const regex = new RegExp(`(${original})`, 'gi')
     result = result.replace(regex, () => {
-      return `<span class="bg-muted-foreground px-1.25 py-0.25 rounded text-foreground font-medium">${replacement}</span>`
+      return `<span class="bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium">${replacement}</span>`
     })
   })
 

@@ -134,7 +134,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
   return (
     <>
       <aside className="flex flex-col bg-sidebar text-sidebar-foreground p-4 px-2 pt-10 h-full w-64 border-r border-sidebar-border/50">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-4">
           <motion.div
             className="flex items-center"
             initial={{ opacity: 0, scale: 0.95 }}
