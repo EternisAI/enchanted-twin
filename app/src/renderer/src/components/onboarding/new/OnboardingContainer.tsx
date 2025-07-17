@@ -3,7 +3,6 @@ import { useNavigate } from '@tanstack/react-router'
 
 import { useTheme } from '@renderer/lib/theme'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
-import { useTitlebarColor } from '@renderer/hooks/useTitlebarColor'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import useMicrophonePermission from '@renderer/hooks/useMicrophonePermission'
 import EnableMicrophone from './EnableMicrophone'
@@ -17,7 +16,6 @@ export default function OnboardingContainer() {
   const navigate = useNavigate()
   const { theme } = useTheme()
   const { isCompleted } = useOnboardingStore()
-  const { updateTitlebarColor } = useTitlebarColor()
   const { stopVoiceMode } = useVoiceStore()
   const { microphoneStatus } = useMicrophonePermission()
 
@@ -29,15 +27,6 @@ export default function OnboardingContainer() {
       navigate({ to: '/' })
     }
   }, [isCompleted, navigate])
-
-  useEffect(() => {
-    updateTitlebarColor('onboarding')
-
-    return () => {
-      updateTitlebarColor('app')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   useEffect(() => {
     return () => {

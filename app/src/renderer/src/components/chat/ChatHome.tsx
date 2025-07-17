@@ -286,6 +286,24 @@ export function Home() {
   const twinName = profile?.profile?.name || 'Your Twin'
   const [showSuggestions, setShowSuggestions] = useState(false)
 
+  const initShowSuggestionsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (showSuggestions) {
+      if (initShowSuggestionsTimeout.current) {
+        clearTimeout(initShowSuggestionsTimeout.current)
+      }
+    } else {
+      initShowSuggestionsTimeout.current = setTimeout(() => {
+        setShowSuggestions(true)
+      }, 1000)
+    }
+    return () => {
+      if (initShowSuggestionsTimeout.current) {
+        clearTimeout(initShowSuggestionsTimeout.current)
+      }
+    }
+  }, [showSuggestions, setShowSuggestions])
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -300,14 +318,14 @@ export function Home() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ type: 'spring', stiffness: 350, damping: 55 }}
-          className="flex flex-col items-center gap-4 py-8 px-4 w-full"
+          className="flex flex-col items-center py-4 px-4 w-full"
         >
           <motion.div className="relative w-fit" layout>
             {/* Background that expands when editing */}
             <motion.div
               className={cn(
-                'absolute inset-0 rounded-lg transition-all duration-300 hover:bg-muted',
-                isEditingName ? 'bg-card' : 'bg-transparent'
+                'absolute inset-0 rounded-lg transition-all duration-300 hover:bg-popover',
+                isEditingName ? 'bg-popover' : 'bg-transparent'
               )}
               layout
             />
@@ -388,7 +406,7 @@ export function Home() {
               )}
             </AnimatePresence>
           </motion.div>
-          <motion.div layout="position">
+          <motion.div layout="position" className="w-full mt-2">
             <ContextCard />
           </motion.div>
         </motion.div>
@@ -441,7 +459,10 @@ export function Home() {
               animate={{ opacity: showSuggestions ? 1 : 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full overflow-hidden"
+              className={cn(
+                'relative w-full overflow-hidden',
+                !showSuggestions && 'pointer-events-none'
+              )}
               layout="position"
             >
               <div className="">
@@ -460,8 +481,8 @@ export function Home() {
                         }}
                         className={cn(
                           'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
-                          'hover:bg-muted/80',
-                          selectedIndex === 0 && 'bg-primary/10 text-primary'
+                          'hover:bg-popover hover:text-foreground',
+                          selectedIndex === 0 && 'bg-popover text-foreground'
                         )}
                       >
                         <span className="truncate">Create new chat</span>
@@ -481,9 +502,9 @@ export function Home() {
                             setQuery('')
                           }}
                           className={cn(
-                            'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
-                            'hover:bg-muted/80',
-                            selectedIndex === index + 1 && 'bg-primary/10 text-primary'
+                            'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md text-muted-foreground',
+                            'hover:bg-popover hover:text-foreground',
+                            selectedIndex === index + 1 && 'bg-popover text-foreground'
                           )}
                         >
                           <span className="truncate">{chat.name}</span>
@@ -514,9 +535,9 @@ export function Home() {
                               }
                             }}
                             className={cn(
-                              'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
-                              'hover:bg-muted/80',
-                              selectedIndex === index && 'bg-primary/10 text-primary',
+                              'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md text-muted-foreground',
+                              'hover:bg-popover hover:text-foreground',
+                              selectedIndex === index && 'bg-popover text-foreground',
                               isEmphasized &&
                                 'relative before:absolute before:inset-0 before:rounded-'
                             )}

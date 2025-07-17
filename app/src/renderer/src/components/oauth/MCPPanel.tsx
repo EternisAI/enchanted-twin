@@ -11,7 +11,6 @@ import { Skeleton } from '@renderer/components/ui/skeleton'
 import { motion } from 'framer-motion'
 import { PROVIDER_CONFIG } from '@renderer/constants/mcpProviders'
 import ConnectMCPServerButton from './MCPConnectServerButton'
-import { Card } from '../ui/card'
 
 const MCPServerSkeleton = () => (
   <div className="p-4 w-full rounded-md">
@@ -80,7 +79,7 @@ export default function MCPPanel() {
     }
 
     return grouped
-  }, [allMcpServers])
+  }, [allMcpServers, hasGoogleConnected])
 
   const serverTypes = useMemo(() => {
     return Object.keys(serversByType)
@@ -108,8 +107,8 @@ export default function MCPPanel() {
   }, [serversByType])
 
   return (
-    <Card className="flex flex-col gap-4 p-0">
-      <header className="flex gap-2 justify-between items-center border-b-[0.5px] p-6 py-8">
+    <div className="flex flex-col gap-4 p-0">
+      <header className="flex gap-2 justify-between items-center pb-4 pr-2">
         <div className="flex flex-col gap-2">
           <h2 className="text-2xl font-bold leading-none">Quick Connect</h2>
           <p className="text-muted-foreground leading-none text-sm">
@@ -187,6 +186,6 @@ export default function MCPPanel() {
           </>
         )}
       </motion.div>
-    </Card>
+    </div>
   )
 }

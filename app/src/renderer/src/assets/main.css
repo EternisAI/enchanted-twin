@@ -39,11 +39,7 @@
   }
 }
 
-@media (max-width: 720px) {
-  .text {
-    font-size: 20px;
-  }
-}
+
 
 @media (max-width: 620px) {
   .versions {
@@ -59,7 +55,7 @@
 }
 
 :root {
-  --background: oklch(0.98 0 0);
+  --background: oklch(1 0 0);
   --foreground: oklch(0.3 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.3 0 0);
@@ -83,7 +79,7 @@
   --chart-3: oklch(0.72 0 0);
   --chart-4: oklch(0.92 0 0);
   --chart-5: oklch(0.56 0 0);
-  --sidebar: oklch(0.96 0 0);
+  --sidebar: oklch(0.98 0 0);
   --sidebar-foreground: oklch(0.3 0 0);
   --sidebar-primary: oklch(0.3 0 0);
   --sidebar-primary-foreground: oklch(1 0 0);
@@ -91,9 +87,10 @@
   --sidebar-accent-foreground: oklch(0.3 0 0);
   --sidebar-border: oklch(0.92 0 0);
   --sidebar-ring: oklch(0.3 0 0);
-  --font-sans: Sen, sans-serif;
+  --font-sans: Inter, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
+  --font-kbd: ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
   --radius: 0.75rem;
   --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
   --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
@@ -107,7 +104,7 @@
 
 .dark {
   --background: oklch(0.15 0 0);
-  --foreground: oklch(0.98 0 0);
+  --foreground: oklch(0.94 0 0);
   --card: oklch(0.2 0 0);
   --card-foreground: oklch(0.98 0 0);
   --popover: oklch(0.18 0 0);
@@ -131,11 +128,11 @@
   --chart-4: oklch(0.44 0 0);
   --chart-5: oklch(0.92 0 0);
   --sidebar: oklch(0 0 0);
-  --sidebar-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.94 0 0);
+  --sidebar-primary: oklch(0.94 0 0);
   --sidebar-primary-foreground: oklch(0.2 0 0);
   --sidebar-accent: oklch(0.2 0 0);
-  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-accent-foreground: oklch(0.94 0 0);
   --sidebar-border: oklch(0.2 0 0);
   --sidebar-ring: oklch(0.72 0 0);
   --font-sans: Sen, sans-serif;
@@ -189,7 +186,8 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
-
+  --font-kbd: var(--font-kbd);
+  
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -209,8 +207,13 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  kbd {
+    @apply font-kbd;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-sm;
   }
 
   /* Makes the titlebar draggable so user can move the window */
@@ -222,12 +225,6 @@
   /* Makes elements non-draggable in titlebar */
   .no-drag {
     app-region: no-drag;
-  }
-
-  h1,
-  h2 {
-    /* font-family: var(--font-sans); */
-    @apply font-semibold;
   }
 
   /* Syntax highlighting styles */

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import VoiceVisualizer from './VoiceVisualizer'
@@ -103,8 +103,10 @@ export default function VoiceModeChatView({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="flex flex-row items-center justify-center"
             >
               <UserMessageBubble
+                showTimestamp={false}
                 message={lastUserMessage}
                 chatPrivacyDict={chatPrivacyDict}
                 isAnonymized={isAnonymized}
@@ -116,7 +118,9 @@ export default function VoiceModeChatView({
               Error: {error}
             </div>
           )}
-          <VoiceModeInput onStop={stopVoiceMode} />
+          <AnimatePresence mode="wait">
+            <VoiceModeInput onStop={stopVoiceMode} />
+          </AnimatePresence>
         </div>
       </div>
     </div>

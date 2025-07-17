@@ -1,11 +1,10 @@
 import { useMutation, useQuery } from '@apollo/client'
-import { Bell, BellOff, MessageCircle, Trash2 } from 'lucide-react'
+import { AlarmClockCheckIcon, Bell, BellOff, MessageCircle, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
-import { Card } from '@renderer/components/ui/card'
 import {
   AgentTask,
   DeleteAgentTaskDocument,
@@ -41,7 +40,7 @@ export default function AgentTasks() {
   const agentTasks = [...(data?.getAgentTasks || [])]
 
   return (
-    <Card className="p-4 w-full overflow-y-auto">
+    <div className="p-4 w-full overflow-y-auto">
       {loading && <div className="py-4 text-center">Loading tasks...</div>}
       {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>}
 
@@ -59,7 +58,7 @@ export default function AgentTasks() {
           ))
         )}
       </div>
-    </Card>
+    </div>
   )
 }
 
@@ -79,8 +78,9 @@ function EmptyTasksState() {
 
   return (
     <div className="flex flex-col items-center justify-center py-20 px-8 gap-4">
-      <div className="text-center max-w-md mb-12 flex flex-col gap-4">
-        <h3 className="text-xl font-medium mb-8 text-balance max-w-sm">
+      <div className="text-center items-center max-w-md flex flex-col gap-4">
+        <AlarmClockCheckIcon className="w-10 h-10 text-muted-foreground" />
+        <h3 className="text-2xl font-semibold mb-8 text-balance max-w-sm">
           Create a task to automate recurring activities
         </h3>
       </div>
@@ -103,6 +103,15 @@ function EmptyTasksState() {
               </div>
             </Button>
           ))}
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full"
+            onClick={() => handleSuggestionClick('')}
+          >
+            <Plus className="w-4 h-4" />
+            Create your own
+          </Button>
         </div>
       </div>
     </div>

@@ -74,11 +74,11 @@ export const UnifiedDataSourceCard = ({
   const canImport = !isImporting && !isGlobalProcessing && !importingSource && !isBeingProcessed
 
   return (
-    <div className="px-6 py-4 w-full hover:bg-muted">
-      <div className="font-semibold text-lg flex flex-wrap items-center justify-between flex-row gap-5">
-        <div className="flex items-center gap-5">
+    <div className="px-2 py-4 w-full hover:bg-accent rounded-lg">
+      <div className="text-lg flex flex-wrap items-center justify-between flex-row gap-5">
+        <div className="font-semibold flex items-center gap-5">
           {source.icon}
-          <span className="font-semibold text-lg leading-none">{source.label}</span>
+          <span className="leading-none">{source.label}</span>
         </div>
         <div className="flex items-center gap-2">
           {/* Show status badges and button */}

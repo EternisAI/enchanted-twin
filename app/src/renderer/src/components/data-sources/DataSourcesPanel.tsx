@@ -9,7 +9,6 @@ import { DataSourceDialog } from './DataSourceDialog'
 import { Dialog, DialogContent } from '../ui/dialog'
 import { UnifiedDataSourceCard } from './UnifiedDataSourceCard'
 import { SUPPORTED_DATA_SOURCES } from './constants'
-import { Card } from '../ui/card'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -348,8 +347,8 @@ export function DataSourcesPanel({
   }, [isIndexing, onIndexingComplete, indexingData?.indexingStatus?.dataSources])
 
   return (
-    <Card className="flex flex-col p-0 gap-4 pb-6 mb-20">
-      <header className="flex flex-col gap-2 border-b-[0.5px] p-6 ">
+    <div className="flex flex-col p-0 gap-4 pb-6 mb-20">
+      <header className="flex flex-col gap-2 p-0">
         <h2 className="text-2xl font-bold leading-none">Import</h2>
         <p className="text-sm text-muted-foreground">Data from external sources.</p>
       </header>
@@ -384,6 +383,6 @@ export function DataSourcesPanel({
           />
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   )
 }

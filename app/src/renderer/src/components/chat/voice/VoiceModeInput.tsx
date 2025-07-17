@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Mic, MicOff, X } from 'lucide-react'
+import { MessageSquareIcon, Mic, MicOff } from 'lucide-react'
 
 import useMicrophonePermission from '@renderer/hooks/useMicrophonePermission'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
@@ -22,17 +22,19 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
   if (!isLiveKitSessionReady) {
     return (
       <motion.div
+        key="initializing-voice-session"
         initial={{ opacity: 0, y: 20 }}
+        exit={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className="flex flex-col gap-4 items-center pb-4"
       >
         <div className="flex flex-col items-center gap-1.5 px-4 py-3">
           <Mic className="w-5 h-5 flex-shrink-0" />
-          <span className="text-lg font-medium">Initializing voice session</span>
-          <div className="w-32 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <span className="text-lg font-medium">Starting voice conversation</span>
+          <div className="w-32 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
             <motion.div
-              className="h-full bg-gray-500 dark:bg-gray-400"
+              className="h-full bg-neutral-500 dark:bg-neutral-400"
               initial={{ width: '0%' }}
               animate={{ width: '100%' }}
               transition={{
@@ -55,7 +57,9 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
   if (microphoneStatus !== 'granted') {
     return (
       <motion.div
+        key="allow-microphone-access"
         initial={{ opacity: 0, y: 20 }}
+        exit={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className="flex flex-col gap-4 items-center pb-4"
@@ -81,19 +85,23 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
 
   return (
     <motion.div
+      key="voice-mode-input"
       initial={{ opacity: 0, y: 20 }}
+      exit={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
+      layout
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex gap-2 justify-center pb-4"
     >
-      <div className="flex p-2 gap-2 max-w-md rounded-full shadow-xl h-14 items-center bg-card">
+      <motion.div className="flex p-2 gap-2 max-w-md rounded-full shadow-xl h-14 items-center bg-card">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               onClick={toggleMute}
               className={cn(
-                '!px-4 !py-4 h-10 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-card hover:!bg-card/80 dark:!hover:!bg-card/80',
-                isMuted && '!bg-muted text-muted-foreground'
+                '!px-4 !py-4 h-10 rounded-full transition-all shadow-none hover:shadow-none active:shadow-none border-none !bg-accent hover:!bg-accent/70 dark:!hover:!bg-accent/70',
+                isMuted &&
+                  'text-muted-foreground !bg-red-100 hover:!bg-red-200/70 dark:!bg-red-200/70 dark:!hover:!bg-red-200/70'
               )}
               variant="outline"
             >
@@ -118,14 +126,14 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
           <Button
             onClick={onStop}
             className={cn(
-              '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-card hover:!bg-card/80 dark:!hover:!bg-card/80 hover:!text-gray-500 dark:!hover:!text-gray-400'
+              '!px-2.5 bg-muted rounded-full transition-all shadow-none hover:shadow-none active:shadow-none border-none hover:!bg-muted/80 dark:!hover:!bg-muted/80 hover:!text-gray-500 dark:!hover:!text-gray-400'
             )}
             variant="outline"
           >
-            <X className="w-4 h-4" />
+            <MessageSquareIcon className="w-4 h-4" />
           </Button>
         )}
-      </div>
+      </motion.div>
     </motion.div>
   )
 }

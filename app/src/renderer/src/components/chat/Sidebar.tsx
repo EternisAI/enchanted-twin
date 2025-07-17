@@ -99,7 +99,6 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
       return (
         <motion.div
           key={title}
-          className="mb-6"
           initial="hidden"
           animate="visible"
           exit="exit"
@@ -134,8 +133,8 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
 
   return (
     <>
-      <aside className="flex flex-col bg-sidebar text-sidebar-foreground p-4 pt-10 h-full w-64">
-        <div className="flex items-center justify-between mb-3">
+      <aside className="flex flex-col bg-sidebar text-sidebar-foreground p-4 px-2 pt-10 h-full w-64 border-r border-sidebar-border/50">
+        <div className="flex items-center justify-between mb-4">
           <motion.div
             className="flex items-center"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -150,7 +149,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
                     variant="ghost"
                     size="icon"
                     onClick={() => setSidebarOpen(false)}
-                    className="text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent h-7 w-7"
+                    className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
                   >
                     <PanelLeftClose className="w-4 h-4" />
                   </Button>
@@ -159,7 +158,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
                   <div className="flex items-center gap-2">
                     <span>Close sidebar</span>
                     {shortcuts.toggleSidebar?.keys && (
-                      <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
+                      <kbd className="ml-1 text-[10px] text-primary-foreground/50 font-kbd">
                         {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
                       </kbd>
                     )}
@@ -175,7 +174,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
                   variant="ghost"
                   size="icon"
                   onClick={openOmnibar}
-                  className="text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent h-7 w-7"
+                  className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
                 >
                   <SearchIcon className="w-4 h-4" />
                 </Button>
@@ -183,48 +182,47 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
               <TooltipContent side="bottom" align="center">
                 <div className="flex items-center gap-2">
                   <span>Search</span>
-                  <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
-                    ⌘ K
-                  </kbd>
+                  <kbd className="ml-1 text-[10px] text-primary-foreground/50 font-kbd">⌘ K</kbd>
                 </div>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
-
-        <Button
-          variant="ghost"
-          className="group w-full justify-start px-2 text-sidebar-foreground h-9 mb-2"
-          onClick={handleNewChat}
-        >
-          <Plus className="w-4 h-4" />
-          <span className="text-base">New chat</span>
-          {shortcuts.newChat?.keys && (
-            <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
-              <kbd className="rounded bg-sidebar-accent px-1.5 py-0.5">
+        <div className="flex flex-col gap-1 mb-2">
+          <Button
+            variant="ghost"
+            className="group w-full justify-start px-2 text-sidebar-foreground h-9"
+            onClick={handleNewChat}
+          >
+            <Plus className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
+            <span className="text-sm">New chat</span>
+            {shortcuts.newChat?.keys && (
+              <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
                 {formatShortcutForDisplay(shortcuts.newChat.keys)}
-              </kbd>
-            </div>
-          )}
-        </Button>
+              </div>
+            )}
+          </Button>
 
-        <Button
-          variant="ghost"
-          className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 mb-2"
-          onClick={handleNavigateTasks}
-        >
-          <CheckSquare className="w-4 h-4 text-sidebar-foreground/60" />
-          <span className="text-base">Tasks</span>
-        </Button>
+          <Button
+            variant="ghost"
+            data-active={location.pathname === '/tasks'}
+            className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent"
+            onClick={handleNavigateTasks}
+          >
+            <CheckSquare className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
+            <span className="text-sm">Tasks</span>
+          </Button>
 
-        <Button
-          variant="ghost"
-          className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 mb-1"
-          onClick={() => navigate({ to: '/holon' })}
-        >
-          <Globe className="w-4 h-4 text-sidebar-foreground/60" />
-          <span className="text-base">Holon Networks</span>
-        </Button>
+          <Button
+            variant="ghost"
+            data-active={location.pathname === '/holon'}
+            className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent"
+            onClick={() => navigate({ to: '/holon' })}
+          >
+            <Globe className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
+            <span className="text-sm">Holon Networks</span>
+          </Button>
+        </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
           <AnimatePresence initial={false} mode="popLayout">
@@ -256,21 +254,19 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
           )}
         </div>
 
-        <div className="pt-2 border-t border-sidebar-border/50 shrink-0">
+        <div className="shrink-0">
           <Button
             variant="ghost"
             className="w-full justify-between px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group"
             onClick={() => navigate({ to: '/settings' })}
           >
             <div className="flex items-center gap-2">
-              <SettingsIcon className="w-4 h-4 mr-2" />
-              <span className="text-base">Settings</span>
+              <SettingsIcon className="w-4 h-4" />
+              <span className="text-sm">Settings</span>
             </div>
             {shortcuts.openSettings?.keys && (
               <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
-                <kbd className="rounded bg-muted px-1.5 py-0.5">
-                  {formatShortcutForDisplay(shortcuts.openSettings.keys)}
-                </kbd>
+                {formatShortcutForDisplay(shortcuts.openSettings.keys)}
               </div>
             )}
           </Button>
@@ -324,7 +320,7 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
           }
         }
       }}
-      className={cn('flex items-center h-fit gap-2 justify-between rounded-md group text-base', {
+      className={cn('flex items-center h-fit gap-2 justify-between rounded-md group text-sm', {
         'bg-sidebar-accent text-sidebar-accent-foreground font-medium': isActive,
         'hover:bg-sidebar-accent/50 text-sidebar-foreground/80': !isActive
       })}
