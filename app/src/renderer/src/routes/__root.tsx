@@ -198,7 +198,7 @@ function RootComponent() {
                         <div className="flex items-center gap-2">
                           <span>Open sidebar</span>
                           {shortcuts.toggleSidebar?.keys && (
-                            <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
+                            <kbd className="rounded ml-1 text-[10px] text-primary-foreground/50 font-kbd">
                               {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
                             </kbd>
                           )}

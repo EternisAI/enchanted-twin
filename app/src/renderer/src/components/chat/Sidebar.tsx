@@ -158,7 +158,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
                   <div className="flex items-center gap-2">
                     <span>Close sidebar</span>
                     {shortcuts.toggleSidebar?.keys && (
-                      <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
+                      <kbd className="ml-1 text-[10px] text-primary-foreground/50 font-kbd">
                         {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
                       </kbd>
                     )}
@@ -182,9 +182,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
               <TooltipContent side="bottom" align="center">
                 <div className="flex items-center gap-2">
                   <span>Search</span>
-                  <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
-                    ⌘ K
-                  </kbd>
+                  <kbd className="ml-1 text-[10px] text-primary-foreground/50 font-kbd">⌘ K</kbd>
                 </div>
               </TooltipContent>
             </Tooltip>
