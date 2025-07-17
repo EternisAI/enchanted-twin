@@ -30,7 +30,7 @@ const DEPENDENCIES_CONFIGS: Record<
     //@TODO: Add different versions for linux, windows and intel mac
     url: 'https://github.com/ggml-org/llama.cpp/releases/download/b5916/llama-b5916-bin-macos-arm64.zip',
     name: 'llamacpp',
-    dir: path.join(DEPENDENCIES_DIR, 'models', 'llamacpp'),
+    dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib', 'llamacpp'),
     needsExtraction: true
   },
   onnx: {
