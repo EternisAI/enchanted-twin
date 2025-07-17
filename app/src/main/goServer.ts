@@ -38,7 +38,6 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
     ? join(__dirname, '..', '..', 'resources', executable)
     : join(process.resourcesPath, 'resources', executable)
 
-  // startAnonymiserSetup()
   startLlamaCppSetup()
 
   if (IS_PRODUCTION) {
