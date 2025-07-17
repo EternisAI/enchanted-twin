@@ -17,9 +17,6 @@ type OllamaClient struct {
 }
 
 func NewOllamaClient(baseURL string) *OllamaClient {
-	if baseURL == "" {
-		baseURL = "http://localhost:11434/v1"
-	}
 	client := openai.NewClient(
 		option.WithAPIKey(""),
 		option.WithBaseURL(baseURL),
@@ -32,16 +29,19 @@ func (c *OllamaClient) Completions(ctx context.Context, messages []openai.ChatCo
 		Messages: messages,
 		Model:    model,
 	})
+	if err != nil {
+		return openai.ChatCompletionMessage{}, err
+	}
 	return completion.Choices[0].Message, err
 }
 
-func (c *OllamaClient) Anonymize(ctx context.Context, prompt string) (map[string]string, error) {
+func (c *OllamaClient) Anonymize(ctx context.Context, model string, prompt string) (map[string]string, error) {
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage("you are an anonymizer, return only in JSON"),
 		openai.UserMessage(prompt),
 	}
 
-	response, err := c.Completions(ctx, messages, nil, "")
+	response, err := c.Completions(ctx, messages, nil, model)
 	if err != nil {
 		return nil, err
 	}
