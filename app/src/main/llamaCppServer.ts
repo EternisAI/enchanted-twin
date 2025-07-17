@@ -110,8 +110,10 @@ export class LlamaCppServerManager {
   private findLlamaServerExecutable(): string | null {
     const llamaCppPath = getDependencyPath('LLAMACCP')
     const possibleExecutables = [
-      path.join(llamaCppPath, 'build', 'bin', 'llama-server'),
-      path.join(llamaCppPath, 'llama-server.exe') // Windows
+      path.join(llamaCppPath, 'llama-server'),
+      path.join(llamaCppPath, 'llama-server.exe'),
+      path.join(llamaCppPath, 'bin', 'llama-server'),
+      path.join(llamaCppPath, 'build', 'bin', 'llama-server')
     ]
 
     for (const execPath of possibleExecutables) {
@@ -125,6 +127,10 @@ export class LlamaCppServerManager {
       }
     }
 
+    log.error(
+      `[LlamaCpp] llama-server executable not found in any of the expected paths:`,
+      possibleExecutables
+    )
     return null
   }
 
