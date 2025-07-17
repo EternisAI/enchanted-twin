@@ -29,8 +29,19 @@ function createAnonymizationPrompt(text: string): string {
 }
 
 function extractJsonFromResponse(content: string): string | null {
+  // First try to extract from <json> tags
   const jsonMatch = content.match(/<json>(.*?)(?:>|<\/json>)/s)
-  return jsonMatch ? jsonMatch[1] : null
+  if (jsonMatch) {
+    return jsonMatch[1]
+  }
+
+  // If no tags found, try to extract raw JSON
+  const rawJsonMatch = content.match(/\{.*\}/s)
+  if (rawJsonMatch) {
+    return rawJsonMatch[0]
+  }
+
+  return null
 }
 
 function parseAnonymizationJson(jsonString: string): AnonymizationMap {
