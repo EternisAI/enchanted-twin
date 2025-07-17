@@ -213,7 +213,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-sm;
   }
 
   /* Makes the titlebar draggable so user can move the window */

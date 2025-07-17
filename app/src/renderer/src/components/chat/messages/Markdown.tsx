@@ -90,7 +90,7 @@ export default function Markdown({ children }: { children: string }) {
       rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
       components={{
         p: ({ children, ...props }) => (
-          <p className="text-base font-normal leading-relaxed mb-3" {...props}>
+          <p className="font-normal leading-relaxed mb-3" {...props}>
             {children}
           </p>
         ),

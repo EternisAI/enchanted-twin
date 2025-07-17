@@ -537,7 +537,7 @@ export function Home() {
                             className={cn(
                               'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md text-muted-foreground',
                               'hover:bg-popover hover:text-foreground',
-                              selectedIndex === index && 'bg-primary/10 text-primary',
+                              selectedIndex === index && 'bg-popover text-foreground',
                               isEmphasized &&
                                 'relative before:absolute before:inset-0 before:rounded-'
                             )}
