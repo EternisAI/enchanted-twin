@@ -1,8 +1,5 @@
 import { ReactNode } from 'react'
-import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
-import { Lock, X } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { OnboardingStep } from '@renderer/lib/stores/onboarding'
+import { X } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { Button } from '../ui/button'
 
@@ -25,22 +22,6 @@ function OnboardingTitle({ title, subtitle }: { title: string; subtitle?: string
   )
 }
 
-function OnboardingPrivacyNotice() {
-  return (
-    <motion.div
-      className="text-center"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: 0.3 }}
-    >
-      <p className="text-sm text-muted-foreground">
-        <Lock className="inline-block w-4 h-4 mr-2" /> All your data is stored and processed locally
-        on your device
-      </p>
-    </motion.div>
-  )
-}
-
 export function OnboardingLayout({
   children,
   title,
@@ -48,8 +29,6 @@ export function OnboardingLayout({
   className,
   onClose
 }: OnboardingLayoutProps) {
-  const { currentStep } = useOnboardingStore()
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-8">
       {onClose && (
@@ -67,8 +46,6 @@ export function OnboardingLayout({
           <OnboardingTitle title={title} subtitle={subtitle} />
           {children}
         </div>
-
-        {currentStep !== OnboardingStep.Welcome && <OnboardingPrivacyNotice />}
       </div>
     </div>
   )
