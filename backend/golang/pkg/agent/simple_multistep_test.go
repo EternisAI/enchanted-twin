@@ -77,7 +77,7 @@ func TestMultiStepToolExecution_Simple(t *testing.T) {
 	currentTools := []tools.Tool{mockTool}
 	onDelta := func(delta ai.StreamDelta) {}
 
-	response, err := agent.ExecuteStreamWithPrivacy(ctx, messages, currentTools, onDelta, false)
+	response, err := agent.ExecuteStreamWithPrivacy(ctx, "", messages, currentTools, onDelta, false)
 	if err != nil {
 		t.Fatalf("ExecuteStreamWithPrivacy failed: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestMultiStepToolExecution_NoToolCalls(t *testing.T) {
 
 	onDelta := func(delta ai.StreamDelta) {}
 
-	response, err := agent.ExecuteStreamWithPrivacy(ctx, messages, []tools.Tool{}, onDelta, false)
+	response, err := agent.ExecuteStreamWithPrivacy(ctx, "", messages, []tools.Tool{}, onDelta, false)
 	if err != nil {
 		t.Fatalf("ExecuteStreamWithPrivacy failed: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestMultiStepToolExecution_DeAnonymization(t *testing.T) {
 	currentTools := []tools.Tool{mockTool}
 	onDelta := func(delta ai.StreamDelta) {}
 
-	response, err := agent.ExecuteStreamWithPrivacy(ctx, messages, currentTools, onDelta, false)
+	response, err := agent.ExecuteStreamWithPrivacy(ctx, "", messages, currentTools, onDelta, false)
 	if err != nil {
 		t.Fatalf("ExecuteStreamWithPrivacy failed: %v", err)
 	}

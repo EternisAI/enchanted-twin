@@ -43,6 +43,7 @@ type mockAIService struct {
 
 func (m *mockAIService) CompletionsStreamWithPrivacy(
 	ctx context.Context,
+	conversationID string,
 	messages []openai.ChatCompletionMessageParamUnion,
 	tools []openai.ChatCompletionToolParam,
 	model string,
@@ -168,7 +169,7 @@ func TestExecuteStreamWithPrivacy_ToolExecutionWithDeAnonymization(t *testing.T)
 	}
 
 	// Execute the stream with privacy
-	response, err := agent.ExecuteStreamWithPrivacy(ctx, messages, currentTools, onDelta, false)
+	response, err := agent.ExecuteStreamWithPrivacy(ctx, "", messages, currentTools, onDelta, false)
 	// Verify no error
 	if err != nil {
 		t.Fatalf("ExecuteStreamWithPrivacy failed: %v", err)
@@ -267,7 +268,7 @@ func TestExecuteStreamWithPrivacy_NoToolCalls(t *testing.T) {
 	}
 
 	// Execute the stream with privacy
-	response, err := agent.ExecuteStreamWithPrivacy(ctx, messages, []tools.Tool{}, onDelta, false)
+	response, err := agent.ExecuteStreamWithPrivacy(ctx, "", messages, []tools.Tool{}, onDelta, false)
 	// Verify no error
 	if err != nil {
 		t.Fatalf("ExecuteStreamWithPrivacy failed: %v", err)
@@ -353,7 +354,7 @@ func TestExecuteStreamWithPrivacy_ToolNotFound(t *testing.T) {
 	}
 
 	// Execute the stream with privacy
-	response, err := agent.ExecuteStreamWithPrivacy(ctx, messages, []tools.Tool{}, onDelta, false)
+	response, err := agent.ExecuteStreamWithPrivacy(ctx, "", messages, []tools.Tool{}, onDelta, false)
 	// Verify no error (should handle gracefully)
 	if err != nil {
 		t.Fatalf("ExecuteStreamWithPrivacy failed: %v", err)

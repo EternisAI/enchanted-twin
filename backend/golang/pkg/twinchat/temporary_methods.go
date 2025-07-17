@@ -221,7 +221,7 @@ func (s *Service) ProcessMessageHistoryStream(
 			toolsList = s.toolRegistry.Excluding("send_to_chat").GetAll()
 		}
 
-		response, err := agent.ExecuteStreamWithPrivacy(ctx, messageHistory, toolsList, onDelta, false)
+		response, err := agent.ExecuteStreamWithPrivacy(ctx, chatID, messageHistory, toolsList, onDelta, false)
 		if err != nil {
 			s.logger.Error("Agent execution failed in stream", "error", err)
 			return
