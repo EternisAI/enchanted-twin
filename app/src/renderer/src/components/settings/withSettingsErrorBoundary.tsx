@@ -7,15 +7,7 @@ export function withSettingsErrorBoundary<P extends object>(
 ) {
   const WrappedComponent = (props: P) => {
     return (
-      <ErrorBoundary
-        onError={(error, errorInfo) => {
-          console.error(
-            `Error in ${componentName || Component.displayName || 'Settings Component'}:`,
-            error,
-            errorInfo
-          )
-        }}
-      >
+      <ErrorBoundary componentName={componentName || Component.displayName || 'Settings Component'}>
         <Component {...props} />
       </ErrorBoundary>
     )
