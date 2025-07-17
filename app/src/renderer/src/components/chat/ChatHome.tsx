@@ -481,8 +481,8 @@ export function Home() {
                         }}
                         className={cn(
                           'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
-                          'hover:bg-muted/80',
-                          selectedIndex === 0 && 'bg-primary/10 text-primary'
+                          'hover:bg-popover hover:text-foreground',
+                          selectedIndex === 0 && 'bg-popover text-foreground'
                         )}
                       >
                         <span className="truncate">Create new chat</span>
@@ -502,9 +502,9 @@ export function Home() {
                             setQuery('')
                           }}
                           className={cn(
-                            'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md text-secondary-foreground',
-                            'hover:bg-muted/80',
-                            selectedIndex === index + 1 && 'bg-primary/10 text-primary'
+                            'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md text-muted-foreground',
+                            'hover:bg-popover hover:text-foreground',
+                            selectedIndex === index + 1 && 'bg-popover text-foreground'
                           )}
                         >
                           <span className="truncate">{chat.name}</span>
@@ -536,7 +536,7 @@ export function Home() {
                             }}
                             className={cn(
                               'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md text-muted-foreground',
-                              'hover:bg-accent',
+                              'hover:bg-popover hover:text-foreground',
                               selectedIndex === index && 'bg-primary/10 text-primary',
                               isEmphasized &&
                                 'relative before:absolute before:inset-0 before:rounded-'
