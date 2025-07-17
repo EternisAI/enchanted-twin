@@ -103,7 +103,7 @@ func (s *Service) Execute(
 		toolsList = s.toolRegistry.Excluding("send_to_chat").GetAll()
 	}
 
-	response, err := agent.ExecuteStreamWithPrivacy(ctx, messageHistory, toolsList, onDelta, reasoning)
+	response, err := agent.ExecuteStreamWithPrivacy(ctx, ai.EmptyConversationID, messageHistory, toolsList, onDelta, reasoning)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +157,9 @@ func (s *Service) SendMessage(
 	isReasoning bool,
 	isVoice bool,
 ) (*model.Message, error) {
+	startTime := time.Now()
+	s.logger.Info("SendMessage started", "chatID", chatID, "messageLength", len(message), "isReasoning", isReasoning, "isVoice", isVoice)
+
 	now := time.Now()
 
 	messages := make([]*model.Message, 0)
@@ -180,18 +183,28 @@ func (s *Service) SendMessage(
 		messages = messages_
 	}
 
+	chatSetupTime := time.Since(startTime)
+	s.logger.Info("Chat setup completed", "duration", chatSetupTime, "chatID", chatID, "messageCount", len(messages))
+
+	userProfileStart := time.Now()
 	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
 	if err != nil {
 		s.logger.Error("failed to get user memory profile", "error", err)
 		userMemoryProfile = ""
 	}
+	userProfileTime := time.Since(userProfileStart)
+	s.logger.Info("User profile loaded", "duration", userProfileTime, "profileLength", len(userMemoryProfile))
 
+	systemPromptStart := time.Now()
 	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice, userMemoryProfile)
 	if err != nil {
 		return nil, err
 	}
+	systemPromptTime := time.Since(systemPromptStart)
+	s.logger.Info("System prompt built", "duration", systemPromptTime, "promptLength", len(systemPrompt))
 	s.logger.Debug("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
 
+	messageHistoryStart := time.Now()
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
 		messageHistory,
@@ -205,6 +218,8 @@ func (s *Service) SendMessage(
 		messageHistory = append(messageHistory, openaiMessage)
 	}
 	messageHistory = append(messageHistory, openai.UserMessage(message))
+	messageHistoryTime := time.Since(messageHistoryStart)
+	s.logger.Info("Message history prepared", "duration", messageHistoryTime, "historyLength", len(messageHistory))
 
 	assistantMessageId := uuid.New().String()
 	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
@@ -270,6 +285,7 @@ func (s *Service) SendMessage(
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 	}
 
+	agentSetupStart := time.Now()
 	s.logger.Info("Executing agent", "reasoning", isReasoning)
 
 	agent := agent.NewAgent(
@@ -283,9 +299,14 @@ func (s *Service) SendMessage(
 	)
 
 	toolsList := s.toolRegistry.Excluding("send_to_chat").GetAll()
+	agentSetupTime := time.Since(agentSetupStart)
+	s.logger.Info("Agent setup completed", "duration", agentSetupTime, "toolsCount", len(toolsList))
 
-	response, err := agent.ExecuteStreamWithPrivacy(ctx, messageHistory, toolsList, onDelta, isReasoning)
+	agentExecutionStart := time.Now()
+	response, err := agent.ExecuteStreamWithPrivacy(ctx, chatID, messageHistory, toolsList, onDelta, isReasoning)
+	agentExecutionTime := time.Since(agentExecutionStart)
 	if err != nil {
+		s.logger.Error("Agent execution failed", "duration", agentExecutionTime, "error", err)
 		// send message to stop progress indicator
 		payload := model.MessageStreamPayload{
 			MessageID:                      assistantMessageId,
@@ -299,6 +320,7 @@ func (s *Service) SendMessage(
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 		return nil, err
 	}
+	s.logger.Info("Agent execution completed", "duration", agentExecutionTime, "contentLength", len(response.Content), "toolCallsCount", len(response.ToolCalls), "toolResultsCount", len(response.ToolResults), "imageURLsCount", len(response.ImageURLs), "replacementRulesCount", len(response.ReplacementRules))
 	s.logger.Debug(
 		"Agent response",
 		"content",
@@ -309,6 +331,7 @@ func (s *Service) SendMessage(
 		len(response.ToolResults),
 	)
 
+	responseProcessingStart := time.Now()
 	subject := fmt.Sprintf("chat.%s", chatID)
 	toolResults := make([]string, len(response.ToolResults))
 	for i, v := range response.ToolResults {
@@ -349,6 +372,8 @@ func (s *Service) SendMessage(
 	if err != nil {
 		return nil, err
 	}
+	responseProcessingTime := time.Since(responseProcessingStart)
+	s.logger.Info("Response processing completed", "duration", responseProcessingTime)
 
 	// Create the message for DB
 	userMsg := repository.Message{
@@ -360,12 +385,16 @@ func (s *Service) SendMessage(
 	}
 
 	// Add to database
+	userDbStart := time.Now()
 	_, err = s.storage.AddMessageToChat(ctx, userMsg)
 	if err != nil {
 		return nil, err
 	}
+	userDbTime := time.Since(userDbStart)
+	s.logger.Info("User message stored in database", "duration", userDbTime)
 
 	// Handle privacy dictionary update based on anonymizer type
+	privacyStart := time.Now()
 	var privacyDictJson *string
 
 	if s.anonymizerType == "mock" {
@@ -376,6 +405,7 @@ func (s *Service) SendMessage(
 		}
 	} else if len(response.ReplacementRules) > 0 {
 		// Use real anonymization rules from the agent response
+		// response.ReplacementRules are in format {token: original}, already correct format
 		privacyDictJson, err = createPrivacyDictFromReplacementRules(chatID, response.ReplacementRules)
 		if err != nil {
 			s.logger.Error("failed to generate privacy dictionary from replacement rules", "error", err)
@@ -396,11 +426,19 @@ func (s *Service) SendMessage(
 					PrivacyDictJSON: *privacyDictJson,
 				}
 
-				_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.privacy_dict", chatID), privacyUpdate)
+				subject := fmt.Sprintf("chat.%s.privacy_dict", chatID)
+				if err := helpers.NatsPublish(s.nc, subject, privacyUpdate); err != nil {
+					s.logger.Error("failed to publish privacy dictionary update", "error", err, "subject", subject, "chatID", chatID)
+				} else {
+					s.logger.Info("published privacy dictionary update", "subject", subject, "chatID", chatID)
+				}
 			}()
 		}
 	}
+	privacyTime := time.Since(privacyStart)
+	s.logger.Info("Privacy dictionary processing completed", "duration", privacyTime, "hasPrivacyDict", privacyDictJson != nil)
 
+	userNatsStart := time.Now()
 	userNatsMsg := model.Message{
 		ID:        userMsgID,
 		Text:      &message,
@@ -409,6 +447,8 @@ func (s *Service) SendMessage(
 		Role:      model.RoleUser,
 	}
 	_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s", chatID), userNatsMsg)
+	userNatsTime := time.Since(userNatsStart)
+	s.logger.Info("User message published to NATS", "duration", userNatsTime)
 
 	// assistant message
 	assistantMessageDb := repository.Message{
@@ -455,18 +495,28 @@ func (s *Service) SendMessage(
 		assistantMessageDb.ImageURLsStr = helpers.Ptr(string(imageURLsJson))
 	}
 
+	assistantDbStart := time.Now()
 	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
 	if err != nil {
 		return nil, err
 	}
+	assistantDbTime := time.Since(assistantDbStart)
+	s.logger.Info("Assistant message stored in database", "duration", assistantDbTime)
 
 	// Index the conversation asynchronously
 	go func() {
+		indexStart := time.Now()
 		err := s.IndexConversation(context.Background(), chatID)
+		indexTime := time.Since(indexStart)
 		if err != nil {
-			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
+			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err, "duration", indexTime)
+		} else {
+			s.logger.Info("conversation indexed", "chat_id", chatID, "duration", indexTime)
 		}
 	}()
+
+	totalTime := time.Since(startTime)
+	s.logger.Info("SendMessage completed", "totalDuration", totalTime, "chatID", chatID, "messageID", idAssistant)
 
 	return &model.Message{
 		ID:          idAssistant,
@@ -657,6 +707,8 @@ func createPrivacyDictFromReplacementRules(chatID string, replacementRules map[s
 	privacyDict := make(map[string]interface{})
 
 	// Add the replacement rules to the dictionary
+	// replacementRules format: {token: original_text} e.g. {"Emma": "Alice", "maksim": "innokentii"}
+	// privacyDict format: {original: token} e.g. {"Alice": "Emma", "innokentii": "maksim"} for frontend display
 	for token, originalText := range replacementRules {
 		privacyDict[originalText] = token
 	}

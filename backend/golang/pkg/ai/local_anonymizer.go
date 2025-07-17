@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
@@ -45,10 +44,10 @@ func (l *LocalAnonymizer) AnonymizeMessages(ctx context.Context, conversationID 
 }
 
 func (l *LocalAnonymizer) anonymizeInMemory(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
-	// Start with existing dictionary
+	// Start with existing dictionary (convert token -> original to original -> token for internal use)
 	workingDict := make(map[string]string)
-	for k, v := range existingDict {
-		workingDict[k] = v
+	for token, original := range existingDict {
+		workingDict[original] = token
 	}
 
 	// Process all messages
@@ -84,7 +83,7 @@ func (l *LocalAnonymizer) anonymizeInMemory(ctx context.Context, messages []open
 				// Only add if not already in dictionary
 				if _, exists := workingDict[original]; !exists {
 					workingDict[original] = replacement
-					newRules[original] = replacement
+					newRules[replacement] = original // Store as token -> original
 				}
 			}
 		}
@@ -94,8 +93,14 @@ func (l *LocalAnonymizer) anonymizeInMemory(ctx context.Context, messages []open
 		anonymizedMessages[i] = l.replaceMessageContent(message, anonymizedContent)
 	}
 
+	// Convert workingDict to standard format (token -> original)
+	updatedDict := make(map[string]string)
+	for original, token := range workingDict {
+		updatedDict[token] = original
+	}
+
 	l.logger.Debug("Memory-only local anonymization complete", "messageCount", len(messages), "newRulesCount", len(newRules))
-	return anonymizedMessages, workingDict, newRules, nil
+	return anonymizedMessages, updatedDict, newRules, nil
 }
 
 func (l *LocalAnonymizer) anonymizeWithPersistence(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, existingDict map[string]string, interruptChan <-chan struct{}) ([]openai.ChatCompletionMessageParamUnion, map[string]string, map[string]string, error) {
@@ -106,12 +111,13 @@ func (l *LocalAnonymizer) anonymizeWithPersistence(ctx context.Context, conversa
 	}
 
 	// Merge with provided existing dictionary (provided dict takes precedence)
+	// Convert token -> original to original -> token for internal use
 	workingDict := make(map[string]string)
-	for k, v := range conversationDict {
-		workingDict[k] = v
+	for token, original := range conversationDict {
+		workingDict[original] = token
 	}
-	for k, v := range existingDict {
-		workingDict[k] = v
+	for token, original := range existingDict {
+		workingDict[original] = token
 	}
 
 	// Identify new messages that need anonymization
@@ -146,22 +152,28 @@ func (l *LocalAnonymizer) anonymizeWithPersistence(ctx context.Context, conversa
 		default:
 		}
 
+		// Convert workingDict to standard format for anonymizeInMemory
+		existingDictForInMemory := make(map[string]string)
+		for original, token := range workingDict {
+			existingDictForInMemory[token] = original
+		}
+
 		// Use in-memory processing for new messages with working dictionary
-		_, tempDict, msgRules, err := l.anonymizeInMemory(ctx, newMessages, workingDict, interruptChan)
+		_, tempDict, msgRules, err := l.anonymizeInMemory(ctx, newMessages, existingDictForInMemory, interruptChan)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to anonymize new messages: %w", err)
 		}
 
 		// Merge new rules and update working dictionary
-		for originalValue, replacement := range msgRules {
-			newRules[originalValue] = replacement
-			workingDict[originalValue] = replacement
+		for token, original := range msgRules {
+			newRules[token] = original
+			workingDict[original] = token
 		}
 
 		// Update working dictionary with any new discoveries from temp processing
-		for k, v := range tempDict {
-			if _, exists := workingDict[k]; !exists {
-				workingDict[k] = v
+		for token, original := range tempDict {
+			if _, exists := workingDict[original]; !exists {
+				workingDict[original] = token
 			}
 		}
 
@@ -174,8 +186,14 @@ func (l *LocalAnonymizer) anonymizeWithPersistence(ctx context.Context, conversa
 		}
 	}
 
+	// Convert workingDict to standard format for storage
+	updatedDict := make(map[string]string)
+	for original, token := range workingDict {
+		updatedDict[token] = original
+	}
+
 	// Save updated dictionary
-	if err := l.store.SaveConversationDict(conversationID, workingDict); err != nil {
+	if err := l.store.SaveConversationDict(conversationID, updatedDict); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to save conversation dict: %w", err)
 	}
 
@@ -194,18 +212,13 @@ func (l *LocalAnonymizer) anonymizeWithPersistence(ctx context.Context, conversa
 	}
 
 	l.logger.Debug("Persistent local anonymization complete", "conversationID", conversationID, "totalMessages", len(messages), "newRulesCount", len(newRules))
-	return anonymizedMessages, workingDict, newRules, nil
+	return anonymizedMessages, updatedDict, newRules, nil
 }
 
 // DeAnonymize implements the Anonymizer interface.
 func (l *LocalAnonymizer) DeAnonymize(anonymized string, rules map[string]string) string {
-	// Create reverse mapping
-	reverseRules := make(map[string]string)
-	for original, replacement := range rules {
-		reverseRules[replacement] = original
-	}
-
-	return l.applyReplacements(anonymized, reverseRules)
+	// Use simple de-anonymization (restore original case)
+	return ApplyDeAnonymization(anonymized, rules)
 }
 
 // LoadConversationDict implements the Anonymizer interface.
@@ -294,32 +307,6 @@ func (l *LocalAnonymizer) replaceMessageContent(message openai.ChatCompletionMes
 }
 
 func (l *LocalAnonymizer) applyReplacements(text string, rules map[string]string) string {
-	result := text
-	// Sort replacements by length (longest first) to avoid partial replacements
-	var sortedRules []struct {
-		original    string
-		replacement string
-	}
-	for original, replacement := range rules {
-		sortedRules = append(sortedRules, struct {
-			original    string
-			replacement string
-		}{original, replacement})
-	}
-
-	// Sort by length descending
-	for i := 0; i < len(sortedRules); i++ {
-		for j := i + 1; j < len(sortedRules); j++ {
-			if len(sortedRules[i].original) < len(sortedRules[j].original) {
-				sortedRules[i], sortedRules[j] = sortedRules[j], sortedRules[i]
-			}
-		}
-	}
-
-	// Apply replacements
-	for _, rule := range sortedRules {
-		result = strings.ReplaceAll(result, rule.original, rule.replacement)
-	}
-
-	return result
+	// Use anonymization replacement (preserving token case)
+	return ApplyAnonymization(text, rules)
 }

@@ -73,10 +73,16 @@ async def generate(req: GenerateRequest):
                 print(f"Attempt {attempt + 1}: found")
                 break
 
+        print(f"Generated text: {text}")
         extracted_json, parsed_json = extract_first_json(text)
-        print(f"Extracted JSON: {extracted_json['parsed']}")
+        print(f"Extracted JSON: {extracted_json}, Parsed: {parsed_json}")
+        
+        # Handle case where no JSON is found
+        if parsed_json is None:
+            parsed_json = {}
+        
         return {
-            "genetated": text,
+            "generated": text,
             "extracted": extracted_json,
             "parsed": parsed_json,
         }

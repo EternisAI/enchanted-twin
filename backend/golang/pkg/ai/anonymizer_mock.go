@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -197,6 +195,7 @@ func (m *MockAnonymizer) processAnonymizationRequest(request anonymizationReques
 		// Check for interruption during processing
 		select {
 		case <-request.interruptChan:
+			m.logger.Warn("Anonymization interrupted by scheduler", "messageIndex", i)
 			return anonymizationResponse{
 				messages: nil,
 				rules:    nil,
@@ -213,6 +212,7 @@ func (m *MockAnonymizer) processAnonymizationRequest(request anonymizationReques
 				// Full delay completed
 			case <-request.interruptChan:
 				// Interrupted by scheduler
+				m.logger.Warn("Message anonymization interrupted by scheduler during delay", "messageIndex", i, "delay", m.Delay)
 				return anonymizationResponse{
 					messages: nil,
 					rules:    nil,
@@ -220,6 +220,7 @@ func (m *MockAnonymizer) processAnonymizationRequest(request anonymizationReques
 				}
 			case <-request.ctx.Done():
 				// Context canceled
+				m.logger.Info("Message anonymization canceled by context during delay", "messageIndex", i, "delay", m.Delay, "contextErr", request.ctx.Err())
 				return anonymizationResponse{
 					messages: nil,
 					rules:    nil,
@@ -259,6 +260,7 @@ func (m *MockAnonymizer) anonymizeMessage(ctx context.Context, message openai.Ch
 	// Check for context cancellation
 	select {
 	case <-ctx.Done():
+		m.logger.Info("Message anonymization canceled by context", "contextErr", ctx.Err())
 		return message, nil, ctx.Err()
 	default:
 	}
@@ -311,33 +313,14 @@ func (m *MockAnonymizer) anonymizeContent(ctx context.Context, content string) (
 	default:
 	}
 
-	anonymized := content
-	rules := make(map[string]string)
-
-	// Create a sorted list of replacements by length (longest first) to ensure longer strings are processed first
-	type replacement struct {
-		original string
-		token    string
-	}
-
-	var sortedReplacements []replacement
+	// Use replacement trie to find actual matches and build rules
+	trie := NewReplacementTrie()
 	for original, token := range m.PredefinedReplacements {
-		sortedReplacements = append(sortedReplacements, replacement{original: original, token: token})
+		trie.Insert(original, token)
 	}
 
-	// Sort by length descending (longest first)
-	sort.Slice(sortedReplacements, func(i, j int) bool {
-		return len(sortedReplacements[i].original) > len(sortedReplacements[j].original)
-	})
-
-	// Apply predefined replacements in order (longest first)
-	for _, repl := range sortedReplacements {
-		if strings.Contains(anonymized, repl.original) {
-			anonymized = strings.ReplaceAll(anonymized, repl.original, repl.token)
-			rules[repl.token] = repl.original // Store replacement -> original mapping
-			m.logger.Debug("Applied anonymization", "original", repl.original, "replacement", repl.token)
-		}
-	}
+	// Apply anonymization and get the actual replacement rules used
+	anonymized, rules := trie.ReplaceAll(content)
 
 	m.logger.Debug("Anonymization complete", "originalLength", len(content), "anonymizedLength", len(anonymized), "rulesCount", len(rules))
 
@@ -345,28 +328,8 @@ func (m *MockAnonymizer) anonymizeContent(ctx context.Context, content string) (
 }
 
 func (m *MockAnonymizer) DeAnonymize(anonymized string, rules map[string]string) string {
-	restored := anonymized
-
-	// Create a sorted list of tokens by length (longest first) to ensure longer tokens are processed first
-	type tokenReplacement struct {
-		token    string
-		original string
-	}
-
-	var sortedTokens []tokenReplacement
-	for token, original := range rules {
-		sortedTokens = append(sortedTokens, tokenReplacement{token: token, original: original})
-	}
-
-	// Sort by token length descending (longest first)
-	sort.Slice(sortedTokens, func(i, j int) bool {
-		return len(sortedTokens[i].token) > len(sortedTokens[j].token)
-	})
-
-	// Apply rules in reverse (anonymized token -> original) with longest tokens first
-	for _, tokenRepl := range sortedTokens {
-		restored = strings.ReplaceAll(restored, tokenRepl.token, tokenRepl.original)
-	}
+	// Apply simple de-anonymization (restore original case)
+	restored := ApplyDeAnonymization(anonymized, rules)
 
 	m.logger.Debug("De-anonymization complete", "anonymizedLength", len(anonymized), "restoredLength", len(restored))
 
