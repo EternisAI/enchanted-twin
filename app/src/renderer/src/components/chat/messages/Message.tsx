@@ -24,15 +24,19 @@ const messageAnimation = {
 export function UserMessageBubble({
   message,
   isAnonymized = false,
-  chatPrivacyDict
+  chatPrivacyDict,
+  showTimestamp = true,
+  className
 }: {
   message: Message
   chatPrivacyDict: string | null
   isAnonymized?: boolean
+  showTimestamp?: boolean
+  className?: string
 }) {
   return (
     <motion.div
-      className="flex justify-end"
+      className={cn('flex justify-end', className)}
       initial="initial"
       animate="animate"
       variants={messageAnimation}
@@ -61,11 +65,13 @@ export function UserMessageBubble({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 w-full">
-          <div className="text-[9px] text-muted-foreground font-mono">
-            {new Date(message.createdAt).toLocaleTimeString()}
+        {showTimestamp && (
+          <div className="flex items-center gap-2 w-full">
+            <div className="text-[9px] text-muted-foreground font-mono">
+              {new Date(message.createdAt).toLocaleTimeString()}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </motion.div>
   )
