@@ -1,5 +1,6 @@
 import { useMutation } from '@apollo/client'
 import { SendMessageDocument, Message, Role } from '@renderer/graphql/generated/graphql'
+import { anonymizeText } from '@renderer/lib/utils/anonymizer'
 
 export function useSendMessage(
   chatId: string,
@@ -37,9 +38,11 @@ export function useSendMessage(
   })
 
   const sendMessage = async (text: string, reasoning: boolean, voice: boolean) => {
+    const anonymizedText = await anonymizeText(text)
+
     const optimisticMessage: Message = {
       id: crypto.randomUUID(),
-      text,
+      text: anonymizedText,
       role: Role.User,
       imageUrls: [],
       toolCalls: [],
@@ -53,7 +56,7 @@ export function useSendMessage(
       await sendMessageMutation({
         variables: {
           chatId,
-          text,
+          text: anonymizedText,
           reasoning,
           voice
         }

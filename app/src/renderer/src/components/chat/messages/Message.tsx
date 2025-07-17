@@ -86,7 +86,6 @@ export function AssistantMessageBubble({
   isAnonymized?: boolean
   chatPrivacyDict: string | null
 }) {
-  console.log('chatPrivacyDict', chatPrivacyDict)
   const { speak, stop, isSpeaking } = useTTS()
   const { thinkingText, replyText } = useMemo(
     () => extractReasoningAndReply(message.text || ''),

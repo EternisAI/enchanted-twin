@@ -21,13 +21,16 @@ const DEPENDENCIES_CONFIGS: Record<
     needsExtraction: true
   },
   anonymizer: {
-    url: 'https://d3o88a4htgfnky.cloudfront.net/models/eternis_eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k.zip',
+    url: 'https://huggingface.co/eternis/eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k_gguf/resolve/main/qwen3-0.6b-q4_k_m.gguf?download=true',
     name: 'anonymizer',
-    dir: path.join(
-      DEPENDENCIES_DIR,
-      'models',
-      'eternis_eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k'
-    ),
+    dir: path.join(DEPENDENCIES_DIR, 'models', 'anonymizer'),
+    needsExtraction: false
+  },
+  LLAMACCP: {
+    //@TODO: Add different versions for linux, windows and intel mac
+    url: 'https://github.com/ggml-org/llama.cpp/releases/download/b5916/llama-b5916-bin-macos-arm64.zip',
+    name: 'llamacpp',
+    dir: path.join(DEPENDENCIES_DIR, 'models', 'llamacpp'),
     needsExtraction: true
   },
   onnx: {
@@ -113,7 +116,8 @@ export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
     embeddings: isDependencyProperlyDownloaded('embeddings'),
     anonymizer: isDependencyProperlyDownloaded('anonymizer'),
     onnx: isDependencyProperlyDownloaded('onnx'),
-    LLMCLI: isDependencyProperlyDownloaded('LLMCLI')
+    LLMCLI: isDependencyProperlyDownloaded('LLMCLI'),
+    LLAMACCP: isDependencyProperlyDownloaded('LLAMACCP')
   }
 }
 
@@ -138,9 +142,11 @@ export async function downloadDependency(dependencyName: DependencyName) {
     fs.mkdirSync(dependencyDir, { recursive: true })
   }
   // Determine file extension from URL
-  const urlExtension = path.extname(cfg.url)
+  const urlExtension = path.extname(cfg.url.split('?')[0]) // Remove query parameters before getting extension
   const isTarGz = urlExtension === '.tgz' || urlExtension === '.tar.gz'
-  const fileName = cfg.needsExtraction ? `${dependencyName}${urlExtension}` : dependencyName
+  const fileName = cfg.needsExtraction
+    ? `${dependencyName}${urlExtension}`
+    : `${dependencyName}${urlExtension}`
   const tmpFile = path.join(dependencyDir, fileName)
   let total = 0
 
