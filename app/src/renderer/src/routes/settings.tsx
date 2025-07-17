@@ -93,8 +93,8 @@ function SettingsLayout() {
                     replace={true}
                     className={cn(
                       'flex flex-col items-center gap-1 p-3 rounded-lg transition-colors min-w-[80px]',
-                      'hover:bg-accent',
-                      isActive && 'bg-muted font-bold'
+                      'hover:bg-accent/50',
+                      isActive && 'bg-accent font-medium'
                     )}
                   >
                     <tab.icon className="h-5 w-5" />
