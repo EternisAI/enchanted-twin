@@ -7,7 +7,7 @@ import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES 
 import { Button } from '../ui/button'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 
-export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLMCLI'
+export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLMCLI' | 'LLAMACCP'
 
 interface ModelDownloadItemProps {
   name: string
