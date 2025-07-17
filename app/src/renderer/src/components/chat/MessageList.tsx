@@ -16,7 +16,7 @@ export default function MessageList({
   isAnonymized = false
 }: MessageListProps) {
   return (
-    <div className="flex flex-col gap-10 w-full pb-20">
+    <div className="flex flex-col gap-5 w-full pb-20">
       {messages.map((msg) =>
         msg.role === Role.User ? (
           <UserMessageBubble

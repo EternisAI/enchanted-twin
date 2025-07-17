@@ -176,7 +176,7 @@ function RootComponent() {
             <AnimatePresence>
               {!sidebarOpen && isCompleted && !location.pathname.startsWith('/settings') && (
                 <motion.div
-                  className="absolute top-9 left-3 z-[60]"
+                  className="absolute top-10 left-2 z-[60]"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -189,7 +189,7 @@ function RootComponent() {
                           onClick={() => setSidebarOpen(true)}
                           variant="ghost"
                           size="icon"
-                          className="text-muted-foreground hover:text-foreground"
+                          className="text-muted-foreground hover:text-foreground size-8"
                         >
                           <PanelLeftOpen className="w-5 h-5" />
                         </Button>
@@ -198,7 +198,7 @@ function RootComponent() {
                         <div className="flex items-center gap-2">
                           <span>Open sidebar</span>
                           {shortcuts.toggleSidebar?.keys && (
-                            <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
+                            <kbd className="rounded ml-1 text-[10px] text-primary-foreground/50 font-kbd">
                               {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
                             </kbd>
                           )}

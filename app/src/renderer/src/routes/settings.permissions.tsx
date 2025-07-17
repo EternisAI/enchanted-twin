@@ -15,7 +15,7 @@ export const Route = createFileRoute('/settings/permissions')({
 function PermissionsSettings() {
   return (
     <SettingsContent>
-      <h1 className="text-4xl font-semibold">Permissions</h1>
+      {/* <h1 className="text-2xl font-semibold">Permissions</h1> */}
       <PermissionsCard />
     </SettingsContent>
   )
