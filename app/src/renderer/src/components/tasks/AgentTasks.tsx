@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@apollo/client'
-import { Bell, BellOff, MessageCircle, Plus, Trash2 } from 'lucide-react'
+import { AlarmClockCheckIcon, Bell, BellOff, MessageCircle, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip'
@@ -78,7 +78,8 @@ function EmptyTasksState() {
 
   return (
     <div className="flex flex-col items-center justify-center py-20 px-8 gap-4">
-      <div className="text-center max-w-md flex flex-col gap-4">
+      <div className="text-center items-center max-w-md flex flex-col gap-4">
+        <AlarmClockCheckIcon className="w-10 h-10 text-muted-foreground" />
         <h3 className="text-2xl font-semibold mb-8 text-balance max-w-sm">
           Create a task to automate recurring activities
         </h3>
