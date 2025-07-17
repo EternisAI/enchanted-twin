@@ -4,7 +4,7 @@ import { TooltipTrigger } from '../ui/tooltip'
 import { Tooltip } from '../ui/tooltip'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button } from '../ui/button'
-import { AudioLines, Lightbulb, X } from 'lucide-react'
+import { AudioLinesIcon, Lightbulb, X } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { SendButton } from './MessageInput'
 import { toast } from 'sonner'
@@ -188,19 +188,14 @@ interface ReasoningButtonProps {
   disabled?: boolean
 }
 
-function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps) {
+export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           size="icon"
           onClick={onClick}
-          className={cn(
-            'rounded-full transition-all duration-200 shadow-none hover:shadow-lg active:shadow-sm border-none',
-            isSelected
-              ? '!text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-              : '!bg-muted/50 dark:!bg-muted'
-          )}
+          className={cn(isSelected && '!text-orange-500')}
           variant="outline"
           disabled={disabled}
         >
@@ -224,6 +219,7 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          variant="ghost"
           onClick={() => {
             if (isVoiceReady) {
               onClick()
@@ -231,9 +227,7 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
               toast.error('Voice dependencies installation in progress')
             }
           }}
-          className={cn(
-            '!px-4.5 relative rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none'
-          )}
+          size="icon"
         >
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
@@ -242,16 +236,14 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="flex items-center gap-2"
             >
-              <AudioLines className="w-4 h-4" />
-              Talk
+              <AudioLinesIcon className="w-4 h-4" />
             </motion.span>
           </AnimatePresence>
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{isVoiceReady ? 'Use voice mode' : 'Installing voice dependencies...'}</p>
+        <p>{isVoiceReady ? 'Start voice conversation' : 'Preparing voice...'}</p>
       </TooltipContent>
     </Tooltip>
   )

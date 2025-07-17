@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Button } from '../ui/button'
-import { ArrowUp, Lightbulb, X } from 'lucide-react'
+import { ArrowUp, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
-import { Tooltip, TooltipContent } from '../ui/tooltip'
-import { TooltipTrigger } from '@radix-ui/react-tooltip'
-import { EnableVoiceModeButton } from './ChatInputBox'
+import { EnableVoiceModeButton, ReasoningButton } from './ChatInputBox'
+import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 
 type MessageInputProps = {
   onSend: (text: string, reasoning: boolean, voice: boolean) => void
@@ -32,6 +31,7 @@ export default function MessageInput({
   const [text, setText] = useState('')
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { isVoiceReady } = useDependencyStatus()
 
   const handleSend = () => {
     if (!text.trim() || isWaitingTwinResponse) return
@@ -94,27 +94,7 @@ export default function MessageInput({
           className="flex-1 placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
         />
         <div className="flex justify-end items-center gap-3">
-          {!voiceMode && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={toggleReason}
-                  className={cn(
-                    'rounded-full transition-all shadow-none hover:shadow-lg !px-2.25 active:shadow-sm',
-                    isReasonSelected
-                      ? 'text-orange-500 hover:text-orange-500 hover:!bg-orange-100/50 dark:hover:!bg-orange-300/20 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-                      : ''
-                  )}
-                  variant="outline"
-                >
-                  <Lightbulb className="w-4 h-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Reasoning</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
+          {!voiceMode && <ReasoningButton isSelected={isReasonSelected} onClick={toggleReason} />}
           <AnimatePresence mode="wait">
             {text.trim() ? (
               <motion.div
@@ -137,7 +117,10 @@ export default function MessageInput({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <EnableVoiceModeButton onClick={() => onVoiceModeChange?.()} isVoiceReady={true} />
+                <EnableVoiceModeButton
+                  onClick={() => onVoiceModeChange?.()}
+                  isVoiceReady={isVoiceReady}
+                />
               </motion.div>
             )}
           </AnimatePresence>

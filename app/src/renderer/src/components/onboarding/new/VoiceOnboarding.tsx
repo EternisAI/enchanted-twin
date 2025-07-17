@@ -83,7 +83,7 @@ export default function VoiceOnboarding() {
           >
             <div className="flex flex-col items-center gap-1.5 px-4 py-3">
               <Mic className="w-5 h-5 flex-shrink-0 text-white" />
-              <span className="text-lg font-medium text-white">Initializing voice session</span>
+              <span className="text-lg font-medium text-white">Starting voice conversation</span>
               <div className="w-32 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <motion.div
                   className="h-full bg-gray-500 dark:bg-gray-400"
