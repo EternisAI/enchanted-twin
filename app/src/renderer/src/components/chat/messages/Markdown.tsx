@@ -10,6 +10,7 @@ import { useCallback } from 'react'
 import { CopyButton } from '../../ui/CopyButton'
 import { useTheme } from '@renderer/lib/theme'
 import 'katex/dist/katex.min.css'
+import ImagePreview from './ImagePreview'
 
 interface CodeBlockProps {
   children: React.ReactNode
@@ -99,8 +100,13 @@ export default function Markdown({ children }: { children: string }) {
             {children}
           </strong>
         ),
-        img: ({ alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-          <img {...props} alt={alt || 'markdown image'} className="w-full h-auto rounded-md" />
+        img: ({ alt, src, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+          <ImagePreview
+            {...props}
+            src={src || ''}
+            alt={alt || 'markdown image'}
+            thumbClassName="max-h-[40vh] max-w-full rounded-md overflow-hidden"
+          />
         ),
         pre: ({ className, children, ...props }) => {
           const codeElement = Array.isArray(children) ? children[0] : children

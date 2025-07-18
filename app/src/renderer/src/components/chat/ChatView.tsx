@@ -96,8 +96,8 @@ export default function ChatView({ chat }: ChatViewProps) {
         background="var(--color-background)"
         className="w-full h-[100px] absolute top-0 left-0 z-20 pointer-events-none"
         side="top"
-        blur="12px"
-        stop="5%"
+        blur="24px"
+        stop="10%"
       />
       <div
         ref={containerRef}

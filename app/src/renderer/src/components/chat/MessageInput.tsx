@@ -93,7 +93,7 @@ export default function MessageInput({
           placeholder={placeholder}
           className="flex-1 placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
         />
-        <div className="flex justify-end items-center gap-3">
+        <div className="flex justify-end items-center gap-3 h-fit">
           {!voiceMode && <ReasoningButton isSelected={isReasonSelected} onClick={toggleReason} />}
           <AnimatePresence mode="wait">
             {text.trim() ? (
