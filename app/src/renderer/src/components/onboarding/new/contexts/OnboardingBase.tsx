@@ -28,6 +28,7 @@ export function OnboardingBase({
 
   return (
     <div className="w-full h-full flex flex-col justify-between items-center relative">
+      <div className="h-0"></div>
       <Button
         onClick={handleSkip}
         variant="outline"
@@ -38,7 +39,7 @@ export function OnboardingBase({
       </Button>
       {triggerAnimation && <OnboardingDoneAnimation />}
       <motion.div
-        className="w-full relative"
+        className="w-full absolute inset-0 pointer-events-none z-0"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease: 'easeOut', delay: 0.4 }}
@@ -62,7 +63,7 @@ export function MessageDisplay({
   return (
     <>
       {lastAgentMessage && (
-        <div className="w-full flex flex-col items-center gap-6">
+        <div className="w-full flex flex-col items-center gap-6 z-10">
           <motion.p
             key={lastAgentMessage.id}
             className="text-white text-lg text-center max-w-xl break-words"
@@ -74,16 +75,21 @@ export function MessageDisplay({
           </motion.p>
         </div>
       )}
-      <div className="w-xl pb-12 flex flex-col gap-4">
+      <div className="w-xl pb-12 flex flex-col gap-4 z-10">
         {lastMessage && (
           <motion.div
             key={lastMessage.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="z-1"
+            className="z-1 flex flex-row items-center justify-center"
           >
-            <UserMessageBubble message={lastMessage} chatPrivacyDict={null} isAnonymized={false} />
+            <UserMessageBubble
+              showTimestamp={false}
+              message={lastMessage}
+              chatPrivacyDict={null}
+              isAnonymized={false}
+            />
           </motion.div>
         )}
 

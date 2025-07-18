@@ -32,6 +32,10 @@ export const DEPENDENCY_CONFIG: Record<
   LLMCLI: {
     name: 'Completions engine',
     description: ''
+  },
+  LLAMACCP: {
+    name: 'LLM engine',
+    description: ''
   }
 }
 

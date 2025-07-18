@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import VoiceVisualizer from './VoiceVisualizer'
@@ -9,9 +9,7 @@ import { getToolConfig } from '../config'
 import { getMockFrequencyData } from '@renderer/lib/utils'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
 import { VoiceModeInput } from './VoiceModeInput'
-import { Button } from '@renderer/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
-import { Eye, EyeClosed } from 'lucide-react'
+import { AnonToggleButton } from '../AnonToggleButton'
 
 interface VoiceModeChatViewProps {
   chat: Chat
@@ -58,27 +56,7 @@ export default function VoiceModeChatView({
     <div className="flex h-full w-full items-center ">
       <div className="flex flex-col h-full w-full items-center relative">
         {showAnonymizationToggle && (
-          <div className="absolute top-4 right-4 z-20">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setIsAnonymized(!isAnonymized)}
-                  className="p-2 rounded-md bg-accent/80 cursor-pointer hover:bg-accent backdrop-blur-sm"
-                  variant="ghost"
-                  size="sm"
-                >
-                  {isAnonymized ? (
-                    <EyeClosed className="h-4 w-4 text-primary" />
-                  ) : (
-                    <Eye className="h-4 w-4 text-primary" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isAnonymized ? 'Show original messages' : 'Anonymize messages'}</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
+          <AnonToggleButton isAnonymized={isAnonymized} setIsAnonymized={setIsAnonymized} />
         )}
 
         <motion.div
@@ -103,8 +81,10 @@ export default function VoiceModeChatView({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="flex flex-row items-center justify-center"
             >
               <UserMessageBubble
+                showTimestamp={false}
                 message={lastUserMessage}
                 chatPrivacyDict={chatPrivacyDict}
                 isAnonymized={isAnonymized}
@@ -116,7 +96,9 @@ export default function VoiceModeChatView({
               Error: {error}
             </div>
           )}
-          <VoiceModeInput onStop={stopVoiceMode} />
+          <AnimatePresence mode="wait">
+            <VoiceModeInput onStop={stopVoiceMode} />
+          </AnimatePresence>
         </div>
       </div>
     </div>

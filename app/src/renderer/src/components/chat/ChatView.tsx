@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
@@ -7,13 +8,11 @@ import VoiceModeChatView from './voice/ChatVoiceModeView'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { useChat } from '@renderer/contexts/ChatContext'
 import HolonThreadContext from '../holon/HolonThreadContext'
-import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
-import { Switch } from '../ui/switch'
 import { Button } from '../ui/button'
-import { ArrowDown, Eye, EyeClosed } from 'lucide-react'
+import { ArrowDown } from 'lucide-react'
 import { Fade } from '../ui/blur-fade'
-import { AnimatePresence, motion } from 'framer-motion'
+import Error from './Error'
+import { AnonToggleButton } from './AnonToggleButton'
 
 interface ChatViewProps {
   chat: Chat
@@ -94,49 +93,26 @@ export default function ChatView({ chat }: ChatViewProps) {
 
   return (
     <div className="flex flex-col h-full w-full items-center relative ">
-      <Fade
+      {/* <Fade
         background="var(--color-background)"
-        className="w-full h-[100px] absolute top-0 left-0 z-20 pointer-events-none"
+        className="w-full h-[64px] absolute top-0 left-0 z-20 pointer-events-none"
         side="top"
-        blur="6px"
+        blur="12px"
         stop="5%"
-      />
+      /> */}
       <div
         ref={containerRef}
         onScroll={onScroll}
-        className="flex flex-1 flex-col w-full overflow-y-auto pt-10"
+        className="flex flex-1 flex-col w-full overflow-y-auto pt-[72px] px-4"
       >
         <div className="flex w-full justify-center">
-          <div className="flex flex-col max-w-4xl items-center p-4 w-full">
+          <div className="flex flex-col max-w-3xl items-center p-4 w-full">
             <div className="w-full flex flex-col gap-2">
               {chat.category === ChatCategory.Holon && chat.holonThreadId && (
                 <HolonThreadContext threadId={chat.holonThreadId} />
               )}
               {showAnonymizationToggle && (
-                <div className="absolute top-4 right-4 flex justify-end mb-2 z-40">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={() => setIsAnonymized(!isAnonymized)}
-                        className="p-2 rounded-md bg-accent no-drag cursor-pointer hover:bg-accent/50"
-                        variant="ghost"
-                        size="sm"
-                      >
-                        {isAnonymized ? (
-                          <EyeClosed className="h-4 w-4 text-primary" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-primary" />
-                        )}
-                        <span className="ml-2 text-sm">
-                          {isAnonymized ? 'Show original' : 'Show anonymized'}
-                        </span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{isAnonymized ? 'Show original messages' : 'Anonymize messages'}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+                <AnonToggleButton isAnonymized={isAnonymized} setIsAnonymized={setIsAnonymized} />
               )}
               <MessageList
                 messages={messages}
@@ -144,11 +120,7 @@ export default function ChatView({ chat }: ChatViewProps) {
                 chatPrivacyDict={privacyDict}
                 isAnonymized={isAnonymized}
               />
-              {error && (
-                <div className="py-2 px-4 mt-2 rounded-md border border-red-500 bg-red-500/10 text-red-500">
-                  Error: {error}
-                </div>
-              )}
+              {error && <Error error={error} />}
               <div ref={bottomRef} className="h-8" />
             </div>
           </div>
@@ -171,7 +143,7 @@ export default function ChatView({ chat }: ChatViewProps) {
                 ease: 'easeInOut'
               }
             }}
-            className="absolute bottom-30 left-1/2 transform -translate-x-1/2 z-10"
+            className="absolute bottom-22 left-1/2 transform -translate-x-1/2 z-10"
           >
             <Button
               onClick={scrollToBottom}
@@ -184,30 +156,28 @@ export default function ChatView({ chat }: ChatViewProps) {
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col w-full items-center justify-center px-2 absolute bottom-0 left-0 right-0">
+      <div className="flex flex-col items-center justify-center px-2 absolute bottom-0 inset-x-4">
         <Fade
           background="var(--color-background)"
-          className="w-full h-[180px] absolute bottom-0 left-0 z-0 pointer-events-none"
+          className="w-full h-[72px] absolute bottom-0 left-0 z-0 pointer-events-none"
           side="bottom"
           blur="12px"
-          stop="50%"
+          stop="30%"
         />
-        <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center relative z-10">
-          <VoiceModeToggle
-            voiceMode={isVoiceMode}
-            setVoiceMode={() => {
-              if (isVoiceMode) {
-                stopVoiceMode()
-              } else {
-                startVoiceMode(chat.id)
-              }
-            }}
-          />
+        <div className="pb-4 w-full max-w-3xl flex flex-col gap-4 justify-center items-center relative z-10">
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
             onSend={sendMessage}
             onStop={() => {
               setIsWaitingTwinResponse(false)
+            }}
+            voiceMode={isVoiceMode}
+            onVoiceModeChange={() => {
+              if (isVoiceMode) {
+                stopVoiceMode()
+              } else {
+                startVoiceMode(chat.id)
+              }
             }}
             isReasonSelected={isReasonSelected}
             onReasonToggle={setIsReasonSelected}
@@ -215,39 +185,5 @@ export default function ChatView({ chat }: ChatViewProps) {
         </div>
       </div>
     </div>
-  )
-}
-
-function VoiceModeToggle({
-  voiceMode,
-  setVoiceMode
-}: {
-  voiceMode: boolean
-  setVoiceMode: (voiceMode: boolean) => void
-}) {
-  const { isVoiceReady } = useDependencyStatus()
-
-  return (
-    <Tooltip>
-      <div className="flex justify-end w-full gap-2">
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-2">
-            <Switch
-              id="voiceMode"
-              className="data-[state=unchecked]:bg-foreground/30 cursor-pointer"
-              checked={voiceMode}
-              onCheckedChange={() => {
-                setVoiceMode(!voiceMode)
-              }}
-              disabled={!voiceMode && !isVoiceReady}
-            />
-            <label className="text-sm" htmlFor="voiceMode">
-              Voice Mode
-            </label>
-          </div>
-        </TooltipTrigger>
-      </div>
-      {!isVoiceReady && <TooltipContent>Installing dependencies...</TooltipContent>}
-    </Tooltip>
   )
 }

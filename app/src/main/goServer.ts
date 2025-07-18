@@ -8,7 +8,7 @@ import split2 from 'split2'
 
 import { createErrorWindow, waitForBackend } from './helpers'
 import { capture } from './analytics'
-import { startAnonymiserSetup, cleanupAnonymiser } from './anonymiserManager'
+import { startLlamaCppSetup, cleanupLlamaCpp } from './llamaCppServer'
 
 let goServerProcess: ChildProcess | null = null
 
@@ -38,7 +38,7 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
     ? join(__dirname, '..', '..', 'resources', executable)
     : join(process.resourcesPath, 'resources', executable)
 
-  startAnonymiserSetup()
+  startLlamaCppSetup()
 
   if (IS_PRODUCTION) {
     const success = await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
@@ -88,7 +88,9 @@ async function startGoServer(
         ENCHANTED_MCP_URL: process.env.ENCHANTED_MCP_URL,
         INVITE_SERVER_URL: process.env.INVITE_SERVER_URL,
         PROXY_TEE_URL: process.env.PROXY_TEE_URL,
-        HOLON_API_URL: process.env.HOLON_API_URL
+        HOLON_API_URL: process.env.HOLON_API_URL,
+        ANONYMIZER_TYPE: process.env.ANONYMIZER_TYPE,
+        USE_LOCAL_EMBEDDINGS: process.env.USE_LOCAL_EMBEDDINGS
       }
     })
 
@@ -171,7 +173,7 @@ export function cleanupGoServer() {
     goServerProcess = null
   }
 
-  cleanupAnonymiser()
+  cleanupLlamaCpp()
 }
 
 export function isGoServerRunning(): boolean {

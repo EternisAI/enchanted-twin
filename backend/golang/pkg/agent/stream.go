@@ -16,6 +16,7 @@ type StreamDelta = ai.StreamDelta
 
 func (a *Agent) ExecuteStreamWithPrivacy(
 	ctx context.Context,
+	conversationID string,
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
 	onDelta func(StreamDelta),
@@ -43,7 +44,7 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 	var toolErrors []string
 
 	for currentStep := 0; currentStep < MAX_STEPS; currentStep++ {
-		result, err := a.aiService.CompletionsStreamWithPrivacy(ctx, messages, toolDefs, languageModel, onDelta)
+		result, err := a.aiService.CompletionsStreamWithPrivacy(ctx, conversationID, messages, toolDefs, languageModel, onDelta)
 		if err != nil {
 			return AgentResponse{}, err
 		}

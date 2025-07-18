@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Button } from '../ui/button'
-import { ArrowUp, Lightbulb, X } from 'lucide-react'
+import { ArrowUp, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
-import { Tooltip, TooltipContent } from '../ui/tooltip'
-import { TooltipTrigger } from '@radix-ui/react-tooltip'
+
+import { EnableVoiceModeButton, ReasoningButton } from './ChatInputBox'
+import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 
 type MessageInputProps = {
   onSend: (text: string, reasoning: boolean, voice: boolean) => void
@@ -14,6 +15,7 @@ type MessageInputProps = {
   onReasonToggle?: (reasoningSelected: boolean) => void
   voiceMode?: boolean
   placeholder?: string
+  onVoiceModeChange?: () => void
 }
 
 export default function MessageInput({
@@ -23,11 +25,13 @@ export default function MessageInput({
   isReasonSelected,
   onReasonToggle,
   voiceMode = false,
-  placeholder = "What's on your mind?"
+  placeholder = "What's on your mind?",
+  onVoiceModeChange
 }: MessageInputProps) {
   const [text, setText] = useState('')
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { isVoiceReady } = useDependencyStatus()
 
   const handleSend = () => {
     if (!text.trim() || isWaitingTwinResponse) return
@@ -72,7 +76,7 @@ export default function MessageInput({
     <motion.div
       layoutId="message-input-container"
       className={cn(
-        'relative z-50 flex flex-col gap-3 rounded-xl border border-border bg-card px-4 py-2.25 shadow-xl w-full'
+        'relative z-50 flex flex-col gap-3 rounded-xl border border-border bg-card/90 backdrop-blur-md px-4 py-2.25 shadow-xl w-full'
       )}
       transition={{ type: 'spring', stiffness: 350, damping: 55 }}
       layout
@@ -87,36 +91,39 @@ export default function MessageInput({
           rows={1}
           autoFocus
           placeholder={placeholder}
-          className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
+          className="flex-1 placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
         />
-        <div className="flex justify-end items-center gap-3">
-          {!voiceMode && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={toggleReason}
-                  className={cn(
-                    'rounded-full transition-all shadow-none hover:shadow-lg !px-2.25 active:shadow-sm',
-                    isReasonSelected
-                      ? 'text-orange-500 hover:text-orange-500 hover:!bg-orange-100/50 dark:hover:!bg-orange-300/20 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-                      : ''
-                  )}
-                  variant="outline"
-                >
-                  <Lightbulb className="w-4 h-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Reasoning</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          <SendButton
-            onSend={handleSend}
-            isWaitingTwinResponse={isWaitingTwinResponse}
-            onStop={onStop}
-            text={text}
-          />
+        <div className="flex justify-end items-center gap-3 h-fit">
+          {!voiceMode && <ReasoningButton isSelected={isReasonSelected} onClick={toggleReason} />}
+          <AnimatePresence mode="wait">
+            {text.trim() ? (
+              <motion.div
+                key="send-button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <SendButton
+                  onSend={handleSend}
+                  isWaitingTwinResponse={isWaitingTwinResponse}
+                  onStop={onStop}
+                  text={text}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="voice-mode-button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <EnableVoiceModeButton
+                  onClick={() => onVoiceModeChange?.()}
+                  isVoiceReady={isVoiceReady}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </motion.div>

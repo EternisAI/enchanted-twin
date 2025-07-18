@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion'
-import { Mic, MicOff, X } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { MessageSquareIcon, Mic, MicOff } from 'lucide-react'
 
 import useMicrophonePermission from '@renderer/hooks/useMicrophonePermission'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
@@ -22,21 +22,23 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
   if (!isLiveKitSessionReady) {
     return (
       <motion.div
+        key="initializing-voice-session"
         initial={{ opacity: 0, y: 20 }}
+        exit={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
+        transition={{ type: 'spring', stiffness: 100, damping: 10, mass: 0.5 }}
         className="flex flex-col gap-4 items-center pb-4"
       >
         <div className="flex flex-col items-center gap-1.5 px-4 py-3">
           <Mic className="w-5 h-5 flex-shrink-0" />
-          <span className="text-lg font-medium">Initializing voice session</span>
-          <div className="w-32 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <span className="text-lg font-medium">Starting voice conversation</span>
+          <div className="w-32 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
             <motion.div
-              className="h-full bg-gray-500 dark:bg-gray-400"
+              className="h-full bg-neutral-500 dark:bg-neutral-400"
               initial={{ width: '0%' }}
               animate={{ width: '100%' }}
               transition={{
-                duration: 5,
+                duration: 10,
                 ease: 'linear',
                 repeat: Infinity,
                 repeatType: 'loop'
@@ -55,9 +57,11 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
   if (microphoneStatus !== 'granted') {
     return (
       <motion.div
+        key="allow-microphone-access"
         initial={{ opacity: 0, y: 20 }}
+        exit={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
+        transition={{ type: 'spring', stiffness: 100, damping: 10, mass: 0.5 }}
         className="flex flex-col gap-4 items-center pb-4"
       >
         <div className="flex flex-col items-center gap-1 px-4 py-3">
@@ -81,51 +85,82 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
 
   return (
     <motion.div
+      key="message-input-container"
       initial={{ opacity: 0, y: 20 }}
+      exit={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="flex gap-2 justify-center pb-4"
+      transition={{ type: 'spring', stiffness: 100, damping: 10, mass: 0.5 }}
+      className="flex gap-2 mx-auto justify-center p-2 w-fit rounded-full shadow-xl items-center bg-card"
+      layout
     >
-      <div className="flex p-2 gap-2 max-w-md rounded-full shadow-xl h-14 items-center bg-card">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={toggleMute}
-              className={cn(
-                '!px-4 !py-4 h-10 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-card hover:!bg-card/80 dark:!hover:!bg-card/80',
-                isMuted && '!bg-muted text-muted-foreground'
-              )}
-              variant="outline"
-            >
-              {isMuted ? (
-                <>
-                  <MicOff className="w-4 h-4" />
-                  <span className="text-sm">Muted</span>
-                </>
-              ) : (
-                <>
-                  <Mic className="w-4 h-4 font-bold" fontWeight="bold" />
-                  <span className="text-sm font-medium">I&apos;m listening...</span>
-                </>
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent className="px-3 py-1 rounded-lg">
-            {isMuted ? 'Unmute' : 'Mute'}
-          </TooltipContent>
-        </Tooltip>
-        {onStop && (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <motion.button
+            key="mute-button"
+            layout
+            transition={{ type: 'spring', stiffness: 100, damping: 10, mass: 0.5 }}
+            onClick={toggleMute}
+            className={cn(
+              'cursor-pointer active:scale-95 px-4 h-10 rounded-full transition-colors shadow-none hover:shadow-none active:shadow-none border-none !bg-accent hover:!bg-accent/70 dark:!hover:!bg-accent/70',
+              isMuted &&
+                'text-red-500 dark:text-red-400 !bg-red-100 hover:!bg-red-200/70 dark:!bg-red-600/20 dark:!hover:!bg-red-600/70'
+            )}
+          >
+            <motion.div layout className="flex items-center gap-2">
+              <AnimatePresence mode="wait">
+                {isMuted ? (
+                  <motion.div
+                    key="muted"
+                    layout
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    className="flex items-center gap-2"
+                  >
+                    <MicOff className="w-4 h-4" />
+                    <span className="text-sm">Muted</span>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="listening"
+                    layout
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    className="flex items-center gap-2"
+                  >
+                    <Mic className="w-4 h-4 font-bold" fontWeight="bold" />
+                    <span className="text-sm font-medium">I&apos;m listening...</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          </motion.button>
+        </TooltipTrigger>
+        <TooltipContent className="px-3 py-1 rounded-lg">
+          {isMuted ? 'Unmute' : 'Mute'}
+        </TooltipContent>
+      </Tooltip>
+      {onStop && (
+        <motion.div
+          layout
+          key="stop-button"
+          transition={{ type: 'spring', stiffness: 100, damping: 10, mass: 0.5 }}
+        >
           <Button
             onClick={onStop}
+            size="icon"
             className={cn(
-              '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-card hover:!bg-card/80 dark:!hover:!bg-card/80 hover:!text-gray-500 dark:!hover:!text-gray-400'
+              '!px-2.5 active:scale-95 !bg-accent !hover:bg-accent/50 rounded-full shadow-none hover:shadow-none active:shadow-none border-none'
             )}
             variant="outline"
           >
-            <X className="w-4 h-4" />
+            <MessageSquareIcon className="w-4 h-4" />
           </Button>
-        )}
-      </div>
+        </motion.div>
+      )}
     </motion.div>
   )
 }

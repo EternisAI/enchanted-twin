@@ -10,7 +10,7 @@ import (
 
 // AIService interface defines the methods needed by the Agent.
 type AIService interface {
-	CompletionsStreamWithPrivacy(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, onDelta func(ai.StreamDelta)) (ai.PrivateCompletionResult, error)
+	CompletionsStreamWithPrivacy(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, onDelta func(ai.StreamDelta)) (ai.PrivateCompletionResult, error)
 	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority ai.Priority) (ai.PrivateCompletionResult, error)
 }
 

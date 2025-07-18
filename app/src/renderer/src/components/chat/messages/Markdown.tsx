@@ -10,6 +10,7 @@ import { useCallback } from 'react'
 import { CopyButton } from '../../ui/CopyButton'
 import { useTheme } from '@renderer/lib/theme'
 import 'katex/dist/katex.min.css'
+import ImagePreview from './ImagePreview'
 
 interface CodeBlockProps {
   children: React.ReactNode
@@ -90,7 +91,7 @@ export default function Markdown({ children }: { children: string }) {
       rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
       components={{
         p: ({ children, ...props }) => (
-          <p className="text-base font-normal leading-relaxed mb-3" {...props}>
+          <p className="font-normal leading-relaxed mb-0 [&+p]:mt-4" {...props}>
             {children}
           </p>
         ),
@@ -99,8 +100,13 @@ export default function Markdown({ children }: { children: string }) {
             {children}
           </strong>
         ),
-        img: ({ alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-          <img {...props} alt={alt || 'markdown image'} className="w-full h-auto rounded-md" />
+        img: ({ alt, src, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+          <ImagePreview
+            {...props}
+            src={src || ''}
+            alt={alt || 'markdown image'}
+            thumbClassName="max-h-[40vh] max-w-[400px]"
+          />
         ),
         pre: ({ className, children, ...props }) => {
           const codeElement = Array.isArray(children) ? children[0] : children
@@ -200,12 +206,12 @@ export default function Markdown({ children }: { children: string }) {
         ),
         hr: (props) => <hr className="my-6 border-t border-border" {...props} />,
         h1: ({ children, ...props }) => (
-          <h1 className="text-2xl font-bold mt-8 mb-4 leading-tight" {...props}>
+          <h1 className="text-2xl font-bold mt-8 mb-3 leading-tight" {...props}>
             {children}
           </h1>
         ),
         h2: ({ children, ...props }) => (
-          <h2 className="text-xl font-bold mt-6 mb-3 leading-tight" {...props}>
+          <h2 className="text-xl font-bold mt-6 mb-2 leading-tight" {...props}>
             {children}
           </h2>
         ),

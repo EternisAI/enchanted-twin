@@ -24,15 +24,19 @@ const messageAnimation = {
 export function UserMessageBubble({
   message,
   isAnonymized = false,
-  chatPrivacyDict
+  chatPrivacyDict,
+  showTimestamp = true,
+  className
 }: {
   message: Message
   chatPrivacyDict: string | null
   isAnonymized?: boolean
+  showTimestamp?: boolean
+  className?: string
 }) {
   return (
     <motion.div
-      className="flex justify-end"
+      className={cn('flex justify-end', className)}
       initial="initial"
       animate="animate"
       variants={messageAnimation}
@@ -49,23 +53,25 @@ export function UserMessageBubble({
             </p>
           )}
           {message.imageUrls.length > 0 && (
-            <div className="grid grid-cols-4 gap-y-4 my-2">
+            <div className="grid grid-cols-4 gap-2 my-2 w-fit max-w-full">
               {message.imageUrls.map((url, i) => (
                 <ImagePreview
                   key={i}
                   src={url}
                   alt={`attachment-${i}`}
-                  thumbClassName="inline-block h-32 w-32 object-cover rounded"
+                  thumbClassName="h-32 w-32 rounded-sm"
                 />
               ))}
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 w-full">
-          <div className="text-xs text-muted-foreground">
-            {new Date(message.createdAt).toLocaleTimeString()}
+        {showTimestamp && (
+          <div className="flex justify-end items-center gap-2 w-full">
+            <div className="text-[9px] text-muted-foreground font-mono">
+              {new Date(message.createdAt).toLocaleTimeString()}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </motion.div>
   )
@@ -80,7 +86,6 @@ export function AssistantMessageBubble({
   isAnonymized?: boolean
   chatPrivacyDict: string | null
 }) {
-  console.log('chatPrivacyDict', chatPrivacyDict)
   const { speak, stop, isSpeaking } = useTTS()
   const { thinkingText, replyText } = useMemo(
     () => extractReasoningAndReply(message.text || ''),
@@ -104,7 +109,7 @@ export function AssistantMessageBubble({
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="flex flex-col text-foreground py-2 max-w-[90%] relative group">
+      <div className="flex flex-col text-foreground py-1 max-w-[90%] relative group">
         {thinkingText && (
           <Collapsible className="flex flex-col gap-2 pb-2">
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground cursor-pointer hover:underline group">
@@ -158,31 +163,31 @@ export function AssistantMessageBubble({
             asMarkdown={true}
           />
         )}
-        {/* {message.imageUrls.length > 0 && (
-          <div className="grid grid-cols-4 gap-y-4 my-2">
+        {message.imageUrls.length > 0 && (
+          <div className="grid grid-cols-4 gap-2 my-2 w-fit max-w-full">
             {message.imageUrls.map((url, i) => (
               <ImagePreview
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                thumbClassName="inline-block h-40 w-40 object-cover rounded"
+                thumbClassName="inline-block h-32 w-32 object-cover rounded-sm"
               />
             ))}
           </div>
-        )} */}
-        <div className="flex flex-row items-center gap-4 justify-between w-full">
+        )}
+        <div className="flex flex-row items-start gap-4 justify-between w-full">
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-4 items-center">
               {message.toolCalls.map((toolCall) => (
                 <ToolCall key={toolCall.id} toolCall={toolCall} />
               ))}
             </div>
-            <div className="text-xs text-left text-muted-foreground ">
+            <div className="text-[9px] text-muted-foreground font-mono">
               {new Date(message.createdAt).toLocaleTimeString()}
             </div>
           </div>
           {replyText && replyText.trim() && (
-            <span className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="flex items-center opacity-0 focus-within:opacity-100 group-hover:opacity-100 transition-opacity">
               {isSpeaking ? (
                 <button
                   onClick={stop}
@@ -191,7 +196,7 @@ export function AssistantMessageBubble({
                   tabIndex={-1}
                   aria-label="Stop message audio"
                 >
-                  <VolumeOff className="h-5 w-5 text-primary" />
+                  <VolumeOff className="h-4 w-4 text-primary" />
                 </button>
               ) : (
                 <button
@@ -201,7 +206,7 @@ export function AssistantMessageBubble({
                   tabIndex={-1}
                   aria-label="Play message audio"
                 >
-                  <Volume2 className="h-5 w-5 text-primary" />
+                  <Volume2 className="h-4 w-4 text-primary" />
                 </button>
               )}
             </span>
@@ -263,7 +268,7 @@ const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymize
               return (
                 <span
                   key={`${original}-${index}`}
-                  className="bg-muted-foreground text-secondary px-1.25 py-0.25 rounded text-foreground font-medium"
+                  className="bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium"
                 >
                   {replacement}
                 </span>
@@ -294,7 +299,7 @@ function anonymizeTextForMarkdown(
   Object.entries(privacyDict).forEach(([original, replacement]) => {
     const regex = new RegExp(`(${original})`, 'gi')
     result = result.replace(regex, () => {
-      return `<span class="bg-muted-foreground text-secondary px-1.25 py-0.25 rounded text-foreground font-medium">${replacement}</span>`
+      return `<span class="bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium">${replacement}</span>`
     })
   })
 

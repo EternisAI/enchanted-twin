@@ -12,7 +12,10 @@ import { useMutation, useQuery } from '@apollo/client'
 import {
   StoreTokenDocument,
   GetWhitelistStatusDocument,
-  ActivateInviteCodeDocument
+  ActivateInviteCodeDocument,
+  ConnectMcpServerDocument,
+  McpServerType,
+  GetMcpServersDocument
 } from '@renderer/graphql/generated/graphql'
 import { toast } from 'sonner'
 
@@ -43,6 +46,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null)
   const [waitingForLogin, setWaitingForLogin] = useState(false)
   const [hasUpdatedToken, setHasUpdatedToken] = useState(false)
+  const [hasAutoConnected, setHasAutoConnected] = useState(() => {
+    try {
+      return localStorage.getItem('enchanted_has_auto_connected') === 'true'
+    } catch {
+      return false
+    }
+  })
 
   const [storeToken] = useMutation(StoreTokenDocument, {
     onError: async (error) => {
@@ -72,6 +82,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.error(`Failed to activate invite code: ${error.message}`)
       throw error
     }
+  })
+
+  const [connectMcpServer] = useMutation(ConnectMcpServerDocument, {
+    onCompleted: () => {
+      console.log('[Auth] Enchanted MCP server auto-connected successfully')
+    },
+    onError: (error) => {
+      console.error('[Auth] Failed to auto-connect Enchanted MCP server:', error)
+    }
+  })
+
+  const { data: mcpServersData } = useQuery(GetMcpServersDocument, {
+    skip: !user || !hasUpdatedToken,
+    fetchPolicy: 'network-only'
   })
 
   const activateInviteCode = async (inviteCode: string) => {
@@ -115,6 +139,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearInterval(interval)
     }
   }, [user, storeToken])
+
+  // Auto-connect to Enchanted MCP server after successful login
+  useEffect(() => {
+    if (user && hasUpdatedToken && mcpServersData && !hasAutoConnected) {
+      const autoConnectEnchantedMCP = async () => {
+        try {
+          const enchantedServer = mcpServersData.getMCPServers?.find(
+            server => server.type === McpServerType.Enchanted && server.connected
+          )
+          
+          if (enchantedServer) {
+            console.log('[Auth] Enchanted MCP server already connected, skipping auto-connect')
+            setHasAutoConnected(true)
+            localStorage.setItem('enchanted_has_auto_connected', 'true')
+            return
+          }
+
+          console.log('[Auth] Auto-connecting to Enchanted MCP server...')
+          await connectMcpServer({
+            variables: {
+              input: {
+                name: 'Starter',
+                type: McpServerType.Enchanted,
+                command: 'npx',
+                args: [],
+                envs: []
+              }
+            }
+          })
+          setHasAutoConnected(true)
+          localStorage.setItem('enchanted_has_auto_connected', 'true')
+        } catch (error) {
+          console.error('[Auth] Auto-connect failed, user can connect manually:', error)
+        }
+      }
+
+      autoConnectEnchantedMCP()
+    }
+  }, [user, hasUpdatedToken, mcpServersData, hasAutoConnected, connectMcpServer])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -250,8 +313,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await firebaseSignOut(auth)
       setUser(null)
+      setHasAutoConnected(false)
       console.log('[Auth] Signed out from Firebase')
       localStorage.removeItem('enchanted_user_data')
+      localStorage.removeItem('enchanted_has_auto_connected')
       await window.electron.ipcRenderer.invoke('cleanup-oauth-server')
     } catch (error) {
       console.error('Error signing out:', error)

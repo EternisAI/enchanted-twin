@@ -6,12 +6,11 @@ import {
 } from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
 import { toast } from 'sonner'
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { Skeleton } from '@renderer/components/ui/skeleton'
 import { motion } from 'framer-motion'
 import { PROVIDER_CONFIG } from '@renderer/constants/mcpProviders'
 import ConnectMCPServerButton from './MCPConnectServerButton'
-import { Card } from '../ui/card'
 
 const MCPServerSkeleton = () => (
   <div className="p-4 w-full rounded-md">
@@ -41,24 +40,6 @@ export default function MCPPanel() {
 
   const allMcpServers = useMemo(() => data?.getMCPServers || [], [data])
 
-  // Enchanted server is only allowed if Google is connected
-  const hasGoogleConnected = useMemo(
-    () => allMcpServers.some((server) => server.type === McpServerType.Google && server.connected),
-    [allMcpServers]
-  )
-
-  useEffect(() => {
-    if (allMcpServers.length === 0) return
-
-    const enchantedServer = allMcpServers.find(
-      (server) => server.type === McpServerType.Enchanted && server.connected
-    )
-
-    if (enchantedServer && !hasGoogleConnected) {
-      deleteMcpServer({ variables: { id: enchantedServer.id } })
-    }
-  }, [allMcpServers, hasGoogleConnected, deleteMcpServer])
-
   const serversByType = useMemo(() => {
     const grouped = allMcpServers.reduce(
       (acc, server) => {
@@ -70,14 +51,6 @@ export default function MCPPanel() {
       },
       {} as Partial<Record<McpServerType, typeof allMcpServers>>
     )
-
-    // Filter out Enchanted servers when Google isn't connected
-    if (!hasGoogleConnected && McpServerType.Enchanted in grouped) {
-      const enchantedGroup = grouped[McpServerType.Enchanted]
-      if (enchantedGroup !== undefined) {
-        delete grouped[McpServerType.Enchanted]
-      }
-    }
 
     return grouped
   }, [allMcpServers])
@@ -108,8 +81,8 @@ export default function MCPPanel() {
   }, [serversByType])
 
   return (
-    <Card className="flex flex-col gap-4 p-0">
-      <header className="flex gap-2 justify-between items-center border-b-[0.5px] p-6 py-8">
+    <div className="flex flex-col gap-4 p-0">
+      <header className="flex gap-2 justify-between items-center pb-4 pr-2">
         <div className="flex flex-col gap-2">
           <h2 className="text-2xl font-bold leading-none">Quick Connect</h2>
           <p className="text-muted-foreground leading-none text-sm">
@@ -187,6 +160,6 @@ export default function MCPPanel() {
           </>
         )}
       </motion.div>
-    </Card>
+    </div>
   )
 }
