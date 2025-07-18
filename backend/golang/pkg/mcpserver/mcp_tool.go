@@ -19,8 +19,9 @@ type MCPClient interface {
 }
 
 type MCPTool struct {
-	Client MCPClient
-	Tool   mcp.Tool
+	Client     MCPClient
+	Tool       mcp.Tool
+	ServerName string
 }
 
 func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (agenttypes.ToolResult, error) {
@@ -102,11 +103,18 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 		params = openai.FunctionParameters{}
 	}
 
+	// Add server name to description.
+	// The model sometimes pick up incorrect tools if just the tool name is provided.
+	description := t.Tool.Description
+	if t.ServerName != "" {
+		description = fmt.Sprintf("[%s] %s", t.ServerName, t.Tool.Description)
+	}
+
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
 			Name:        t.Tool.GetName(),
-			Description: param.NewOpt(t.Tool.Description),
+			Description: param.NewOpt(description),
 			Parameters:  params,
 		},
 	}
