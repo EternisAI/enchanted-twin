@@ -20,7 +20,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     provider: 'google',
     scope:
       'openid email profile https://www.googleapis.com/auth/drive https://mail.google.com/ https://www.googleapis.com/auth/calendar',
-    description: 'Access Gmail, Google Drive, and Calendar',
+    description: '',
     icon: <Google className="size-7" />,
     supportsMultipleConnections: false
   },
@@ -28,14 +28,14 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     provider: 'slack',
     scope:
       'channels:read,groups:read,channels:history,groups:history,im:read,mpim:read,search:read,users:read',
-    description: 'Read messages and communicate with your team',
+    description: '',
     icon: <Slack className="size-7" />,
     supportsMultipleConnections: false
   },
   TWITTER: {
     provider: 'twitter',
     scope: 'like.read tweet.read users.read offline.access tweet.write bookmark.read',
-    description: 'Read and write tweets, manage bookmarks',
+    description: '',
     icon: (
       <IconContainer className="bg-foreground">
         <XformerlyTwitter className="size-7 text-primary-foreground" />
