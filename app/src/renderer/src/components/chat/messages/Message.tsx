@@ -53,13 +53,13 @@ export function UserMessageBubble({
             </p>
           )}
           {message.imageUrls.length > 0 && (
-            <div className="grid grid-cols-4 gap-y-4 my-2">
+            <div className="grid grid-cols-4 gap-2 my-2 w-fit max-w-full">
               {message.imageUrls.map((url, i) => (
                 <ImagePreview
                   key={i}
                   src={url}
                   alt={`attachment-${i}`}
-                  thumbClassName="inline-block h-32 w-32 object-cover rounded"
+                  thumbClassName="h-32 w-32 rounded-sm"
                 />
               ))}
             </div>
@@ -164,13 +164,13 @@ export function AssistantMessageBubble({
           />
         )}
         {message.imageUrls.length > 0 && (
-          <div className="grid grid-cols-4 gap-y-4 my-2">
+          <div className="grid grid-cols-4 gap-2 my-2 w-fit max-w-full">
             {message.imageUrls.map((url, i) => (
               <ImagePreview
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                thumbClassName="inline-block h-40 w-40 object-cover rounded"
+                thumbClassName="inline-block h-32 w-32 object-cover rounded-sm"
               />
             ))}
           </div>
