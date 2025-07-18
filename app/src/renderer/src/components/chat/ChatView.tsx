@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
@@ -10,7 +11,7 @@ import HolonThreadContext from '../holon/HolonThreadContext'
 import { Button } from '../ui/button'
 import { ArrowDown } from 'lucide-react'
 import { Fade } from '../ui/blur-fade'
-import { AnimatePresence, motion } from 'framer-motion'
+import Error from './Error'
 import { AnonToggleButton } from './AnonToggleButton'
 
 interface ChatViewProps {
@@ -119,11 +120,7 @@ export default function ChatView({ chat }: ChatViewProps) {
                 chatPrivacyDict={privacyDict}
                 isAnonymized={isAnonymized}
               />
-              {error && (
-                <div className="py-2 px-4 mt-2 rounded-md border border-red-500 bg-red-500/10 text-red-500">
-                  Error: {error}
-                </div>
-              )}
+              {error && <Error error={error} />}
               <div ref={bottomRef} className="h-8" />
             </div>
           </div>
