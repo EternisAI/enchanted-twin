@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 
 import { useVoiceStore } from '@renderer/lib/stores/voice'
@@ -22,8 +22,35 @@ export default function VoiceOnboarding() {
   const { startVoiceMode, stopVoiceMode } = useVoiceStore()
   const { isAgentSpeaking, isSessionReady } = useVoiceAgent()
   const previousIsAgentSpeaking = usePrevious(isAgentSpeaking)
+  const [livekitReady, setLivekitReady] = useState(false)
 
   useEffect(() => {
+    const waitForLiveKit = async () => {
+      let attempts = 0
+      const maxAttempts = 30 // 30 seconds timeout
+      
+      while (attempts < maxAttempts) {
+        try {
+          const state = await window.api.livekit.getState()
+          if (state?.progress === 100 && state?.status === 'Ready') {
+            setLivekitReady(true)
+            break
+          }
+        } catch (error) {
+          console.error('Failed to get LiveKit state:', error)
+        }
+        
+        attempts++
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+    }
+    
+    waitForLiveKit()
+  }, [])
+
+  useEffect(() => {
+    if (!livekitReady) return
+
     const initializeVoiceOnboarding = async () => {
       window.api.analytics.capture('onboarding_started', {
         type: 'VOICE'
@@ -33,7 +60,7 @@ export default function VoiceOnboarding() {
       startVoiceMode(newChatId, true)
     }
     initializeVoiceOnboarding()
-  }, [])
+  }, [livekitReady])
 
   useEffect(() => {
     return () => {
@@ -61,7 +88,7 @@ export default function VoiceOnboarding() {
       onSkip={handleSkip}
     >
       <AnimatePresence mode="wait">
-        {isSessionReady ? (
+        {isSessionReady && livekitReady ? (
           <MessageDisplay lastAgentMessage={lastAgentMessage} lastMessage={lastMessage}>
             <VoiceModeInput />
           </MessageDisplay>
@@ -75,7 +102,9 @@ export default function VoiceOnboarding() {
           >
             <div className="flex flex-col items-center gap-1.5 px-4 py-3">
               <Mic className="w-5 h-5 flex-shrink-0 text-white" />
-              <span className="text-lg font-medium text-white">Starting voice conversation</span>
+              <span className="text-lg font-medium text-white">
+                {!livekitReady ? 'Setting up voice system...' : 'Starting voice conversation'}
+              </span>
               <div className="w-32 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
                 <motion.div
                   className="h-full bg-neutral-500 dark:bg-neutral-400"

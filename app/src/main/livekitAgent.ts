@@ -15,8 +15,9 @@ import { PythonEnvironmentManager } from './pythonEnvironmentManager'
 import { DependencyProgress } from './types/pythonManager.types'
 
 const LIVEKIT_PROGRESS_STEPS = {
-  VENV_SETUP: 20,
-  AGENT_FILES: 40,
+  UV_SETUP: 10,
+  VENV_SETUP: 30,
+  AGENT_FILES: 50,
   DEPENDENCIES: 70,
   INITIALIZATION: 90,
   COMPLETE: 100
@@ -179,6 +180,9 @@ export class LiveKitAgentBootstrap {
   async setup(): Promise<void> {
     log.info('[LiveKit] Starting LiveKit Agent setup process')
     try {
+      this.updateProgress(LIVEKIT_PROGRESS_STEPS.UV_SETUP, 'Setting up Python environment')
+      await this.pythonEnv.setupPythonEnvironment()
+      
       this.updateProgress(LIVEKIT_PROGRESS_STEPS.VENV_SETUP, 'Setting up virtual environment')
       await this.pythonEnv.setupProjectVenv(this.projectName)
 
