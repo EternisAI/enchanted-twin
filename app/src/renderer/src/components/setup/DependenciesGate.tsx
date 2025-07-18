@@ -6,6 +6,7 @@ import { useGoServer } from '@renderer/hooks/useGoServer'
 import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES } from './util'
 import { Button } from '../ui/button'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
+import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
 
 export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLMCLI' | 'LLAMACCP'
 
@@ -80,6 +81,7 @@ const handleDependencyDownload = (
 
 export default function DependenciesGate({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme()
+  const { start: startLlamaCpp } = useLlamaCpp()
   const [hasModelsDownloaded, setHasModelsDownloaded] = useState<Record<DependencyName, boolean>>(
     DEPENDENCY_NAMES.reduce(
       (acc, dep) => {
@@ -190,6 +192,21 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
       hasInitializedGoServer.current = false
     }
   }, [])
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (!hasModelsDownloaded.LLAMACCP) return
+      const result = await window.api.llamacpp.getStatus()
+      if (result.success) {
+        if (!result.isRunning && !result.setupInProgress) {
+          console.log('[LlamaCpp] Server was not running, automatically starting it...')
+          startLlamaCpp()
+        }
+      }
+    }, 15000)
+
+    return () => clearInterval(interval)
+  }, [startLlamaCpp, hasModelsDownloaded.LLAMACCP])
 
   const allDependenciesCompleted =
     Object.values(hasModelsDownloaded).every((dependency) => dependency) ||

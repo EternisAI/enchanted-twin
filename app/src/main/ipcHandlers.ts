@@ -23,6 +23,7 @@ import { downloadDependency, hasDependenciesDownloaded } from './dependenciesDow
 import { DependencyName } from './types/dependencies'
 import { initializeGoServer, cleanupGoServer, isGoServerRunning } from './goServer'
 import { generateTTS } from './ttsManager'
+import { startLlamaCppSetup, cleanupLlamaCpp, getLlamaCppStatus } from './llamaCppServer'
 
 const PATHNAME = 'input_data'
 
@@ -673,6 +674,51 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('models:download', async (_, modelName: DependencyName) => {
     return downloadDependency(modelName)
+  })
+
+  ipcMain.handle('llamacpp:start', async () => {
+    try {
+      log.info('[LlamaCpp] Starting LlamaCpp server via IPC request')
+      await startLlamaCppSetup()
+      return { success: true }
+    } catch (error) {
+      log.error('[LlamaCpp] Error starting server via IPC:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('llamacpp:cleanup', async () => {
+    try {
+      log.info('[LlamaCpp] Cleaning up LlamaCpp server via IPC request')
+      await cleanupLlamaCpp()
+      log.info('[LlamaCpp] Server cleaned up successfully via IPC')
+      return { success: true }
+    } catch (error) {
+      log.error('[LlamaCpp] Error cleaning up server via IPC:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('llamacpp:status', () => {
+    try {
+      const status = getLlamaCppStatus()
+      return {
+        success: true,
+        ...status
+      }
+    } catch (error) {
+      log.error('[LlamaCpp] Error getting status via IPC:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
   })
 
   ipcMain.handle('go-server:initialize', async () => {
