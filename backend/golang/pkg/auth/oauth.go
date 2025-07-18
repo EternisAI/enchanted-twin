@@ -521,6 +521,10 @@ func RefreshOAuthToken(
 		if tokenResp.RefreshToken != "" {
 			token.RefreshToken = tokenResp.RefreshToken
 		}
+
+		// Clear error flag on successful refresh
+		token.Error = false
+
 		logger.Debug("successfully refreshed OAuth token",
 			"provider", provider,
 			"username", token.Username,
