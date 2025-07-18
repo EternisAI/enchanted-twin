@@ -28,7 +28,7 @@ export default function VoiceOnboarding() {
     const waitForLiveKit = async () => {
       let attempts = 0
       const maxAttempts = 30 // 30 seconds timeout
-      
+
       while (attempts < maxAttempts) {
         try {
           const state = await window.api.livekit.getState()
@@ -39,12 +39,12 @@ export default function VoiceOnboarding() {
         } catch (error) {
           console.error('Failed to get LiveKit state:', error)
         }
-        
+
         attempts++
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise((resolve) => setTimeout(resolve, 1000))
       }
     }
-    
+
     waitForLiveKit()
   }, [])
 

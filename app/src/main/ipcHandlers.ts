@@ -295,6 +295,29 @@ export function registerIpcHandlers() {
         log.info(`main.log does not exist: ${mainLogPath}`)
       }
 
+      try {
+        if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+          log.info('Clearing browser storage data')
+          await windowManager.mainWindow.webContents.session.clearStorageData({
+            storages: [
+              'cookies',
+              'filesystem',
+              'indexdb',
+              'localstorage',
+              'shadercache',
+              'websql',
+              'serviceworkers',
+              'cachestorage'
+            ]
+          })
+          log.info('Successfully cleared browser storage data')
+        } else {
+          log.info('Main window not available for clearing browser storage')
+        }
+      } catch (err) {
+        log.error(`Failed to clear browser storage data: ${err}`)
+      }
+
       return dbDeleted || weaviateDeleted || logDeleted
     } catch (error) {
       log.error(`Failed to delete application data: ${error}`, error)
