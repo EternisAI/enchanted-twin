@@ -84,7 +84,7 @@ anonymize this:`),
 			continue
 		}
 
-		c.logger.Info("Local anonymizer response", "attempt", attempt, "original", prompt, "content", response.Content)
+		c.logger.Info("Local anonymizer response", "attempt", attempt, "anonymizer", response.Content, "original", prompt)
 
 		result, err := c.deserializeAnonymizationResponse(response.Content)
 		if err != nil {
