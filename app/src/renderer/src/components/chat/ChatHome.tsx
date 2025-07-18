@@ -183,13 +183,13 @@ export function Home() {
         if (newChatId) {
           navigate({
             to: `/chat/${newChatId}`,
-            search: { initialMessage: query, reasoning: isReasonSelected }
+            search: { initialMessage: message, reasoning: isReasonSelected }
           })
 
           sendMessage({
             variables: {
               chatId: newChatId,
-              text: query,
+              text: message,
               reasoning: isReasonSelected,
               voice: isVoiceMode || false
             }

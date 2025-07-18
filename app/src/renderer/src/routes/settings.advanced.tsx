@@ -13,7 +13,7 @@ function AdvancedSettings() {
     <SettingsContent className="max-w-full w-fit">
       <div className="flex flex-col gap-4 w-full">
         <h3 className="text-3xl font-semibold">Developer</h3>
-        <div className="flex flex-wrap gap-4 w-full">
+        <div className="flex gap-4 w-full">
           <div className="mt-4 flex flex-col gap-4 max-w-md">
             <AdminPanel />
             <InstallationStatus />

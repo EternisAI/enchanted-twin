@@ -76,7 +76,7 @@ export default function MessageInput({
     <motion.div
       layoutId="message-input-container"
       className={cn(
-        'relative z-50 flex flex-col gap-3 rounded-xl border border-border bg-card px-4 py-2.25 shadow-xl w-full'
+        'relative z-50 flex flex-col gap-3 rounded-xl border border-border bg-card/90 backdrop-blur-md px-4 py-2.25 shadow-xl w-full'
       )}
       transition={{ type: 'spring', stiffness: 350, damping: 55 }}
       layout
@@ -93,7 +93,7 @@ export default function MessageInput({
           placeholder={placeholder}
           className="flex-1 placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
         />
-        <div className="flex justify-end items-center gap-3">
+        <div className="flex justify-end items-center gap-3 h-fit">
           {!voiceMode && <ReasoningButton isSelected={isReasonSelected} onClick={toggleReason} />}
           <AnimatePresence mode="wait">
             {text.trim() ? (

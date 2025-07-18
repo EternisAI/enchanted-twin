@@ -176,6 +176,17 @@ interface IApi {
       error?: string
     }>
   }
+  llamacpp: {
+    start: () => Promise<{ success: boolean; error?: string }>
+    cleanup: () => Promise<{ success: boolean; error?: string }>
+    getStatus: () => Promise<{
+      success: boolean
+      isRunning: boolean
+      isSetup: boolean
+      setupInProgress: boolean
+      error?: string
+    }>
+  }
 }
 
 interface ScreenpipeStatus {

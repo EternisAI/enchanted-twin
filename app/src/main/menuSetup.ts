@@ -1,6 +1,7 @@
 import { Menu, app } from 'electron'
 import { windowManager } from './windows'
 import { keyboardShortcutsStore } from './stores'
+import { checkForUpdates } from './autoUpdater'
 
 export function updateMenu() {
   setupMenu()
@@ -52,13 +53,14 @@ export function setupMenu() {
               { role: 'hideOthers' as const },
               { role: 'unhide' as const },
               { type: 'separator' as const },
-              { role: 'quit' as const }
+              { role: 'quit' as const },
+              { type: 'separator' as const }
             ]
           }
         ]
       : []),
     {
-      label: 'File',
+      label: 'App',
       submenu: [
         {
           label: 'New Chat',
@@ -75,6 +77,14 @@ export function setupMenu() {
               // Send new chat command to renderer
               windowManager.mainWindow.webContents.send('new-chat')
             }
+          }
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Check for Updates',
+          accelerator: formatAccelerator('CommandOrControl+U'),
+          click: () => {
+            checkForUpdates()
           }
         },
         { type: 'separator' as const },

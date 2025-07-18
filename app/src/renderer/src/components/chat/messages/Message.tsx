@@ -53,13 +53,13 @@ export function UserMessageBubble({
             </p>
           )}
           {message.imageUrls.length > 0 && (
-            <div className="grid grid-cols-4 gap-y-4 my-2">
+            <div className="grid grid-cols-4 gap-2 my-2 w-fit max-w-full">
               {message.imageUrls.map((url, i) => (
                 <ImagePreview
                   key={i}
                   src={url}
                   alt={`attachment-${i}`}
-                  thumbClassName="inline-block h-32 w-32 object-cover rounded"
+                  thumbClassName="h-32 w-32 rounded-sm"
                 />
               ))}
             </div>
@@ -86,7 +86,6 @@ export function AssistantMessageBubble({
   isAnonymized?: boolean
   chatPrivacyDict: string | null
 }) {
-  console.log('chatPrivacyDict', chatPrivacyDict)
   const { speak, stop, isSpeaking } = useTTS()
   const { thinkingText, replyText } = useMemo(
     () => extractReasoningAndReply(message.text || ''),
@@ -164,18 +163,18 @@ export function AssistantMessageBubble({
             asMarkdown={true}
           />
         )}
-        {/* {message.imageUrls.length > 0 && (
-          <div className="grid grid-cols-4 gap-y-4 my-2">
+        {message.imageUrls.length > 0 && (
+          <div className="grid grid-cols-4 gap-2 my-2 w-fit max-w-full">
             {message.imageUrls.map((url, i) => (
               <ImagePreview
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                thumbClassName="inline-block h-40 w-40 object-cover rounded"
+                thumbClassName="inline-block h-32 w-32 object-cover rounded-sm"
               />
             ))}
           </div>
-        )} */}
+        )}
         <div className="flex flex-row items-start gap-4 justify-between w-full">
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-4 items-center">
