@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/charmbracelet/log"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
@@ -110,8 +109,6 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 	if t.ServerName != "" {
 		description = fmt.Sprintf("[%s] %s", t.ServerName, t.Tool.Description)
 	}
-
-	log.Info("MCP Tool Definition", "tool", t.Tool.GetName(), "description", description)
 
 	return openai.ChatCompletionToolParam{
 		Type: "function",
