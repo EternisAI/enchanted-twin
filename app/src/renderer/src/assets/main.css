@@ -265,17 +265,17 @@
     0% {
       opacity: 0.1;
       filter: blur(2px);
-      scale: 0.9;
+      transform: scale(0.9);
     }
     50% {
       opacity: 0.5;
       filter: blur(0px);
-      scale: 1;
+      transform: scale(1);
     }
     100% {
       opacity: 0.1;
       filter: blur(2px);
-      scale: 0.9;
+      transform: scale(0.9);
     }
   }
 
