@@ -76,7 +76,7 @@ export default function MessageInput({
     <motion.div
       layoutId="message-input-container"
       className={cn(
-        'relative z-50 flex flex-col gap-3 rounded-xl border border-border bg-card px-4 py-2.25 shadow-xl w-full'
+        'relative z-50 flex flex-col gap-3 rounded-xl border border-border bg-card/90 backdrop-blur-md px-4 py-2.25 shadow-xl w-full'
       )}
       transition={{ type: 'spring', stiffness: 350, damping: 55 }}
       layout
