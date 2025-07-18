@@ -1,7 +1,6 @@
 import { ToolCall } from '@renderer/graphql/generated/graphql'
 import HolonToolComponent from '../holon/HolonToolComponent'
 import HolonCreatedComponent from '../holon/HolonCreatedComponent'
-import GenerateImageTool from './tools/GenerateImageTool'
 
 export type ToolName =
   | 'search_tool'
@@ -51,7 +50,7 @@ export const TOOL_CONFIG: Record<
   generate_image: {
     inProgress: 'Generating Image',
     completed: 'Generated Image',
-    component: GenerateImageTool,
+    component: () => <></>,
     url: 'image:https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/NotoSans_-_Frame_With_Picture_-_1F5BC.svg/330px-NotoSans_-_Frame_With_Picture_-_1F5BC.svg.png'
   },
   memory_tool: {
