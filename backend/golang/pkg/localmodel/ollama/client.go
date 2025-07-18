@@ -3,7 +3,9 @@ package ollama
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/charmbracelet/log"
@@ -29,13 +31,32 @@ func NewOllamaClient(baseURL string, model string, logger *log.Logger) *OllamaCl
 	return &OllamaClient{client: &client, model: model, logger: logger}
 }
 
+func prettifyConnectionError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var netErr *net.OpError
+	if errors.As(err, &netErr) {
+		if netErr.Op == "dial" {
+			return errors.New("anonymiser is not running")
+		}
+	}
+
+	if strings.Contains(err.Error(), "connection refused") {
+		return errors.New("anonymiser is not running")
+	}
+
+	return err
+}
+
 func (c *OllamaClient) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
 	completion, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: messages,
 		Model:    model,
 	})
 	if err != nil {
-		return openai.ChatCompletionMessage{}, err
+		return openai.ChatCompletionMessage{}, prettifyConnectionError(err)
 	}
 	return completion.Choices[0].Message, err
 }
@@ -79,7 +100,7 @@ anonymize this:`),
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		response, err := c.Completions(ctx, messages, nil, c.model)
 		if err != nil {
-			lastErr = err
+			lastErr = prettifyConnectionError(err)
 			c.logger.Warn("Anonymization completion failed", "attempt", attempt, "error", err)
 			continue
 		}
