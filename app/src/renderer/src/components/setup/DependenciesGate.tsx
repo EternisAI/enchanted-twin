@@ -197,9 +197,8 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     const interval = setInterval(async () => {
       if (!hasModelsDownloaded.LLAMACCP) return
       const result = await window.api.llamacpp.getStatus()
-
       if (result.success) {
-        if (result.isSetup && !result.isRunning && !result.setupInProgress) {
+        if (!result.isRunning && !result.setupInProgress) {
           console.log('[LlamaCpp] Server was not running, automatically starting it...')
           startLlamaCpp()
         }

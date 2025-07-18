@@ -3,6 +3,8 @@ package ollama
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"strings"
 
 	"github.com/openai/openai-go"
@@ -26,13 +28,32 @@ func NewOllamaClient(baseURL string, model string) *OllamaClient {
 	return &OllamaClient{client: &client, model: model}
 }
 
+func prettifyConnectionError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var netErr *net.OpError
+	if errors.As(err, &netErr) {
+		if netErr.Op == "dial" {
+			return errors.New("Anonymiser is not running")
+		}
+	}
+
+	if strings.Contains(err.Error(), "connection refused") {
+		return errors.New("Anonymiser is not running")
+	}
+
+	return err
+}
+
 func (c *OllamaClient) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
 	completion, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: messages,
 		Model:    model,
 	})
 	if err != nil {
-		return openai.ChatCompletionMessage{}, err
+		return openai.ChatCompletionMessage{}, prettifyConnectionError(err)
 	}
 	return completion.Choices[0].Message, err
 }
@@ -50,7 +71,7 @@ anonymize this:`),
 
 	response, err := c.Completions(ctx, messages, nil, c.model)
 	if err != nil {
-		return nil, err
+		return nil, prettifyConnectionError(err)
 	}
 
 	startIndex := strings.Index(response.Content, "{")
