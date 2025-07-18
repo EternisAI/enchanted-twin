@@ -136,6 +136,17 @@ interface IApi {
     cleanup: () => Promise<{ success: boolean; error?: string }>
     getStatus: () => Promise<{ success: boolean; isRunning: boolean; message: string }>
   }
+  llamacpp: {
+    start: () => Promise<{ success: boolean; error?: string }>
+    cleanup: () => Promise<{ success: boolean; error?: string }>
+    getStatus: () => Promise<{
+      success: boolean
+      isRunning: boolean
+      isSetup: boolean
+      setupInProgress: boolean
+      error?: string
+    }>
+  }
   clipboard: {
     writeText: (text: string) => Promise<{ success: boolean; error?: string }>
     readText: () => Promise<{ success: boolean; text?: string; error?: string }>
