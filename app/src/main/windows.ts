@@ -2,7 +2,6 @@ import { BrowserWindow, Menu, shell, screen } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import iconIcns from '../../resources/icon.icns?asset'
 import { omnibarStore } from './stores'
 
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
@@ -36,7 +35,6 @@ class WindowManagerImpl implements WindowManager {
       autoHideMenuBar: true,
       ...(process.platform !== 'darwin' ? { titleBarOverlay: true } : {}),
       ...(process.platform === 'linux' ? { icon } : {}),
-      ...(process.platform === 'darwin' ? { icon: iconIcns } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false
