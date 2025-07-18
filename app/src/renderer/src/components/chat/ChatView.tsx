@@ -93,13 +93,13 @@ export default function ChatView({ chat }: ChatViewProps) {
 
   return (
     <div className="flex flex-col h-full w-full items-center relative ">
-      <Fade
+      {/* <Fade
         background="var(--color-background)"
-        className="w-full h-[100px] absolute top-0 left-0 z-20 pointer-events-none"
+        className="w-full h-[64px] absolute top-0 left-0 z-20 pointer-events-none"
         side="top"
-        blur="24px"
-        stop="10%"
-      />
+        blur="12px"
+        stop="5%"
+      /> */}
       <div
         ref={containerRef}
         onScroll={onScroll}
@@ -143,7 +143,7 @@ export default function ChatView({ chat }: ChatViewProps) {
                 ease: 'easeInOut'
               }
             }}
-            className="absolute bottom-30 left-1/2 transform -translate-x-1/2 z-10"
+            className="absolute bottom-22 left-1/2 transform -translate-x-1/2 z-10"
           >
             <Button
               onClick={scrollToBottom}
@@ -159,7 +159,7 @@ export default function ChatView({ chat }: ChatViewProps) {
       <div className="flex flex-col items-center justify-center px-2 absolute bottom-0 inset-x-4">
         <Fade
           background="var(--color-background)"
-          className="w-full h-[180px] absolute bottom-0 left-0 z-0 pointer-events-none"
+          className="w-full h-[72px] absolute bottom-0 left-0 z-0 pointer-events-none"
           side="bottom"
           blur="12px"
           stop="30%"
