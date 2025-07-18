@@ -245,6 +245,55 @@
   .animate-subtle-scale {
     animation: subtle-scale 3s linear infinite;
   }
+
+  @keyframes typingFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-typingFadeIn {
+    animation: typingFadeIn 0.3s ease-in-out;
+  }
+
+  @keyframes dotPulse {
+    0% {
+      opacity: 0.1;
+      filter: blur(2px);
+      scale: 0.9;
+    }
+    50% {
+      opacity: 0.5;
+      filter: blur(0px);
+      scale: 1;
+    }
+    100% {
+      opacity: 0.1;
+      filter: blur(2px);
+      scale: 0.9;
+    }
+  }
+
+  .animate-dotPulse {
+    animation: dotPulse 1s ease-in-out infinite;
+  }
+
+  .typing-dots > div:nth-child(1) {
+    animation-delay: 0s;
+  }
+
+  .typing-dots > div:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  .typing-dots > div:nth-child(3) {
+    animation-delay: 0.3s;
+  }
 }
 
 /* not using cursor pointer as native buttons don't have it */
