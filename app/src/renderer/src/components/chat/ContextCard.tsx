@@ -215,7 +215,11 @@ export function ContextCard() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
             className="flex items-center justify-center w-full cursor-pointer"
-            onClick={handleStartEditing}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleStartEditing()
+              }
+            }}
             layout
           >
             <Button
