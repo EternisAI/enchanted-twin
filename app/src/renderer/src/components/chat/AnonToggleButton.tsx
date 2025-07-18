@@ -47,7 +47,7 @@ export const AnonToggleButton = memo(function AnonToggleButton({
                 e.preventDefault()
                 setIsDialogOpen(true)
               }}
-              className="font-semibold hover:underline text-xs text-primary-foreground/50"
+              className="my-1 inline-block relative font-semibold hover:underline text-xs text-primary-foreground/50 before:content-[''] before:absolute before:-inset-2"
             >
               Learn more
             </a>
