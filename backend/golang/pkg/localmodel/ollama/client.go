@@ -39,12 +39,12 @@ func prettifyConnectionError(err error) error {
 	var netErr *net.OpError
 	if errors.As(err, &netErr) {
 		if netErr.Op == "dial" {
-			return errors.New("Anonymiser is not running")
+			return errors.New("anonymiser is not running")
 		}
 	}
 
 	if strings.Contains(err.Error(), "connection refused") {
-		return errors.New("Anonymiser is not running")
+		return errors.New("anonymiser is not running")
 	}
 
 	return err
