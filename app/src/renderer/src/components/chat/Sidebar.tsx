@@ -176,7 +176,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                   <div className="flex items-center gap-2">
                     <span>{collapsed ? 'Expand' : 'Close'} sidebar</span>
                     {shortcuts.toggleSidebar?.keys && (
-                      <kbd className="ml-1 text-[10px] text-primary-foreground/50 font-kbd">
+                      <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
                         {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
                       </kbd>
                     )}
@@ -201,7 +201,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                 <TooltipContent side="bottom" align="center">
                   <div className="flex items-center gap-2">
                     <span>Search</span>
-                    <kbd className="ml-1 text-[10px] text-primary-foreground/50 font-kbd">⌘ K</kbd>
+                    <kbd className="text-[10px] text-primary-foreground/50 font-kbd">⌘ K</kbd>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -247,7 +247,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                   <div className="flex items-center gap-2">
                     <span>New chat</span>
                     {shortcuts.newChat?.keys && (
-                      <kbd className="ml-1 text-[10px] text-primary-foreground/50 font-kbd">
+                      <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
                         {formatShortcutForDisplay(shortcuts.newChat.keys)}
                       </kbd>
                     )}
@@ -393,7 +393,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                   <div className="flex items-center gap-2">
                     <span>Settings</span>
                     {shortcuts.openSettings?.keys && (
-                      <kbd className="ml-1 text-[10px] text-primary-foreground/50 font-kbd">
+                      <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
                         {formatShortcutForDisplay(shortcuts.openSettings.keys)}
                       </kbd>
                     )}
@@ -484,7 +484,7 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
           <Button
             variant="ghost"
             size="icon"
-            className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 h-6 w-6"
+            className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 h-6 w-6"
           >
             <Trash2 className="w-3.5 h-3.5 text-destructive" />
           </Button>
