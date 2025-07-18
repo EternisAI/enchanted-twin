@@ -92,7 +92,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
 
   if (!user) {
     return (
-      <InvitationWrapper showTitlebar showAnimation>
+      <InvitationWrapper showTitlebar>
         <OnboardingLayout title="" subtitle="" className="text-white">
           <div className="flex flex-col gap-6 text-primary-foreground p-10 border border-white/48 rounded-lg bg-white/5 min-w-sm">
             <div className="flex flex-col gap-1 text-center items-center">
