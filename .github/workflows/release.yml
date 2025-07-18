@@ -94,7 +94,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ENCHANTED_MCP_URL: https://proxy-api.ep-use1.ghostagent.org/mcp
-          POSTHOG_API_KEY: phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8
+          POSTHOG_API_KEY: phc_j0wkdCa4BCngP92yQBK3PbsuH5LWv3tliaasJEhw6v4
           INVITE_SERVER_URL: http://52.90.4.74:8080
           TTS_MODEL: kokoro
           TTS_URL: https://audio-processing.model.tinfoil.sh/v1/
