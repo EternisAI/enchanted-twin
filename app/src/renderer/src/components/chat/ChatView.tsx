@@ -8,11 +8,11 @@ import VoiceModeChatView from './voice/ChatVoiceModeView'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { useChat } from '@renderer/contexts/ChatContext'
 import HolonThreadContext from '../holon/HolonThreadContext'
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Button } from '../ui/button'
-import { ArrowDown, Eye, EyeClosed } from 'lucide-react'
+import { ArrowDown } from 'lucide-react'
 import { Fade } from '../ui/blur-fade'
 import Error from './Error'
+import { AnonToggleButton } from './AnonToggleButton'
 
 interface ChatViewProps {
   chat: Chat
@@ -93,13 +93,13 @@ export default function ChatView({ chat }: ChatViewProps) {
 
   return (
     <div className="flex flex-col h-full w-full items-center relative ">
-      <Fade
+      {/* <Fade
         background="var(--color-background)"
-        className="w-full h-[100px] absolute top-0 left-0 z-20 pointer-events-none"
+        className="w-full h-[64px] absolute top-0 left-0 z-20 pointer-events-none"
         side="top"
         blur="12px"
         stop="5%"
-      />
+      /> */}
       <div
         ref={containerRef}
         onScroll={onScroll}
@@ -112,26 +112,7 @@ export default function ChatView({ chat }: ChatViewProps) {
                 <HolonThreadContext threadId={chat.holonThreadId} />
               )}
               {showAnonymizationToggle && (
-                <div className="absolute top-4 right-4 flex justify-end mb-2 z-40">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={() => setIsAnonymized(!isAnonymized)}
-                        className="p-2 rounded-md no-drag backdrop-blur-sm"
-                        variant="ghost"
-                      >
-                        {isAnonymized ? (
-                          <EyeClosed className="h-4 w-4 text-primary" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-primary" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{isAnonymized ? 'Show original messages' : 'Anonymize messages'}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+                <AnonToggleButton isAnonymized={isAnonymized} setIsAnonymized={setIsAnonymized} />
               )}
               <MessageList
                 messages={messages}
@@ -162,7 +143,7 @@ export default function ChatView({ chat }: ChatViewProps) {
                 ease: 'easeInOut'
               }
             }}
-            className="absolute bottom-30 left-1/2 transform -translate-x-1/2 z-10"
+            className="absolute bottom-22 left-1/2 transform -translate-x-1/2 z-10"
           >
             <Button
               onClick={scrollToBottom}
@@ -178,7 +159,7 @@ export default function ChatView({ chat }: ChatViewProps) {
       <div className="flex flex-col items-center justify-center px-2 absolute bottom-0 inset-x-4">
         <Fade
           background="var(--color-background)"
-          className="w-full h-[180px] absolute bottom-0 left-0 z-0 pointer-events-none"
+          className="w-full h-[72px] absolute bottom-0 left-0 z-0 pointer-events-none"
           side="bottom"
           blur="12px"
           stop="30%"
