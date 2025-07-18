@@ -182,7 +182,7 @@ func (s *service) ConnectMCPServer(
 		})
 
 		// Register tools with the registry
-		s.registerMCPTools(ctx, client)
+		s.registerMCPTools(ctx, client, mcpServer.Name)
 
 		return mcpServer, nil
 	}
@@ -275,7 +275,7 @@ func (s *service) ConnectMCPServer(
 						ID:     newMCPServer.ID,
 						Client: mcpClient,
 					})
-					s.registerMCPTools(ctx, mcpClient)
+					s.registerMCPTools(ctx, mcpClient, input.Name)
 					log.Info("OAuth MCP server successfully connected", "server", input.Name)
 				}()
 				return newMCPServer, nil
@@ -338,7 +338,7 @@ func (s *service) ConnectMCPServer(
 	clientInterface := mcpClient
 
 	// Register tools with the registry
-	s.registerMCPTools(ctx, clientInterface)
+	s.registerMCPTools(ctx, clientInterface, input.Name)
 
 	mcpServer, err = s.repo.AddMCPServer(ctx, &input, &enabled)
 	if err != nil {
@@ -511,7 +511,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			})
 
 			// Register tools with the registry
-			s.registerMCPTools(ctx, client)
+			s.registerMCPTools(ctx, client, server.Name)
 
 			continue
 		}
@@ -583,7 +583,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 							ID:     server.ID,
 							Client: mcpClient,
 						})
-						s.registerMCPTools(ctx, mcpClient)
+						s.registerMCPTools(ctx, mcpClient, server.Name)
 						log.Info("OAuth MCP server successfully connected during startup", "server", server.Name)
 					}()
 					continue
@@ -639,7 +639,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		})
 
 		// Register tools with the registry
-		s.registerMCPTools(ctx, client)
+		s.registerMCPTools(ctx, client, server.Name)
 	}
 
 	return nil
@@ -730,7 +730,7 @@ func (s *service) isServerConnected(serverID string) bool {
 }
 
 // registerMCPTools registers tools from an MCP client with the tool registry.
-func (s *service) registerMCPTools(ctx context.Context, client MCPClient) {
+func (s *service) registerMCPTools(ctx context.Context, client MCPClient, serverName string) {
 	if s.registry == nil {
 		return
 	}
@@ -747,8 +747,9 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient) {
 
 	for _, tool := range tools.Tools {
 		mcpTool := &MCPTool{
-			Client: client,
-			Tool:   tool,
+			Client:     client,
+			Tool:       tool,
+			ServerName: serverName,
 		}
 		if err := s.registry.Register(mcpTool); err != nil {
 			log.Warn("Error registering MCP tool", "tool", tool.GetName(), "error", err)
