@@ -64,7 +64,7 @@ export const AnonToggleButton = memo(function AnonToggleButton({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <DialogDescription className="space-y-4 prose text-primary">
+            <DialogDescription className="space-y-8 prose text-primary">
               <div className="space-y-3">
                 <div className="flex items-start space-x-3">
                   <div className="flex-shrink-0 w-6 h-6 rounded-full border-border border flex items-center justify-center text-sm font-medium">
@@ -76,15 +76,15 @@ export const AnonToggleButton = memo(function AnonToggleButton({
                   <div className="flex-shrink-0 w-6 h-6 rounded-full border-border border flex items-center justify-center text-sm font-medium">
                     2
                   </div>
-                  <p className="text-sm">
-                    Before sending, we filter out private and sensitive information, replacing it
-                    with anonymized equivalents.
+                  <p className="text-sm leading-relaxed">
+                    Before sending, Enchanted replaces private and sensitive information with
+                    anonymized equivalents.
                     <br />
                     <span className="inline-block my-1.5 bg-muted-foreground/10 p-1 rounded-md">
                       My friend found an unreleased iPhone at a bar. Should they sell it to Gizmodo?
                     </span>
                     <br />
-                    <span className="block text-center">becomes anonymized:</span>
+                    will be anonymized to:
                     <span className="inline-block my-1.5 bg-muted-foreground/10 p-1 rounded-md">
                       My friend found an unreleased{' '}
                       <span className="inline-block rounded-sm bg-muted-foreground text-primary-foreground px-1">
@@ -97,23 +97,21 @@ export const AnonToggleButton = memo(function AnonToggleButton({
                       ?
                     </span>
                     <br />
-                    <span className="text-xs text-muted-foreground">
-                      This is done on your machine, before the message is sent.
-                    </span>
+                    This is done on your machine, before the message is sent.
                   </p>
                 </div>
                 <div className="flex items-start space-x-3">
                   <div className="flex-shrink-0 w-6 h-6 rounded-full border-border border flex items-center justify-center text-sm font-medium">
                     3
                   </div>
-                  <p className="text-sm">Enchanted sends the anonymized message to a secure LLM.</p>
+                  <p className="text-sm">Enchanted sends the anonymized message</p>
                 </div>
                 <div className="flex items-start space-x-3">
                   <div className="flex-shrink-0 w-6 h-6 rounded-full border-border border flex items-center justify-center text-sm font-medium">
                     4
                   </div>
                   <p className="text-sm">
-                    Enchanted de-anonymizes the response before displaying it.
+                    Enchanted de-anonymizes the response before displaying it
                   </p>
                 </div>
               </div>
