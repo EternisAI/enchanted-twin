@@ -105,7 +105,7 @@ export default function Markdown({ children }: { children: string }) {
             {...props}
             src={src || ''}
             alt={alt || 'markdown image'}
-            thumbClassName="max-h-[40vh] max-w-full rounded-md overflow-hidden"
+            thumbClassName="max-h-[40vh] max-w-[400px]"
           />
         ),
         pre: ({ className, children, ...props }) => {
