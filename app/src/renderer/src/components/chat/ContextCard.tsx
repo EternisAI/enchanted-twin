@@ -159,7 +159,7 @@ export function ContextCard() {
                       <XIcon className="size-4" />
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="default"
                       size="icon"
                       aria-label="Save changes"
                       onClick={handleSubmit}
