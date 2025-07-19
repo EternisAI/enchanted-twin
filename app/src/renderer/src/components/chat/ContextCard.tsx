@@ -34,7 +34,9 @@ export function ContextCard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const { data } = await updateProfile({ variables: { input: { bio: context } } })
+    const { data } = await updateProfile({
+      variables: { input: { bio: context.trimEnd().trimStart() } }
+    })
     if (data?.updateProfile) {
       await refetch()
       setIsEditing(false)
@@ -65,13 +67,14 @@ export function ContextCard() {
     setIsEditing(true)
   }
 
-  const isContextMultiline = context.trimEnd().split('\n').length > 1
+  const isContextMultiline = context.trimEnd().trimStart().split('\n').length > 1
 
   return (
     <motion.div
       className={cn(
         'relative bg-transparent !w-full rounded-lg p-1 hover:bg-muted focus-within:bg-muted transition-colors max-w-md mx-auto',
-        isEditing && '!bg-muted'
+        isEditing && '!bg-muted',
+        isContextMultiline && !isEditing && '!ring-1 !ring-muted'
       )}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
       layout
@@ -203,7 +206,7 @@ export function ContextCard() {
                     }}
                     layout="position"
                   >
-                    {context.trimEnd()}
+                    {context.trimEnd().trimStart()}
                   </motion.p>
                 </motion.div>
               )}
