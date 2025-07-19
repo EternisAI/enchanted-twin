@@ -17,7 +17,14 @@ export function ActionButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" onClick={onClick} disabled={disabled} {...props}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClick}
+          disabled={disabled}
+          aria-label={tooltipLabel}
+          {...props}
+        >
           {children}
         </Button>
       </TooltipTrigger>
