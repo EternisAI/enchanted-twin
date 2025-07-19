@@ -28,7 +28,7 @@ export const AnonToggleButton = memo(function AnonToggleButton({
               className={cn(
                 'p-2 no-drag backdrop-blur-sm',
                 isAnonymized &&
-                  '!bg-muted-foreground text-white hover:!bg-muted-foreground/80 hover:!text-white'
+                  'dark:bg-card dark:hover:!bg-card/80 bg-muted-foreground text-white hover:!bg-muted-foreground/80 hover:!text-white'
               )}
               variant="outline"
               size="icon"
