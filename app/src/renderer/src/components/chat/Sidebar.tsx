@@ -6,7 +6,6 @@ import {
   GetChatsDocument
 } from '@renderer/graphql/generated/graphql'
 import { cn } from '@renderer/lib/utils'
-import logo from '@resources/icon.png'
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -159,32 +158,18 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                     variant="ghost"
                     size="icon"
                     onClick={() => setSidebarOpen(collapsed)}
-                    disabled={!collapsed}
                     className={cn(
-                      'hover:bg-sidebar-accent group disabled:opacity-100',
+                      'hover:bg-sidebar-accent',
                       collapsed
                         ? 'size-10 text-foreground/60 hover:text-foreground'
                         : 'size-8 text-sidebar-foreground/60 hover:text-sidebar-foreground'
                     )}
                   >
-                    <div className="flex items-center justify-center size-8 relative">
-                      <img
-                        src={logo}
-                        alt="logo"
-                        className={cn(
-                          'w-7 h-7 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-200',
-                          collapsed && 'opacity-100 group-hover:opacity-0 disabled:opacity-100'
-                        )}
-                      />
-                      {collapsed && (
-                        <PanelLeftOpen
-                          className={cn(
-                            'w-4 h-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-200',
-                            collapsed && 'opacity-0 group-hover:opacity-100'
-                          )}
-                        />
-                      )}
-                    </div>
+                    {collapsed ? (
+                      <PanelLeftOpen className="w-4 h-4" />
+                    ) : (
+                      <PanelLeftClose className="w-4 h-4" />
+                    )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" align="center">
@@ -201,21 +186,26 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
             </TooltipProvider>
           </motion.div>
           {!collapsed && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.5, ease: 'easeInOut' }}
-            >
-              <Button
-                onClick={() => setSidebarOpen(false)}
-                variant="ghost"
-                size="icon"
-                className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-              >
-                <PanelLeftClose className="w-4 h-4" />
-              </Button>
-            </motion.div>
+            <TooltipProvider>
+              <Tooltip delayDuration={500}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={openOmnibar}
+                    className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                  >
+                    <SearchIcon className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="center">
+                  <div className="flex items-center gap-2">
+                    <span>Search</span>
+                    <kbd className="text-[10px] text-primary-foreground/50 font-kbd">⌘ K</kbd>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
         <div className="flex flex-col gap-1 mb-2">
@@ -267,53 +257,6 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
             </Tooltip>
           </TooltipProvider>
 
-          <TooltipProvider>
-            <Tooltip delayDuration={collapsed ? 300 : 1000}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    'group h-9 transition-all',
-                    collapsed
-                      ? 'w-10 p-0 justify-center text-foreground hover:bg-accent'
-                      : 'w-full justify-start px-2 text-sidebar-foreground'
-                  )}
-                  onClick={openOmnibar}
-                >
-                  <SearchIcon
-                    className={cn(
-                      'w-4 h-4 transition-colors duration-100',
-                      collapsed
-                        ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground'
-                        : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
-                    )}
-                  />
-                  {!collapsed && (
-                    <>
-                      <span className="text-sm">Search</span>
-                      {shortcuts.search?.keys && (
-                        <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
-                          {formatShortcutForDisplay(shortcuts.search.keys)}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </Button>
-              </TooltipTrigger>
-              {collapsed && (
-                <TooltipContent side="right" align="center">
-                  <div className="flex items-center gap-2">
-                    <span>Search</span>
-                    {shortcuts.search?.keys && (
-                      <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
-                        {formatShortcutForDisplay(shortcuts.search.keys)}
-                      </kbd>
-                    )}
-                  </div>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
           <TooltipProvider>
             <Tooltip delayDuration={collapsed ? 300 : 1000}>
               <TooltipTrigger asChild>
