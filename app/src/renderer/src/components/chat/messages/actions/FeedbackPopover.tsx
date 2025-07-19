@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Flag, Send, X } from 'lucide-react'
+import { Flag, Send, X, Loader2, Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@renderer/components/ui/button'
 import { Textarea } from '@renderer/components/ui/textarea'
@@ -25,6 +25,8 @@ export function FeedbackPopover({
   const [selectedType, setSelectedType] = useState<FeedbackType>(null)
   const [feedback, setFeedback] = useState('')
   const [hasInitialized, setHasInitialized] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
 
   const hasUnsavedChanges = feedback.trim() !== '' || selectedType !== null
 
@@ -54,6 +56,7 @@ export function FeedbackPopover({
     setSelectedType(null)
     setFeedback('')
     setHasInitialized(false)
+    setIsLoading(false)
   }, [])
 
   const submitFeedback = useCallback(async () => {
@@ -79,38 +82,38 @@ export function FeedbackPopover({
   }, [selectedType, feedback, currentMessage, getUserMessage, chatPrivacyDict])
 
   const handleSubmit = useCallback(() => {
-    if (!selectedType) return
+    if (!selectedType || isLoading) return
 
-    const attemptSubmission = () => {
-      const submissionPromise = submitFeedback()
+    const attemptSubmission = async () => {
+      setIsLoading(true)
 
-      toast.promise(submissionPromise, {
-        loading: 'Sending feedback...',
-        success: () => {
-          resetState()
-          return 'Feedback sent successfully!'
-        },
-        error: (error) => {
-          console.error('Failed to submit feedback:', error)
-          // Show error toast with manual retry option
-          setTimeout(() => {
-            toast.error(`Failed to send feedback: ${error.message}`, {
-              action: {
-                label: 'Retry',
-                onClick: attemptSubmission
-              }
-            })
-          }, 100)
-          return null // Return null to prevent the default error toast
-        }
-      })
+      try {
+        await submitFeedback()
+        setFeedbackSubmitted(true)
+        toast.success('Feedback sent successfully!')
+        resetState()
+      } catch (error) {
+        console.error('Failed to submit feedback:', error)
+        setIsLoading(false) // Re-enable form on error
+
+        // Show error toast with manual retry option
+        toast.error(`Failed to send feedback: ${(error as Error).message}`, {
+          action: {
+            label: 'Retry',
+            onClick: attemptSubmission
+          }
+        })
+      }
     }
 
     attemptSubmission()
-  }, [submitFeedback, selectedType, resetState])
+  }, [submitFeedback, selectedType, resetState, isLoading])
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
+      // Prevent closing while loading
+      if (isLoading) return
+
       if (open) {
         setIsOpen(true)
       } else if (!hasUnsavedChanges) {
@@ -128,18 +131,23 @@ export function FeedbackPopover({
         }
       }
     },
-    [hasUnsavedChanges, resetState]
+    [hasUnsavedChanges, resetState, isLoading]
   )
 
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <ActionButton
-          tooltipLabel="Give feedback"
-          onClick={() => setIsOpen(true)}
-          aria-label="Give feedback"
+          tooltipLabel={feedbackSubmitted ? 'Feedback already submitted' : 'Give feedback'}
+          onClick={() => !feedbackSubmitted && setIsOpen(true)}
+          aria-label={feedbackSubmitted ? 'Feedback already submitted' : 'Give feedback'}
+          disabled={feedbackSubmitted}
         >
-          <Flag className="h-4 w-4" />
+          {feedbackSubmitted ? (
+            <Check className="h-4 w-4 text-green-600" />
+          ) : (
+            <Flag className="h-4 w-4" />
+          )}
         </ActionButton>
       </PopoverTrigger>
       <PopoverContent
@@ -162,6 +170,7 @@ export function FeedbackPopover({
             <Button
               variant="ghost"
               size="icon"
+              disabled={isLoading}
               onClick={() => {
                 if (hasUnsavedChanges) {
                   const confirmed = confirm(
@@ -192,6 +201,7 @@ export function FeedbackPopover({
                 <div className="space-y-2">
                   <Button
                     variant="outline"
+                    disabled={isLoading}
                     className="w-full justify-start text-left h-auto p-3"
                     onClick={() => handleTypeSelect('not-enough-anonymization')}
                   >
@@ -205,6 +215,7 @@ export function FeedbackPopover({
 
                   <Button
                     variant="outline"
+                    disabled={isLoading}
                     className="w-full justify-start text-left h-auto p-3"
                     onClick={() => handleTypeSelect('too-much-anonymized')}
                   >
@@ -218,6 +229,7 @@ export function FeedbackPopover({
 
                   <Button
                     variant="outline"
+                    disabled={isLoading}
                     className="w-full justify-start text-left h-auto p-3"
                     onClick={() => handleTypeSelect('other')}
                   >
@@ -248,6 +260,7 @@ export function FeedbackPopover({
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={isLoading}
                     onClick={() => {
                       setSelectedType(null)
                       setFeedback('')
@@ -264,14 +277,24 @@ export function FeedbackPopover({
                     placeholder="Describe the issue or provide additional context..."
                     value={feedback}
                     autoFocus
+                    disabled={isLoading}
                     onChange={(e) => handleFeedbackChange(e.target.value)}
                     className="min-h-20 resize-none text-sm"
                   />
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" onClick={handleSubmit} className="flex-1">
-                    Send Feedback <Send className="h-4 w-4" />
+                  <Button size="sm" onClick={handleSubmit} disabled={isLoading} className="flex-1">
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        Send Feedback <Send className="h-4 w-4" />
+                      </>
+                    )}
                   </Button>
                 </div>
                 <div className="text-xs text-muted-foreground">

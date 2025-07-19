@@ -6,16 +6,18 @@ export function ActionButton({
   children,
   onClick,
   tooltipLabel,
+  disabled,
   ...props
 }: {
   children: React.ReactNode
   onClick: () => void
   tooltipLabel: string
+  disabled?: boolean
 } & VariantProps<typeof buttonVariants>) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" onClick={onClick} {...props}>
+        <Button variant="ghost" size="icon" onClick={onClick} disabled={disabled} {...props}>
           {children}
         </Button>
       </TooltipTrigger>
