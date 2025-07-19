@@ -190,7 +190,7 @@ export const Omnibar = () => {
                         }
                       }}
                       placeholder="What's on your mind?"
-                      className="flex-1 !bg-transparent text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-hidden min-h-0 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+                      className="flex-1 !rounded-none !bg-transparent text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-hidden min-h-0 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
                       rows={1}
                     />
                     {debouncedQuery.trim() && filteredChats.length === 0 && (
