@@ -89,7 +89,7 @@ export function useScreenpipeConnection(options: UseScreenpipeConnectionOptions 
 
     checkPermissions()
     const interval = setInterval(checkPermissions, 5000)
-    
+
     return () => {
       clearInterval(interval)
       clearInterval(fetchStatusInterval)

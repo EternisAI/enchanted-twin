@@ -324,8 +324,8 @@ export function Home() {
             {/* Background that expands when editing */}
             <motion.div
               className={cn(
-                'absolute inset-0 rounded-lg transition-all duration-300 hover:bg-popover',
-                isEditingName ? 'bg-popover' : 'bg-transparent'
+                'absolute inset-0 rounded-lg transition-all duration-300 hover:bg-muted',
+                isEditingName ? 'bg-muted' : 'bg-transparent'
               )}
               layout
             />
@@ -481,8 +481,8 @@ export function Home() {
                         }}
                         className={cn(
                           'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
-                          'hover:bg-popover hover:text-foreground',
-                          selectedIndex === 0 && 'bg-popover text-foreground'
+                          'hover:bg-muted hover:text-foreground',
+                          selectedIndex === 0 && 'bg-muted text-foreground'
                         )}
                       >
                         <span className="truncate">Create new chat</span>
@@ -503,8 +503,8 @@ export function Home() {
                           }}
                           className={cn(
                             'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md text-muted-foreground',
-                            'hover:bg-popover hover:text-foreground',
-                            selectedIndex === index + 1 && 'bg-popover text-foreground'
+                            'hover:bg-muted hover:text-foreground',
+                            selectedIndex === index + 1 && 'bg-muted text-foreground'
                           )}
                         >
                           <span className="truncate">{chat.name}</span>
@@ -536,8 +536,8 @@ export function Home() {
                             }}
                             className={cn(
                               'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md text-muted-foreground',
-                              'hover:bg-popover hover:text-foreground',
-                              selectedIndex === index && 'bg-popover text-foreground',
+                              'hover:bg-muted hover:text-foreground',
+                              selectedIndex === index && 'bg-muted text-foreground',
                               isEmphasized &&
                                 'relative before:absolute before:inset-0 before:rounded-'
                             )}
