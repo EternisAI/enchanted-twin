@@ -68,8 +68,8 @@ export function ContextCard() {
   return (
     <motion.div
       className={cn(
-        'relative bg-transparent !w-full rounded-lg p-1 hover:bg-popover focus-within:bg-popover transition-colors max-w-md mx-auto',
-        isEditing && '!bg-popover'
+        'relative bg-transparent !w-full rounded-lg p-1 hover:bg-muted focus-within:bg-muted transition-colors max-w-md mx-auto',
+        isEditing && '!bg-muted'
       )}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
       layout
