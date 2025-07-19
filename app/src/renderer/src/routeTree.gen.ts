@@ -79,13 +79,13 @@ const SettingsPermissionsRoute = SettingsPermissionsImport.update({
 const SettingsDataSourcesRoute = SettingsDataSourcesImport.update({
   id: '/data-sources',
   path: '/data-sources',
-  getParentRoute: () => SettingsRoute,
+  getParentRoute: () => SettingsRoute
 } as any)
 
 const SettingsCustomizeRoute = SettingsCustomizeImport.update({
   id: '/customize',
   path: '/customize',
-  getParentRoute: () => SettingsRoute,
+  getParentRoute: () => SettingsRoute
 } as any)
 
 const SettingsAdvancedRoute = SettingsAdvancedImport.update({
@@ -97,7 +97,7 @@ const SettingsAdvancedRoute = SettingsAdvancedImport.update({
 const SettingsAboutRoute = SettingsAboutImport.update({
   id: '/about',
   path: '/about',
-  getParentRoute: () => SettingsRoute,
+  getParentRoute: () => SettingsRoute
 } as any)
 
 const HolonThreadIdRoute = HolonThreadIdImport.update({
@@ -232,7 +232,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAdvancedRoute: SettingsAdvancedRoute,
   SettingsCustomizeRoute: SettingsCustomizeRoute,
   SettingsDataSourcesRoute: SettingsDataSourcesRoute,
-  SettingsPermissionsRoute: SettingsPermissionsRoute,
+  SettingsPermissionsRoute: SettingsPermissionsRoute
 }
 
 const SettingsRouteWithChildren = SettingsRoute._addFileChildren(SettingsRouteChildren)

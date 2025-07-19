@@ -114,6 +114,8 @@ const api = {
   analytics: {
     capture: (event: string, properties: Record<string, unknown>) =>
       ipcRenderer.invoke('analytics:capture', event, properties),
+    captureFeedback: (event: string, properties: Record<string, unknown>) =>
+      ipcRenderer.invoke('analytics:capture-feedback', event, properties),
     identify: (properties: Record<string, unknown>) =>
       ipcRenderer.invoke('analytics:identify', properties),
     getDistinctId: () => ipcRenderer.invoke('analytics:get-distinct-id'),
