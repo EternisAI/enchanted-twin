@@ -125,6 +125,7 @@ export function TwinNameInput() {
               size="icon"
               className="h-8 w-8"
               aria-label="Cancel"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 if (nameEditRef.current) {
                   nameEditRef.current.textContent = twinName
@@ -139,6 +140,7 @@ export function TwinNameInput() {
               size="icon"
               className="h-8 w-8"
               aria-label="Save changes"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleNameUpdate}
             >
               <CheckIcon className="size-4" />
