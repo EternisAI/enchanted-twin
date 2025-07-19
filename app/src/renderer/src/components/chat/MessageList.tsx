@@ -22,6 +22,7 @@ export default function MessageList({
           <UserMessageBubble
             key={msg.id}
             message={msg}
+            showTimestamp={false}
             isAnonymized={isAnonymized}
             chatPrivacyDict={chatPrivacyDict}
           />
@@ -29,6 +30,7 @@ export default function MessageList({
           <AssistantMessageBubble
             key={msg.id}
             message={msg}
+            showTimestamp={false}
             isAnonymized={isAnonymized}
             chatPrivacyDict={chatPrivacyDict}
           />

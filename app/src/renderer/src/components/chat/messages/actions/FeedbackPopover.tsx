@@ -4,12 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@renderer/components/ui/button'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@renderer/components/ui/tooltip'
+import { ActionButton } from '@renderer/components/chat/messages/actions/ActionButton'
 
 type FeedbackType = 'not-enough-anonymization' | 'too-much-anonymized' | 'other' | null
 
@@ -17,36 +12,25 @@ export function FeedbackPopover() {
   const [isOpen, setIsOpen] = useState(false)
   const [selectedType, setSelectedType] = useState<FeedbackType>(null)
   const [feedback, setFeedback] = useState('')
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [hasInitialized, setHasInitialized] = useState(false)
 
-  const handleFeedbackChange = useCallback(
-    (value: string) => {
-      setFeedback(value)
-      setHasUnsavedChanges(value.trim() !== '' || selectedType !== null)
-    },
-    [selectedType]
-  )
+  const hasUnsavedChanges = feedback.trim() !== '' || selectedType !== null
+
+  const handleFeedbackChange = useCallback((value: string) => {
+    setFeedback(value)
+  }, [])
 
   const handleTypeSelect = useCallback((type: FeedbackType) => {
     setSelectedType(type)
-    setHasUnsavedChanges(true)
     setHasInitialized(true)
   }, [])
 
-  const handleClose = useCallback(() => {
-    if (hasUnsavedChanges) {
-      const confirmed = window.confirm(
-        'You have unsaved feedback. Are you sure you want to close without sending?'
-      )
-      if (!confirmed) return
-    }
-
+  const resetState = useCallback(() => {
     setIsOpen(false)
     setSelectedType(null)
     setFeedback('')
-    setHasUnsavedChanges(false)
     setHasInitialized(false)
-  }, [hasUnsavedChanges])
+  }, [])
 
   const handleSubmit = useCallback(() => {
     if (!selectedType) return
@@ -54,55 +38,43 @@ export function FeedbackPopover() {
     // TODO: Implement feedback submission logic
     console.log('Feedback submitted:', { type: selectedType, feedback })
 
-    // Reset state after submission
-    setIsOpen(false)
-    setSelectedType(null)
-    setFeedback('')
-    setHasUnsavedChanges(false)
-    setHasInitialized(false)
-  }, [selectedType, feedback])
+    resetState()
+  }, [selectedType, feedback, resetState])
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      if (!open) {
-        handleClose()
+      if (open) {
+        setIsOpen(true)
+      } else if (!hasUnsavedChanges) {
+        resetState()
       } else {
-        setIsOpen(open)
+        // User tried to close with unsaved changes, show confirmation
+        const confirmed = confirm(
+          'You have unsaved feedback. Are you sure you want to close without sending?'
+        )
+        if (confirmed) {
+          resetState()
+        } else {
+          // Keep popover open by not changing state
+          setIsOpen(true)
+        }
       }
     },
-    [handleClose]
+    [hasUnsavedChanges, resetState]
   )
-
-  const [hasInitialized, setHasInitialized] = useState(false)
 
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <button
-          className="transition-opacity p-1 rounded-full bg-background/80 hover:bg-muted z-10"
+        <ActionButton
+          tooltipLabel="Provide feedback on this message"
+          onClick={() => setIsOpen(true)}
           aria-label="Provide feedback on this message"
         >
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Flag className="h-4 w-4 text-muted-foreground" />
-              </TooltipTrigger>
-              <TooltipContent>Provide feedback on this message</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </button>
+          <Flag className="h-4 w-4" />
+        </ActionButton>
       </PopoverTrigger>
-      <PopoverContent
-        className="w-80 min-h-[250px] overflow-hidden"
-        align="end"
-        side="top"
-        onInteractOutside={(e) => {
-          if (hasUnsavedChanges) {
-            e.preventDefault()
-            handleClose()
-          }
-        }}
-      >
+      <PopoverContent className="w-80 min-h-[250px] overflow-hidden" align="end" side="top">
         <motion.div
           layout
           className="space-y-4"
@@ -118,7 +90,16 @@ export function FeedbackPopover() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleClose}
+              onClick={() => {
+                if (hasUnsavedChanges) {
+                  const confirmed = confirm(
+                    'You have unsaved feedback. Are you sure you want to close without sending?'
+                  )
+                  if (confirmed) resetState()
+                } else {
+                  resetState()
+                }
+              }}
               className="h-6 w-6 rounded-full"
               aria-label="Close feedback"
             >
@@ -198,7 +179,6 @@ export function FeedbackPopover() {
                     onClick={() => {
                       setSelectedType(null)
                       setFeedback('')
-                      setHasUnsavedChanges(false)
                     }}
                     className="text-xs"
                   >
@@ -221,16 +201,7 @@ export function FeedbackPopover() {
                   <Button size="sm" onClick={handleSubmit} className="flex-1">
                     Send Feedback
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedType(null)
-                      setFeedback('')
-                      setHasUnsavedChanges(false)
-                    }}
-                    className="flex-1"
-                  >
+                  <Button size="sm" variant="outline" onClick={resetState} className="flex-1">
                     Cancel
                   </Button>
                 </div>

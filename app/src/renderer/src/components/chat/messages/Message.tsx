@@ -2,19 +2,20 @@ import React from 'react'
 import { Message, ToolCall as ToolCallType } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
-import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
+import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon } from 'lucide-react'
 import { extractReasoningAndReply, getToolConfig } from '@renderer/components/chat/config'
 import { Badge } from '@renderer/components/ui/badge'
 import ImagePreview from './ImagePreview'
 import Markdown from '@renderer/components/chat/messages/Markdown'
-import { FeedbackPopover } from './FeedbackPopover'
+import { FeedbackPopover } from './actions/FeedbackPopover'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger
 } from '@renderer/components/ui/collapsible'
-import { useTTS } from '@renderer/hooks/useTTS'
 import { useMemo } from 'react'
+import { ReadAloudButton } from './actions/ReadAloudButton'
+import { MessageActionsBar } from './actions/MessageActionsBar'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
@@ -81,13 +82,14 @@ export function UserMessageBubble({
 export function AssistantMessageBubble({
   message,
   isAnonymized = false,
-  chatPrivacyDict
+  chatPrivacyDict,
+  showTimestamp = true
 }: {
   message: Message
   isAnonymized?: boolean
   chatPrivacyDict: string | null
+  showTimestamp?: boolean
 }) {
-  const { speak, stop, isSpeaking } = useTTS()
   const { thinkingText, replyText } = useMemo(
     () => extractReasoningAndReply(message.text || ''),
     [message.text]
@@ -176,45 +178,26 @@ export function AssistantMessageBubble({
             ))}
           </div>
         )}
-        <div className="flex flex-row items-start gap-4 justify-between w-full">
+        <div className="flex flex-row items-start gap-4 justify-start w-full">
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-4 items-center">
               {message.toolCalls.map((toolCall) => (
                 <ToolCall key={toolCall.id} toolCall={toolCall} />
               ))}
             </div>
-            <div className="text-[9px] text-muted-foreground font-mono">
-              {new Date(message.createdAt).toLocaleTimeString()}
-            </div>
-            {/* response feedback */}
+            {showTimestamp && (
+              <div className="text-[9px] text-muted-foreground font-mono">
+                {new Date(message.createdAt).toLocaleTimeString()}
+              </div>
+            )}
           </div>
-          {replyText && replyText.trim() && (
-            <span className="flex gap-1 items-center opacity-0 focus-within:opacity-100 group-hover:opacity-100 transition-opacity">
-              <FeedbackPopover />
-              {isSpeaking ? (
-                <button
-                  onClick={stop}
-                  className="transition-opacity p-1 rounded-full bg-background/80 hover:bg-muted z-10"
-                  style={{ pointerEvents: 'auto' }}
-                  tabIndex={-1}
-                  aria-label="Stop message audio"
-                >
-                  <VolumeOff className="h-4 w-4 text-primary" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => speak(replyText || '')}
-                  className="transition-opacity p-1 rounded-full bg-background/80 hover:bg-muted z-10"
-                  style={{ pointerEvents: 'auto' }}
-                  tabIndex={-1}
-                  aria-label="Play message audio"
-                >
-                  <Volume2 className="h-4 w-4 text-primary" />
-                </button>
-              )}
-            </span>
-          )}
         </div>
+        {replyText && replyText.trim() && (
+          <MessageActionsBar>
+            <FeedbackPopover />
+            <ReadAloudButton text={replyText} />
+          </MessageActionsBar>
+        )}
       </div>
     </motion.div>
   )
