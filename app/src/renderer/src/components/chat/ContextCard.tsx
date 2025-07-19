@@ -65,6 +65,8 @@ export function ContextCard() {
     setIsEditing(true)
   }
 
+  const isContextMultiline = context.trimEnd().split('\n').length > 1
+
   return (
     <motion.div
       className={cn(
@@ -185,7 +187,7 @@ export function ContextCard() {
                 >
                   <motion.p
                     className={`text-sm text-muted-foreground cursor-pointer p-2 rounded-lg ${
-                      context.split('\n').length === 1 ? 'text-center' : 'text-left'
+                      isContextMultiline ? 'text-left' : 'text-center'
                     }`}
                     onClick={() => setIsEditing(true)}
                     initial={{ opacity: 0, y: 5 }}
@@ -201,7 +203,7 @@ export function ContextCard() {
                     }}
                     layout="position"
                   >
-                    {context}
+                    {context.trimEnd()}
                   </motion.p>
                 </motion.div>
               )}
