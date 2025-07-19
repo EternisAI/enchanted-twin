@@ -135,9 +135,9 @@ export function FeedbackPopover({
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <ActionButton
-          tooltipLabel="Provide feedback on this message"
+          tooltipLabel="Give feedback"
           onClick={() => setIsOpen(true)}
-          aria-label="Provide feedback on this message"
+          aria-label="Give feedback"
         >
           <Flag className="h-4 w-4" />
         </ActionButton>

@@ -7,8 +7,8 @@ export function ReadAloudButton({ text }: { text: string }) {
   return (
     <ActionButton
       onClick={isSpeaking ? stop : () => speak(text || '')}
-      aria-label={isSpeaking ? 'Stop reading message' : 'Read message aloud'}
-      tooltipLabel={isSpeaking ? 'Stop reading message' : 'Read message aloud'}
+      aria-label={isSpeaking ? 'Stop reading' : 'Read aloud'}
+      tooltipLabel={isSpeaking ? 'Stop reading' : 'Read aloud'}
     >
       {isSpeaking ? (
         <VolumeOff className="h-4 w-4 text-primary" />
