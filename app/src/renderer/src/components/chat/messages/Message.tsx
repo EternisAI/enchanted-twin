@@ -7,6 +7,7 @@ import { extractReasoningAndReply, getToolConfig } from '@renderer/components/ch
 import { Badge } from '@renderer/components/ui/badge'
 import ImagePreview from './ImagePreview'
 import Markdown from '@renderer/components/chat/messages/Markdown'
+import { FeedbackPopover } from './FeedbackPopover'
 import {
   Collapsible,
   CollapsibleContent,
@@ -185,9 +186,11 @@ export function AssistantMessageBubble({
             <div className="text-[9px] text-muted-foreground font-mono">
               {new Date(message.createdAt).toLocaleTimeString()}
             </div>
+            {/* response feedback */}
           </div>
           {replyText && replyText.trim() && (
-            <span className="flex items-center opacity-0 focus-within:opacity-100 group-hover:opacity-100 transition-opacity">
+            <span className="flex gap-1 items-center opacity-0 focus-within:opacity-100 group-hover:opacity-100 transition-opacity">
+              <FeedbackPopover />
               {isSpeaking ? (
                 <button
                   onClick={stop}
