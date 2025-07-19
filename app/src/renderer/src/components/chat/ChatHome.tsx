@@ -37,7 +37,7 @@ export function Home() {
   const searchParams = useSearch({ from: '/' }) as IndexRouteSearch
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(-1)
-  const debouncedQuery = useDebounce(query, 300)
+  const debouncedQuery = useDebounce(query.trim(), 300)
   const [isReasonSelected, setIsReasonSelected] = useState(false)
 
   const [createChat] = useMutation(CreateChatDocument)
@@ -113,8 +113,8 @@ export function Home() {
 
   const handleCreateChat = useCallback(
     async (chatTitle?: string, isVoiceMode?: boolean) => {
-      const message = query || chatTitle || ''
-      if (!message.trim()) return
+      const message = (query || chatTitle || '').trim()
+      if (!message) return
 
       try {
         const reducedMessage = message.length > 100 ? message.slice(0, 100) + '...' : message
@@ -185,19 +185,37 @@ export function Home() {
 
   useEffect(() => {
     const handleArrowKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
+      const textarea = textareaRef.current
+      if (!textarea) return
+
+      const isAtEnd =
+        textarea.selectionStart === textarea.value.length &&
+        textarea.selectionEnd === textarea.value.length
+      const isAtStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0
+
+      if (e.key === 'ArrowDown' && isAtEnd) {
         e.preventDefault()
         const maxIndex = debouncedQuery ? filteredChats.length : dummySuggestions.length - 1
         setSelectedIndex((prev) => Math.min(prev + 1, maxIndex))
       }
       if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        setSelectedIndex((prev) => Math.max(prev - 1, 0))
+        // If we're at the first suggestion and user presses up, let textarea handle it normally
+        if (selectedIndex === 0 && isAtStart) {
+          setSelectedIndex(-1)
+          // Don't prevent default - let cursor move in textarea
+        } else if (selectedIndex > 0) {
+          // Only prevent default if we're navigating suggestions
+          e.preventDefault()
+          setSelectedIndex((prev) => prev - 1)
+        }
       }
     }
 
-    window.addEventListener('keydown', handleArrowKeyDown)
-    return () => window.removeEventListener('keydown', handleArrowKeyDown)
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.addEventListener('keydown', handleArrowKeyDown)
+      return () => textarea.removeEventListener('keydown', handleArrowKeyDown)
+    }
   }, [selectedIndex, debouncedQuery, filteredChats.length, dummySuggestions.length])
 
   const handleSuggestionClick = async (suggestion: (typeof dummySuggestions)[0]) => {
