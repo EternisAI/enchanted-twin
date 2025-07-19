@@ -145,7 +145,7 @@ export function FeedbackPopover({
       <PopoverContent
         className="w-100 min-h-[250px] overflow-hidden bg-background/90 backdrop-blur-md"
         align="start"
-        side="top"
+        side="bottom"
       >
         <motion.div
           layout
