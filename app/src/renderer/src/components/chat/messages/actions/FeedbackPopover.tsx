@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Flag, X } from 'lucide-react'
+import { Flag, Send, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@renderer/components/ui/button'
 import { Textarea } from '@renderer/components/ui/textarea'
@@ -199,11 +199,11 @@ export function FeedbackPopover() {
 
                 <div className="flex gap-2 pt-2">
                   <Button size="sm" onClick={handleSubmit} className="flex-1">
-                    Send Feedback
+                    Send Feedback <Send className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" onClick={resetState} className="flex-1">
-                    Cancel
-                  </Button>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  You will send the <strong>full message</strong> to the developers.
                 </div>
               </motion.div>
             )}
