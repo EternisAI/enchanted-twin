@@ -142,7 +142,11 @@ export function FeedbackPopover({
           <Flag className="h-4 w-4" />
         </ActionButton>
       </PopoverTrigger>
-      <PopoverContent className="w-80 min-h-[250px] overflow-hidden" align="end" side="top">
+      <PopoverContent
+        className="w-100 min-h-[250px] overflow-hidden bg-background/90 backdrop-blur-md"
+        align="start"
+        side="top"
+      >
         <motion.div
           layout
           className="space-y-4"
@@ -154,7 +158,7 @@ export function FeedbackPopover({
           }}
         >
           <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-sm">What&apos;s wrong with this message?</h4>
+            <h4 className="font-semibold text-base">What&apos;s wrong with this message?</h4>
             <Button
               variant="ghost"
               size="icon"
