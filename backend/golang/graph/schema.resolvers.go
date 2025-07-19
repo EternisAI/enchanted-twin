@@ -240,7 +240,7 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string, category
 
 // SendMessage is the resolver for the sendMessage field.
 func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error) {
-	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
+	return r.TwinChatService.SendMessage(context.WithoutCancel(ctx), chatID, text, reasoning, voice)
 }
 
 // DeleteChat is the resolver for the deleteChat field.
