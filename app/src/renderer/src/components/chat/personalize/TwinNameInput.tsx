@@ -4,7 +4,7 @@ import { cn } from '@renderer/lib/utils'
 import { GetProfileDocument } from '@renderer/graphql/generated/graphql'
 import { Button } from '@renderer/components/ui/button'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useRef, useState } from 'react'
+import { useRef, useState, useLayoutEffect } from 'react'
 import { toast } from 'sonner'
 const UPDATE_PROFILE = gql`
   mutation UpdateProfile($input: UpdateProfileInput!) {
@@ -20,6 +20,14 @@ export function TwinNameInput() {
   const twinName = profile?.profile?.name || 'Your Twin'
 
   const [isEditingName, setIsEditingName] = useState(false)
+
+  // Focus the element when editing mode is activated
+  useLayoutEffect(() => {
+    if (isEditingName && nameEditRef.current) {
+      nameEditRef.current.focus()
+    }
+  }, [isEditingName])
+
   const handleNameEditKeyDown = (e: React.KeyboardEvent<HTMLParagraphElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -80,23 +88,11 @@ export function TwinNameInput() {
         onFocus={() => {
           if (!isEditingName) {
             setIsEditingName(true)
-            // Focus after the next render when contentEditable is active
-            setTimeout(() => {
-              if (nameEditRef.current) {
-                nameEditRef.current.focus()
-              }
-            }, 0)
           }
         }}
         onSelect={() => {
           if (!isEditingName) {
             setIsEditingName(true)
-            // Focus after the next render when contentEditable is active
-            setTimeout(() => {
-              if (nameEditRef.current) {
-                nameEditRef.current.focus()
-              }
-            }, 0)
           }
         }}
         tabIndex={0}
