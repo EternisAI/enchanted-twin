@@ -2,7 +2,7 @@ import { gql, useQuery, useMutation } from '@apollo/client'
 import { CheckIcon, UserIcon, XIcon } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Button } from '../../ui/button'
+import { Button } from '../ui/button'
 import { toast } from 'sonner'
 import { cn } from '@renderer/lib/utils'
 
@@ -34,9 +34,7 @@ export function ContextCard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const { data } = await updateProfile({
-      variables: { input: { bio: context.trimEnd().trimStart() } }
-    })
+    const { data } = await updateProfile({ variables: { input: { bio: context } } })
     if (data?.updateProfile) {
       await refetch()
       setIsEditing(false)
@@ -67,14 +65,11 @@ export function ContextCard() {
     setIsEditing(true)
   }
 
-  const isContextMultiline = context.trimEnd().trimStart().split('\n').length > 1
-
   return (
     <motion.div
       className={cn(
         'relative bg-transparent !w-full rounded-lg p-1 hover:bg-muted focus-within:bg-muted transition-colors max-w-md mx-auto',
-        isEditing && '!bg-muted',
-        isContextMultiline && !isEditing && '!ring-1 !ring-muted'
+        isEditing && '!bg-muted'
       )}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
       layout
@@ -164,7 +159,7 @@ export function ContextCard() {
                       <XIcon className="size-4" />
                     </Button>
                     <Button
-                      variant="default"
+                      variant="ghost"
                       size="icon"
                       aria-label="Save changes"
                       onClick={handleSubmit}
@@ -190,7 +185,7 @@ export function ContextCard() {
                 >
                   <motion.p
                     className={`text-sm text-muted-foreground cursor-pointer p-2 rounded-lg ${
-                      isContextMultiline ? 'text-left' : 'text-center'
+                      context.split('\n').length === 1 ? 'text-center' : 'text-left'
                     }`}
                     onClick={() => setIsEditing(true)}
                     initial={{ opacity: 0, y: 5 }}
@@ -206,7 +201,7 @@ export function ContextCard() {
                     }}
                     layout="position"
                   >
-                    {context.trimEnd().trimStart()}
+                    {context}
                   </motion.p>
                 </motion.div>
               )}
