@@ -2,7 +2,7 @@ import { gql, useQuery, useMutation } from '@apollo/client'
 import { CheckIcon, UserIcon, XIcon } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Button } from '../ui/button'
+import { Button } from '../../ui/button'
 import { toast } from 'sonner'
 import { cn } from '@renderer/lib/utils'
 
