@@ -114,14 +114,30 @@ export function ChatProvider({
           } else {
             updatedToolCalls.push(toolCallUpdate as ToolCall)
           }
-          updatedMessages[existingMessageIndex] = { ...msg, toolCalls: updatedToolCalls }
+
+          const toolCallImages = updatedToolCalls
+            .filter((tc) => tc.name === 'generate_image')
+            .filter((tc) => tc.isCompleted && tc.result?.imageUrls)
+            .flatMap((tc) => tc.result!.imageUrls)
+
+          const allImageUrls = [...new Set([...msg.imageUrls, ...toolCallImages])]
+
+          updatedMessages[existingMessageIndex] = {
+            ...msg,
+            toolCalls: updatedToolCalls,
+            imageUrls: allImageUrls
+          }
           return updatedMessages
         } else {
-          // No message found, create a new one to display the tool call
+          const toolCallImages =
+            toolCallUpdate.isCompleted && toolCallUpdate.result?.imageUrls
+              ? toolCallUpdate.result.imageUrls
+              : []
+
           const newMessage: Message = {
             id: toolCallUpdate.messageId,
             text: null,
-            imageUrls: [],
+            imageUrls: toolCallImages,
             role: Role.Assistant,
             toolCalls: [toolCallUpdate],
             toolResults: [],

@@ -19,18 +19,14 @@ export const DEPENDENCY_CONFIG: Record<
 > = {
   embeddings: {
     name: 'Embeddings model',
-    description: 'Helps Enchanted make sense of your content'
+    description: 'Enchanted makes sense of your content'
   },
   anonymizer: {
     name: 'Anonymizer model',
-    description: 'Helps you keep your things private'
+    description: 'Enchanted keeps your data private'
   },
   onnx: {
     name: 'Inference engine',
-    description: ''
-  },
-  LLMCLI: {
-    name: 'Completions engine',
     description: ''
   },
   LLAMACCP: {
