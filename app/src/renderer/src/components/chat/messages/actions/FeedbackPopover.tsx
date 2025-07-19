@@ -5,16 +5,40 @@ import { Button } from '@renderer/components/ui/button'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { ActionButton } from '@renderer/components/chat/messages/actions/ActionButton'
+import { Message, Role } from '@renderer/graphql/generated/graphql'
+import { toast } from 'sonner'
 
 type FeedbackType = 'not-enough-anonymization' | 'too-much-anonymized' | 'other' | null
 
-export function FeedbackPopover() {
+interface FeedbackPopoverProps {
+  currentMessage: Message
+  messages: Message[]
+  chatPrivacyDict: string | null
+}
+
+export function FeedbackPopover({
+  currentMessage,
+  messages,
+  chatPrivacyDict
+}: FeedbackPopoverProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [selectedType, setSelectedType] = useState<FeedbackType>(null)
   const [feedback, setFeedback] = useState('')
   const [hasInitialized, setHasInitialized] = useState(false)
 
   const hasUnsavedChanges = feedback.trim() !== '' || selectedType !== null
+
+  // Find the user message that triggered this AI response
+  const getUserMessage = useCallback(() => {
+    const currentIndex = messages.findIndex((m) => m.id === currentMessage.id)
+    // Look backwards for the most recent user message
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      if (messages[i].role === Role.User) {
+        return messages[i]
+      }
+    }
+    return null
+  }, [messages, currentMessage.id])
 
   const handleFeedbackChange = useCallback((value: string) => {
     setFeedback(value)
@@ -32,14 +56,58 @@ export function FeedbackPopover() {
     setHasInitialized(false)
   }, [])
 
+  const submitFeedback = useCallback(async () => {
+    if (!selectedType) throw new Error('No feedback type selected')
+
+    const userMessage = getUserMessage()
+    const feedbackData = {
+      feedbackType: selectedType,
+      feedbackText: feedback,
+      aiMessage: currentMessage.text,
+      userMessage: userMessage?.text || null,
+      privacyDict: chatPrivacyDict,
+      messageId: currentMessage.id,
+      userMessageId: userMessage?.id || null,
+      timestamp: new Date().toISOString()
+    }
+
+    await (
+      window.api.analytics as unknown as {
+        captureFeedback: (event: string, properties: Record<string, unknown>) => Promise<void>
+      }
+    ).captureFeedback('message_feedback_submitted', feedbackData)
+  }, [selectedType, feedback, currentMessage, getUserMessage, chatPrivacyDict])
+
   const handleSubmit = useCallback(() => {
     if (!selectedType) return
 
-    // TODO: Implement feedback submission logic
-    console.log('Feedback submitted:', { type: selectedType, feedback })
+    const attemptSubmission = () => {
+      const submissionPromise = submitFeedback()
 
-    resetState()
-  }, [selectedType, feedback, resetState])
+      toast.promise(submissionPromise, {
+        loading: 'Sending feedback...',
+        success: () => {
+          resetState()
+          return 'Feedback sent successfully!'
+        },
+        error: (error) => {
+          console.error('Failed to submit feedback:', error)
+          // Show error toast with manual retry option
+          setTimeout(() => {
+            toast.error(`Failed to send feedback: ${error.message}`, {
+              action: {
+                label: 'Retry',
+                onClick: attemptSubmission
+              }
+            })
+          }, 100)
+          return null // Return null to prevent the default error toast
+        }
+      })
+    }
+
+    attemptSubmission()
+  }, [submitFeedback, selectedType, resetState])
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
@@ -193,7 +261,7 @@ export function FeedbackPopover() {
                     value={feedback}
                     autoFocus
                     onChange={(e) => handleFeedbackChange(e.target.value)}
-                    className="min-h-20 resize-none"
+                    className="min-h-20 resize-none bg-transparent text-sm"
                   />
                 </div>
 

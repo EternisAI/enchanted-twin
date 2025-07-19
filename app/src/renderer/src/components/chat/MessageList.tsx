@@ -30,6 +30,7 @@ export default function MessageList({
           <AssistantMessageBubble
             key={msg.id}
             message={msg}
+            messages={messages}
             showTimestamp={false}
             isAnonymized={isAnonymized}
             chatPrivacyDict={chatPrivacyDict}

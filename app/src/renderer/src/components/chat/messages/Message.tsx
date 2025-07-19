@@ -81,11 +81,13 @@ export function UserMessageBubble({
 
 export function AssistantMessageBubble({
   message,
+  messages,
   isAnonymized = false,
   chatPrivacyDict,
   showTimestamp = true
 }: {
   message: Message
+  messages?: Message[]
   isAnonymized?: boolean
   chatPrivacyDict: string | null
   showTimestamp?: boolean
@@ -194,7 +196,11 @@ export function AssistantMessageBubble({
         </div>
         {replyText && replyText.trim() && (
           <MessageActionsBar>
-            <FeedbackPopover />
+            <FeedbackPopover
+              currentMessage={message}
+              messages={messages || []}
+              chatPrivacyDict={chatPrivacyDict}
+            />
             <ReadAloudButton text={replyText} />
           </MessageActionsBar>
         )}

@@ -59,6 +59,13 @@ function setupAnalyticsHandlers() {
     return true
   })
 
+  ipcMain.handle(
+    'analytics:capture-feedback',
+    (_, event: string, properties: Record<string, unknown>) => {
+      return captureForced(event, properties)
+    }
+  )
+
   ipcMain.handle('analytics:identify', (_, properties: Record<string, unknown>) => {
     identify(properties)
     return true
@@ -93,6 +100,69 @@ export function capture(event: string, properties: Record<string, any> = {}) {
   } catch (err) {
     log.error('[Analytics] capture error', err)
   }
+}
+
+export function captureForced(event: string, properties: Record<string, any> = {}) {
+  return new Promise<void>((resolve, reject) => {
+    try {
+      // Debug logging
+      log.info('[Analytics] captureForced called', {
+        hasApiKey: !!POSTHOG_API_KEY,
+        apiKeyLength: POSTHOG_API_KEY?.length || 0,
+        host: POSTHOG_HOST,
+        event,
+        distinctId
+      })
+
+      if (!POSTHOG_API_KEY || !POSTHOG_HOST) {
+        log.warn('[Analytics] PostHog not configured, logging feedback locally', {
+          event,
+          properties,
+          distinctId,
+          timestamp: new Date().toISOString()
+        })
+        reject(
+          new Error(
+            'Analytics service not configured. Your feedback was saved locally but not sent to our servers.'
+          )
+        )
+        return
+      }
+
+      // Initialize client if not already done for forced events
+      if (!client) {
+        client = new posthog.PostHog(POSTHOG_API_KEY, {
+          host: POSTHOG_HOST,
+          flushAt: 1,
+          flushInterval: 5000
+        })
+      }
+
+      const capturePayload = {
+        distinctId,
+        event,
+        properties: {
+          ...properties,
+          timestamp: new Date().toISOString(),
+          appVersion: app.getVersion(),
+          forced: true // Mark as forced to distinguish from regular analytics
+        }
+      }
+
+      log.info('[Analytics] force capturing (bypassing telemetry preference)', capturePayload)
+
+      client.capture(capturePayload)
+
+      // Ensure the event is sent immediately
+      log.info('[Analytics] flushing events to PostHog...')
+      client.flush()
+      log.info('[Analytics] feedback event sent successfully')
+      resolve()
+    } catch (err) {
+      log.error('[Analytics] forced capture error', err)
+      reject(err)
+    }
+  })
 }
 
 export function identify(properties: Record<string, any> = {}) {
