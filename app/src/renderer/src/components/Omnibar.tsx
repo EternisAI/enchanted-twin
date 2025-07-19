@@ -189,7 +189,7 @@ export const Omnibar = () => {
                           handleSubmit(e as React.FormEvent)
                         }
                       }}
-                      placeholder="Ask a question privately…"
+                      placeholder="What's on your mind?"
                       className="flex-1 !rounded-none !bg-transparent text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-hidden min-h-0 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
                       rows={1}
                     />
@@ -205,7 +205,6 @@ export const Omnibar = () => {
                           onSend={handleCreateChat}
                           isWaitingTwinResponse={false}
                           text={query}
-                          isVoiceReady={false}
                         />
                       </motion.div>
                     )}
