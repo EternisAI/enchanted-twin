@@ -74,11 +74,7 @@ export function FeedbackPopover({
       timestamp: new Date().toISOString()
     }
 
-    await (
-      window.api.analytics as unknown as {
-        captureFeedback: (event: string, properties: Record<string, unknown>) => Promise<void>
-      }
-    ).captureFeedback('message_feedback_submitted', feedbackData)
+    await window.api.analytics.captureFeedback('message_feedback_submitted', feedbackData)
   }, [selectedType, feedback, currentMessage, getUserMessage, chatPrivacyDict])
 
   const handleSubmit = useCallback(() => {
@@ -220,7 +216,7 @@ export function FeedbackPopover({
                     onClick={() => handleTypeSelect('too-much-anonymized')}
                   >
                     <div>
-                      <div className="font-medium text-sm">Too much anonymized</div>
+                      <div className="font-medium text-sm">Too much anonymization</div>
                       <div className="text-xs text-muted-foreground">
                         Important context was removed
                       </div>
@@ -234,10 +230,7 @@ export function FeedbackPopover({
                     onClick={() => handleTypeSelect('other')}
                   >
                     <div>
-                      <div className="font-medium text-sm">Other</div>
-                      <div className="text-xs text-muted-foreground">
-                        Something else about this message
-                      </div>
+                      <div className="font-medium text-sm">Something else</div>
                     </div>
                   </Button>
                 </div>
