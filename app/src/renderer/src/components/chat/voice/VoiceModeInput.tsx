@@ -101,7 +101,7 @@ export function VoiceModeInput({ onStop }: { onStop?: () => void }) {
             transition={{ type: 'spring', stiffness: 100, damping: 10, mass: 0.5 }}
             onClick={toggleMute}
             className={cn(
-              'cursor-pointer active:scale-95 px-4 h-10 rounded-full transition-colors shadow-none hover:shadow-none active:shadow-none border-none !bg-accent hover:!bg-accent/70 dark:!hover:!bg-accent/70',
+              'cursor-pointer active:opacity-90 px-4 h-10 rounded-full transition-colors shadow-none hover:shadow-none active:shadow-none border-none !bg-accent hover:!bg-accent/70 dark:!hover:!bg-accent/70',
               isMuted &&
                 'text-red-500 dark:text-red-400 !bg-red-100 hover:!bg-red-200/70 dark:!bg-red-600/20 dark:!hover:!bg-red-600/70'
             )}
