@@ -83,8 +83,7 @@ export function AssistantMessageBubble({
   message,
   messages,
   isAnonymized = false,
-  chatPrivacyDict,
-  showTimestamp = true
+  chatPrivacyDict
 }: {
   message: Message
   messages?: Message[]
@@ -114,7 +113,7 @@ export function AssistantMessageBubble({
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="flex flex-col text-foreground py-1 max-w-[90%] relative group">
+      <div className="flex flex-col text-foreground py-1 max-w-[90%] relative group gap-1">
         {thinkingText && (
           <Collapsible className="flex flex-col gap-2 pb-2">
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground cursor-pointer hover:underline group">
@@ -187,11 +186,6 @@ export function AssistantMessageBubble({
                 <ToolCall key={toolCall.id} toolCall={toolCall} />
               ))}
             </div>
-            {showTimestamp && (
-              <div className="text-[9px] text-muted-foreground font-mono">
-                {new Date(message.createdAt).toLocaleTimeString()}
-              </div>
-            )}
           </div>
         </div>
         {replyText && replyText.trim() && (

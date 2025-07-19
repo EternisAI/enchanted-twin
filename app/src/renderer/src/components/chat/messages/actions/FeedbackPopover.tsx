@@ -265,7 +265,7 @@ export function FeedbackPopover({
                     value={feedback}
                     autoFocus
                     onChange={(e) => handleFeedbackChange(e.target.value)}
-                    className="min-h-20 resize-none bg-transparent text-sm"
+                    className="min-h-20 resize-none text-sm"
                   />
                 </div>
 
