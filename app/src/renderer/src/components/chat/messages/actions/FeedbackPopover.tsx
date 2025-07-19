@@ -166,7 +166,7 @@ export function FeedbackPopover({
           }}
         >
           <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-base">What&apos;s wrong with this message?</h4>
+            <h4 className="font-semibold text-base">Give feedback</h4>
             <Button
               variant="ghost"
               size="icon"
