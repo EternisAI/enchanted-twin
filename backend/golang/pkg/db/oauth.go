@@ -352,6 +352,8 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(
 	logger *log.Logger,
 	state string,
 ) (string, string, string, error) {
+	logger.Info("Getting OAuth session", "state", state)
+
 	// Start a transaction
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -387,6 +389,7 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(
     `, state)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			logger.Info("No OAuth session found", "state", state)
 			return "", "", "", fmt.Errorf("no OAuth session found for state '%s'", state)
 		}
 		return "", "", "", fmt.Errorf("failed to get OAuth session for state '%s': %w", state, err)
@@ -396,17 +399,28 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(
 	sessionExpiryDuration := 10 * time.Minute
 
 	// Check if state is expired (10 minutes)
-	if now.Sub(dest.CreatedAt) > sessionExpiryDuration {
+	sessionAge := now.Sub(dest.CreatedAt)
+	logger.Info("DB: Checking session expiry", "state", state, "age", sessionAge, "max_age", sessionExpiryDuration)
+	if sessionAge > sessionExpiryDuration {
+		logger.Warn("DB: OAuth session expired", "state", state, "age", sessionAge)
 		return "", "", "", fmt.Errorf("OAuth state expired")
 	}
 
 	// Delete the record instead of just clearing fields
-	_, err = tx.ExecContext(ctx, `
+	logger.Info("DB: Deleting OAuth session", "state", state)
+	result, err := tx.ExecContext(ctx, `
         DELETE FROM oauth_sessions
         WHERE state = ?
     `, state)
 	if err != nil {
+		logger.Error("DB: Failed to delete OAuth session", "state", state, "error", err)
 		return "", "", "", fmt.Errorf("failed to delete session: %w", err)
+	}
+
+	if result != nil {
+		if rowsAffected, err := result.RowsAffected(); err == nil {
+			logger.Info("OAuth session deleted", "state", state, "rows_affected", rowsAffected)
+		}
 	}
 
 	// Cleanup expired sessions while we're at it
@@ -431,7 +445,6 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(
 	if err := tx.Commit(); err != nil {
 		return "", "", "", fmt.Errorf("failed to commit transaction: %w", err)
 	}
-
 	return dest.Provider, dest.CodeVerifier, dest.Scope, nil
 }
 
