@@ -20,34 +20,13 @@ linters:
     # - staticcheck - VERY SLOW
     # - unused - SLOW (analyzes entire codebase)
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-  misspell:
-    locale: US
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-
-# Formatter configuration (same as main config)
-formatters:
-  enable:
-    - gci
-    - gofmt
-    - gofumpt
-    - goimports
-
   settings:
-    goimports:
-      local-prefixes:
-        - github.com/EternisAI/enchanted-twin
-    gci:
-      sections:
-        - standard
-        - default
-        - prefix(github.com/EternisAI)
-    gofmt:
-      simplify: true
+    errcheck:
+      check-type-assertions: true
+    misspell:
+      locale: US
+
+
 
 # Issue handling
 issues:
