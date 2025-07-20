@@ -124,7 +124,7 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 	readyURL := fmt.Sprintf("http://localhost:%d/v1/.well-known/ready", p)
 	deadline := time.Now().Add(45 * time.Second)
-	logger.Info("Waiting for Weaviate to become ready", "url", readyURL, "timeout", "15s")
+	logger.Info("Waiting for Weaviate to become ready", "url", readyURL, "timeout", "45s")
 
 	checkCount := 0
 	for {
