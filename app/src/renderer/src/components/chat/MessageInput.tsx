@@ -25,7 +25,7 @@ export default function MessageInput({
   isReasonSelected,
   onReasonToggle,
   voiceMode = false,
-  placeholder = "What's on your mind?",
+  placeholder = 'Ask a question privately…',
   onVoiceModeChange
 }: MessageInputProps) {
   const [text, setText] = useState('')
