@@ -204,15 +204,30 @@ func InitSchema(client *weaviate.Client, logger *log.Logger, embedding ai.Embedd
 }
 
 func checkAndConfigurePorts(logger *log.Logger) {
-	gossipPort := findAvailablePort(51946, []int{51946, 52946, 53946, 54946, 55946})
-	dataPort := findAvailablePort(51947, []int{51947, 52947, 53947, 54947, 55947})
+	gossipPort := getRandomAvailablePort(logger)
+	dataPort := getRandomAvailablePort(logger)
 
-	if gossipPort != 51946 || dataPort != 51947 {
-		logger.Warn("Using backup ports", "gossip_port", gossipPort, "data_port", dataPort)
-	}
+	logger.Info("Using dynamic ports", "gossip_port", gossipPort, "data_port", dataPort)
 
 	_ = os.Setenv("CLUSTER_GOSSIP_BIND_PORT", fmt.Sprintf("%d", gossipPort))
 	_ = os.Setenv("CLUSTER_DATA_BIND_PORT", fmt.Sprintf("%d", dataPort))
+}
+
+func getRandomAvailablePort(logger *log.Logger) int {
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		logger.Warn("Failed to get random port, falling back to predetermined range", "error", err)
+		return findAvailablePort(51946, []int{51946, 52946, 53946, 54946, 55946})
+	}
+	defer func() {
+		if err := listener.Close(); err != nil {
+			logger.Debug("Error closing port listener", "error", err)
+		}
+	}()
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	logger.Debug("Found available port", "port", port)
+	return port
 }
 
 func findAvailablePort(defaultPort int, candidates []int) int {
