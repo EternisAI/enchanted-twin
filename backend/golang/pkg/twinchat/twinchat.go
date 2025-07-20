@@ -288,6 +288,36 @@ func (s *Service) SendMessage(
 	agentSetupStart := time.Now()
 	s.logger.Info("Executing agent", "reasoning", isReasoning)
 
+	// Create the message for DB
+	userMsg := repository.Message{
+		ID:           userMsgID,
+		ChatID:       chatID,
+		Text:         message,
+		Role:         model.RoleUser.String(),
+		CreatedAtStr: now.Format(time.RFC3339Nano),
+	}
+
+	// Add to database
+	userDbStart := time.Now()
+	_, err = s.storage.AddMessageToChat(ctx, userMsg)
+	if err != nil {
+		return nil, err
+	}
+	userDbTime := time.Since(userDbStart)
+	s.logger.Info("User message stored in database", "duration", userDbTime)
+
+	userNatsStart := time.Now()
+	userNatsMsg := model.Message{
+		ID:        userMsgID,
+		Text:      &message,
+		ImageUrls: []string{},
+		CreatedAt: createdAt,
+		Role:      model.RoleUser,
+	}
+	_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s", chatID), userNatsMsg)
+	userNatsTime := time.Since(userNatsStart)
+	s.logger.Info("User message published to NATS", "duration", userNatsTime)
+
 	agent := agent.NewAgent(
 		s.logger,
 		s.nc,
@@ -331,7 +361,6 @@ func (s *Service) SendMessage(
 		len(response.ToolResults),
 	)
 
-	responseProcessingStart := time.Now()
 	subject := fmt.Sprintf("chat.%s", chatID)
 	toolResults := make([]string, len(response.ToolResults))
 	for i, v := range response.ToolResults {
@@ -355,43 +384,6 @@ func (s *Service) SendMessage(
 	if messageContent == "" && len(response.ToolResults) > 0 {
 		messageContent = "Task completed successfully."
 	}
-
-	assistantMessageJson, err := json.Marshal(model.Message{
-		ID:          assistantMessageId,
-		Text:        &messageContent,
-		ImageUrls:   response.ImageURLs,
-		CreatedAt:   time.Now().Format(time.RFC3339),
-		Role:        model.RoleAssistant,
-		ToolCalls:   toolCalls,
-		ToolResults: toolResults,
-	})
-	if err != nil {
-		return nil, err
-	}
-	err = s.nc.Publish(subject, assistantMessageJson)
-	if err != nil {
-		return nil, err
-	}
-	responseProcessingTime := time.Since(responseProcessingStart)
-	s.logger.Info("Response processing completed", "duration", responseProcessingTime)
-
-	// Create the message for DB
-	userMsg := repository.Message{
-		ID:           userMsgID,
-		ChatID:       chatID,
-		Text:         message,
-		Role:         model.RoleUser.String(),
-		CreatedAtStr: now.Format(time.RFC3339Nano),
-	}
-
-	// Add to database
-	userDbStart := time.Now()
-	_, err = s.storage.AddMessageToChat(ctx, userMsg)
-	if err != nil {
-		return nil, err
-	}
-	userDbTime := time.Since(userDbStart)
-	s.logger.Info("User message stored in database", "duration", userDbTime)
 
 	// Handle privacy dictionary update based on anonymizer type
 	privacyStart := time.Now()
@@ -438,21 +430,9 @@ func (s *Service) SendMessage(
 	privacyTime := time.Since(privacyStart)
 	s.logger.Info("Privacy dictionary processing completed", "duration", privacyTime, "hasPrivacyDict", privacyDictJson != nil)
 
-	userNatsStart := time.Now()
-	userNatsMsg := model.Message{
-		ID:        userMsgID,
-		Text:      &message,
-		ImageUrls: []string{},
-		CreatedAt: createdAt,
-		Role:      model.RoleUser,
-	}
-	_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s", chatID), userNatsMsg)
-	userNatsTime := time.Since(userNatsStart)
-	s.logger.Info("User message published to NATS", "duration", userNatsTime)
-
 	// assistant message
 	assistantMessageDb := repository.Message{
-		ID:           uuid.New().String(),
+		ID:           assistantMessageId, // Use the same ID as in streaming/publish
 		ChatID:       chatID,
 		Text:         messageContent,
 		Role:         model.RoleAssistant.String(),
@@ -502,6 +482,23 @@ func (s *Service) SendMessage(
 	}
 	assistantDbTime := time.Since(assistantDbStart)
 	s.logger.Info("Assistant message stored in database", "duration", assistantDbTime)
+
+	assistantMessageJson, err := json.Marshal(model.Message{
+		ID:          idAssistant,
+		Text:        &messageContent,
+		ImageUrls:   response.ImageURLs,
+		CreatedAt:   time.Now().Format(time.RFC3339),
+		Role:        model.RoleAssistant,
+		ToolCalls:   toolCalls,
+		ToolResults: toolResults,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = s.nc.Publish(subject, assistantMessageJson)
+	if err != nil {
+		return nil, err
+	}
 
 	// Index the conversation asynchronously
 	go func() {
