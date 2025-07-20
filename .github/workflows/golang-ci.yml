@@ -38,6 +38,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
@@ -47,9 +49,11 @@ jobs:
       - name: Lint only the diff
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.1
+          version: latest
           working-directory: backend/golang
-          args: --timeout=10m --new-from-rev=origin/${{ github.event.pull_request.base.ref }}
+          args: --timeout=10m --new-from-rev=${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+          only-new-issues: true
+          skip-cache: false
 
       - name: Build
         run: make build
