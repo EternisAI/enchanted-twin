@@ -51,7 +51,7 @@ jobs:
         with:
           version: latest
           working-directory: backend/golang
-          args: --timeout=10m --new-from-rev=${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+          args: --timeout=10m
           only-new-issues: true
           skip-cache: false
 
