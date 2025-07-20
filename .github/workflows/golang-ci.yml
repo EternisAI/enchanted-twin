@@ -46,12 +46,13 @@ jobs:
           go-version-file: backend/golang/go.mod
           cache-dependency-path: backend/golang/go.sum
 
-      - name: Lint only the diff
+      # Use fast config for PRs (~30-60s) and comprehensive config for main branch (~6min)
+      - name: Lint (fast for PRs, comprehensive for main)
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.2.2
           working-directory: backend/golang
-          args: --timeout=10m
+          args: ${{ github.event_name == 'pull_request' && '--config=.golangci-pr.yaml --timeout=3m' || '--timeout=10m' }}
           only-new-issues: true
           skip-cache: false
 
