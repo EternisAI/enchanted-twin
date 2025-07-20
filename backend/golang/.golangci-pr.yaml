@@ -1,23 +1,18 @@
 version: "2"
 
-# Fast configuration for PR linting
+# Ultra-minimal configuration for PR linting - only the most critical linters
 linters:
   default: none
   enable:
-    # Fast linters that catch important issues
-    - errcheck      # Checks for unchecked errors - Fast and critical
-    - ineffassign   # Detects ineffectual assignments - Fast
-    - misspell      # Finds commonly misspelled English words [auto‑fix] - Fast
-    - whitespace    # Detects trailing whitespace [auto‑fix] - Fast
-    - godot         # Checks if comments end in a period [auto‑fix] - Fast
-    - nolintlint    # Reports ill‑formed or insufficient nolint directives [auto‑fix] - Fast
-    - unconvert     # Remove unnecessary type conversions [auto‑fix] - Fast
-    - nakedret      # Finds naked returns - Fast
-    - durationcheck # Checks for two durations multiplied together - Fast
+    # Only the fastest, most critical linters
+    - errcheck      # Critical: unchecked errors can cause runtime panics
+    - ineffassign   # Fast: catches dead assignments
+    - misspell      # Very fast: spelling in comments/strings [auto‑fix]
     
-    # Skip these slow linters for PRs (run on main branch only):
-    # - govet (especially with enable-all: true) - SLOW
-    # - staticcheck - VERY SLOW
+    # Removed for speed (run on main branch only):
+    # - whitespace, godot, nolintlint, unconvert, nakedret, durationcheck
+    # - govet (with enable-all: true) - SLOW
+    # - staticcheck - VERY SLOW  
     # - unused - SLOW (analyzes entire codebase)
 
   settings:
@@ -38,9 +33,9 @@ output:
   sort-order:
     - file
 
-# Run configuration - faster timeout for PR linting
+# Run configuration - reasonable timeout for minimal linters
 run:
-  timeout: 3m  # Shorter timeout for fast linters
+  timeout: 5m  # Enough time for package loading + minimal linting
   issues-exit-code: 1
   tests: true
   go: "1.24" 
