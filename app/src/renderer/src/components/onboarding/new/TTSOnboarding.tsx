@@ -145,6 +145,7 @@ export default function TTSOnboarding() {
           isWaitingTwinResponse={isTTSPlaying}
           isReasonSelected={false}
           voiceMode
+          placeholder="Send a message…"
           onStop={stopTTS}
         />
       </MessageDisplay>
