@@ -229,6 +229,9 @@ func isPortInUse(port int) bool {
 	if err != nil {
 		return false
 	}
-	conn.Close()
+	err = conn.Close()
+	if err != nil {
+		log.Error("Error closing connection", "error", err)
+	}
 	return true
 }
