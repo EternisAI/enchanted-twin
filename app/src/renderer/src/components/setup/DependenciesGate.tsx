@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Check, Loader, RefreshCw } from 'lucide-react'
 
-import { useTheme } from '@renderer/lib/theme'
 import { useGoServer } from '@renderer/hooks/useGoServer'
 import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES } from './util'
 import { Button } from '../ui/button'
@@ -80,7 +79,6 @@ const handleDependencyDownload = (
 }
 
 export default function DependenciesGate({ children }: { children: React.ReactNode }) {
-  const { theme } = useTheme()
   const { start: startLlamaCpp } = useLlamaCpp()
   const [hasModelsDownloaded, setHasModelsDownloaded] = useState<Record<DependencyName, boolean>>(
     DEPENDENCY_NAMES.reduce(
@@ -217,17 +215,9 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen">
-      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm" />
-      <div
-        className="flex-1 flex items-center justify-center"
-        style={{
-          background:
-            theme === 'light'
-              ? 'linear-gradient(180deg, #6068E9 0%, #A5AAF9 100%)'
-              : 'linear-gradient(180deg, #18181B 0%, #000 100%)'
-        }}
-      >
+    <div className="flex flex-col h-screen w-screen onboarding-background">
+      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center" />
+      <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col gap-12 text-primary-foreground p-10 border border-white/50 rounded-lg bg-white/5 min-w-2xl">
           <div className="flex flex-col gap-1 text-center items-center">
             <img src={FreysaLoading} alt="Enchanted" className="w-16 h-16" />
