@@ -418,11 +418,11 @@ func (s *Service) SendMessage(
 					PrivacyDictJSON: *privacyDictJson,
 				}
 
-				subject := fmt.Sprintf("chat.%s.privacy_dict", chatID)
-				if err := helpers.NatsPublish(s.nc, subject, privacyUpdate); err != nil {
-					s.logger.Error("failed to publish privacy dictionary update", "error", err, "subject", subject, "chatID", chatID)
+				subjectPrivacyDict := fmt.Sprintf("chat.%s.privacy_dict", chatID)
+				if err := helpers.NatsPublish(s.nc, subjectPrivacyDict, privacyUpdate); err != nil {
+					s.logger.Error("failed to publish privacy dictionary update", "error", err, "subject", subjectPrivacyDict, "chatID", chatID)
 				} else {
-					s.logger.Info("published privacy dictionary update", "subject", subject, "chatID", chatID)
+					s.logger.Info("published privacy dictionary update", "subject", subjectPrivacyDict, "chatID", chatID)
 				}
 			}()
 		}
