@@ -172,6 +172,8 @@ export default function ChatInputBox({
                     handleCreateChat()
                   }}
                   isWaitingTwinResponse={false}
+                  onVoiceModeChange={() => onVoiceModeChange(false)}
+                  isVoiceReady={isVoiceReady}
                 />
               </motion.div>
             ) : null}
