@@ -47,7 +47,7 @@ jobs:
           cache-dependency-path: backend/golang/go.sum
 
       - name: Lint only the diff
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v8
         with:
           version: v2.2.2
           working-directory: backend/golang
