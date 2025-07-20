@@ -48,10 +48,13 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
+	r.Logger.Info("OAuth callback received", "state", state)
 	result, username, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
 	if err != nil {
+		r.Logger.Info("OAuth callback failed", "state", state, "error", err)
 		return "", err
 	}
+	r.Logger.Info("OAuth callback successful", "state", state, "provider", result)
 
 	switch result {
 	case "twitter":
