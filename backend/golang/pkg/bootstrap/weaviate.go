@@ -31,6 +31,8 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	_ = os.Setenv("AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED", "true")
 	_ = os.Setenv("AUTHORIZATION_ADMIN_LIST_ENABLED", "false")
 
+	_ = os.Setenv("LOG_LEVEL", "debug")
+
 	startTime := time.Now()
 	logger.Info("Starting Weaviate server bootstrap", "port", port, "dataPath", dataPath)
 
@@ -61,6 +63,9 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	api := operations.NewWeaviateAPI(swaggerSpec)
 	api.Logger = func(s string, i ...any) {
 		logger.Debug(s, i...)
+	}
+	api.ServeError = func(w http.ResponseWriter, r *http.Request, err error) {
+		logger.Error("Weaviate serve error", "error", err)
 	}
 	server := rest.NewServer(api)
 	logger.Debug("Weaviate API and server created", "elapsed", time.Since(startTime))
@@ -106,7 +111,7 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	logger.Info("Starting Weaviate server goroutine")
 	go func() {
 		logger.Debug("Weaviate server.Serve() starting")
-		if err := server.Serve(); err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(); err != nil {
 			logger.Error("Weaviate serve error", "error", err)
 		}
 	}()
@@ -139,7 +144,6 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 		resp, err := http.DefaultClient.Do(req)
 
 		if err != nil {
-			// Log connection errors more frequently for better debugging
 			if checkCount <= 5 || checkCount%5 == 0 {
 				logger.Debug("Weaviate readiness check failed",
 					"error", err,
@@ -148,7 +152,7 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 			}
 		} else {
 			// Always close the response body to prevent resource leaks
-			defer func() {
+			func() {
 				if resp != nil && resp.Body != nil {
 					resp.Body.Close() //nolint:errcheck
 				}
@@ -160,7 +164,6 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 					"checks_performed", checkCount)
 				return server, nil
 			} else {
-				// Log non-OK status responses more frequently for better debugging
 				if checkCount <= 5 || checkCount%5 == 0 {
 					logger.Debug("Weaviate not ready yet",
 						"status_code", resp.StatusCode,
