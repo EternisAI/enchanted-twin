@@ -44,7 +44,7 @@ export function UserMessageBubble({
       variants={messageAnimation}
     >
       <div className="flex flex-col gap-1 max-w-md">
-        <div className="bg-accent text-foreground rounded-lg px-4 py-2 max-w-md relative group">
+        <div className="bg-accent text-foreground rounded-lg px-4 py-2 max-w-md relative group break-words">
           {message.text && (
             <p>
               <AnonymizedContent
