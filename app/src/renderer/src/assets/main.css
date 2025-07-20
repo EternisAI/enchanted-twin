@@ -4,10 +4,8 @@
 @import './base.css';
 @import 'tw-animate-css';
 
-
 @custom-variant dark (&:is(.dark *));
 @custom-variant light (&:is(.light *));
-
 
 ::view-transition-old(page-content) {
   animation: slide-out 0.5s cubic-bezier(0.86, 0, 0.07, 1) forwards;
@@ -39,8 +37,6 @@
   }
 }
 
-
-
 @media (max-width: 620px) {
   .versions {
     display: none;
@@ -59,7 +55,7 @@
   --foreground: oklch(0.3 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.3 0 0);
-  --popover: oklch(0.98 0 0);
+  --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.3 0 0);
   --primary: oklch(0.3 0 0);
   --primary-foreground: oklch(1 0 0);
@@ -72,7 +68,7 @@
   --destructive: oklch(0.33 0.19 23.03);
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(0.92 0 0);
-  --input: oklch(0.94 0 0);
+  --input: oklch(0.97 0 0);
   --ring: oklch(0.3 0 0);
   --chart-1: oklch(0.81 0.17 75.35);
   --chart-2: oklch(0.55 0.22 264.53);
@@ -90,7 +86,9 @@
   --font-sans: Inter, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
-  --font-kbd: ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-kbd:
+    ui-sans-serif, -apple-system, system-ui, 'Segoe UI', Helvetica, 'Apple Color Emoji', Arial,
+    sans-serif, 'Segoe UI Emoji', 'Segoe UI Symbol';
   --radius: 0.75rem;
   --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
   --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
@@ -184,7 +182,7 @@
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
   --font-kbd: var(--font-kbd);
-  
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -214,7 +212,8 @@
   }
 
   /* Makes the titlebar draggable so user can move the window */
-  .titlebar, .draggable {
+  .titlebar,
+  .draggable {
     user-select: none;
     app-region: drag;
   }
@@ -229,7 +228,15 @@
     background: transparent !important;
     padding: 0 !important;
   }
+
+  .onboarding-background {
+    background: linear-gradient(180deg, #6068E9 0%, #A5AAF9 100%);
+  }
+  .dark .onboarding-background {
+    background: linear-gradient(180deg, #18181B 0%, #000 100%);
+  }
 }
+
 
 @layer utilities {
   @keyframes subtle-scale {
@@ -300,3 +307,4 @@
 /* button {
   cursor: pointer;
 } */
+

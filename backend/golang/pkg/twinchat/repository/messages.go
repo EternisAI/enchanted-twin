@@ -30,7 +30,7 @@ func (r *Repository) AddMessageToChat(ctx context.Context, message Message) (str
 		SELECT 1 FROM chats WHERE id = ? LIMIT 1
 	`, message.ChatID)
 	if err != nil {
-		return "", fmt.Errorf("chat not found for new message: %w", err)
+		return "", fmt.Errorf("chat not found for new message for chat_id: %s: %w", message.ChatID, err)
 	}
 
 	if message.ID == "" {

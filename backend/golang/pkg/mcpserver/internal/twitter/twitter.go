@@ -82,7 +82,7 @@ func (c *TwitterClient) CallTool(
 	}
 
 	logger := log.Default()
-	if oauthTokens.ExpiresAt.Before(time.Now()) {
+	if oauthTokens.ExpiresAt.Before(time.Now()) || oauthTokens.Error {
 		logger.Debug("Refreshing token for twitter")
 		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "twitter")
 		if err != nil {

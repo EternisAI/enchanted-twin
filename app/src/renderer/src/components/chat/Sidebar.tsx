@@ -6,6 +6,7 @@ import {
   GetChatsDocument
 } from '@renderer/graphql/generated/graphql'
 import { cn } from '@renderer/lib/utils'
+import logo from '@resources/icon.png'
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -21,6 +22,7 @@ import {
   Plus,
   Trash2,
   PanelLeftClose,
+  PanelLeftOpen,
   SettingsIcon,
   SearchIcon,
   ChevronDown,
@@ -43,6 +45,7 @@ interface SidebarProps {
   chats: Chat[]
   setSidebarOpen: (open: boolean) => void
   shortcuts: Record<string, { keys: string; default: string; global?: boolean }>
+  collapsed?: boolean
 }
 
 const groupChatsByTime = (chats: Chat[]) => {
@@ -72,7 +75,7 @@ const groupChatsByTime = (chats: Chat[]) => {
   return groups
 }
 
-export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
+export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }: SidebarProps) {
   const { location } = useRouterState()
   const navigate = useNavigate()
   const { openOmnibar } = useOmnibarStore()
@@ -95,7 +98,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
 
   const renderGroup = useCallback(
     (title: string, groupChats: Chat[]) => {
-      if (groupChats.length === 0) return null
+      if (groupChats.length === 0 || collapsed) return null
       return (
         <motion.div
           key={title}
@@ -128,12 +131,19 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
         </motion.div>
       )
     },
-    [location.pathname]
+    [location.pathname, collapsed]
   )
 
   return (
     <>
-      <aside className="flex flex-col bg-sidebar text-sidebar-foreground p-4 px-2 pt-10 h-full w-64 border-r border-sidebar-border/50">
+      <aside
+        className={cn(
+          'flex flex-col text-sidebar-foreground h-full transition-all duration-300',
+          collapsed
+            ? 'w-16 px-2 py-10'
+            : 'w-64 p-4 px-2 pt-10 bg-sidebar border-r border-sidebar-border/50'
+        )}
+      >
         <div className="flex items-center justify-between mb-4">
           <motion.div
             className="flex items-center"
@@ -148,17 +158,40 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setSidebarOpen(false)}
-                    className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                    onClick={() => setSidebarOpen(collapsed)}
+                    disabled={!collapsed}
+                    className={cn(
+                      'hover:bg-sidebar-accent group disabled:opacity-100',
+                      collapsed
+                        ? 'size-10 text-foreground/60 hover:text-foreground'
+                        : 'size-8 text-sidebar-foreground/60 hover:text-sidebar-foreground'
+                    )}
                   >
-                    <PanelLeftClose className="w-4 h-4" />
+                    <div className="flex items-center justify-center size-8 relative">
+                      <img
+                        src={logo}
+                        alt="logo"
+                        className={cn(
+                          'w-7 h-7 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-200',
+                          collapsed && 'opacity-100 group-hover:opacity-0 disabled:opacity-100'
+                        )}
+                      />
+                      {collapsed && (
+                        <PanelLeftOpen
+                          className={cn(
+                            'w-4 h-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-200',
+                            collapsed && 'opacity-0 group-hover:opacity-100'
+                          )}
+                        />
+                      )}
+                    </div>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" align="center">
                   <div className="flex items-center gap-2">
-                    <span>Close sidebar</span>
+                    <span>{collapsed ? 'Expand' : 'Close'} sidebar</span>
                     {shortcuts.toggleSidebar?.keys && (
-                      <kbd className="ml-1 text-[10px] text-primary-foreground/50 font-kbd">
+                      <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
                         {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
                       </kbd>
                     )}
@@ -167,109 +200,265 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts }: SidebarProps) {
               </Tooltip>
             </TooltipProvider>
           </motion.div>
-          <TooltipProvider>
-            <Tooltip delayDuration={500}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={openOmnibar}
-                  className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                >
-                  <SearchIcon className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" align="center">
-                <div className="flex items-center gap-2">
-                  <span>Search</span>
-                  <kbd className="ml-1 text-[10px] text-primary-foreground/50 font-kbd">⌘ K</kbd>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-        <div className="flex flex-col gap-1 mb-2">
-          <Button
-            variant="ghost"
-            className="group w-full justify-start px-2 text-sidebar-foreground h-9"
-            onClick={handleNewChat}
-          >
-            <Plus className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
-            <span className="text-sm">New chat</span>
-            {shortcuts.newChat?.keys && (
-              <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
-                {formatShortcutForDisplay(shortcuts.newChat.keys)}
-              </div>
-            )}
-          </Button>
-
-          <Button
-            variant="ghost"
-            data-active={location.pathname === '/tasks'}
-            className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent"
-            onClick={handleNavigateTasks}
-          >
-            <CheckSquare className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
-            <span className="text-sm">Tasks</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            data-active={location.pathname === '/holon'}
-            className="w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent"
-            onClick={() => navigate({ to: '/holon' })}
-          >
-            <Globe className="text-sidebar-foreground/60 w-4 h-4 group-hover:text-sidebar-foreground transition-colors duration-100" />
-            <span className="text-sm">Holon Networks</span>
-          </Button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
-          <AnimatePresence initial={false} mode="popLayout">
-            <motion.div className="flex flex-col gap-2">
-              {Object.entries(groupedChats).map(([title, groupChats]) =>
-                renderGroup(title, groupChats)
-              )}
-            </motion.div>
-          </AnimatePresence>
-
-          {chats.length > 5 && (
-            <motion.div>
+          {!collapsed && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.5, ease: 'easeInOut' }}
+            >
               <Button
+                onClick={() => setSidebarOpen(false)}
                 variant="ghost"
-                className="w-full justify-center text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground h-8 mt-2 mb-1"
-                onClick={() => setShowAllChats(!showAllChats)}
+                size="icon"
+                className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
               >
-                {showAllChats ? (
-                  <>
-                    <ChevronUp className="w-3.5 h-3.5 mr-1" /> Show fewer
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-3.5 h-3.5 mr-1" /> Show more
-                  </>
-                )}
+                <PanelLeftClose className="w-4 h-4" />
               </Button>
             </motion.div>
           )}
         </div>
+        <div className="flex flex-col gap-1 mb-2">
+          <TooltipProvider>
+            <Tooltip delayDuration={collapsed ? 300 : 1000}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    'group h-9 transition-all',
+                    collapsed
+                      ? 'w-10 p-0 justify-center text-foreground hover:bg-accent'
+                      : 'w-full justify-start px-2 text-sidebar-foreground'
+                  )}
+                  onClick={handleNewChat}
+                >
+                  <Plus
+                    className={cn(
+                      'w-4 h-4 transition-colors duration-100',
+                      collapsed
+                        ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground'
+                        : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
+                    )}
+                  />
+                  {!collapsed && (
+                    <>
+                      <span className="text-sm">New chat</span>
+                      {shortcuts.newChat?.keys && (
+                        <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
+                          {formatShortcutForDisplay(shortcuts.newChat.keys)}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right" align="center">
+                  <div className="flex items-center gap-2">
+                    <span>New chat</span>
+                    {shortcuts.newChat?.keys && (
+                      <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
+                        {formatShortcutForDisplay(shortcuts.newChat.keys)}
+                      </kbd>
+                    )}
+                  </div>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
 
-        <div className="shrink-0">
-          <Button
-            variant="ghost"
-            className="w-full justify-between px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground h-9 group"
-            onClick={() => navigate({ to: '/settings' })}
-          >
-            <div className="flex items-center gap-2">
-              <SettingsIcon className="w-4 h-4" />
-              <span className="text-sm">Settings</span>
+          <TooltipProvider>
+            <Tooltip delayDuration={collapsed ? 300 : 1000}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    'group h-9 transition-all',
+                    collapsed
+                      ? 'w-10 p-0 justify-center text-foreground hover:bg-accent'
+                      : 'w-full justify-start px-2 text-sidebar-foreground'
+                  )}
+                  onClick={openOmnibar}
+                >
+                  <SearchIcon
+                    className={cn(
+                      'w-4 h-4 transition-colors duration-100',
+                      collapsed
+                        ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground'
+                        : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
+                    )}
+                  />
+                  {!collapsed && (
+                    <>
+                      <span className="text-sm">Search</span>
+                      {shortcuts.search?.keys && (
+                        <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
+                          {formatShortcutForDisplay(shortcuts.search.keys)}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right" align="center">
+                  <div className="flex items-center gap-2">
+                    <span>Search</span>
+                    {shortcuts.search?.keys && (
+                      <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
+                        {formatShortcutForDisplay(shortcuts.search.keys)}
+                      </kbd>
+                    )}
+                  </div>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip delayDuration={collapsed ? 300 : 1000}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  data-active={location.pathname === '/tasks'}
+                  className={cn(
+                    'group h-9 transition-all',
+                    collapsed
+                      ? 'w-10 p-0 justify-center text-foreground hover:bg-accent [&[data-active=true]]:text-foreground [&[data-active=true]]:bg-accent'
+                      : 'w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent'
+                  )}
+                  onClick={handleNavigateTasks}
+                >
+                  <CheckSquare
+                    className={cn(
+                      'w-4 h-4 transition-colors duration-100',
+                      collapsed
+                        ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground'
+                        : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
+                    )}
+                  />
+                  {!collapsed && <span className="text-sm">Tasks</span>}
+                </Button>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right" align="center">
+                  <span>Tasks</span>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip delayDuration={collapsed ? 300 : 1000}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  data-active={location.pathname === '/holon'}
+                  className={cn(
+                    'group h-9 transition-all',
+                    collapsed
+                      ? 'w-10 p-0 justify-center text-foreground hover:bg-accent [&[data-active=true]]:text-foreground [&[data-active=true]]:bg-accent'
+                      : 'w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent'
+                  )}
+                  onClick={() => navigate({ to: '/holon' })}
+                >
+                  <Globe
+                    className={cn(
+                      'w-4 h-4 transition-colors duration-100',
+                      collapsed
+                        ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground'
+                        : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
+                    )}
+                  />
+                  {!collapsed && <span className="text-sm">Holon Networks</span>}
+                </Button>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right" align="center">
+                  <span>Holon Networks</span>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        {!collapsed && (
+          <>
+            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
+              <AnimatePresence initial={false} mode="popLayout">
+                <motion.div className="flex flex-col gap-2">
+                  {Object.entries(groupedChats).map(([title, groupChats]) =>
+                    renderGroup(title, groupChats)
+                  )}
+                </motion.div>
+              </AnimatePresence>
+
+              {chats.length > 5 && (
+                <motion.div>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-center text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground h-8 mt-2 mb-1"
+                    onClick={() => setShowAllChats(!showAllChats)}
+                  >
+                    {showAllChats ? (
+                      <>
+                        <ChevronUp className="w-3.5 h-3.5 mr-1" /> Show fewer
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-3.5 h-3.5 mr-1" /> Show more
+                      </>
+                    )}
+                  </Button>
+                </motion.div>
+              )}
             </div>
-            {shortcuts.openSettings?.keys && (
-              <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
-                {formatShortcutForDisplay(shortcuts.openSettings.keys)}
-              </div>
-            )}
-          </Button>
+          </>
+        )}
+
+        <div className={cn('shrink-0', collapsed && 'mt-auto')}>
+          <TooltipProvider>
+            <Tooltip delayDuration={collapsed ? 300 : 1000}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    'group h-9 transition-all',
+                    collapsed
+                      ? 'w-10 p-0 justify-center text-foreground hover:bg-accent'
+                      : 'w-full justify-between px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground'
+                  )}
+                  onClick={() => navigate({ to: '/settings' })}
+                >
+                  <div className={cn('flex items-center gap-2', collapsed && 'justify-center')}>
+                    <SettingsIcon
+                      className={cn(
+                        'w-4 h-4',
+                        collapsed ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground' : ''
+                      )}
+                    />
+                    {!collapsed && <span className="text-sm">Settings</span>}
+                  </div>
+                  {!collapsed && shortcuts.openSettings?.keys && (
+                    <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
+                      {formatShortcutForDisplay(shortcuts.openSettings.keys)}
+                    </div>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right" align="center">
+                  <div className="flex items-center gap-2">
+                    <span>Settings</span>
+                    {shortcuts.openSettings?.keys && (
+                      <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
+                        {formatShortcutForDisplay(shortcuts.openSettings.keys)}
+                      </kbd>
+                    )}
+                  </div>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </aside>
       <Omnibar />
@@ -352,7 +541,7 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
           <Button
             variant="ghost"
             size="icon"
-            className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 h-6 w-6"
+            className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 h-6 w-6"
           >
             <Trash2 className="w-3.5 h-3.5 text-destructive" />
           </Button>

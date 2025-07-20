@@ -3,10 +3,12 @@ package google
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/log"
 	mcp_golang "github.com/mark3labs/mcp-go/mcp"
 
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -52,6 +54,26 @@ func (c *GoogleClient) CallTool(
 	// Convert generic arguments to the expected Go struct.
 	name := request.Params.Name
 	fmt.Println("Call tool GOOGLE", name, request.Params.Arguments)
+
+	oauthTokens, err := c.Store.GetOAuthTokens(ctx, "google")
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: @pottekkat Pass loggers properly.
+	// Refresh the token, it is actually retrieved by individual tools.
+	logger := log.Default()
+	if oauthTokens.ExpiresAt.Before(time.Now()) || oauthTokens.Error {
+		logger.Debug("Refreshing token for google")
+		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "google")
+		if err != nil {
+			return nil, err
+		}
+		_, err = c.Store.GetOAuthTokens(ctx, "google")
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	var content []mcp_golang.Content
 

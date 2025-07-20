@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -21,9 +22,9 @@ import (
 )
 
 func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
+	checkAndConfigurePorts(logger)
+
 	_ = os.Setenv("CLUSTER_HOSTNAME", "node1")
-	_ = os.Setenv("CLUSTER_GOSSIP_BIND_PORT", "7946")
-	_ = os.Setenv("CLUSTER_DATA_BIND_PORT", "7947")
 
 	_ = os.Unsetenv("CLUSTER_JOIN")
 
@@ -31,7 +32,7 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	_ = os.Setenv("AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED", "true")
 	_ = os.Setenv("AUTHORIZATION_ADMIN_LIST_ENABLED", "false")
 
-	_ = os.Setenv("LOG_LEVEL", "info")
+	_ = os.Setenv("LOG_LEVEL", "debug")
 
 	startTime := time.Now()
 	logger.Info("Starting Weaviate server bootstrap", "port", port, "dataPath", dataPath)
@@ -63,6 +64,9 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	api := operations.NewWeaviateAPI(swaggerSpec)
 	api.Logger = func(s string, i ...any) {
 		logger.Debug(s, i...)
+	}
+	api.ServeError = func(w http.ResponseWriter, r *http.Request, err error) {
+		logger.Error("Weaviate serve error", "error", err)
 	}
 	server := rest.NewServer(api)
 	logger.Debug("Weaviate API and server created", "elapsed", time.Since(startTime))
@@ -108,7 +112,7 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	logger.Info("Starting Weaviate server goroutine")
 	go func() {
 		logger.Debug("Weaviate server.Serve() starting")
-		if err := server.Serve(); err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(); err != nil {
 			logger.Error("Weaviate serve error", "error", err)
 		}
 	}()
@@ -123,8 +127,8 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	time.Sleep(100 * time.Millisecond)
 
 	readyURL := fmt.Sprintf("http://localhost:%d/v1/.well-known/ready", p)
-	deadline := time.Now().Add(15 * time.Second)
-	logger.Info("Waiting for Weaviate to become ready", "url", readyURL, "timeout", "15s")
+	deadline := time.Now().Add(45 * time.Second)
+	logger.Info("Waiting for Weaviate to become ready", "url", readyURL, "timeout", "45s")
 
 	checkCount := 0
 	for {
@@ -141,7 +145,6 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 		resp, err := http.DefaultClient.Do(req)
 
 		if err != nil {
-			// Log connection errors more frequently for better debugging
 			if checkCount <= 5 || checkCount%5 == 0 {
 				logger.Debug("Weaviate readiness check failed",
 					"error", err,
@@ -150,7 +153,7 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 			}
 		} else {
 			// Always close the response body to prevent resource leaks
-			defer func() {
+			func() {
 				if resp != nil && resp.Body != nil {
 					resp.Body.Close() //nolint:errcheck
 				}
@@ -162,7 +165,6 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 					"checks_performed", checkCount)
 				return server, nil
 			} else {
-				// Log non-OK status responses more frequently for better debugging
 				if checkCount <= 5 || checkCount%5 == 0 {
 					logger.Debug("Weaviate not ready yet",
 						"status_code", resp.StatusCode,
@@ -199,4 +201,58 @@ func InitSchema(client *weaviate.Client, logger *log.Logger, embedding ai.Embedd
 
 	logger.Debug("Schema initialization completed", "elapsed", time.Since(start))
 	return nil
+}
+
+func checkAndConfigurePorts(logger *log.Logger) {
+	gossipPort := getRandomAvailablePort(logger)
+	dataPort := getRandomAvailablePort(logger)
+
+	logger.Info("Using dynamic ports", "gossip_port", gossipPort, "data_port", dataPort)
+
+	_ = os.Setenv("CLUSTER_GOSSIP_BIND_PORT", fmt.Sprintf("%d", gossipPort))
+	_ = os.Setenv("CLUSTER_DATA_BIND_PORT", fmt.Sprintf("%d", dataPort))
+}
+
+func getRandomAvailablePort(logger *log.Logger) int {
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		logger.Warn("Failed to get random port, falling back to predetermined range", "error", err)
+		return findAvailablePort(51946, []int{51946, 52946, 53946, 54946, 55946})
+	}
+	defer func() {
+		if err := listener.Close(); err != nil {
+			logger.Debug("Error closing port listener", "error", err)
+		}
+	}()
+
+	addr := listener.Addr()
+	tcpAddr, ok := addr.(*net.TCPAddr)
+	if !ok {
+		logger.Warn("Listener address is not a *net.TCPAddr", "addr", addr)
+		return findAvailablePort(51946, []int{51946, 52946, 53946, 54946, 55946})
+	}
+	port := tcpAddr.Port
+	logger.Debug("Found available port", "port", port)
+	return port
+}
+
+func findAvailablePort(defaultPort int, candidates []int) int {
+	for _, port := range candidates {
+		if !isPortInUse(port) {
+			return port
+		}
+	}
+	return defaultPort
+}
+
+func isPortInUse(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 1*time.Second)
+	if err != nil {
+		return false
+	}
+	err = conn.Close()
+	if err != nil {
+		log.Error("Error closing connection", "error", err)
+	}
+	return true
 }

@@ -182,7 +182,7 @@ export class LiveKitAgentBootstrap {
     try {
       this.updateProgress(LIVEKIT_PROGRESS_STEPS.UV_SETUP, 'Setting up Python environment')
       await this.pythonEnv.setupPythonEnvironment()
-      
+
       this.updateProgress(LIVEKIT_PROGRESS_STEPS.VENV_SETUP, 'Setting up virtual environment')
       await this.pythonEnv.setupProjectVenv(this.projectName)
 

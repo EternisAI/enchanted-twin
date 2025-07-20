@@ -146,9 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const autoConnectEnchantedMCP = async () => {
         try {
           const enchantedServer = mcpServersData.getMCPServers?.find(
-            server => server.type === McpServerType.Enchanted && server.connected
+            (server) => server.type === McpServerType.Enchanted && server.connected
           )
-          
+
           if (enchantedServer) {
             console.log('[Auth] Enchanted MCP server already connected, skipping auto-connect')
             setHasAutoConnected(true)
