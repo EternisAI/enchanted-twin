@@ -21,8 +21,6 @@ export function SyncedThemeProvider({ children }: SyncedThemeProviderProps) {
     }
   })()
 
-  console.log('savedTheme', savedTheme)
-
   return (
     <ThemeProvider defaultTheme={savedTheme}>
       <ThemeProviderContent>{children}</ThemeProviderContent>
