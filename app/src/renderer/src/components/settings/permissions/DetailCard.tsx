@@ -3,6 +3,7 @@ import { Button } from '@renderer/components/ui/button'
 import { LucideIcon, Settings } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import IconContainer from '@renderer/assets/icons/IconContainer'
+import { Switch } from '@renderer/components/ui/switch'
 
 interface StatusInfo {
   icon: LucideIcon
@@ -19,6 +20,7 @@ interface DetailCardProps {
   isLoading: boolean
   explanation?: string
   grantedIcon?: React.ReactNode
+  isToggle?: boolean
 }
 
 export function DetailCard({
@@ -29,6 +31,7 @@ export function DetailCard({
   onButtonClick,
   isLoading,
   explanation,
+  isToggle = false,
   grantedIcon = <Settings className="h-4 w-4" />
 }: DetailCardProps) {
   return (
@@ -43,11 +46,18 @@ export function DetailCard({
             <p className="text-xs text-muted-foreground mt-1 text-balance">{explanation}</p>
           )}
         </div>
-        <Button variant="outline" onClick={onButtonClick} disabled={isLoading}>
-          {statusInfo.label === 'Granted' || statusInfo.label === 'Enabled'
-            ? grantedIcon
-            : buttonLabel}
-        </Button>
+        {isToggle ? (
+          <Switch
+            checked={statusInfo.label === 'Granted' || statusInfo.label === 'Enabled'}
+            onCheckedChange={onButtonClick}
+          />
+        ) : (
+          <Button variant="outline" onClick={onButtonClick} disabled={isLoading}>
+            {statusInfo.label === 'Granted' || statusInfo.label === 'Enabled'
+              ? grantedIcon
+              : buttonLabel}
+          </Button>
+        )}
       </div>
     </div>
   )
