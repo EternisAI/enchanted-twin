@@ -205,6 +205,7 @@ export const Omnibar = () => {
                           onSend={handleCreateChat}
                           isWaitingTwinResponse={false}
                           text={query}
+                          isVoiceReady={false}
                         />
                       </motion.div>
                     )}
