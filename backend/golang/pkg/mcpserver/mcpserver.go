@@ -23,6 +23,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/enchanted"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/google"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/screenpipe"
@@ -130,43 +131,7 @@ func (s *service) ConnectMCPServer(
 				return nil, fmt.Errorf("ENCHANTED_MCP_URL is not configured")
 			}
 
-			// Get Firebase tokens from login
-			oauth, err := s.store.GetOAuthTokens(ctx, "firebase")
-			if err != nil {
-				return nil, fmt.Errorf("failed to get firebase tokens: %w", err)
-			}
-
-			// Create client with OAuth authorization headers
-			options := []transport.StreamableHTTPCOption{}
-			if oauth != nil && oauth.AccessToken != "" {
-				options = append(options, transport.WithHTTPHeaders(map[string]string{
-					"Authorization": "Bearer " + oauth.AccessToken,
-				}))
-			}
-
-			mcpClient, err := mcpclient.NewStreamableHttpClient(s.config.EnchantedMcpURL, options...)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create MCP client: %w", err)
-			}
-
-			err = mcpClient.Start(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to start MCP client: %w", err)
-			}
-
-			initRequest := mcp.InitializeRequest{}
-			initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
-			initRequest.Params.ClientInfo = mcp.Implementation{
-				Name:    "enchanted-twin-mcp-client",
-				Version: "1.0.0",
-			}
-
-			_, err = mcpClient.Initialize(ctx, initRequest)
-			if err != nil {
-				return nil, fmt.Errorf("failed to initialize MCP client at %s: %w", s.config.EnchantedMcpURL, err)
-			}
-
-			client = mcpClient
+			client = enchanted.NewEnchantedMCPClient(s.store, log.Default(), s.config.EnchantedMcpURL)
 		default:
 			return nil, fmt.Errorf("unsupported server type")
 		}
@@ -461,45 +426,12 @@ func (s *service) LoadMCP(ctx context.Context) error {
 					log.Error("Config is nil, cannot connect to Enchanted MCP server", "server", server.Name)
 					continue
 				}
-
-				// Get Firebase tokens from login
-				oauth, err := s.store.GetOAuthTokens(ctx, "firebase")
-				if err != nil {
-					log.Error("Error getting firebase tokens for MCP server", "server", server.Name, "error", err)
+				if s.config.EnchantedMcpURL == "" {
+					log.Error("ENCHANTED_MCP_URL is not configured", "server", server.Name)
 					continue
 				}
 
-				// Create client with OAuth authorization headers
-				options := []transport.StreamableHTTPCOption{}
-				if oauth != nil && oauth.AccessToken != "" {
-					options = append(options, transport.WithHTTPHeaders(map[string]string{
-						"Authorization": "Bearer " + oauth.AccessToken,
-					}))
-				}
-
-				mcpClient, err := mcpclient.NewStreamableHttpClient(s.config.EnchantedMcpURL, options...)
-				if err != nil {
-					log.Error("Error creating MCP client", "server", server.Name, "error", err)
-					continue
-				}
-				err = mcpClient.Start(ctx)
-				if err != nil {
-					log.Error("Error starting MCP server", "server", server.Name, "error", err)
-					continue
-				}
-				// Initialize the client
-				initRequest := mcp.InitializeRequest{}
-				initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
-				initRequest.Params.ClientInfo = mcp.Implementation{
-					Name:    "enchanted-twin-mcp-client",
-					Version: "1.0.0",
-				}
-				_, err = mcpClient.Initialize(ctx, initRequest)
-				if err != nil {
-					log.Error("Error initializing MCP client", "server", server.Name, "error", err)
-					continue
-				}
-				client = mcpClient
+				client = enchanted.NewEnchantedMCPClient(s.store, log.Default(), s.config.EnchantedMcpURL)
 			default:
 				// nothing to do
 				continue

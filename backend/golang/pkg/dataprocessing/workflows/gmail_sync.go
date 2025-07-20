@@ -9,6 +9,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 )
@@ -49,6 +50,21 @@ func (w *DataProcessingWorkflows) GmailSyncActivity(
 	}
 	if tokens == nil {
 		return GmailSyncActivityResponse{}, fmt.Errorf("no OAuth tokens found for Google")
+	}
+
+	// Tokens must be refreshed if needed every time they are used.
+	// This makes the activity self contained and it doesn't require any external
+	// process to refresh the tokens and have to retry every time the refresh is out of sync.
+	if tokens.ExpiresAt.Before(time.Now()) || tokens.Error {
+		w.Logger.Debug("Refreshing expired Google token in Gmail sync activity")
+		_, err = auth.RefreshOAuthToken(ctx, w.Logger, w.Store, "google")
+		if err != nil {
+			return GmailSyncActivityResponse{}, fmt.Errorf("failed to refresh OAuth tokens: %w", err)
+		}
+		tokens, err = w.Store.GetOAuthTokensByUsername(ctx, "google", input.Username)
+		if err != nil {
+			return GmailSyncActivityResponse{}, fmt.Errorf("failed to get refreshed OAuth tokens: %w", err)
+		}
 	}
 
 	// Create the appropriate processor
