@@ -49,7 +49,7 @@ jobs:
       - name: Lint only the diff
         uses: golangci/golangci-lint-action@v7
         with:
-          version: latest
+          version: v2.2.2
           working-directory: backend/golang
           args: --timeout=10m
           only-new-issues: true
