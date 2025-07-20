@@ -389,6 +389,7 @@ function OmnibarOverlay() {
                       onSend={handleCreateChat}
                       isWaitingTwinResponse={false}
                       text={query}
+                      isVoiceReady={false}
                     />
                   </motion.div>
                 </div>
