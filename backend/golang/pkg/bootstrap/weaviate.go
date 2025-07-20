@@ -225,7 +225,13 @@ func getRandomAvailablePort(logger *log.Logger) int {
 		}
 	}()
 
-	port := listener.Addr().(*net.TCPAddr).Port
+	addr := listener.Addr()
+	tcpAddr, ok := addr.(*net.TCPAddr)
+	if !ok {
+		logger.Warn("Listener address is not a *net.TCPAddr", "addr", addr)
+		return findAvailablePort(51946, []int{51946, 52946, 53946, 54946, 55946})
+	}
+	port := tcpAddr.Port
 	logger.Debug("Found available port", "port", port)
 	return port
 }
