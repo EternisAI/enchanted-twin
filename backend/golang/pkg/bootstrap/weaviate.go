@@ -16,6 +16,7 @@ import (
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
+	"go.mau.fi/libsignal/logger"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -246,6 +247,7 @@ func findAvailablePort(defaultPort int, candidates []int) int {
 }
 
 func isPortInUse(port int) bool {
+	logger.Debug("Checking if port is in use", "port", port)
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 1*time.Second)
 	if err != nil {
 		return false
