@@ -7,7 +7,6 @@ import { Button } from '../ui/button'
 import { Loader2, RefreshCcw } from 'lucide-react'
 import { router } from '../../main'
 import { OnboardingVoiceAnimation } from './new/Animations'
-import { useTheme } from '@renderer/lib/theme'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import GoogleSignInButton from '../oauth/GoogleSignInButton'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
@@ -160,18 +159,8 @@ function InvitationWrapper({
   showAnimation = false,
   showPrivacyText = false
 }: InvitationWrapperProps) {
-  const { theme } = useTheme()
-
   return (
-    <div
-      className="flex flex-col gap-6 justify-between items-center relative overflow-hidden"
-      style={{
-        background:
-          theme === 'light'
-            ? 'linear-gradient(180deg, #6068E9 0%, #A5AAF9 100%)'
-            : 'linear-gradient(180deg, #18181B 0%, #000 100%)'
-      }}
-    >
+    <div className="flex flex-col gap-6 justify-between items-center relative overflow-hidden onboarding-background">
       {showTitlebar && (
         <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm" />
       )}

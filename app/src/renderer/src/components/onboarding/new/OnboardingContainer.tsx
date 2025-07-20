@@ -8,13 +8,11 @@ import EnableMicrophone from './EnableMicrophone'
 
 import VoiceOnboarding from './VoiceOnboarding'
 import TTSOnboarding from './TTSOnboarding'
-import { useThemeSync } from '@renderer/hooks/useThemeSync'
 
 type OnboardingType = 'VOICE' | 'TEXT'
 
 export default function OnboardingContainer() {
   const navigate = useNavigate()
-  const { theme } = useThemeSync()
   const { isCompleted } = useOnboardingStore()
   const { stopVoiceMode } = useVoiceStore()
   const { microphoneStatus } = useMicrophonePermission()
@@ -39,7 +37,7 @@ export default function OnboardingContainer() {
   }
 
   return (
-    <div className="w-full h-full flex flex-col justify-center items-center bg-gradient-to-b from-[#6068E9] to-[#A5AAF9] dark:from-[#18181B] dark:to-[#000]">
+    <div className="w-full h-full flex flex-col justify-center items-center onboarding-background">
       {microphoneStatus === 'granted' ? (
         <VoiceOnboarding />
       ) : onboardingType === 'TEXT' ? (
