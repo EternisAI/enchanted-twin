@@ -50,6 +50,12 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("failed to enable foreign key constraints: %w", err)
 	}
 
+	// Set busy timeout to handle database locks.
+	_, err = db.ExecContext(ctx, "PRAGMA busy_timeout=5000;")
+	if err != nil {
+		return nil, fmt.Errorf("failed to set busy timeout: %w", err)
+	}
+
 	// Run migrations to ensure all tables exist
 	if err := RunMigrations(db.DB); err != nil {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
