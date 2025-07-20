@@ -43,7 +43,7 @@ func (c *SlackClient) CallTool(
 	}
 
 	logger := log.Default()
-	if oauthTokens.ExpiresAt.Before(time.Now()) {
+	if oauthTokens.ExpiresAt.Before(time.Now()) || oauthTokens.Error {
 		logger.Debug("Refreshing token for slack")
 		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "slack")
 		if err != nil {
