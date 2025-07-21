@@ -37,8 +37,8 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     scope: 'like.read tweet.read users.read offline.access tweet.write bookmark.read',
     description: '',
     icon: (
-      <IconContainer className="bg-foreground">
-        <XformerlyTwitter className="size-7 text-primary-foreground" />
+      <IconContainer className="bg-foreground size-8">
+        <XformerlyTwitter className="size-5 text-primary-foreground" />
       </IconContainer>
     ),
     supportsMultipleConnections: false

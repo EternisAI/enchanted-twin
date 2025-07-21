@@ -76,8 +76,10 @@ export const UnifiedDataSourceCard = ({
   return (
     <div className="px-2 py-4 w-full hover:bg-accent rounded-lg">
       <div className="text-lg flex flex-wrap items-center justify-between flex-row gap-5">
-        <div className="font-semibold flex items-center gap-5">
-          {source.icon}
+        <div className="font-semibold flex items-center gap-4">
+          <div className="size-10 rounded-md overflow-hidden flex items-center justify-center flex-shrink-0">
+            {source.icon}
+          </div>
           <span className="leading-none">{source.label}</span>
         </div>
         <div className="flex items-center gap-2">
