@@ -5,7 +5,7 @@ import HolonThreadDetail from '@renderer/components/holon/HolonThreadDetail'
 import { TypingIndicator } from '@renderer/components/chat/TypingIndicator'
 
 export const Route = createFileRoute('/holon/$threadId')({
-  component: HolonThreadDetailPage,
+  component: () => <HolonThreadDetailPage />,
   loader: async ({ params }) => {
     try {
       const { data } = await client.query({

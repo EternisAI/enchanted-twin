@@ -23,6 +23,7 @@ interface ChatState {
   historicToolCalls: ToolCall[]
   messages: Message[]
   privacyDict: string
+  isStreamingResponse: boolean
 }
 
 interface ChatActions {
@@ -66,6 +67,7 @@ export function ChatProvider({
       .flat()
       .reverse()
   })
+  const [isStreamingResponse, setIsStreamingResponse] = useState(false)
 
   const [messages, setMessages] = useState<Message[]>(() => {
     // Handle first message optimistically
@@ -239,6 +241,7 @@ export function ChatProvider({
     }
 
     setIsWaitingTwinResponse(false)
+    setIsStreamingResponse(!data.isComplete)
   })
 
   useToolCallUpdate(chat.id, (toolCall) => {
@@ -262,6 +265,7 @@ export function ChatProvider({
   const state = useMemo<ChatState>(
     () => ({
       isWaitingTwinResponse,
+      isStreamingResponse,
       isReasonSelected,
       error,
       activeToolCalls,
@@ -271,6 +275,7 @@ export function ChatProvider({
     }),
     [
       isWaitingTwinResponse,
+      isStreamingResponse,
       isReasonSelected,
       error,
       activeToolCalls,
