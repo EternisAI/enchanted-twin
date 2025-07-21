@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Check, Loader, RefreshCw } from 'lucide-react'
 
-import { useGoServer } from '@renderer/hooks/useGoServer'
+import { useGoServerContext } from '@renderer/contexts/GoServerContext'
 import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES } from './util'
 import { Button } from '../ui/button'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
@@ -91,7 +91,8 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
   )
   const [downloadState, setDownloadState] = useState<DownloadState>(initialDownloadState)
 
-  const { state: goServerState, initializeIfNeeded, retry: retryGoServer } = useGoServer()
+  const { goServerState, goServerActions } = useGoServerContext()
+  const { initializeIfNeeded, retry: retryGoServer } = goServerActions
   const hasInitializedGoServer = useRef(false)
 
   const retryDownload = useCallback(async (modelName: DependencyName) => {
@@ -141,14 +142,6 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
             error: data.error
           }
         }
-
-        const allCompleted = Object.values(newState).every((dependency) => dependency.completed)
-
-        if (allCompleted && !hasInitializedGoServer.current) {
-          hasInitializedGoServer.current = true
-          initializeIfNeeded()
-        }
-
         return newState
       })
 
@@ -192,6 +185,14 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
   }, [])
 
   useEffect(() => {
+    const allCompleted = Object.values(downloadState).every((dependency) => dependency.completed)
+    if (allCompleted && !hasInitializedGoServer.current) {
+      hasInitializedGoServer.current = true
+      initializeIfNeeded()
+    }
+  }, [downloadState, initializeIfNeeded])
+
+  useEffect(() => {
     const interval = setInterval(async () => {
       if (!hasModelsDownloaded.LLAMACCP) return
       const result = await window.api.llamacpp.getStatus()
@@ -209,6 +210,21 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
   const allDependenciesCompleted =
     Object.values(hasModelsDownloaded).every((dependency) => dependency) ||
     Object.values(downloadState).every((dependency) => dependency.completed)
+
+  useEffect(() => {
+    if (!allDependenciesCompleted) return
+    if (process.env.NODE_ENV === 'development') return
+
+    const interval = setInterval(async () => {
+      const status = await goServerActions.checkStatus()
+      console.log('[DependenciesGate] Go server status:', status)
+      if (!status.isRunning) {
+        console.log('[DependenciesGate] Go server is not running, initializing...')
+        await goServerActions.initializeIfNeeded()
+      }
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [allDependenciesCompleted])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>

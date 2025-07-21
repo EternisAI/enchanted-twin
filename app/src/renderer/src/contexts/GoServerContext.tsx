@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
+import { useGoServer } from '@renderer/hooks/useGoServer'
 
 export interface LogEntry {
   id: string
@@ -13,14 +14,16 @@ interface GoLogsContextType {
   errorCount: number
   clearLogs: () => void
   downloadLogs: () => void
+  goServerState: ReturnType<typeof useGoServer>['state']
+  goServerActions: Omit<ReturnType<typeof useGoServer>, 'state'>
 }
 
 const GoLogsContext = createContext<GoLogsContextType | undefined>(undefined)
 
-export function useGoLogs() {
+export function useGoServerContext() {
   const context = useContext(GoLogsContext)
   if (context === undefined) {
-    throw new Error('useGoLogs must be used within a GoLogsProvider')
+    throw new Error('useGoServerContext must be used within a GoServerProvider')
   }
   return context
 }
@@ -29,9 +32,11 @@ interface GoLogsProviderProps {
   children: React.ReactNode
 }
 
-export function GoLogsProvider({ children }: GoLogsProviderProps) {
+export function GoServerProvider({ children }: GoLogsProviderProps) {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [errorCount, setErrorCount] = useState(0)
+
+  const { state, checkStatus, start, stop, initializeIfNeeded, retry } = useGoServer()
 
   useEffect(() => {
     const cleanup = window.api.onGoLog((data) => {
@@ -74,12 +79,34 @@ export function GoLogsProvider({ children }: GoLogsProviderProps) {
     toast.success('Logs downloaded initiated successfully')
   }, [logs])
 
-  const value: GoLogsContextType = {
-    logs,
-    errorCount,
-    clearLogs,
-    downloadLogs
-  }
+  const value = useMemo(
+    () => ({
+      logs,
+      errorCount,
+      clearLogs,
+      downloadLogs,
+      goServerState: state,
+      goServerActions: {
+        checkStatus,
+        start,
+        stop,
+        initializeIfNeeded,
+        retry
+      }
+    }),
+    [
+      logs,
+      errorCount,
+      clearLogs,
+      downloadLogs,
+      state,
+      checkStatus,
+      start,
+      stop,
+      initializeIfNeeded,
+      retry
+    ]
+  )
 
   return <GoLogsContext.Provider value={value}>{children}</GoLogsContext.Provider>
 }
