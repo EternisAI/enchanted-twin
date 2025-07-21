@@ -78,6 +78,7 @@ const handleDependencyDownload = (
   }
 }
 
+//@TODO: Here we should show livekit progress % by using its progress or python env manager progress
 export default function DependenciesGate({ children }: { children: React.ReactNode }) {
   const { start: startLlamaCpp } = useLlamaCpp()
   const [hasModelsDownloaded, setHasModelsDownloaded] = useState<Record<DependencyName, boolean>>(
@@ -209,6 +210,8 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
   const allDependenciesCompleted =
     Object.values(hasModelsDownloaded).every((dependency) => dependency) ||
     Object.values(downloadState).every((dependency) => dependency.completed)
+
+  console.log('hasModelsDownloaded!', hasModelsDownloaded)
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>

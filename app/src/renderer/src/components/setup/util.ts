@@ -34,7 +34,7 @@ export const DEPENDENCY_CONFIG: Record<
     description: ''
   },
   uv: {
-    name: 'Python dependency manager',
+    name: 'Voice mode dependencies',
     description: ''
   }
 }
