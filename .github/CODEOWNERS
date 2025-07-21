@@ -1,9 +1,16 @@
 # CODEOWNERS file for Enchanted Twin project
 # 
 # This file defines code ownership for different parts of the codebase.
-# More specific paths should be listed first, followed by broader patterns.
+# Global fallback rule comes first, then specific rules override it.
 # 
 # Order matters: the last matching pattern takes precedence.
+
+# =============================================================================
+# DEFAULT FALLBACK (must come first - specific rules below will override)
+# =============================================================================
+
+# Default: Everyone can review anything not specifically covered below
+* @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
 
 # =============================================================================
 # SPECIFIC COMPONENT OWNERSHIP
@@ -15,9 +22,6 @@ app/ @apokusin @Arthurgallina1
 # MCP (Model Context Protocol) - Navendu, Innokentii, Jack
 backend/golang/pkg/mcpserver/ @pottekkat @Enjection @JckHoe
 
-# Memory - Dmitry, Khurshid, Jason
-backend/golang/pkg/agent/memory/ @typ3c4t @juraev @lwlee2608
-
 # Data Ingestion - Slim, Dmitry
 backend/golang/pkg/dataprocessing/ @gustav0frings @typ3c4t
 
@@ -27,9 +31,12 @@ backend/golang/pkg/ai/ @Enjection @lwlee2608 @JckHoe
 # Holon - Innokentii, Jason, Jack
 backend/golang/pkg/holon/ @Enjection @lwlee2608 @JckHoe
 
-# Chat/Agent (excluding memory) - Augustinas, Innokentii, Jason, Jack
+# Chat/Agent (broad rule first) - Augustinas, Innokentii, Jason, Jack
 backend/golang/pkg/agent/ @gluonfield @Enjection @lwlee2608 @JckHoe
 backend/golang/pkg/twinchat/ @gluonfield @Enjection @lwlee2608 @JckHoe
+
+# Memory (specific rule after broader agent rule) - Dmitry, Khurshid, Jason
+backend/golang/pkg/agent/memory/ @typ3c4t @juraev @lwlee2608
 
 # =============================================================================
 # ADDITIONAL SPECIFIC PATTERNS
@@ -55,28 +62,9 @@ app/src/renderer/src/components/data-sources/ @apokusin @Arthurgallina1 @gustav0
 app/src/renderer/src/components/holon/ @apokusin @Arthurgallina1 @Enjection @lwlee2608 @JckHoe
 
 # =============================================================================
-# CROSS-CUTTING CONCERNS
+# OVERRIDES FOR SPECIFIC FILES
 # =============================================================================
 
-# CI/CD and workflows - Everyone should be able to review
-.github/ @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
+# CI/CD and workflows - Enjection, gluonfield
+.github/ @Enjection @gluonfield
 
-# Configuration files - Everyone should be able to review
-*.json @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
-*.yaml @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
-*.yml @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
-Makefile @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
-go.mod @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
-go.sum @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
-
-# Documentation - Everyone should be able to review
-*.md @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
-README.md @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
-CLAUDE.md @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
-
-# =============================================================================
-# DEFAULT FALLBACK - ANYTHING ELSE
-# =============================================================================
-
-# Default: Everyone can review anything else not specifically covered above
-* @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
