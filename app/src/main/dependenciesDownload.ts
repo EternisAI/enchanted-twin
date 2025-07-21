@@ -40,7 +40,6 @@ const DEPENDENCIES_CONFIGS: Record<
     name: 'embeddings',
     dir: path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en'),
     needsExtraction: true
-    // Example: postInstallHook: async (dir) => { /* custom post-install logic */ }
   },
   anonymizer: {
     url: 'https://huggingface.co/eternis/eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k_gguf/resolve/main/qwen3-0.6b-q4_k_m.gguf?download=true',
@@ -400,7 +399,6 @@ async function processUvInstallation(uvDir: string): Promise<void> {
   console.log(`[processUvInstallation] Processing UV installation in: ${uvDir}`)
 
   try {
-    // Find the UV binary in the extracted directory
     const files = fs.readdirSync(uvDir)
     const uvBinary = files.find((file) => file === 'uv' || file === 'uv.exe')
 
@@ -410,7 +408,6 @@ async function processUvInstallation(uvDir: string): Promise<void> {
 
     const uvBinaryPath = path.join(uvDir, uvBinary)
 
-    // Make UV executable on Unix-like systems
     if (process.platform !== 'win32') {
       fs.chmodSync(uvBinaryPath, 0o755)
       console.log(`[processUvInstallation] Made UV binary executable: ${uvBinaryPath}`)
