@@ -232,26 +232,3 @@ export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
     uv: DEPENDENCIES_CONFIGS.uv.isDownloaded()
   }
 }
-
-export function getVirtualEnvironmentPath(): string {
-  return path.join(DEPENDENCIES_DIR, 'python', 'venv')
-}
-
-export function hasVirtualEnvironment(): boolean {
-  const venvPath = path.join(DEPENDENCIES_DIR, 'python', 'venv')
-
-  if (!fs.existsSync(venvPath)) {
-    return false
-  }
-
-  try {
-    const files = fs.readdirSync(venvPath)
-    const hasBinOrScripts = files.some((file) => file === 'bin' || file === 'Scripts')
-    const hasLib = files.some((file) => file === 'lib')
-
-    return hasBinOrScripts && hasLib
-  } catch (error) {
-    console.error(`[hasVirtualEnvironment] Error checking venv:`, error)
-    return false
-  }
-}
