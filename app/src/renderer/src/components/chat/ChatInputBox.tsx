@@ -221,8 +221,7 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant="outline"
-          className="!bg-black text-white dark:!bg-white dark:!text-black"
+          variant="default"
           onClick={() => {
             if (isVoiceReady) {
               onClick()
