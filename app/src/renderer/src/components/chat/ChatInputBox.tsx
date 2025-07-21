@@ -122,16 +122,16 @@ export default function ChatInputBox({
         <motion.div
           layout="position"
           className="flex items-center justify-end gap-2"
-          transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}
-          style={{ originX: 1 }}
+          // @ts-expect-error - origin property needed for animation but not in official types
+          transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
         >
           <AnimatePresence mode="popLayout" initial={false}>
             {!isVoiceMode && (
               <motion.div
                 key="reasoning"
                 layout="position"
-                transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}
-          style={{ originX: 1 }}
+                // @ts-expect-error - origin property needed for animation but not in official types
+                transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
               >
                 <ReasoningButton
                   isSelected={isReasonSelected}
@@ -148,8 +148,8 @@ export default function ChatInputBox({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}
-          style={{ originX: 1 }}
+                // @ts-expect-error - origin property needed for animation but not in official types
+                transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
                 className="flex items-center justify-end w-fit h-9"
               >
                 <EnableVoiceModeButton
@@ -167,8 +167,8 @@ export default function ChatInputBox({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}
-          style={{ originX: 1 }}
+                // @ts-expect-error - origin property needed for animation but not in official types
+                transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
                 className="flex items-center justify-end w-9 h-9"
               >
                 <SendButton
