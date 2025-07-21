@@ -25,7 +25,7 @@ func NewReplacementTrie() *ReplacementTrie {
 }
 
 // MergeRules takes a map of rules and merges case-insensitive duplicates.
-// For example: "innokentii" -> "boris" + "InnokenTii" -> "Boris" becomes "innokentii" -> "boris"
+// For example: "innokentii" -> "boris" + "InnokenTii" -> "Boris" becomes "innokentii" -> "boris".
 func MergeRules(rules map[string]string) map[string]string {
 	merged := make(map[string]string)
 	caseTracker := make(map[string]string) // lowercase key -> canonical key
@@ -41,10 +41,9 @@ func MergeRules(rules map[string]string) map[string]string {
 	for lowerOriginal, replacements := range variants {
 		canonicalKey := lowerOriginal
 		caseTracker[lowerOriginal] = canonicalKey
-		
 		// Find the best replacement: prefer lowercase over all other formats
 		var bestReplacement string
-		
+
 		// First, look for lowercase versions
 		for _, replacement := range replacements {
 			if strings.ToLower(replacement) == replacement {
@@ -52,7 +51,7 @@ func MergeRules(rules map[string]string) map[string]string {
 				break
 			}
 		}
-		
+
 		// If no lowercase found, look for tokens
 		if bestReplacement == "" {
 			for _, replacement := range replacements {
@@ -62,25 +61,25 @@ func MergeRules(rules map[string]string) map[string]string {
 				}
 			}
 		}
-		
+
 		// If no lowercase or tokens found, use first one and convert to lowercase
 		if bestReplacement == "" && len(replacements) > 0 {
 			bestReplacement = strings.ToLower(replacements[0])
 		}
-		
+
 		merged[canonicalKey] = bestReplacement
 	}
 
 	return merged
 }
 
-// isTokenFormat checks if a string looks like an anonymization token
+// isTokenFormat checks if a string looks like an anonymization token.
 func isTokenFormat(s string) bool {
 	// Check for patterns like PERSON_001, COMPANY_001, ANON_1, WORD, etc.
 	// Token format: contains uppercase letters and optionally underscores/numbers
 	hasUpper := false
 	hasLower := false
-	
+
 	for _, r := range s {
 		if r >= 'A' && r <= 'Z' {
 			hasUpper = true
@@ -89,7 +88,7 @@ func isTokenFormat(s string) bool {
 			hasLower = true
 		}
 	}
-	
+
 	// Token format if it has uppercase letters and no lowercase letters (all caps)
 	return hasUpper && !hasLower
 }
@@ -98,11 +97,11 @@ func isTokenFormat(s string) bool {
 func NewReplacementTrieFromRules(rules map[string]string) *ReplacementTrie {
 	trie := NewReplacementTrie()
 	mergedRules := MergeRules(rules)
-	
+
 	for pattern, replacement := range mergedRules {
 		trie.Insert(pattern, replacement)
 	}
-	
+
 	return trie
 }
 
@@ -134,7 +133,7 @@ func (t *ReplacementTrie) Insert(pattern, replacement string) {
 
 	current.isEndOfWord = true
 	current.replacement = replacement // Store original replacement case
-	current.original = pattern // Store original case for reference
+	current.original = pattern        // Store original case for reference
 }
 
 // ReplaceAll performs all replacements in the text with longest match first behavior.
@@ -189,7 +188,7 @@ func (t *ReplacementTrie) applyCasePreservation(source, target string) string {
 			break
 		}
 	}
-	
+
 	if !hasLatinLetters {
 		return target
 	}
@@ -233,7 +232,6 @@ func (t *ReplacementTrie) applyCasePreservation(source, target string) string {
 
 	return string(result)
 }
-
 
 // findLongestMatch finds the longest pattern match starting at the given position.
 func (t *ReplacementTrie) findLongestMatch(runes []rune, startPos int) (*TrieNode, int) {

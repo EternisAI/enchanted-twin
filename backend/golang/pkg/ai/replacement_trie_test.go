@@ -353,12 +353,12 @@ func TestMergeRules(t *testing.T) {
 		{
 			name: "Multiple case variations",
 			input: map[string]string{
-				"john":    "person1",
-				"John":    "Person1",
-				"JOHN":    "PERSON1",
-				"JoHn":    "PeRsOn1",
-				"jane":    "person2",
-				"Jane":    "Person2",
+				"john": "person1",
+				"John": "Person1",
+				"JOHN": "PERSON1",
+				"JoHn": "PeRsOn1",
+				"jane": "person2",
+				"Jane": "Person2",
 			},
 			expected: map[string]string{
 				"john": "person1",
@@ -379,8 +379,8 @@ func TestMergeRules(t *testing.T) {
 			},
 		},
 		{
-			name: "Empty input",
-			input: map[string]string{},
+			name:     "Empty input",
+			input:    map[string]string{},
 			expected: map[string]string{},
 		},
 	}
@@ -388,12 +388,12 @@ func TestMergeRules(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := MergeRules(tc.input)
-			
+
 			if len(result) != len(tc.expected) {
 				t.Errorf("Expected %d rules, got %d", len(tc.expected), len(result))
 				return
 			}
-			
+
 			for expectedKey, expectedValue := range tc.expected {
 				if actualValue, exists := result[expectedKey]; !exists {
 					t.Errorf("Expected key %q not found in result", expectedKey)
@@ -415,7 +415,7 @@ func TestNewReplacementTrieFromRules(t *testing.T) {
 	}
 
 	trie := NewReplacementTrieFromRules(rules)
-	
+
 	// Should have 3 unique rules after merging (innokentii, john, jane)
 	if trie.Size() != 3 {
 		t.Errorf("Expected 3 rules after merging, got %d", trie.Size())
@@ -423,7 +423,7 @@ func TestNewReplacementTrieFromRules(t *testing.T) {
 
 	result, _ := trie.ReplaceAll("Hello innokentii and john and Jane")
 	expected := "Hello boris and person1 and Person2"
-	
+
 	if result != expected {
 		t.Errorf("Expected %q, got %q", expected, result)
 	}
