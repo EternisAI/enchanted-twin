@@ -349,9 +349,9 @@ export function DataSourcesPanel({
   return (
     <div className="flex flex-col p-0 gap-4 pb-6 mb-20">
       <header className="flex flex-col gap-2 p-0 pb-4">
-        <h2 className="text-2xl font-bold leading-none">Imports & Takeouts</h2>
+        <h2 className="text-2xl font-bold leading-none">Imports</h2>
         <p className="text-sm text-muted-foreground">
-          Allow Enchanted to reference other apps and services for more context.
+          Import your data from other apps and services to Enchanted.
         </p>
       </header>
       <div className="flex flex-col gap-4 w-full">
