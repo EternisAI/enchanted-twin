@@ -28,6 +28,7 @@ type Config struct {
 	ProxyTeeURL        string
 	UseLocalEmbedding  string
 	AnonymizerType     string
+	TelegramBotName    string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -71,6 +72,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
 		UseLocalEmbedding:  getEnv("USE_LOCAL_EMBEDDINGS", "", printEnv),
 		AnonymizerType:     getEnv("ANONYMIZER_TYPE", "llm", printEnv),
+		TelegramBotName:    getEnv("TELEGRAM_BOT_NAME", "TalkEnchantedBot", printEnv),
 	}
 	return conf, nil
 }

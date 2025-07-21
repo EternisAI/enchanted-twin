@@ -16,13 +16,17 @@ import (
 )
 
 type TelegramSendMessageTool struct {
-	Logger        *log.Logger
-	Store         *config.Queries
-	ChatServerUrl string
+	Logger          *log.Logger
+	Store           *config.Queries
+	ChatServerUrl   string
+	TelegramBotName string
 }
 
-func NewTelegramSendMessageTool(logger *log.Logger, store *config.Queries, chatServerUrl string) (*TelegramSendMessageTool, error) {
-	return &TelegramSendMessageTool{Logger: logger, Store: store, ChatServerUrl: chatServerUrl}, nil
+func NewTelegramSendMessageTool(logger *log.Logger, store *config.Queries, chatServerUrl string, telegramBotName string) (*TelegramSendMessageTool, error) {
+	if telegramBotName == "" {
+		return nil, fmt.Errorf("telegram bot name is required")
+	}
+	return &TelegramSendMessageTool{Logger: logger, Store: store, ChatServerUrl: chatServerUrl, TelegramBotName: telegramBotName}, nil
 }
 
 func generateQRCodePNGDataURL(data string) (string, error) {
@@ -56,7 +60,7 @@ func (t *TelegramSendMessageTool) Execute(ctx context.Context, input map[string]
 
 	telegramEnabled, err := t.Store.GetConfigValue(ctx, TelegramEnabled)
 	if err != nil || !telegramEnabled.Valid || telegramEnabled.String != "true" {
-		chatURL := GetChatURL(TelegramBotName, chatUUID.String)
+		chatURL := GetChatURL(t.TelegramBotName, chatUUID.String)
 		qr, err := generateQRCodePNGDataURL(chatURL)
 		if err != nil {
 			t.Logger.Error("failed to generate QR code,", "error", err)
@@ -112,13 +116,17 @@ func (t *TelegramSendMessageTool) Definition() openai.ChatCompletionToolParam {
 }
 
 type TelegramSetupTool struct {
-	Logger        *log.Logger
-	Store         *db.Store
-	ChatServerUrl string
+	Logger          *log.Logger
+	Store           *db.Store
+	ChatServerUrl   string
+	TelegramBotName string
 }
 
-func NewTelegramSetupTool(logger *log.Logger, store *db.Store, chatServerUrl string) (*TelegramSetupTool, error) {
-	return &TelegramSetupTool{Logger: logger, Store: store, ChatServerUrl: chatServerUrl}, nil
+func NewTelegramSetupTool(logger *log.Logger, store *db.Store, chatServerUrl string, telegramBotName string) (*TelegramSetupTool, error) {
+	if telegramBotName == "" {
+		return nil, fmt.Errorf("telegram bot name is required")
+	}
+	return &TelegramSetupTool{Logger: logger, Store: store, ChatServerUrl: chatServerUrl, TelegramBotName: telegramBotName}, nil
 }
 
 func (t *TelegramSetupTool) Execute(ctx context.Context, input map[string]any) (agenttypes.ToolResult, error) {
@@ -134,8 +142,10 @@ func (t *TelegramSetupTool) Execute(ctx context.Context, input map[string]any) (
 
 	telegramEnabled, err := GetTelegramEnabled(ctx, config.New(t.Store.DB().DB))
 
+	t.Logger.Info("Telegram enabled", "enabled", telegramEnabled)
+
 	if err != nil || telegramEnabled != "true" {
-		chatURL := GetChatURL(TelegramBotName, chatUUID)
+		chatURL := GetChatURL(t.TelegramBotName, chatUUID)
 		qr, qErr := generateQRCodePNGDataURL(chatURL)
 		if qErr != nil {
 			t.Logger.Error("failed to generate QR code,", "error", qErr)
