@@ -1,0 +1,70 @@
+name: Frontend CI (app)
+
+on:
+  pull_request: # run on every PR so the status check always exists
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine if app/ changed
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          base: main
+          filters: |
+            frontend:
+              - 'app/**'
+
+  lint-build-test:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: |
+          # First attempt with frozen lockfile
+          if ! pnpm install --frozen-lockfile --prefer-offline; then
+            echo "Frozen lockfile failed, regenerating..."
+            pnpm install --no-frozen-lockfile
+          fi
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Type check
+        run: pnpm run typecheck
+
+      - name: Build
+        run: pnpm run build
