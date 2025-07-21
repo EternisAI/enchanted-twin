@@ -15,7 +15,7 @@ import { registerAccessibilityIpc } from './accessibilityPermissions'
 import { windowManager } from './windows'
 import { registerIpcHandlers, registerShortcut } from './ipcHandlers'
 import { setupMenu } from './menuSetup'
-import { setupAutoUpdater } from './autoUpdater'
+import { checkForUpdates, setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
 import { cleanupGoServer } from './goServer'
 // import { startKokoro, cleanupKokoro } from './kokoroManager'
@@ -66,7 +66,8 @@ function registerStoredShortcuts() {
 app.whenReady().then(async () => {
   log.info(`App version: ${app.getVersion()}`)
 
-  // await initializeGoServer(IS_PRODUCTION, DEFAULT_BACKEND_PORT)
+  await setupAutoUpdater()
+  checkForUpdates(true)
 
   const mainWindow = windowManager.createMainWindow()
   registerNotificationIpc(mainWindow)
@@ -77,7 +78,6 @@ app.whenReady().then(async () => {
   registerIpcHandlers()
   initializeAnalytics()
 
-  setupAutoUpdater()
   setupMenu()
 
   registerStoredShortcuts()
