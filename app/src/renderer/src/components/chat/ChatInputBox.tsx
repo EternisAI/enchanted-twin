@@ -104,7 +104,7 @@ export default function ChatInputBox({
         className="relative overflow-hidden px-3 z-50 w-full flex items-center gap-2 border border-border rounded-lg dark:bg-background bg-white focus-within:shadow-xl dark:focus-within:border-primary/25 transition-shadow duration-200"
       >
         <motion.textarea
-          layout
+          layout="position"
           ref={textareaRef}
           value={query}
           onChange={(e) => onInputChange(e.target.value)}
@@ -120,7 +120,7 @@ export default function ChatInputBox({
         />
 
         <motion.div
-          layout
+          layout="position"
           className="flex items-center justify-end gap-2"
           transition={{ type: 'spring' as const, stiffness: 300, damping: 30, origin: 'end' as const }}
         >
@@ -128,7 +128,7 @@ export default function ChatInputBox({
             {!isVoiceMode && (
               <motion.div
                 key="reasoning"
-                layout
+                layout="position"
                 transition={{ type: 'spring' as const, stiffness: 300, damping: 30, origin: 'end' as const }}
               >
                 <ReasoningButton
@@ -141,6 +141,7 @@ export default function ChatInputBox({
             {!isVoiceMode && query.length === 0 ? (
               <motion.div
                 key="talk"
+                layout="position"
                 layoutId="action-button"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -158,6 +159,7 @@ export default function ChatInputBox({
             ) : query.length > 0 || isVoiceMode ? (
               <motion.div
                 key="send"
+                layout="position"
                 layoutId="action-button"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
