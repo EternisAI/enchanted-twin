@@ -138,10 +138,8 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
     <>
       <aside
         className={cn(
-          'flex flex-col text-sidebar-foreground h-full transition-all duration-300',
-          collapsed
-            ? 'w-16 px-2 py-10'
-            : 'w-64 p-4 px-2 pt-10 bg-sidebar border-r border-sidebar-border/50'
+          'flex flex-col text-sidebar-foreground h-full transition-all duration-300 relative',
+          collapsed ? 'w-14 px-2 pt-10 pb-4 items-center' : 'w-64 p-4 px-2 pt-10 bg-sidebar '
         )}
       >
         <div className="flex items-center justify-between mb-4">
@@ -152,53 +150,34 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.5, ease: 'easeInOut' }}
           >
-            <TooltipProvider>
-              <Tooltip delayDuration={500}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setSidebarOpen(collapsed)}
-                    disabled={!collapsed}
-                    className={cn(
-                      'hover:bg-sidebar-accent group disabled:opacity-100',
-                      collapsed
-                        ? 'size-10 text-foreground/60 hover:text-foreground'
-                        : 'size-8 text-sidebar-foreground/60 hover:text-sidebar-foreground'
-                    )}
-                  >
-                    <div className="flex items-center justify-center size-8 relative">
-                      <img
-                        src={logo}
-                        alt="logo"
-                        className={cn(
-                          'w-7 h-7 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-200',
-                          collapsed && 'opacity-100 group-hover:opacity-0 disabled:opacity-100'
-                        )}
-                      />
-                      {collapsed && (
-                        <PanelLeftOpen
-                          className={cn(
-                            'w-4 h-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-200',
-                            collapsed && 'opacity-0 group-hover:opacity-100'
-                          )}
-                        />
+            {collapsed ? (
+              <TooltipProvider>
+                <Tooltip delayDuration={500}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSidebarOpen(collapsed)}
+                      className="hover:bg-sidebar-accent group size-10 text-foreground/60 hover:text-foreground"
+                    >
+                      <PanelLeftOpen className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" align="center">
+                    <div className="flex items-center gap-2">
+                      <span>Open sidebar</span>
+                      {shortcuts.toggleSidebar?.keys && (
+                        <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
+                          {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
+                        </kbd>
                       )}
                     </div>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" align="center">
-                  <div className="flex items-center gap-2">
-                    <span>{collapsed ? 'Expand' : 'Close'} sidebar</span>
-                    {shortcuts.toggleSidebar?.keys && (
-                      <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
-                        {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
-                      </kbd>
-                    )}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <img src={logo} alt="logo" className="w-7 h-7" />
+            )}
           </motion.div>
           {!collapsed && (
             <motion.div
@@ -207,28 +186,41 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.5, ease: 'easeInOut' }}
             >
-              <Button
-                onClick={() => setSidebarOpen(false)}
-                variant="ghost"
-                size="icon"
-                className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-              >
-                <PanelLeftClose className="w-4 h-4" />
-              </Button>
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => setSidebarOpen(false)}
+                    variant="ghost"
+                    size="icon"
+                    className="text-sidebar-foreground/60 size-8 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                  >
+                    <PanelLeftClose className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right" align="center">
+                  <div className="flex items-center gap-2">
+                    <span>Collapse sidebar</span>
+                    {shortcuts.toggleSidebar?.keys && (
+                      <kbd className="text-[10px] text-primary-foreground/50 font-kbd">
+                        {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
+                      </kbd>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
             </motion.div>
           )}
         </div>
-        <div className="flex flex-col gap-1 mb-2">
+        <div className="flex flex-col gap-1 mb-2 items-center">
           <TooltipProvider>
             <Tooltip delayDuration={collapsed ? 300 : 1000}>
               <TooltipTrigger asChild>
                 <Button
-                  variant="ghost"
+                  variant={collapsed ? 'outline' : 'ghost'}
+                  size="icon"
                   className={cn(
-                    'group h-9 transition-all',
-                    collapsed
-                      ? 'w-10 p-0 justify-center text-foreground hover:bg-accent'
-                      : 'w-full justify-start px-2 text-sidebar-foreground'
+                    'group transition-all',
+                    collapsed ? 'p-0 justify-center ' : 'w-full justify-start px-3'
                   )}
                   onClick={handleNewChat}
                 >
@@ -236,8 +228,8 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                     className={cn(
                       'w-4 h-4 transition-colors duration-100',
                       collapsed
-                        ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground'
-                        : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
+                        ? 'w-5 h-5 group-hover:text-foreground'
+                        : 'group-hover:text-sidebar-foreground'
                     )}
                   />
                   {!collapsed && (
