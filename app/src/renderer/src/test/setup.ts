@@ -22,7 +22,9 @@ global.IntersectionObserver = class IntersectionObserver {
   rootMargin: string = ''
   thresholds: ReadonlyArray<number> = []
 
-  constructor() {}
+  constructor() {
+    // Required for IntersectionObserver
+  }
 
   observe() {
     return null
@@ -43,13 +45,18 @@ global.IntersectionObserver = class IntersectionObserver {
 
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {
-  constructor() {}
+  constructor() {
+    // Required for ResizeObserver
+  }
+
   observe() {
     return null
   }
+
   disconnect() {
     return null
   }
+
   unobserve() {
     return null
   }

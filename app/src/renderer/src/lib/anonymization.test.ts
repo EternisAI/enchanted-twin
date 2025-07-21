@@ -164,11 +164,15 @@ describe('Anonymization Helper Functions', () => {
     })
 
     it('should handle safety checks', () => {
-      expect(replaceWithCasePreservation(null as any, 'John', 'PERSON_001')).toBe(null)
-      expect(replaceWithCasePreservation('Hello John', null as any, 'PERSON_001')).toBe(
+      expect(replaceWithCasePreservation(null as unknown as string, 'John', 'PERSON_001')).toBe(
+        null
+      )
+      expect(
+        replaceWithCasePreservation('Hello John', null as unknown as string, 'PERSON_001')
+      ).toBe('Hello John')
+      expect(replaceWithCasePreservation('Hello John', 'John', null as unknown as string)).toBe(
         'Hello John'
       )
-      expect(replaceWithCasePreservation('Hello John', 'John', null as any)).toBe('Hello John')
     })
 
     it('should handle no matches', () => {
@@ -215,7 +219,7 @@ describe('Anonymization Helper Functions', () => {
     })
 
     it('should handle non-string replacements', () => {
-      const dict = { John: null as any, Jane: 'PERSON_001' }
+      const dict = { John: null as unknown as string, Jane: 'PERSON_001' }
       const result = anonymizeTextString('John and Jane', dict)
       expect(result).toBe('John and Person_001')
     })

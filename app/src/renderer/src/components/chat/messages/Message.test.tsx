@@ -16,9 +16,9 @@ vi.mock('@renderer/hooks/useTTS', () => ({
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>
+    div: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>
   },
-  AnimatePresence: ({ children }: any) => <div>{children}</div>
+  AnimatePresence: ({ children }: React.PropsWithChildren) => <div>{children}</div>
 }))
 
 // Mock lucide-react icons
@@ -50,17 +50,19 @@ vi.mock('@renderer/components/chat/config', () => ({
 
 // Mock UI components
 vi.mock('@renderer/components/ui/badge', () => ({
-  Badge: ({ children, ...props }: any) => <span {...props}>{children}</span>
+  Badge: ({ children, ...props }: React.ComponentProps<'span'>) => (
+    <span {...props}>{children}</span>
+  )
 }))
 
 vi.mock('@renderer/components/ui/collapsible', () => ({
-  Collapsible: ({ children }: any) => <div>{children}</div>,
-  CollapsibleContent: ({ children }: any) => <div>{children}</div>,
-  CollapsibleTrigger: ({ children }: any) => <button>{children}</button>
+  Collapsible: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  CollapsibleContent: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  CollapsibleTrigger: ({ children }: React.PropsWithChildren) => <button>{children}</button>
 }))
 
 vi.mock('@renderer/components/chat/messages/Markdown', () => ({
-  default: ({ children }: any) => <div>{children}</div>
+  default: ({ children }: React.PropsWithChildren) => <div>{children}</div>
 }))
 
 describe('Message Components', () => {
