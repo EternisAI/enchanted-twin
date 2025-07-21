@@ -87,7 +87,7 @@ func (t *ReplacementTrie) ReplaceAll(text string) (string, map[string]string) {
 	return string(result), rules
 }
 
-// applyCasePreservation applies case pattern from source to target
+// applyCasePreservation applies case pattern from source to target.
 func (t *ReplacementTrie) applyCasePreservation(source, target string) string {
 	if len(source) == 0 || len(target) == 0 {
 		return target
