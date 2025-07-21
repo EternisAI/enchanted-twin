@@ -15,6 +15,7 @@ import FocusLock from 'react-focus-lock'
 import { SendButton } from '../components/chat/MessageInput'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { SyncedThemeProvider } from '@renderer/components/SyncedThemeProvider'
+// import logo from '@resources/icon.png'
 
 function OmnibarResults({
   debouncedQuery,
@@ -341,7 +342,8 @@ function OmnibarOverlay() {
                 transition={{ type: 'spring', damping: 55, stiffness: 350 }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex-1 flex items-center">
+                  <div className="flex-1 flex items-center gap-2">
+                    {/* <img src={logo} alt="logo" className="w-10 h-10" /> */}
                     <textarea
                       ref={textareaRef}
                       value={query}
@@ -355,7 +357,7 @@ function OmnibarOverlay() {
                           handleSubmit(e as React.FormEvent)
                         }
                       }}
-                      placeholder="What would you like to discuss?"
+                      placeholder="Ask a question privately…"
                       className="w-full !bg-transparent overflow-y-auto !rounded-none text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 leading-normal auto-sizing-textarea"
                       style={
                         {
@@ -387,6 +389,7 @@ function OmnibarOverlay() {
                       onSend={handleCreateChat}
                       isWaitingTwinResponse={false}
                       text={query}
+                      isVoiceReady={false}
                     />
                   </motion.div>
                 </div>

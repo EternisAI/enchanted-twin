@@ -1,4 +1,12 @@
-import { createContext, useContext, useMemo, useCallback, ReactNode, useState } from 'react'
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useCallback,
+  ReactNode,
+  useState,
+  useEffect
+} from 'react'
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
@@ -77,6 +85,29 @@ export function ChatProvider({
     }
     return chat.messages
   })
+
+  // Ensure messages are updated when chat data changes (fixes cache issues)
+  useEffect(() => {
+    if (chat.messages && chat.messages.length > 0) {
+      // Only update if the messages are actually different to avoid unnecessary re-renders
+      setMessages((prevMessages) => {
+        // Compare message IDs to see if there are new messages
+        const prevIds = prevMessages.map((m) => m.id).sort()
+        const newIds = chat.messages.map((m) => m.id).sort()
+
+        if (JSON.stringify(prevIds) !== JSON.stringify(newIds)) {
+          console.log('Updating messages due to cache refresh', {
+            prevCount: prevMessages.length,
+            newCount: chat.messages.length,
+            chatId: chat.id
+          })
+          return chat.messages
+        }
+
+        return prevMessages
+      })
+    }
+  }, [chat.messages, chat.id])
 
   const [lastMessageStartTime, setLastMessageStartTime] = useState<number | null>(null)
 

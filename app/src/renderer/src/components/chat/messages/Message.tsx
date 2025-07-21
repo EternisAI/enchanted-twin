@@ -2,18 +2,20 @@ import React from 'react'
 import { Message, ToolCall as ToolCallType } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
-import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
+import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon } from 'lucide-react'
 import { extractReasoningAndReply, getToolConfig } from '@renderer/components/chat/config'
 import { Badge } from '@renderer/components/ui/badge'
 import ImagePreview from './ImagePreview'
 import Markdown from '@renderer/components/chat/messages/Markdown'
+import { FeedbackPopover } from './actions/FeedbackPopover'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger
 } from '@renderer/components/ui/collapsible'
-import { useTTS } from '@renderer/hooks/useTTS'
 import { useMemo } from 'react'
+import { ReadAloudButton } from './actions/ReadAloudButton'
+import { MessageActionsBar } from './actions/MessageActionsBar'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
@@ -42,7 +44,7 @@ export function UserMessageBubble({
       variants={messageAnimation}
     >
       <div className="flex flex-col gap-1 max-w-md">
-        <div className="bg-accent text-foreground rounded-lg px-4 py-2 max-w-md relative group">
+        <div className="bg-accent text-foreground rounded-lg px-4 py-2 max-w-md relative group break-words">
           {message.text && (
             <p>
               <AnonymizedContent
@@ -79,14 +81,16 @@ export function UserMessageBubble({
 
 export function AssistantMessageBubble({
   message,
+  messages,
   isAnonymized = false,
   chatPrivacyDict
 }: {
   message: Message
+  messages?: Message[]
   isAnonymized?: boolean
   chatPrivacyDict: string | null
+  showTimestamp?: boolean
 }) {
-  const { speak, stop, isSpeaking } = useTTS()
   const { thinkingText, replyText } = useMemo(
     () => extractReasoningAndReply(message.text || ''),
     [message.text]
@@ -109,7 +113,7 @@ export function AssistantMessageBubble({
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="flex flex-col text-foreground py-1 max-w-[90%] relative group">
+      <div className="flex flex-col text-foreground py-1 max-w-[90%] relative group gap-1">
         {thinkingText && (
           <Collapsible className="flex flex-col gap-2 pb-2">
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground cursor-pointer hover:underline group">
@@ -175,43 +179,25 @@ export function AssistantMessageBubble({
             ))}
           </div>
         )}
-        <div className="flex flex-row items-start gap-4 justify-between w-full">
+        <div className="flex flex-row items-start gap-4 justify-start w-full">
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-4 items-center">
               {message.toolCalls.map((toolCall) => (
                 <ToolCall key={toolCall.id} toolCall={toolCall} />
               ))}
             </div>
-            <div className="text-[9px] text-muted-foreground font-mono">
-              {new Date(message.createdAt).toLocaleTimeString()}
-            </div>
           </div>
-          {replyText && replyText.trim() && (
-            <span className="flex items-center opacity-0 focus-within:opacity-100 group-hover:opacity-100 transition-opacity">
-              {isSpeaking ? (
-                <button
-                  onClick={stop}
-                  className="transition-opacity p-1 rounded-full bg-background/80 hover:bg-muted z-10"
-                  style={{ pointerEvents: 'auto' }}
-                  tabIndex={-1}
-                  aria-label="Stop message audio"
-                >
-                  <VolumeOff className="h-4 w-4 text-primary" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => speak(replyText || '')}
-                  className="transition-opacity p-1 rounded-full bg-background/80 hover:bg-muted z-10"
-                  style={{ pointerEvents: 'auto' }}
-                  tabIndex={-1}
-                  aria-label="Play message audio"
-                >
-                  <Volume2 className="h-4 w-4 text-primary" />
-                </button>
-              )}
-            </span>
-          )}
         </div>
+        {replyText && replyText.trim() && (
+          <MessageActionsBar>
+            <FeedbackPopover
+              currentMessage={message}
+              messages={messages || []}
+              chatPrivacyDict={chatPrivacyDict}
+            />
+            <ReadAloudButton text={replyText} />
+          </MessageActionsBar>
+        )}
       </div>
     </motion.div>
   )

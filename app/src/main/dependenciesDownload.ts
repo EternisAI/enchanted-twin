@@ -41,12 +41,6 @@ const DEPENDENCIES_CONFIGS: Record<
     name: 'onnx',
     dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib'),
     needsExtraction: true
-  },
-  LLMCLI: {
-    url: 'https://d3o88a4htgfnky.cloudfront.net/assets/LLMCLI',
-    name: 'LLMCLI',
-    dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib'),
-    needsExtraction: false
   }
 }
 
@@ -116,7 +110,6 @@ export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
     embeddings: isDependencyProperlyDownloaded('embeddings'),
     anonymizer: isDependencyProperlyDownloaded('anonymizer'),
     onnx: isDependencyProperlyDownloaded('onnx'),
-    LLMCLI: isDependencyProperlyDownloaded('LLMCLI'),
     LLAMACCP: isDependencyProperlyDownloaded('LLAMACCP')
   }
 }
@@ -250,10 +243,6 @@ export async function downloadDependency(dependencyName: DependencyName) {
       console.log(
         `[downloadDependencies] No extraction needed for ${dependencyName}, file ready to use`
       )
-      // For files that don't need extraction, make sure they're executable if they're binary files
-      if (dependencyName === 'LLMCLI') {
-        fs.chmodSync(tmpFile, '755')
-      }
     }
 
     console.log(

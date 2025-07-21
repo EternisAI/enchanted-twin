@@ -73,6 +73,7 @@ interface IApi {
   ) => void
   analytics: {
     capture: (event: string, properties: Record<string, unknown>) => Promise<void>
+    captureFeedback: (event: string, properties: Record<string, unknown>) => Promise<void>
     identify: (properties: Record<string, unknown>) => Promise<void>
     getDistinctId: () => Promise<string>
     getEnabled: () => Promise<boolean>

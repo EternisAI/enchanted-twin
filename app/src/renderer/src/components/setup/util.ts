@@ -29,10 +29,6 @@ export const DEPENDENCY_CONFIG: Record<
     name: 'Inference engine',
     description: ''
   },
-  LLMCLI: {
-    name: 'Completions engine',
-    description: ''
-  },
   LLAMACCP: {
     name: 'LLM engine',
     description: ''

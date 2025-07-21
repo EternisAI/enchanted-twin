@@ -54,18 +54,13 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(
 		workflow.GetLogger(ctx).Info("Recovered last result", "value", previousResult)
 	}
 
-	_, err := auth.RefreshExpiredTokens(context.Background(), w.Logger, w.Store)
-	if err != nil {
-		return XSyncWorkflowResponse{}, fmt.Errorf("failed to refresh expired tokens: %w", err)
-	}
-
 	workflowResponse := XSyncWorkflowResponse{
 		LastRecordID:        previousResult.LastRecordID,
 		LastRecordTimestamp: previousResult.LastRecordTimestamp,
 	}
 
 	var response XFetchActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput(input)).Get(ctx, &response)
+	err := workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput(input)).Get(ctx, &response)
 	if err != nil {
 		return workflowResponse, err
 	}
@@ -139,6 +134,18 @@ func (w *DataProcessingWorkflows) XFetchActivity(
 	}
 	if tokens == nil {
 		return XFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for X")
+	}
+
+	if tokens.ExpiresAt.Before(time.Now()) || tokens.Error {
+		w.Logger.Debug("Refreshing expired Twitter token in X fetch activity")
+		_, err = auth.RefreshOAuthToken(ctx, w.Logger, w.Store, "twitter")
+		if err != nil {
+			return XFetchActivityResponse{}, fmt.Errorf("failed to refresh OAuth tokens: %w", err)
+		}
+		tokens, err = w.Store.GetOAuthTokensByUsername(ctx, "twitter", input.Username)
+		if err != nil {
+			return XFetchActivityResponse{}, fmt.Errorf("failed to get refreshed OAuth tokens: %w", err)
+		}
 	}
 	w.Logger.Debug("XFetchActivity", "tokens", tokens)
 
