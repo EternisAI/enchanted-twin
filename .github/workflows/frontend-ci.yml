@@ -24,6 +24,7 @@ jobs:
         id: changes
         uses: dorny/paths-filter@v3
         with:
+          base: main
           filters: |
             frontend:
               - 'app/**'
@@ -50,9 +51,6 @@ jobs:
           node-version: "20"
           cache: "pnpm"
           cache-dependency-path: app/pnpm-lock.yaml
-
-      - name: Configure pnpm
-        run: pnpm config set only-built-dependencies []
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
