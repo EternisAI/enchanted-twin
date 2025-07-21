@@ -251,7 +251,7 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{isVoiceReady ? 'Start voice conversation' : 'Preparing voice...'}</p>
+        <p>{isVoiceReady ? 'Start voice chat' : 'Preparing voice...'}</p>
       </TooltipContent>
     </Tooltip>
   )
