@@ -66,24 +66,49 @@ export function setupAutoUpdater() {
       'Update downloaded – ready to install'
     )
 
-    dialog
-      .showMessageBox(windowManager.mainWindow!, {
-        type: 'info',
-        title: 'Update Ready',
-        message: `Version ${info.version} has been downloaded. Install and restart now?`,
-        buttons: ['Install & Restart', 'Later'],
-        defaultId: 0,
-        cancelId: 1
-      })
-      .then(({ response }) => {
-        if (response === 0) {
-          log.info('User accepted update – restarting')
-          // small delay so the dialog can close cleanly
-          setTimeout(() => autoUpdater.quitAndInstall(true, true), 300)
-        } else {
-          log.info('User chose to install later')
-        }
-      })
+    const dialogOptions = {
+      type: 'info' as const,
+      title: 'Update Ready',
+      message: `Version ${info.version} has been downloaded. Install and restart now?`,
+      buttons: ['Install & Restart', 'Later'],
+      defaultId: 0,
+      cancelId: 1
+    }
+
+    if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+      dialog
+        .showMessageBox(windowManager.mainWindow, dialogOptions)
+        .then(({ response }) => {
+          if (response === 0) {
+            log.info('User accepted update – restarting')
+            // small delay so the dialog an close cleanly
+            setTimeout(() => autoUpdater.quitAndInstall(true, true), 300)
+          } else {
+            log.info('User chose to install later')
+          }
+        })
+        .catch((error) => {
+          log.error('Failed to show update dialog:', error)
+          log.info('Auto-installing update in 5 seconds due to dialog failure')
+          setTimeout(() => autoUpdater.quitAndInstall(true, true), 5000)
+        })
+    } else {
+      dialog
+        .showMessageBox(dialogOptions)
+        .then(({ response }) => {
+          if (response === 0) {
+            log.info('User accepted update – restarting')
+            setTimeout(() => autoUpdater.quitAndInstall(true, true), 300)
+          } else {
+            log.info('User chose to install later')
+          }
+        })
+        .catch((error) => {
+          log.error('Failed to show update dialog:', error)
+          log.info('Auto-installing update in 5 seconds due to dialog failure')
+          setTimeout(() => autoUpdater.quitAndInstall(true, true), 5000)
+        })
+    }
   })
 }
 
