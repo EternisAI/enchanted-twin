@@ -122,6 +122,7 @@ export default function ChatInputBox({
         <motion.div
           layout="position"
           className="flex items-center justify-end gap-2"
+          // @ts-expect-error - origin property needed for animation but not in official types
           transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
         >
           <AnimatePresence mode="popLayout" initial={false}>
@@ -129,6 +130,7 @@ export default function ChatInputBox({
               <motion.div
                 key="reasoning"
                 layout="position"
+                // @ts-expect-error - origin property needed for animation but not in official types
                 transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
               >
                 <ReasoningButton
@@ -141,10 +143,12 @@ export default function ChatInputBox({
             {!isVoiceMode && query.length === 0 ? (
               <motion.div
                 key="talk"
+                layout="position"
                 layoutId="action-button"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
+                // @ts-expect-error - origin property needed for animation but not in official types
                 transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
                 className="flex items-center justify-end w-fit h-9"
               >
@@ -158,10 +162,12 @@ export default function ChatInputBox({
             ) : query.length > 0 || isVoiceMode ? (
               <motion.div
                 key="send"
+                layout="position"
                 layoutId="action-button"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
+                // @ts-expect-error - origin property needed for animation but not in official types
                 transition={{ type: 'spring', stiffness: 300, damping: 30, origin: 'end' }}
                 className="flex items-center justify-end w-9 h-9"
               >
@@ -221,8 +227,7 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant="outline"
-          className="!bg-black text-white dark:!bg-white dark:!text-black"
+          variant="default"
           onClick={() => {
             if (isVoiceReady) {
               onClick()

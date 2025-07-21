@@ -20,9 +20,9 @@ texfrag
 *.db
 *.[0-9]*.mjs
 *.local.json
-test
-test-shm
-test-wal
+backend/golang/**/test
+backend/golang/**/test-shm  
+backend/golang/**/test-wal
 
 
 launch.json

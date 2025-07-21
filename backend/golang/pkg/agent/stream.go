@@ -96,8 +96,9 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 			toolResult, err := tool.Execute(ctx, deAnonymizedArgs)
 			if err != nil {
 				errorMsg := fmt.Sprintf("Tool execution failed for %s: %v", toolCall.Function.Name, err)
-				a.logger.Error("Tool execution failed", "tool_name", toolCall.Function.Name, "error", err)
+				a.logger.Error("Tool execution failed", "tool_name", toolCall.Function.Name, "error", err, "args", toolCall.Function.Arguments)
 				toolErrors = append(toolErrors, errorMsg)
+				messages = append(messages, openai.ToolMessage(errorMsg, toolCall.ID))
 				continue
 			}
 
