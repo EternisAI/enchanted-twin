@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -22,6 +23,23 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
+
+// Prevent duplicate token refresh attempts per provider.
+var (
+	refreshMutexes = make(map[string]*sync.Mutex)
+	refreshMutex   = &sync.Mutex{}
+)
+
+// getRefreshMutex returns a mutex for the given oauth provider.
+func getRefreshMutex(provider string) *sync.Mutex {
+	refreshMutex.Lock()
+	defer refreshMutex.Unlock()
+
+	if _, exists := refreshMutexes[provider]; !exists {
+		refreshMutexes[provider] = &sync.Mutex{}
+	}
+	return refreshMutexes[provider]
+}
 
 // generatePKCEPair generates PKCE code verifier and challenge.
 func generatePKCEPair() (string, string, error) {
@@ -320,7 +338,8 @@ func CompleteOAuthFlow(
 	// Retrieve session data using state
 	provider, codeVerifier, scope, err := store.GetAndClearOAuthProviderAndVerifier(ctx, logger, state)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get OAuth state: %w", err)
+		logger.Warn("OAuth state validation failed - session may have expired or been cleaned up", "state", state, "error", err)
+		return "", "", fmt.Errorf("OAuth session expired or invalid. Please re-authenticate: %w", err)
 	}
 
 	// Load OAuth config for provider
@@ -477,6 +496,10 @@ func RefreshOAuthToken(
 	store *db.Store,
 	provider string,
 ) (bool, error) {
+	providerMutex := getRefreshMutex(provider)
+	providerMutex.Lock()
+	defer providerMutex.Unlock()
+
 	logger.Debug("refreshing OAuth tokens", "provider", provider)
 
 	// Get existing tokens
@@ -521,6 +544,10 @@ func RefreshOAuthToken(
 		if tokenResp.RefreshToken != "" {
 			token.RefreshToken = tokenResp.RefreshToken
 		}
+
+		// Clear error flag on successful refresh
+		token.Error = false
+
 		logger.Debug("successfully refreshed OAuth token",
 			"provider", provider,
 			"username", token.Username,

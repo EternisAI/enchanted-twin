@@ -23,7 +23,7 @@ func NewLogger() *log.Logger {
 	logger := log.NewWithOptions(&customLogWriter{}, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
-		Level:           log.InfoLevel,
+		Level:           log.DebugLevel,
 		TimeFormat:      time.Kitchen,
 	})
 

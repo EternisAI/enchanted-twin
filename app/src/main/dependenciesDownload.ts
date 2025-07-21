@@ -4,34 +4,172 @@ import fs from 'fs'
 import axios from 'axios'
 import extract from 'extract-zip'
 import * as tar from 'tar'
-
 import { windowManager } from './windows'
 import { DependencyName } from './types/dependencies'
+import { LiveKitAgentBootstrap } from './livekitAgent'
 
 const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
+async function downloadFile(
+  url: string,
+  destDir: string,
+  fileName: string,
+  onProgress?: (pct: number, total: number, downloaded: number) => void
+): Promise<string> {
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true })
+  }
+  const tmpFile = path.join(destDir, fileName)
+  let total = 0
+  let downloaded = 0
+  const resp = await axios.get(url, { responseType: 'stream' })
+  total = Number(resp.headers['content-length'] || 0)
+  await new Promise<void>((resolve, reject) => {
+    const ws = fs.createWriteStream(tmpFile)
+    resp.data.on('data', (chunk: Buffer) => {
+      downloaded += chunk.length
+      if (onProgress && total > 0) {
+        const pct = Math.round((downloaded / total) * 100)
+        onProgress(pct, total, downloaded)
+      }
+    })
+    resp.data.pipe(ws)
+    ws.on('finish', resolve)
+    ws.on('error', reject)
+  })
+  return tmpFile
+}
+
+async function extractZip(file: string, destDir: string) {
+  await extract(file, { dir: destDir })
+  fs.unlinkSync(file)
+}
+
+async function extractTarGz(file: string, destDir: string) {
+  await tar.extract({ file, cwd: destDir })
+  fs.unlinkSync(file)
+}
+
+function isExtractedDirValid(dir: string): boolean {
+  if (!fs.existsSync(dir)) return false
+  try {
+    const files = fs.readdirSync(dir)
+    if (files.length === 0) return false
+    const nonArchiveFiles = files.filter((file) => {
+      const ext = path.extname(file).toLowerCase()
+      return !ext.match(/\.(zip|tar|tgz|tar\.gz)$/)
+    })
+    if (nonArchiveFiles.length === 0) return false
+    const validFiles = nonArchiveFiles.filter((file) => {
+      const filePath = path.join(dir, file)
+      const stat = fs.statSync(filePath)
+      return stat.isDirectory() || stat.size > 0
+    })
+    return validFiles.length > 0
+  } catch {
+    return false
+  }
+}
+
 const DEPENDENCIES_CONFIGS: Record<
   DependencyName,
-  { url: string; name: string; dir: string; needsExtraction: boolean }
+  {
+    url: string
+    name: string
+    dir: string
+    install: () => Promise<void>
+    isDownloaded: () => boolean
+  }
 > = {
   embeddings: {
     url: 'https://d3o88a4htgfnky.cloudfront.net/models/jina-embeddings-v2-base-en.zip',
     name: 'embeddings',
     dir: path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en'),
-    needsExtraction: true
+    install: async function () {
+      const file = await downloadFile(
+        this.url,
+        this.dir,
+        'embeddings.zip',
+        (pct, total, downloaded) => {
+          windowManager.mainWindow?.webContents.send('models:progress', {
+            modelName: this.name,
+            pct,
+            totalBytes: total,
+            downloadedBytes: downloaded
+          })
+        }
+      )
+      await extractZip(file, this.dir)
+    },
+    isDownloaded: function () {
+      return isExtractedDirValid(this.dir)
+    }
+  },
+  uv: {
+    url: '',
+    name: 'uv',
+    dir: path.join(DEPENDENCIES_DIR, 'shared', 'bin'),
+    install: async function () {
+      const livekitAgent = new LiveKitAgentBootstrap({
+        onProgress: (data) => {
+          windowManager.mainWindow?.webContents.send('models:progress', {
+            modelName: this.name,
+            pct: data.progress,
+            status: data.status,
+            error: data.error,
+            totalBytes: 0,
+            downloadedBytes: 0
+          })
+        }
+      })
+      await livekitAgent.setup()
+    },
+    isDownloaded: function () {
+      const uvBin = process.platform === 'win32' ? 'uv.exe' : 'uv'
+      return fs.existsSync(path.join(this.dir, uvBin))
+    }
   },
   anonymizer: {
     url: 'https://huggingface.co/eternis/eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k_gguf/resolve/main/qwen3-0.6b-q4_k_m.gguf?download=true',
     name: 'anonymizer',
     dir: path.join(DEPENDENCIES_DIR, 'models', 'anonymizer'),
-    needsExtraction: false
+    install: async function () {
+      await downloadFile(this.url, this.dir, 'anonymizer.gguf', (pct, total, downloaded) => {
+        windowManager.mainWindow?.webContents.send('models:progress', {
+          modelName: this.name,
+          pct,
+          totalBytes: total,
+          downloadedBytes: downloaded
+        })
+      })
+    },
+    isDownloaded: function () {
+      return fs.existsSync(path.join(this.dir, 'anonymizer.gguf'))
+    }
   },
   LLAMACCP: {
-    //@TODO: Add different versions for linux, windows and intel mac
     url: 'https://github.com/ggml-org/llama.cpp/releases/download/b5916/llama-b5916-bin-macos-arm64.zip',
     name: 'llamacpp',
     dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib', 'llamacpp'),
-    needsExtraction: true
+    install: async function () {
+      const file = await downloadFile(
+        this.url,
+        this.dir,
+        'llamacpp.zip',
+        (pct, total, downloaded) => {
+          windowManager.mainWindow?.webContents.send('models:progress', {
+            modelName: this.name,
+            pct,
+            totalBytes: total,
+            downloadedBytes: downloaded
+          })
+        }
+      )
+      await extractZip(file, this.dir)
+    },
+    isDownloaded: function () {
+      return isExtractedDirValid(this.dir)
+    }
   },
   onnx: {
     url:
@@ -40,13 +178,25 @@ const DEPENDENCIES_CONFIGS: Record<
         : 'https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz',
     name: 'onnx',
     dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib'),
-    needsExtraction: true
-  },
-  LLMCLI: {
-    url: 'https://d3o88a4htgfnky.cloudfront.net/assets/LLMCLI',
-    name: 'LLMCLI',
-    dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib'),
-    needsExtraction: false
+    install: async function () {
+      const file = await downloadFile(this.url, this.dir, 'onnx.tgz', (pct, total, downloaded) => {
+        windowManager.mainWindow?.webContents.send('models:progress', {
+          modelName: this.name,
+          pct,
+          totalBytes: total,
+          downloadedBytes: downloaded
+        })
+      })
+      await extractTarGz(file, this.dir)
+    },
+    isDownloaded: function () {
+      // Check for the extracted onnxruntime folder (platform-specific)
+      const onnxDir =
+        process.platform === 'darwin' && process.arch === 'arm64'
+          ? path.join(this.dir, 'onnxruntime-osx-arm64-1.22.0')
+          : path.join(this.dir, 'onnxruntime-linux-x64-1.22.0')
+      return isExtractedDirValid(onnxDir)
+    }
   }
 }
 
@@ -58,248 +208,27 @@ export function getDependencyPath(dependencyName: DependencyName): string {
   return cfg.dir
 }
 
-function isDependencyProperlyDownloaded(dependencyName: DependencyName): boolean {
+export async function downloadDependency(dependencyName: DependencyName) {
   const cfg = DEPENDENCIES_CONFIGS[dependencyName]
   if (!cfg) {
-    return false
+    throw new Error(`Unknown dependency: ${dependencyName}`)
   }
-
-  const dependencyPath = cfg.dir
-
-  if (!cfg.needsExtraction) {
-    return fs.existsSync(dependencyPath)
-  }
-
-  // For extracted dependencies, check if directory exists and has extracted content
-  if (!fs.existsSync(dependencyPath)) {
-    return false
-  }
-
-  try {
-    const files = fs.readdirSync(dependencyPath)
-
-    // Directory must have files
-    if (files.length === 0) {
-      return false
-    }
-
-    // Filter out archive files - we want extracted content, not just downloaded archives
-    const nonArchiveFiles = files.filter((file) => {
-      const ext = path.extname(file).toLowerCase()
-      return !ext.match(/\.(zip|tar|tgz|tar\.gz)$/)
-    })
-
-    if (nonArchiveFiles.length === 0) {
-      return false
-    }
-
-    const validFiles = nonArchiveFiles.filter((file) => {
-      const filePath = path.join(dependencyPath, file)
-      const stat = fs.statSync(filePath)
-
-      if (stat.isDirectory()) {
-        return true
-      }
-
-      return stat.size > 0
-    })
-
-    return validFiles.length > 0
-  } catch (error) {
-    console.error(`[Dependencies] Error checking ${dependencyName}:`, error)
-    return false
-  }
+  await cfg.install()
+  windowManager.mainWindow?.webContents.send('models:progress', {
+    modelName: dependencyName,
+    pct: 100,
+    totalBytes: 0,
+    downloadedBytes: 0
+  })
+  return { success: true, path: cfg.dir }
 }
 
 export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
   return {
-    embeddings: isDependencyProperlyDownloaded('embeddings'),
-    anonymizer: isDependencyProperlyDownloaded('anonymizer'),
-    onnx: isDependencyProperlyDownloaded('onnx'),
-    LLMCLI: isDependencyProperlyDownloaded('LLMCLI'),
-    LLAMACCP: isDependencyProperlyDownloaded('LLAMACCP')
-  }
-}
-
-export async function downloadDependency(dependencyName: DependencyName) {
-  const cfg = DEPENDENCIES_CONFIGS[dependencyName]
-  if (!cfg) {
-    console.error(`[downloadDependencies] Unknown dependency: ${dependencyName}`)
-    throw new Error(`Unknown dependency: ${dependencyName}`)
-  }
-
-  console.log(`[downloadDependencies] Dependency config found:`, { name: cfg.name, url: cfg.url })
-
-  const { capture } = await import('./analytics')
-  const startTime = Date.now()
-  capture('dependency_installation_started', {
-    dependency: dependencyName
-  })
-
-  const dependencyDir = cfg.dir
-
-  if (!fs.existsSync(dependencyDir)) {
-    fs.mkdirSync(dependencyDir, { recursive: true })
-  }
-  // Determine file extension from URL
-  const urlExtension = path.extname(cfg.url.split('?')[0]) // Remove query parameters before getting extension
-  const isTarGz = urlExtension === '.tgz' || urlExtension === '.tar.gz'
-  const fileName = cfg.needsExtraction
-    ? `${dependencyName}${urlExtension}`
-    : `${dependencyName}${urlExtension}`
-  const tmpFile = path.join(dependencyDir, fileName)
-  let total = 0
-
-  try {
-    const resp = await axios.get(cfg.url, {
-      responseType: 'stream'
-    })
-
-    total = Number(resp.headers['content-length'] || 0)
-    let downloaded = 0
-
-    console.log(
-      `[downloadDependencies] Total file size: ${total} bytes (${(total / 1024 / 1024).toFixed(2)} MB)`
-    )
-
-    windowManager.mainWindow?.webContents.send('models:progress', {
-      modelName: dependencyName,
-      pct: 0,
-      totalBytes: total,
-      downloadedBytes: 0
-    })
-
-    await new Promise<void>((resolve, reject) => {
-      console.log(`[downloadDependencies] Creating write stream to: ${tmpFile}`)
-      const ws = fs.createWriteStream(tmpFile)
-
-      resp.data.on('data', (chunk: Buffer) => {
-        downloaded += chunk.length
-        const pct = total > 0 ? Math.round((downloaded / total) * 100) : 0
-
-        // Send progress every 10% or every 50MB
-        if (pct % 10 === 0 || downloaded % (50 * 1024 * 1024) < chunk.length) {
-          windowManager.mainWindow?.webContents.send('models:progress', {
-            modelName: dependencyName,
-            pct: pct === 100 ? 99 : pct, // Workaround for waiting until file is extracted
-            totalBytes: total,
-            downloadedBytes: downloaded
-          })
-        }
-      })
-
-      resp.data.pipe(ws)
-
-      ws.on('finish', () => {
-        resolve()
-      })
-
-      ws.on('error', (error) => {
-        console.error(`[downloadDependencies] Write stream error:`, error)
-        reject(error)
-      })
-    })
-  } catch (error) {
-    console.error(`[downloadDependencies] Download failed for ${dependencyName}:`, error)
-
-    capture('dependency_installation_failed', {
-      dependency: dependencyName,
-      duration: Date.now() - startTime,
-      size_bytes: total,
-      success: false,
-      error: error instanceof Error ? error.message : 'Download failed'
-    })
-
-    if (fs.existsSync(tmpFile)) {
-      try {
-        fs.unlinkSync(tmpFile)
-      } catch (cleanupError) {
-        console.error(`[downloadDependencies] Failed to cleanup temp file:`, cleanupError)
-      }
-    }
-
-    windowManager.mainWindow?.webContents.send('models:progress', {
-      modelName: dependencyName,
-      pct: 0,
-      totalBytes: 0,
-      downloadedBytes: 0,
-      error: error instanceof Error ? error.message : 'Download failed'
-    })
-
-    throw error
-  }
-
-  try {
-    if (cfg.needsExtraction) {
-      if (isTarGz) {
-        console.log(`[downloadDependencies] Starting TAR extraction to: ${dependencyDir}`)
-        await tar.extract({
-          file: tmpFile,
-          cwd: dependencyDir
-        })
-        console.log(`[downloadDependencies] TAR extraction completed`)
-      } else {
-        console.log(`[downloadDependencies] Starting ZIP extraction to: ${dependencyDir}`)
-        await extract(tmpFile, { dir: dependencyDir })
-        console.log(`[downloadDependencies] ZIP extraction completed`)
-      }
-
-      // Remove the temporary file after extraction
-      fs.unlinkSync(tmpFile)
-    } else {
-      console.log(
-        `[downloadDependencies] No extraction needed for ${dependencyName}, file ready to use`
-      )
-      // For files that don't need extraction, make sure they're executable if they're binary files
-      if (dependencyName === 'LLMCLI') {
-        fs.chmodSync(tmpFile, '755')
-      }
-    }
-
-    console.log(
-      `[downloadDependencies] ${dependencyName} download ${cfg.needsExtraction ? 'and extraction' : ''} completed successfully:`
-    )
-
-    capture('dependency_installation_completed', {
-      dependency: dependencyName,
-      duration: Date.now() - startTime,
-      size_bytes: total,
-      success: true
-    })
-
-    windowManager.mainWindow?.webContents.send('models:progress', {
-      modelName: dependencyName,
-      pct: 100,
-      totalBytes: total,
-      downloadedBytes: total
-    })
-
-    return { success: true, path: dependencyDir }
-  } catch (error) {
-    console.error(
-      `[downloadDependencies] ${cfg.needsExtraction ? 'Extraction' : 'Processing'} failed for ${dependencyName}:`,
-      error
-    )
-
-    if (fs.existsSync(tmpFile)) {
-      try {
-        fs.unlinkSync(tmpFile)
-      } catch (cleanupError) {
-        console.error(`[downloadDependencies] Failed to cleanup temp file:`, cleanupError)
-      }
-    }
-
-    windowManager.mainWindow?.webContents.send('models:progress', {
-      modelName: dependencyName,
-      pct: 0,
-      totalBytes: total,
-      downloadedBytes: 0,
-      error:
-        error instanceof Error
-          ? error.message
-          : `${cfg.needsExtraction ? (isTarGz ? 'TAR' : 'ZIP') + ' extraction' : 'Processing'} failed`
-    })
-
-    throw error
+    embeddings: DEPENDENCIES_CONFIGS.embeddings.isDownloaded(),
+    anonymizer: DEPENDENCIES_CONFIGS.anonymizer.isDownloaded(),
+    onnx: DEPENDENCIES_CONFIGS.onnx.isDownloaded(),
+    LLAMACCP: DEPENDENCIES_CONFIGS.LLAMACCP.isDownloaded(),
+    uv: DEPENDENCIES_CONFIGS.uv.isDownloaded()
   }
 }

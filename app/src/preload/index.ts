@@ -114,6 +114,8 @@ const api = {
   analytics: {
     capture: (event: string, properties: Record<string, unknown>) =>
       ipcRenderer.invoke('analytics:capture', event, properties),
+    captureFeedback: (event: string, properties: Record<string, unknown>) =>
+      ipcRenderer.invoke('analytics:capture-feedback', event, properties),
     identify: (properties: Record<string, unknown>) =>
       ipcRenderer.invoke('analytics:identify', properties),
     getDistinctId: () => ipcRenderer.invoke('analytics:get-distinct-id'),
@@ -202,6 +204,11 @@ const api = {
     initialize: () => ipcRenderer.invoke('go-server:initialize'),
     cleanup: () => ipcRenderer.invoke('go-server:cleanup'),
     getStatus: () => ipcRenderer.invoke('go-server:status')
+  },
+  llamacpp: {
+    start: () => ipcRenderer.invoke('llamacpp:start'),
+    cleanup: () => ipcRenderer.invoke('llamacpp:cleanup'),
+    getStatus: () => ipcRenderer.invoke('llamacpp:status')
   },
   clipboard: {
     writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),

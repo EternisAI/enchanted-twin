@@ -2,7 +2,7 @@ import { gql, useQuery, useMutation } from '@apollo/client'
 import { CheckIcon, UserIcon, XIcon } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Button } from '../ui/button'
+import { Button } from '../../ui/button'
 import { toast } from 'sonner'
 import { cn } from '@renderer/lib/utils'
 
@@ -34,7 +34,9 @@ export function ContextCard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const { data } = await updateProfile({ variables: { input: { bio: context } } })
+    const { data } = await updateProfile({
+      variables: { input: { bio: context.trimEnd().trimStart() } }
+    })
     if (data?.updateProfile) {
       await refetch()
       setIsEditing(false)
@@ -65,11 +67,14 @@ export function ContextCard() {
     setIsEditing(true)
   }
 
+  const isContextMultiline = context.trimEnd().trimStart().split('\n').length > 1
+
   return (
     <motion.div
       className={cn(
-        'relative bg-transparent !w-full rounded-lg p-1 hover:bg-popover focus-within:bg-popover transition-colors max-w-md mx-auto',
-        isEditing && '!bg-popover'
+        'relative bg-transparent !w-full rounded-lg p-1 hover:bg-muted focus-within:bg-muted transition-colors max-w-md mx-auto',
+        isEditing && '!bg-muted',
+        isContextMultiline && !isEditing && '!ring-1 !ring-muted'
       )}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
       layout
@@ -159,7 +164,7 @@ export function ContextCard() {
                       <XIcon className="size-4" />
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="default"
                       size="icon"
                       aria-label="Save changes"
                       onClick={handleSubmit}
@@ -185,7 +190,7 @@ export function ContextCard() {
                 >
                   <motion.p
                     className={`text-sm text-muted-foreground cursor-pointer p-2 rounded-lg ${
-                      context.split('\n').length === 1 ? 'text-center' : 'text-left'
+                      isContextMultiline ? 'text-left' : 'text-center'
                     }`}
                     onClick={() => setIsEditing(true)}
                     initial={{ opacity: 0, y: 5 }}
@@ -201,7 +206,7 @@ export function ContextCard() {
                     }}
                     layout="position"
                   >
-                    {context}
+                    {context.trimEnd().trimStart()}
                   </motion.p>
                 </motion.div>
               )}
@@ -214,7 +219,12 @@ export function ContextCard() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className="flex items-center justify-center w-full"
+            className="flex items-center justify-center w-full cursor-pointer"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleStartEditing()
+              }
+            }}
             layout
           >
             <Button

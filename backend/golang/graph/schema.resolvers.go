@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -28,7 +27,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
@@ -48,10 +46,13 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
+	r.Logger.Info("OAuth callback received", "state", state)
 	result, username, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
 	if err != nil {
+		r.Logger.Info("OAuth callback failed", "state", state, "error", err)
 		return "", err
 	}
+	r.Logger.Info("OAuth callback successful", "state", state, "provider", result)
 
 	switch result {
 	case "twitter":
@@ -240,7 +241,7 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string, category
 
 // SendMessage is the resolver for the sendMessage field.
 func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error) {
-	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
+	return r.TwinChatService.SendMessage(context.WithoutCancel(ctx), chatID, text, reasoning, voice)
 }
 
 // DeleteChat is the resolver for the deleteChat field.
@@ -302,21 +303,6 @@ func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.Con
 	if err != nil {
 		return false, err
 	}
-	return true, nil
-}
-
-// SendTelegramMessage is the resolver for the sendTelegramMessage field.
-func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
-	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
-	if err != nil || chatID == 0 {
-		return false, fmt.Errorf("failed to get telegram chat ID: %w", err)
-	}
-
-	err = r.TelegramService.SendMessage(ctx, chatID, text)
-	if err != nil {
-		return false, fmt.Errorf("failed to send telegram message: %w", err)
-	}
-
 	return true, nil
 }
 
@@ -1072,89 +1058,6 @@ func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *m
 	return notificationChan, nil
 }
 
-// TelegramMessageAdded is the resolver for the telegramMessageAdded field.
-func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUID string) (<-chan *model.Message, error) {
-	if r.Nc == nil {
-		return nil, errors.New("NATS connection is not initialized")
-	}
-	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get telegram chat ID: %w", err)
-	}
-	fmt.Println("Telegram message added", "chat_id", chatID)
-
-	if chatID != 0 {
-		confirmText := fmt.Sprintf("Telegram connection established. Chat ID: %d", chatID)
-		confirmMsg := &model.Message{
-			ID:          uuid.New().String(),
-			Text:        &confirmText,
-			CreatedAt:   time.Now().Format(time.RFC3339),
-			Role:        model.RoleAssistant,
-			ImageUrls:   []string{},
-			ToolCalls:   []*model.ToolCall{},
-			ToolResults: []string{},
-		}
-
-		confirmData, _ := json.Marshal(confirmMsg)
-		err := r.Nc.Publish(fmt.Sprintf("telegram.chat.%d", chatID), confirmData)
-		if err != nil {
-			r.Logger.Error("Failed to publish confirmation message", "error", err)
-		}
-	}
-
-	messages := make(chan *model.Message, 100)
-
-	subject := fmt.Sprintf("telegram.chat.%d", chatID)
-
-	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
-		if msg == nil || msg.Data == nil {
-			r.Logger.Error("Received nil message or data")
-			return
-		}
-
-		var telegramMessage telegram.Message
-		if err := json.Unmarshal(msg.Data, &telegramMessage); err != nil {
-			r.Logger.Error("Failed to unmarshal Telegram message", "error", err)
-			return
-		}
-
-		text := telegramMessage.Text
-		message := &model.Message{
-			ID:          strconv.Itoa(telegramMessage.MessageID),
-			Text:        &text,
-			CreatedAt:   time.Unix(int64(telegramMessage.Date), 0).Format(time.RFC3339),
-			Role:        model.RoleUser,
-			ImageUrls:   []string{},
-			ToolCalls:   []*model.ToolCall{},
-			ToolResults: []string{},
-		}
-
-		select {
-		case messages <- message:
-			r.Logger.Info("Sent message to channel", "chat_id", chatID)
-		case <-ctx.Done():
-			r.Logger.Info("Context canceled while sending message", "chat_id", chatID)
-			return
-		default:
-			r.Logger.Warn("Message channel is full, dropping message", "chat_id", chatID)
-		}
-	})
-	if err != nil {
-		close(messages)
-		return nil, fmt.Errorf("failed to subscribe to NATS subject: %w", err)
-	}
-
-	go func() {
-		<-ctx.Done()
-		if err := sub.Unsubscribe(); err != nil {
-			r.Logger.Error("Error unsubscribing from NATS", "error", err)
-		}
-		close(messages)
-	}()
-
-	return messages, nil
-}
-
 // MessageStream is the resolver for the messageStream subscription.
 func (r *subscriptionResolver) MessageStream(ctx context.Context, chatID string) (<-chan *model.MessageStreamPayload, error) {
 	subject := fmt.Sprintf("chat.%s.stream", chatID)
@@ -1379,36 +1282,3 @@ type (
 	subscriptionResolver struct{ *Resolver }
 	userProfileResolver  struct{ *Resolver }
 )
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *queryResolver) GetAccounts(ctx context.Context) ([]*model.OAuthAccount, error) {
-	// Get all OAuth tokens from the database
-	allTokens, err := r.Store.GetAllOAuthTokens(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
-	}
-
-	// Convert to OAuthAccount model
-	accounts := make([]*model.OAuthAccount, 0, len(allTokens))
-	for _, token := range allTokens {
-		// Check if token is still active (not expired and not in error state)
-		isActive := !token.Error && (token.ExpiresAt.IsZero() || token.ExpiresAt.After(time.Now()))
-
-		account := &model.OAuthAccount{
-			Provider:  token.Provider,
-			Username:  token.Username,
-			ExpiresAt: token.ExpiresAt.Format(time.RFC3339),
-			IsActive:  isActive,
-		}
-		accounts = append(accounts, account)
-	}
-
-	return accounts, nil
-}
-*/

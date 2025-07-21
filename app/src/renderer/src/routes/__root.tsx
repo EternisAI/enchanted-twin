@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { createRootRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { PanelLeftOpen } from 'lucide-react'
 import { useQuery } from '@apollo/client'
 
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
@@ -9,19 +8,11 @@ import { GlobalIndexingStatus } from '@renderer/components/GlobalIndexingStatus'
 import { NotificationsProvider } from '@renderer/hooks/NotificationsContextProvider'
 import { LayoutGroup, motion, AnimatePresence } from 'framer-motion'
 import { Sidebar } from '@renderer/components/chat/Sidebar'
-import { Button } from '@renderer/components/ui/button'
 import { GetChatsDocument, Chat } from '@renderer/graphql/generated/graphql'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@renderer/components/ui/tooltip'
 import { useSidebarStore } from '@renderer/lib/stores/sidebar'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
-import { formatShortcutForDisplay } from '@renderer/lib/utils/shortcuts'
 
 function RootComponent() {
   const omnibar = useOmnibarStore()
@@ -174,50 +165,21 @@ function RootComponent() {
 
           <div className="flex flex-1 overflow-hidden">
             <AnimatePresence>
-              {!sidebarOpen && isCompleted && !location.pathname.startsWith('/settings') && (
-                <motion.div
-                  className="absolute top-10 left-2 z-[60]"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.5, ease: 'easeInOut' }}
-                >
-                  <TooltipProvider>
-                    <Tooltip delayDuration={500}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={() => setSidebarOpen(true)}
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-foreground size-8"
-                        >
-                          <PanelLeftOpen className="w-5 h-5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" align="center">
-                        <div className="flex items-center gap-2">
-                          <span>Open sidebar</span>
-                          {shortcuts.toggleSidebar?.keys && (
-                            <kbd className="rounded ml-1 text-[10px] text-primary-foreground/50 font-kbd">
-                              {formatShortcutForDisplay(shortcuts.toggleSidebar.keys)}
-                            </kbd>
-                          )}
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </motion.div>
-              )}
-              {sidebarOpen && isCompleted && (
+              {isCompleted && !location.pathname.startsWith('/settings') && (
                 <motion.div
                   key="sidebar"
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: 256, opacity: 1 }}
+                  initial={{ width: sidebarOpen ? 256 : 64 }}
+                  animate={{ width: sidebarOpen ? 256 : 64 }}
                   exit={{ width: 0, opacity: 0 }}
                   transition={{ type: 'spring', stiffness: 350, damping: 55 }}
                   className="h-full overflow-y-auto"
                 >
-                  <Sidebar chats={chats} setSidebarOpen={setSidebarOpen} shortcuts={shortcuts} />
+                  <Sidebar
+                    chats={chats}
+                    setSidebarOpen={setSidebarOpen}
+                    shortcuts={shortcuts}
+                    collapsed={!sidebarOpen}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>

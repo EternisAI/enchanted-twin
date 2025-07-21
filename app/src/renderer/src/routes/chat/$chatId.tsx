@@ -26,7 +26,8 @@ export const Route = createFileRoute('/chat/$chatId')({
       const { data } = await client.query({
         query: GetChatDocument,
         variables: { id: params.chatId },
-        fetchPolicy: 'network-only'
+        fetchPolicy: 'network-only',
+        errorPolicy: 'all'
       })
 
       return {

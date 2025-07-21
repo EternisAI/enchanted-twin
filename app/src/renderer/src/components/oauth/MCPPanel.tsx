@@ -84,9 +84,9 @@ export default function MCPPanel() {
     <div className="flex flex-col gap-4 p-0">
       <header className="flex gap-2 justify-between items-center pb-4 pr-2">
         <div className="flex flex-col gap-2">
-          <h2 className="text-2xl font-bold leading-none">Quick Connect</h2>
+          <h2 className="text-2xl font-bold leading-none">Quick Connects</h2>
           <p className="text-muted-foreground leading-none text-sm">
-            Takes under 30 seconds to connect.
+            Allow Enchanted to reference other apps and services for more context.
           </p>
         </div>
         <ConnectMCPServerButton onSuccess={() => {}} />

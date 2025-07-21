@@ -1,1 +1,1 @@
-export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLMCLI' | 'LLAMACCP'
+export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLAMACCP' | 'uv'

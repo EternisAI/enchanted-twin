@@ -1,4 +1,12 @@
-import { createContext, useContext, useMemo, useCallback, ReactNode, useState } from 'react'
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useCallback,
+  ReactNode,
+  useState,
+  useEffect
+} from 'react'
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
@@ -78,6 +86,29 @@ export function ChatProvider({
     return chat.messages
   })
 
+  // Ensure messages are updated when chat data changes (fixes cache issues)
+  useEffect(() => {
+    if (chat.messages && chat.messages.length > 0) {
+      // Only update if the messages are actually different to avoid unnecessary re-renders
+      setMessages((prevMessages) => {
+        // Compare message IDs to see if there are new messages
+        const prevIds = prevMessages.map((m) => m.id).sort()
+        const newIds = chat.messages.map((m) => m.id).sort()
+
+        if (JSON.stringify(prevIds) !== JSON.stringify(newIds)) {
+          console.log('Updating messages due to cache refresh', {
+            prevCount: prevMessages.length,
+            newCount: chat.messages.length,
+            chatId: chat.id
+          })
+          return chat.messages
+        }
+
+        return prevMessages
+      })
+    }
+  }, [chat.messages, chat.id])
+
   const [lastMessageStartTime, setLastMessageStartTime] = useState<number | null>(null)
 
   const { isVoiceMode } = useVoiceStore()
@@ -114,14 +145,30 @@ export function ChatProvider({
           } else {
             updatedToolCalls.push(toolCallUpdate as ToolCall)
           }
-          updatedMessages[existingMessageIndex] = { ...msg, toolCalls: updatedToolCalls }
+
+          const toolCallImages = updatedToolCalls
+            .filter((tc) => tc.name === 'generate_image')
+            .filter((tc) => tc.isCompleted && tc.result?.imageUrls)
+            .flatMap((tc) => tc.result!.imageUrls)
+
+          const allImageUrls = [...new Set([...msg.imageUrls, ...toolCallImages])]
+
+          updatedMessages[existingMessageIndex] = {
+            ...msg,
+            toolCalls: updatedToolCalls,
+            imageUrls: allImageUrls
+          }
           return updatedMessages
         } else {
-          // No message found, create a new one to display the tool call
+          const toolCallImages =
+            toolCallUpdate.isCompleted && toolCallUpdate.result?.imageUrls
+              ? toolCallUpdate.result.imageUrls
+              : []
+
           const newMessage: Message = {
             id: toolCallUpdate.messageId,
             text: null,
-            imageUrls: [],
+            imageUrls: toolCallImages,
             role: Role.Assistant,
             toolCalls: [toolCallUpdate],
             toolResults: [],

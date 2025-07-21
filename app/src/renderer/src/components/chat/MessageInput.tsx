@@ -25,7 +25,7 @@ export default function MessageInput({
   isReasonSelected,
   onReasonToggle,
   voiceMode = false,
-  placeholder = "What's on your mind?",
+  placeholder = 'Ask a question privately…',
   onVoiceModeChange
 }: MessageInputProps) {
   const [text, setText] = useState('')
@@ -76,7 +76,7 @@ export default function MessageInput({
     <motion.div
       layoutId="message-input-container"
       className={cn(
-        'relative z-50 flex flex-col gap-3 rounded-xl border border-border bg-card px-4 py-2.25 shadow-xl w-full'
+        'relative z-50 flex flex-col gap-3 rounded-xl border border-border bg-card/90 backdrop-blur-md px-4 py-2.25 shadow-xl w-full'
       )}
       transition={{ type: 'spring', stiffness: 350, damping: 55 }}
       layout
@@ -93,37 +93,23 @@ export default function MessageInput({
           placeholder={placeholder}
           className="flex-1 placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
         />
-        <div className="flex justify-end items-center gap-3">
+        <div className="flex justify-end items-center gap-3 h-fit">
           {!voiceMode && <ReasoningButton isSelected={isReasonSelected} onClick={toggleReason} />}
-          <AnimatePresence mode="wait">
-            {text.trim() ? (
-              <motion.div
-                key="send-button"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <SendButton
-                  onSend={handleSend}
-                  isWaitingTwinResponse={isWaitingTwinResponse}
-                  onStop={onStop}
-                  text={text}
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="voice-mode-button"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <EnableVoiceModeButton
-                  onClick={() => onVoiceModeChange?.()}
-                  isVoiceReady={isVoiceReady}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <motion.div
+            key="send-button"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <SendButton
+              onSend={handleSend}
+              isWaitingTwinResponse={isWaitingTwinResponse}
+              onStop={onStop}
+              text={text}
+              onVoiceModeChange={onVoiceModeChange}
+              isVoiceReady={isVoiceReady}
+            />
+          </motion.div>
         </div>
       </div>
     </motion.div>
@@ -135,13 +121,17 @@ export function SendButton({
   onStop,
   isWaitingTwinResponse,
   text,
-  className
+  className,
+  onVoiceModeChange,
+  isVoiceReady
 }: {
   isWaitingTwinResponse: boolean
   onSend: () => void
   onStop?: () => void
   text: string
   className?: string
+  onVoiceModeChange?: () => void
+  isVoiceReady: boolean
 }) {
   const [prevWaitingState, setPrevWaitingState] = useState(false)
 
@@ -175,7 +165,7 @@ export function SendButton({
           >
             <X className="w-4 h-4" />
           </motion.div>
-        ) : (
+        ) : text.trim() ? (
           <motion.div
             key="send"
             initial={{ y: 20, opacity: 0 }}
@@ -186,6 +176,11 @@ export function SendButton({
           >
             <ArrowUp className="w-4 h-4" />
           </motion.div>
+        ) : (
+          <EnableVoiceModeButton
+            onClick={() => onVoiceModeChange?.()}
+            isVoiceReady={isVoiceReady}
+          />
         )}
       </AnimatePresence>
     </Button>

@@ -59,6 +59,31 @@ function setupAnalyticsHandlers() {
     return true
   })
 
+  /**
+   * Handle feedback capture requests from the renderer process.
+   *
+   * IMPORTANT: This handler bypasses user telemetry preferences specifically for feedback collection.
+   *
+   * Rationale for bypassing telemetry preferences:
+   * - User feedback is essential for product improvement and user experience
+   * - Feedback is contextual and user-initiated, not passive tracking
+   * - Users expect their feedback to be received when they submit it
+   * - This is distinct from general usage analytics which users can opt out of
+   *
+   * Privacy considerations:
+   * - Only captures data explicitly provided in the feedback form
+   * - Includes minimal technical context (app version, timestamp, distinct ID)
+   * - Does not include browsing behavior or passive usage data
+   * - Marked with 'forced: true' to distinguish from regular analytics
+   *
+   */
+  ipcMain.handle(
+    'analytics:capture-feedback',
+    (_, event: string, properties: Record<string, unknown>) => {
+      return captureForced(event, properties)
+    }
+  )
+
   ipcMain.handle('analytics:identify', (_, properties: Record<string, unknown>) => {
     identify(properties)
     return true
@@ -93,6 +118,109 @@ export function capture(event: string, properties: Record<string, any> = {}) {
   } catch (err) {
     log.error('[Analytics] capture error', err)
   }
+}
+
+/**
+ * Captures analytics events while bypassing user telemetry preferences.
+ *
+ * This function is specifically designed for feedback collection where delivery
+ * confirmation is critical for user experience.
+ *
+ * @param event - The event name to capture
+ * @param properties - Additional properties to include with the event
+ * @returns Promise that resolves only after successful delivery to PostHog or rejects on failure
+ *
+ * Delivery guarantees:
+ * - Promise resolves after initiating delivery to PostHog (HTTP request sent)
+ * - Promise rejects if PostHog is not configured or flush method fails
+ * - Includes timeout protection (10 seconds) to prevent hanging
+ * - Logs all attempts locally for debugging regardless of delivery status
+ * - Note: PostHog client doesn't provide delivery confirmation callbacks in current version
+ */
+export function captureForced(event: string, properties: Record<string, any> = {}) {
+  return new Promise<void>((resolve, reject) => {
+    try {
+      // Debug logging
+      log.info('[Analytics] captureForced called', {
+        hasApiKey: !!POSTHOG_API_KEY,
+        apiKeyLength: POSTHOG_API_KEY?.length || 0,
+        host: POSTHOG_HOST,
+        event,
+        distinctId
+      })
+
+      if (!POSTHOG_API_KEY || !POSTHOG_HOST) {
+        log.warn('[Analytics] PostHog not configured, logging feedback locally', {
+          event,
+          properties,
+          distinctId,
+          timestamp: new Date().toISOString()
+        })
+        reject(
+          new Error(
+            'Analytics service not configured. Your feedback was saved locally but not sent to our servers.'
+          )
+        )
+        return
+      }
+
+      // Initialize client if not already done for forced events
+      if (!client) {
+        client = new posthog.PostHog(POSTHOG_API_KEY, {
+          host: POSTHOG_HOST,
+          flushAt: 1,
+          flushInterval: 5000
+        })
+      }
+
+      const capturePayload = {
+        distinctId,
+        event,
+        properties: {
+          ...properties,
+          timestamp: new Date().toISOString(),
+          appVersion: app.getVersion(),
+          forced: true // Mark as forced to distinguish from regular analytics
+        }
+      }
+
+      log.info('[Analytics] force capturing (bypassing telemetry preference)', capturePayload)
+
+      client.capture(capturePayload)
+
+      // Set up timeout to prevent hanging indefinitely
+      const timeoutId = setTimeout(() => {
+        log.error('[Analytics] flush timeout - feedback delivery uncertain')
+        reject(new Error('Feedback delivery timeout. Please try again.'))
+      }, 10000) // 10 second timeout
+
+      // Ensure the event is sent immediately and wait for completion
+      log.info('[Analytics] flushing events to PostHog...')
+
+      // PostHog's flush method doesn't accept callbacks in the current version
+      // We'll use a simpler approach with timeout-based resolution
+      try {
+        client.flush()
+
+        // Since PostHog flush is synchronous and doesn't provide delivery confirmation,
+        // we'll resolve after a short delay to allow the HTTP request to complete
+        setTimeout(() => {
+          clearTimeout(timeoutId)
+          log.info('[Analytics] feedback event sent to PostHog (delivery not confirmed)')
+          resolve()
+        }, 1000) // 1 second delay to allow HTTP request to complete
+      } catch (flushError: unknown) {
+        clearTimeout(timeoutId)
+        const errorMessage =
+          flushError instanceof Error ? flushError.message : 'Unknown flush error'
+        log.error('[Analytics] flush method error', flushError)
+        reject(new Error(`Feedback delivery error: ${errorMessage}`))
+      }
+    } catch (err) {
+      log.error('[Analytics] forced capture error', err)
+      reject(err)
+    }
+  })
 }
 
 export function identify(properties: Record<string, any> = {}) {

@@ -3,7 +3,6 @@ import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
-import { useTheme } from '@renderer/lib/theme'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 
 export function OnboardingDoneAnimation() {
@@ -60,7 +59,6 @@ export function OnboardingVoiceAnimation({
   sizeStep?: number
   getFreqData: () => Uint8Array
 }) {
-  const { theme } = useTheme()
   const [rippleScales, setRippleScales] = useState<number[]>([])
   const [rippleOpacities, setRippleOpacities] = useState<number[]>([])
   const smoothedAmps = useRef<number[]>([])
@@ -69,8 +67,6 @@ export function OnboardingVoiceAnimation({
   const sizes = Array.from({ length: layerCount }, (_, i) => maxSize - i * sizeStep)
     .filter((d) => d > 0)
     .reverse()
-
-  const bgColor = theme === 'light' ? 'bg-white/25' : 'bg-white/25'
 
   useEffect(() => {
     smoothedAmps.current = new Array(layerCount).fill(0)
@@ -131,7 +127,7 @@ export function OnboardingVoiceAnimation({
       {sizes.map((size, index) => (
         <div
           key={size}
-          className={`absolute ${bgColor} rounded-full transition-all duration-75 ease-out`}
+          className={`absolute bg-white/25 rounded-full transition-all duration-75 ease-out`}
           style={{
             width: size,
             height: size,
