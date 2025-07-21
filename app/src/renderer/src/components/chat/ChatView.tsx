@@ -35,6 +35,7 @@ export default function ChatView({ chat }: ChatViewProps) {
     error,
     activeToolCalls,
     historicToolCalls,
+    isStreamingResponse,
     sendMessage,
     setIsWaitingTwinResponse,
     setIsReasonSelected
@@ -167,6 +168,7 @@ export default function ChatView({ chat }: ChatViewProps) {
         <div className="pb-4 w-full max-w-3xl flex flex-col gap-4 justify-center items-center relative z-10">
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
+            isStreamingResponse={isStreamingResponse}
             onSend={sendMessage}
             onStop={() => {
               setIsWaitingTwinResponse(false)
