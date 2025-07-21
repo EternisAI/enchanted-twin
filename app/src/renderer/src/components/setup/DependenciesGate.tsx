@@ -224,7 +224,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
       }
     }, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [allDependenciesCompleted])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>
