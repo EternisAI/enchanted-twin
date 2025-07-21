@@ -26,6 +26,10 @@ func (s *Service) ProcessMessageHistoryStream(
 	messages []*model.MessageInput,
 	isOnboarding bool,
 ) (<-chan model.MessageStreamPayload, error) {
+	// Use context.WithoutCancel to prevent client disconnections from canceling message processing
+	// This ensures assistant messages are always saved to database even if clients disconnect
+	ctx = context.WithoutCancel(ctx)
+
 	now := time.Now()
 
 	// Create chat if it doesn't exist
