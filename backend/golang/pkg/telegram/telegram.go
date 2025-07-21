@@ -814,15 +814,9 @@ func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *Telegr
 	monitorCount := 0
 	for {
 		monitorCount++
-		logger.Debug("Monitoring telegram tool registration", "iteration", monitorCount)
 
 		telegramEnabled, errTelegramEnabled := GetTelegramEnabled(context.Background(), store)
 		_, exists := toolRegistry.Get("telegram_send_message")
-
-		logger.Debug("Checking telegram status",
-			"enabled", telegramEnabled,
-			"enabledError", errTelegramEnabled,
-			"toolExists", exists)
 
 		if errTelegramEnabled == nil && telegramEnabled == "true" && !exists {
 			logger.Info("Telegram is enabled but tool not registered, creating tool")
@@ -843,8 +837,6 @@ func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *Telegr
 		} else if exists {
 			logger.Debug("Telegram tool already exists, monitoring complete")
 			return
-		} else if telegramEnabled != "true" {
-			logger.Debug("Telegram not enabled, waiting", "enabled", telegramEnabled)
 		}
 
 		time.Sleep(2 * time.Second)
