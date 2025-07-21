@@ -509,13 +509,6 @@ func main() {
 		}
 	}()
 
-	// Simulate a server crash 15 seconds after GraphQL server starts
-	go func() {
-		time.Sleep(15 * time.Second)
-		logger.Error("Simulating server crash after 15 seconds")
-		os.Exit(1)
-	}()
-
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
