@@ -6,19 +6,41 @@ import extract from 'extract-zip'
 import * as tar from 'tar'
 
 import { windowManager } from './windows'
-import { DependencyName } from './types/dependencies'
+import { DependencyName, PostInstallHook } from './types/dependencies'
 
 const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
+function getUvDownloadUrl(): string {
+  if (process.platform === 'darwin') {
+    if (process.arch === 'arm64') {
+      return 'https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-apple-darwin.tar.gz'
+    } else {
+      return 'https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-apple-darwin.tar.gz'
+    }
+  } else if (process.platform === 'linux') {
+    return 'https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz'
+  } else if (process.platform === 'win32') {
+    return 'https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip'
+  }
+  throw new Error(`Unsupported platform: ${process.platform} ${process.arch}`)
+}
+
 const DEPENDENCIES_CONFIGS: Record<
   DependencyName,
-  { url: string; name: string; dir: string; needsExtraction: boolean }
+  {
+    url: string
+    name: string
+    dir: string
+    needsExtraction: boolean
+    postInstallHook?: PostInstallHook
+  }
 > = {
   embeddings: {
     url: 'https://d3o88a4htgfnky.cloudfront.net/models/jina-embeddings-v2-base-en.zip',
     name: 'embeddings',
     dir: path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en'),
     needsExtraction: true
+    // Example: postInstallHook: async (dir) => { /* custom post-install logic */ }
   },
   anonymizer: {
     url: 'https://huggingface.co/eternis/eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k_gguf/resolve/main/qwen3-0.6b-q4_k_m.gguf?download=true',
@@ -41,6 +63,27 @@ const DEPENDENCIES_CONFIGS: Record<
     name: 'onnx',
     dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib'),
     needsExtraction: true
+  },
+  uv: {
+    url: getUvDownloadUrl(),
+    name: 'uv',
+    dir: path.join(DEPENDENCIES_DIR, 'shared', 'bin'),
+    needsExtraction: true,
+    postInstallHook: async (dependencyDir: string) => {
+      await processUvInstallation(dependencyDir)
+
+      try {
+        await createVenvAfterUvInstallation()
+        console.log(
+          `[downloadDependencies] Virtual environment created successfully after UV installation`
+        )
+      } catch (error) {
+        console.error(
+          `[downloadDependencies] Failed to create virtual environment after UV installation:`,
+          error
+        )
+      }
+    }
   }
 }
 
@@ -110,7 +153,31 @@ export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
     embeddings: isDependencyProperlyDownloaded('embeddings'),
     anonymizer: isDependencyProperlyDownloaded('anonymizer'),
     onnx: isDependencyProperlyDownloaded('onnx'),
-    LLAMACCP: isDependencyProperlyDownloaded('LLAMACCP')
+    LLAMACCP: isDependencyProperlyDownloaded('LLAMACCP'),
+    uv: isDependencyProperlyDownloaded('uv')
+  }
+}
+
+export function getVirtualEnvironmentPath(): string {
+  return path.join(DEPENDENCIES_DIR, 'python', 'venv')
+}
+
+export function hasVirtualEnvironment(): boolean {
+  const venvPath = path.join(DEPENDENCIES_DIR, 'python', 'venv')
+
+  if (!fs.existsSync(venvPath)) {
+    return false
+  }
+
+  try {
+    const files = fs.readdirSync(venvPath)
+    const hasBinOrScripts = files.some((file) => file === 'bin' || file === 'Scripts')
+    const hasLib = files.some((file) => file === 'lib')
+
+    return hasBinOrScripts && hasLib
+  } catch (error) {
+    console.error(`[hasVirtualEnvironment] Error checking venv:`, error)
+    return false
   }
 }
 
@@ -134,8 +201,15 @@ export async function downloadDependency(dependencyName: DependencyName) {
   if (!fs.existsSync(dependencyDir)) {
     fs.mkdirSync(dependencyDir, { recursive: true })
   }
-  // Determine file extension from URL
-  const urlExtension = path.extname(cfg.url.split('?')[0]) // Remove query parameters before getting extension
+  const cleanUrl = cfg.url.split('?')[0] // Remove query parameters
+  let urlExtension = path.extname(cleanUrl)
+
+  if (cleanUrl.endsWith('.tar.gz')) {
+    urlExtension = '.tar.gz'
+  } else if (cleanUrl.endsWith('.tgz')) {
+    urlExtension = '.tgz'
+  }
+
   const isTarGz = urlExtension === '.tgz' || urlExtension === '.tar.gz'
   const fileName = cfg.needsExtraction
     ? `${dependencyName}${urlExtension}`
@@ -249,6 +323,18 @@ export async function downloadDependency(dependencyName: DependencyName) {
       `[downloadDependencies] ${dependencyName} download ${cfg.needsExtraction ? 'and extraction' : ''} completed successfully:`
     )
 
+    if (cfg.postInstallHook) {
+      try {
+        await cfg.postInstallHook(dependencyDir)
+        console.log(`[downloadDependencies] Post-install hook completed for ${dependencyName}`)
+      } catch (error) {
+        console.error(
+          `[downloadDependencies] Post-install hook failed for ${dependencyName}:`,
+          error
+        )
+      }
+    }
+
     capture('dependency_installation_completed', {
       dependency: dependencyName,
       duration: Date.now() - startTime,
@@ -289,6 +375,111 @@ export async function downloadDependency(dependencyName: DependencyName) {
           : `${cfg.needsExtraction ? (isTarGz ? 'TAR' : 'ZIP') + ' extraction' : 'Processing'} failed`
     })
 
+    throw error
+  }
+}
+
+export async function createVenvAfterUvInstallation(): Promise<void> {
+  console.log(`[createVenvAfterUvInstallation] Checking if UV is ready and creating venv`)
+
+  try {
+    if (!isDependencyProperlyDownloaded('uv')) {
+      throw new Error('UV must be installed before creating virtual environment')
+    }
+
+    await createVirtualEnvironment()
+
+    console.log(`[createVenvAfterUvInstallation] Virtual environment created successfully`)
+  } catch (error) {
+    console.error(`[createVenvAfterUvInstallation] Failed to create virtual environment:`, error)
+    throw error
+  }
+}
+
+async function processUvInstallation(uvDir: string): Promise<void> {
+  console.log(`[processUvInstallation] Processing UV installation in: ${uvDir}`)
+
+  try {
+    // Find the UV binary in the extracted directory
+    const files = fs.readdirSync(uvDir)
+    const uvBinary = files.find((file) => file === 'uv' || file === 'uv.exe')
+
+    if (!uvBinary) {
+      throw new Error('UV binary not found in extracted directory')
+    }
+
+    const uvBinaryPath = path.join(uvDir, uvBinary)
+
+    // Make UV executable on Unix-like systems
+    if (process.platform !== 'win32') {
+      fs.chmodSync(uvBinaryPath, 0o755)
+      console.log(`[processUvInstallation] Made UV binary executable: ${uvBinaryPath}`)
+    }
+
+    console.log(`[processUvInstallation] UV installation completed successfully`)
+  } catch (error) {
+    console.error(`[processUvInstallation] Failed to process UV installation:`, error)
+    throw error
+  }
+}
+
+async function createVirtualEnvironment(): Promise<void> {
+  console.log(`[createVirtualEnvironment] Creating Python virtual environment`)
+
+  try {
+    const uvPath = getDependencyPath('uv')
+    const venvPath = path.join(DEPENDENCIES_DIR, 'python', 'venv')
+
+    if (!isDependencyProperlyDownloaded('uv')) {
+      throw new Error('UV must be installed before creating virtual environment')
+    }
+
+    const uvFiles = fs.readdirSync(uvPath)
+    const uvBinary = uvFiles.find((file) => file === 'uv' || file === 'uv.exe')
+    if (!uvBinary) {
+      throw new Error('UV binary not found')
+    }
+
+    const uvBinaryPath = path.join(uvPath, uvBinary)
+
+    const { spawn } = await import('child_process')
+
+    return new Promise((resolve, reject) => {
+      const uvProcess = spawn(uvBinaryPath, ['venv', venvPath], {
+        stdio: 'pipe'
+      })
+
+      let stderr = ''
+
+      uvProcess.stdout?.on('data', (data) => {
+        console.log(`[createVirtualEnvironment] UV stdout: ${data.toString()}`)
+      })
+
+      uvProcess.stderr?.on('data', (data) => {
+        stderr += data.toString()
+        console.log(`[createVirtualEnvironment] UV stderr: ${data.toString()}`)
+      })
+
+      uvProcess.on('close', (code) => {
+        if (code === 0) {
+          console.log(
+            `[createVirtualEnvironment] Virtual environment created successfully at: ${venvPath}`
+          )
+          resolve()
+        } else {
+          const error = new Error(`UV venv creation failed with code ${code}: ${stderr}`)
+          console.error(`[createVirtualEnvironment] Failed:`, error)
+          reject(error)
+        }
+      })
+
+      uvProcess.on('error', (error) => {
+        console.error(`[createVirtualEnvironment] UV process error:`, error)
+        reject(error)
+      })
+    })
+  } catch (error) {
+    console.error(`[createVirtualEnvironment] Failed to create virtual environment:`, error)
     throw error
   }
 }
