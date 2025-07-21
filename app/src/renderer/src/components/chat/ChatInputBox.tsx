@@ -122,14 +122,14 @@ export default function ChatInputBox({
         <motion.div
           layout
           className="flex items-center justify-end gap-2"
-          transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}
+          transition={{ type: 'spring' as const, stiffness: 300, damping: 30, origin: 'end' as const }}
         >
           <AnimatePresence mode="popLayout" initial={false}>
             {!isVoiceMode && (
               <motion.div
                 key="reasoning"
                 layout
-                transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}
+                transition={{ type: 'spring' as const, stiffness: 300, damping: 30, origin: 'end' as const }}
               >
                 <ReasoningButton
                   isSelected={isReasonSelected}
@@ -145,7 +145,7 @@ export default function ChatInputBox({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}
+                transition={{ type: 'spring' as const, stiffness: 300, damping: 30, origin: 'end' as const }}
                 className="flex items-center justify-end w-fit h-9"
               >
                 <EnableVoiceModeButton
@@ -162,7 +162,7 @@ export default function ChatInputBox({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}
+                transition={{ type: 'spring' as const, stiffness: 300, damping: 30, origin: 'end' as const }}
                 className="flex items-center justify-end w-9 h-9"
               >
                 <SendButton
