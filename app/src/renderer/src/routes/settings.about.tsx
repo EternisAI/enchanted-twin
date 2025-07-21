@@ -31,10 +31,10 @@ const itemVariants = {
     filter: 'blur(0px)',
     transition: {
       duration: 1,
-      ease: 'easeOut'
+      ease: 'easeOut' as const
     }
   }
-}
+} as const
 
 function AboutSettings() {
   const { signOut } = useAuth()
