@@ -25,6 +25,8 @@ export default function GoLogsViewer() {
   const isDev = process.env.NODE_ENV === 'development'
 
   useEffect(() => {
+    checkStatus()
+
     const interval = setInterval(() => {
       checkStatus()
     }, 5000)
