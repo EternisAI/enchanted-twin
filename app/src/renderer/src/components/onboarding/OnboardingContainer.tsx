@@ -65,10 +65,10 @@ export function OnboardingContainer() {
   }
 
   const transition = {
-    x: { type: 'tween', ease: [0.25, 0.46, 0.45, 0.94], duration: 0.4 },
+    x: { type: 'tween' as const, ease: [0.25, 0.46, 0.45, 0.94] as const, duration: 0.4 },
     opacity: { duration: 0.3 },
     scale: { duration: 0.4 }
-  }
+  } as const
 
   return (
     <>
