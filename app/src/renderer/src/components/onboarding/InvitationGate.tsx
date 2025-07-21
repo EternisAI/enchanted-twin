@@ -155,7 +155,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
             )}
 
             <Button
-              type="submit"
+              type="button"
               variant="ghost"
               className="w-fit px-8 text-white"
               onClick={signOut}
