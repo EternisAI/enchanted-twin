@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { motion } from 'framer-motion'
 
 import { OnboardingLayout } from './OnboardingLayout'
 import { Input } from '../ui/input'
@@ -17,7 +18,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   const [inviteCode, setInviteCode] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { user, authError, loading: authLoading, waitingForLogin, whitelist } = useAuth()
+  const { user, authError, loading: authLoading, waitingForLogin, whitelist, signOut } = useAuth()
 
   const {
     loading: whitelistLoading,
@@ -110,37 +111,59 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   }
 
   return (
-    <InvitationWrapper showTitlebar showAnimation>
-      <OnboardingLayout
-        title="Invitation Code"
-        subtitle="Enter your invite code to access Enchanted"
-        className="!text-white"
-      >
-        <form onSubmit={handleInviteCodeSubmit} className="flex flex-col items-center gap-4">
-          <Input
-            id="inviteCode"
-            type="text"
-            value={inviteCode}
-            onChange={(e) => setInviteCode(e.target.value)}
-            placeholder="Enter your invite code"
-            className="max-w-md h-12 mx-auto !bg-white/20 border-white/20 text-white border-none placeholder:text-white/70"
-            disabled={isSubmitting}
-          />
-          <Button
-            type="submit"
-            className="w-fit px-8 bg-white text-black hover:bg-white/60"
-            disabled={isSubmitting || !inviteCode.trim()}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Activating...
-              </>
-            ) : (
-              'Activate Account'
+    <InvitationWrapper showTitlebar>
+      <OnboardingLayout title="" subtitle="" className="!text-white">
+        <div className="flex flex-col gap-6 text-primary-foreground p-10 border border-white/48 rounded-lg bg-white/5 min-w-sm">
+          <div className="flex flex-col gap-1 text-center items-center">
+            <img src={FreysaLoading} alt="Enchanted" className="w-16 h-16" />
+            <h1 className="text-lg font-normal text-white">Invitation Code</h1>
+            <p className="text-white/80 text-sm">Enter your invite code to access Enchanted</p>
+          </div>
+
+          <form onSubmit={handleInviteCodeSubmit} className="flex flex-col items-center gap-4">
+            <Input
+              id="inviteCode"
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              placeholder="Enter your invite code"
+              className="max-w-md h-12 mx-auto !bg-white/20 border-white/20 text-white border-none placeholder:text-white/70"
+              disabled={isSubmitting}
+            />
+            {inviteCode.trim() && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Button
+                  type="submit"
+                  className="w-fit px-8 bg-white text-black hover:bg-white/60"
+                  disabled={isSubmitting || !inviteCode.trim()}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Activating...
+                    </>
+                  ) : (
+                    'Activate Account'
+                  )}
+                </Button>
+              </motion.div>
             )}
-          </Button>
-        </form>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-fit px-8 text-white"
+              onClick={signOut}
+            >
+              Or, sign in with different account
+            </Button>
+          </form>
+        </div>
       </OnboardingLayout>
     </InvitationWrapper>
   )
