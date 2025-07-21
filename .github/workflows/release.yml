@@ -100,7 +100,7 @@ jobs:
           TTS_URL: https://audio-processing.model.tinfoil.sh/v1/
           STT_MODEL: whisper-large-v3-turbo
           STT_URL: https://audio-processing.model.tinfoil.sh/v1/
-          PROXY_TEE_URL: https://enchanted-proxy-dev.up.railway.app/
+          PROXY_TEE_URL: https://enchanted-proxy-dev.up.railway.app
           VITE_FIREBASE_API_KEY: AIzaSyBMQG7Kw8p1Ymm1j_A-x2Jxc-x4BakXz3k
           VITE_FIREBASE_AUTH_DOMAIN: freysa-prod.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: freysa-prod
