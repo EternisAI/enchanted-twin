@@ -12,12 +12,14 @@ const UPDATE_PROFILE = gql`
   }
 `
 
+const BACKEND_EMPTY_NAME = '(missing name)'
+
 export function TwinNameInput() {
   const { data: profile, refetch: refetchProfile } = useQuery(GetProfileDocument)
   const [updateProfile] = useMutation(UPDATE_PROFILE)
   const nameEditRef = useRef<HTMLParagraphElement>(null)
 
-  const twinName = profile?.profile?.name || 'Your Twin'
+  const twinName = profile?.profile?.name || 'My Twin'
 
   const [isEditingName, setIsEditingName] = useState(false)
 
@@ -104,7 +106,7 @@ export function TwinNameInput() {
         )}
         style={{ minWidth: '200px' }}
       >
-        {twinName}
+        {twinName === BACKEND_EMPTY_NAME ? 'My Twin' : twinName}
       </motion.p>
 
       <AnimatePresence>

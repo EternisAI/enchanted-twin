@@ -217,7 +217,6 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
 
     const interval = setInterval(async () => {
       const status = await goServerActions.checkStatus()
-      console.log('[DependenciesGate] Go server status:', status)
       if (!status.isRunning) {
         console.log('[DependenciesGate] Go server is not running, initializing...')
         await goServerActions.initializeIfNeeded()
