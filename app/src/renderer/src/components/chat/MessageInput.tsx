@@ -16,6 +16,7 @@ type MessageInputProps = {
   voiceMode?: boolean
   placeholder?: string
   onVoiceModeChange?: () => void
+  isStreamingResponse?: boolean
 }
 
 export default function MessageInput({
@@ -26,6 +27,7 @@ export default function MessageInput({
   onReasonToggle,
   voiceMode = false,
   placeholder = 'Ask a question privately…',
+  isStreamingResponse,
   onVoiceModeChange
 }: MessageInputProps) {
   const [text, setText] = useState('')
@@ -105,6 +107,7 @@ export default function MessageInput({
             <SendButton
               onSend={handleSend}
               isWaitingTwinResponse={isWaitingTwinResponse}
+              isStreamingResponse={isStreamingResponse}
               onStop={onStop}
               text={text}
               onVoiceModeChange={onVoiceModeChange}
@@ -121,6 +124,7 @@ export function SendButton({
   onSend,
   onStop,
   isWaitingTwinResponse,
+  isStreamingResponse = false,
   text,
   className,
   onVoiceModeChange,
@@ -129,6 +133,7 @@ export function SendButton({
   isWaitingTwinResponse: boolean
   onSend: () => void
   onStop?: () => void
+  isStreamingResponse?: boolean
   text: string
   className?: string
   onVoiceModeChange?: () => void
@@ -146,19 +151,22 @@ export function SendButton({
     onStop?.()
   }
 
+  const isWaitingForAgent = isWaitingTwinResponse || isStreamingResponse
+
   return (
     <>
-      {!isWaitingTwinResponse && !text.trim() ? (
+      {!isWaitingForAgent && !text.trim() ? (
         <EnableVoiceModeButton onClick={() => onVoiceModeChange?.()} isVoiceReady={isVoiceReady} />
       ) : (
         <Button
           size="icon"
-          variant={isWaitingTwinResponse ? 'destructive' : 'default'}
+          variant={isWaitingForAgent ? 'destructive' : 'default'}
           className={cn('rounded-full transition-all duration-200 ease-in-out relative', className)}
-          onClick={isWaitingTwinResponse ? handleStop : onSend}
+          onClick={isWaitingForAgent ? handleStop : onSend}
+          disabled={isStreamingResponse}
         >
           <AnimatePresence mode="wait">
-            {isWaitingTwinResponse ? (
+            {isWaitingForAgent ? (
               <motion.div
                 key="stop"
                 initial={{ scale: 0, opacity: 0 }}
