@@ -24,6 +24,8 @@ export default function VoiceOnboarding() {
   const previousIsAgentSpeaking = usePrevious(isAgentSpeaking)
   const [livekitReady, setLivekitReady] = useState(false)
 
+  console.log('livekitReady', livekitReady, isSessionReady)
+
   useEffect(() => {
     const waitForLiveKit = async () => {
       let attempts = 0

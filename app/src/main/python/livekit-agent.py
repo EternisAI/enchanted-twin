@@ -500,7 +500,7 @@ async def entrypoint(ctx: JobContext):
                 max_keepalive_connections=50,
                 keepalive_expiry=120,
             ),
-            headers={"X-BASE-URL": "https://audio-processing.model.tinfoil.sh/v1"},
+            headers={"X-BASE-URL": "https://inference.tinfoil.sh/v1"},
         ),
     )
     vad = silero.VAD.load()

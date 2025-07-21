@@ -302,7 +302,7 @@ func main() {
 		}
 	}()
 
-	telegramTool, err := telegram.NewTelegramSetupTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
+	telegramTool, err := telegram.NewTelegramSetupTool(logger, store, envs.TelegramChatServer, envs.TelegramBotName)
 	if err != nil {
 		panic(errors.Wrap(err, "Failed to create telegram setup tool"))
 	}
@@ -450,7 +450,6 @@ func main() {
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
-		Token:            envs.TelegramToken,
 		Client:           &http.Client{},
 		Store:            store,
 		AiService:        aiCompletionsService,

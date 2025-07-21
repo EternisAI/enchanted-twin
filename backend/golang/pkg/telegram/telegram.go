@@ -42,8 +42,6 @@ const (
 	TelegramChatUUIDKey = "telegram_chat_uuid"
 	// TelegramLastUpdateIDKey is used to track the last update ID for Telegram messages.
 	TelegramLastUpdateIDKey = "telegram_last_update_id"
-	// TelegramBotName is the telegram bot name to be used for sending messages.
-	TelegramBotName = "MyTwinSlimBot"
 	// TelegramAPIBase is the base url for the telegram api.
 	TelegramAPIBase = "https://api.telegram.org"
 )
@@ -92,7 +90,6 @@ type GetUpdatesResponse struct {
 
 type TelegramService struct {
 	Logger           *log.Logger
-	Token            string
 	Client           *http.Client
 	Store            *db.Store
 	AiService        *ai.Service
@@ -107,7 +104,6 @@ type TelegramService struct {
 
 type TelegramServiceInput struct {
 	Logger           *log.Logger
-	Token            string
 	Client           *http.Client
 	Store            *db.Store
 	AiService        *ai.Service
@@ -122,7 +118,6 @@ type TelegramServiceInput struct {
 func NewTelegramService(input TelegramServiceInput) *TelegramService {
 	return &TelegramService{
 		Logger:           input.Logger,
-		Token:            input.Token,
 		Store:            input.Store,
 		Client:           &http.Client{Timeout: time.Second * 30},
 		AiService:        input.AiService,
@@ -136,150 +131,12 @@ func NewTelegramService(input TelegramServiceInput) *TelegramService {
 	}
 }
 
-func (s *TelegramService) Start(ctx context.Context) error {
-	if s.Token == "" {
-		return fmt.Errorf("telegram token not set")
-	}
-
-	lastUpdateID := 0
-
-	s.Logger.Info("Starting telegram service")
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			url := fmt.Sprintf(
-				"https://api.telegram.org/bot%s/getUpdates?offset=%d&timeout=30",
-				s.Token,
-				lastUpdateID+1,
-			)
-
-			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-			if err != nil {
-				s.Logger.Error("Failed to create request", "error", err)
-				time.Sleep(time.Second * 5)
-				continue
-			}
-
-			resp, err := s.Client.Do(req)
-			if err != nil {
-				s.Logger.Error("Failed to send request", "error", err)
-				time.Sleep(time.Second * 5)
-				continue
-			}
-
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				s.Logger.Error("failed to read response body", "error", err)
-				time.Sleep(time.Second * 5)
-				continue
-			}
-			err = resp.Body.Close()
-			if err != nil {
-				s.Logger.Error("failed to read response body", "error", err)
-				time.Sleep(time.Second * 5)
-				continue
-			}
-
-			var result struct {
-				OK          bool     `json:"ok"`
-				Result      []Update `json:"result"`
-				Description string   `json:"description"`
-				ErrorCode   int      `json:"error_code"`
-			}
-
-			s.Logger.Info("Received updates", "body", string(body))
-			if err := json.Unmarshal(body, &result); err != nil {
-				s.Logger.Error("Failed to decode response", "error", err)
-				time.Sleep(time.Second * 5)
-				continue
-			}
-
-			s.Logger.Error("Received updates", "result", result)
-			if !result.OK {
-				s.Logger.Error("Telegram API returned error",
-					"error_code", result.ErrorCode,
-					"description", result.Description,
-					"body", string(body),
-				)
-				time.Sleep(time.Second * 5)
-				continue
-			}
-
-			for _, update := range result.Result {
-				lastUpdateID = update.UpdateID
-				s.Logger.Info("Received message",
-					"message_id", update.Message.MessageID,
-					"from", update.Message.From.Username,
-					"chat_id", update.Message.Chat.ID,
-					"text", update.Message.Text,
-				)
-
-				if update.Message.Text != "" {
-					var uuid string
-
-					s.Logger.Info("Chat ID", "chat_id", update.Message.Chat)
-
-					chatID := update.Message.Chat.ID
-					if _, err := fmt.Sscanf(update.Message.Text, "/start %s", &uuid); err == nil {
-						s.Logger.Info("Creating chat", "chat_id", chatID, "uuid", uuid)
-						_, err := s.CreateChat(ctx, chatID, uuid)
-						if err != nil {
-							s.Logger.Error("Failed to create chat", "error", err)
-							continue
-						}
-						err = s.SendMessage(ctx, chatID, "Send any message to start the conversation")
-						if err != nil {
-							s.Logger.Error("Failed to send message", "error", err)
-							continue
-						}
-					}
-
-					if s.NatsClient != nil {
-						subject := fmt.Sprintf("telegram.chat.%d", chatID)
-						messageBytes, err := json.Marshal(update.Message)
-						if err != nil {
-							s.Logger.Error("Failed to marshal message", "error", err)
-							continue
-						}
-
-						err = s.NatsClient.Publish(subject, messageBytes)
-						if err != nil {
-							s.Logger.Error("Failed to publish message to NATS", "error", err)
-							continue
-						}
-						s.Logger.Info("Published message to NATS", "subject", subject)
-					}
-				}
-			}
-
-			if len(result.Result) == 0 {
-				time.Sleep(time.Second * 5)
-			}
-		}
-	}
-}
-
 func (s *TelegramService) CreateChat(
 	ctx context.Context,
 	chatID int,
 	chatUUID string,
 ) (int, error) {
 	err := s.Store.SetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID), strconv.Itoa(chatID))
-	if err != nil {
-		return 0, err
-	}
-	return chatID, nil
-}
-
-func (s *TelegramService) GetChatID(ctx context.Context) (int, error) {
-	chatUUID, err := s.Store.GetValue(ctx, TelegramChatUUIDKey)
-	if err != nil {
-		return 0, err
-	}
-	chatID, err := s.GetChatIDFromChatUUID(ctx, chatUUID)
 	if err != nil {
 		return 0, err
 	}
@@ -343,74 +200,6 @@ func (s *TelegramService) Execute(
 	return response, nil
 }
 
-func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, error) {
-	lastUpdateID, err := s.Store.GetValue(ctx, TelegramLastUpdateIDKey)
-	if err != nil {
-		lastUpdateID = "0"
-	}
-
-	lastUpdateIDInt, err := strconv.Atoi(lastUpdateID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert last update ID to int: %w", err)
-	}
-
-	url := fmt.Sprintf(
-		"%s/bot%s/getUpdates?offset=%d&limit=10",
-		TelegramAPIBase,
-		s.Token,
-		lastUpdateIDInt,
-	)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := s.Client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			s.Logger.Warn("Failed to close response body", "error", err)
-		}
-	}()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var result struct {
-		OK     bool     `json:"ok"`
-		Result []Update `json:"result"`
-	}
-
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if !result.OK {
-		return nil, fmt.Errorf("telegram API returned error: %s", string(body))
-	}
-
-	messages := make([]Message, 0, len(result.Result))
-	for _, update := range result.Result {
-		messages = append(messages, update.Message)
-		if update.UpdateID > lastUpdateIDInt {
-			lastUpdateIDInt = update.UpdateID
-		}
-	}
-
-	err = s.Store.SetValue(ctx, TelegramLastUpdateIDKey, strconv.Itoa(lastUpdateIDInt))
-	if err != nil {
-		s.Logger.Error("Failed to store last update ID", "error", err)
-	}
-
-	return messages, nil
-}
-
 func (s *TelegramService) TransformToOpenAIMessages(
 	messages []Message,
 ) []openai.ChatCompletionMessageParamUnion {
@@ -429,57 +218,6 @@ func (s *TelegramService) TransformToOpenAIMessages(
 	}
 
 	return openAIMessages
-}
-
-func (s *TelegramService) SendMessage(ctx context.Context, chatID int, message string) error {
-	url := fmt.Sprintf("%s/bot%s/sendMessage", TelegramAPIBase, s.Token)
-	body := map[string]any{
-		"chat_id":    chatID,
-		"text":       message,
-		"parse_mode": "HTML",
-	}
-	jsonBody, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("marshal body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	s.Logger.Info("Sending message to Telegram", "url", url, "body", body)
-
-	resp, err := s.Client.Do(req)
-	if err != nil {
-		return fmt.Errorf("send request: %w", err)
-	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			s.Logger.Warn("Failed to close response body", "error", err)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("telegram API non-OK status: %d", resp.StatusCode)
-	}
-
-	var result struct {
-		OK          bool   `json:"ok"`
-		Description string `json:"description"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("decode response: %w", err)
-	}
-
-	if !result.OK {
-		return fmt.Errorf("telegram API error: %s", result.Description)
-	}
-
-	return nil
 }
 
 func (s *TelegramService) transformWebSocketDataToMessage(ctx context.Context, data struct {
@@ -548,18 +286,25 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		return fmt.Errorf("logger is nil")
 	}
 
+	s.Logger.Info("Starting Telegram subscription", "chatUUID", chatUUID)
+
 	wsURL := strings.Replace(s.ChatServerUrl, "http", "ws", 1)
+	s.Logger.Debug("Connecting to WebSocket", "url", wsURL)
 
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
+		s.Logger.Error("Failed to connect to WebSocket", "url", wsURL, "error", err)
 		return fmt.Errorf("failed to connect to WebSocket (%s): %w", wsURL, err)
 	}
 	defer func() {
+		s.Logger.Debug("Closing WebSocket connection")
 		err := conn.Close()
 		if err != nil {
 			s.Logger.Warn("Failed to close WebSocket connection", "error", err)
 		}
 	}()
+
+	s.Logger.Info("WebSocket connection established successfully")
 
 	initMsg := map[string]interface{}{
 		"type": "connection_init",
@@ -568,23 +313,32 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		},
 	}
 
+	s.Logger.Debug("Sending connection initialization message")
 	if err := conn.WriteJSON(initMsg); err != nil {
+		s.Logger.Error("Failed to send connection initialization", "error", err)
 		return fmt.Errorf("failed to send connection initialization: %w", err)
 	}
 
 	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		s.Logger.Warn("Failed to set read deadline", "error", err)
 	}
+
 	var ackResponse struct {
 		Type string `json:"type"`
 	}
+	s.Logger.Debug("Waiting for connection acknowledgment")
 	if err := conn.ReadJSON(&ackResponse); err != nil {
+		s.Logger.Error("Failed to read connection acknowledgment", "error", err)
 		return fmt.Errorf("failed to read connection acknowledgment: %w", err)
 	}
 
+	s.Logger.Debug("Received connection response", "type", ackResponse.Type)
 	if ackResponse.Type != "connection_ack" {
+		s.Logger.Error("Unexpected connection response type", "expected", "connection_ack", "received", ackResponse.Type)
 		return fmt.Errorf("unexpected response type: %s", ackResponse.Type)
 	}
+
+	s.Logger.Info("Connection acknowledged successfully")
 
 	subscription := map[string]interface{}{
 		"type": "start",
@@ -607,9 +361,13 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		},
 	}
 
+	s.Logger.Debug("Sending subscription request", "chatUUID", chatUUID)
 	if err := conn.WriteJSON(subscription); err != nil {
+		s.Logger.Error("Failed to send subscription request", "error", err)
 		return fmt.Errorf("failed to send subscription request: %w", err)
 	}
+
+	s.Logger.Info("Subscription request sent successfully")
 
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
 		s.Logger.Warn("Failed to reset read deadline", "error", err)
@@ -620,9 +378,11 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 
 	readerExitChan := make(chan error, 1)
 
+	s.Logger.Info("Starting message reader goroutine")
 	go func() {
 		var exitErr error
 		defer func() {
+			s.Logger.Debug("Message reader goroutine exiting", "error", exitErr)
 			readerExitChan <- exitErr
 			close(readerExitChan)
 		}()
@@ -634,14 +394,15 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		lastSuccessfulConnection := time.Now()
 
 		connectionAcknowledged := true
+		s.Logger.Debug("Message reader loop starting", "connectionAcknowledged", connectionAcknowledged)
 
 		for {
 			select {
 			case <-ctx.Done():
+				s.Logger.Info("Context canceled, stopping message reader")
 				exitErr = ctx.Err()
 				return
 			default:
-
 				if err := conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
 					s.Logger.Warn("Failed to set read deadline in loop", "error", err)
 				}
@@ -665,7 +426,10 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if err := conn.ReadJSON(&response); err != nil {
+					s.Logger.Error("Failed to read WebSocket message", "error", err)
+
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						s.Logger.Debug("Read timeout occurred, continuing")
 						if err := conn.SetReadDeadline(time.Time{}); err != nil {
 							s.Logger.Warn(
 								"Failed to reset read deadline after timeout",
@@ -676,15 +440,18 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 						continue
 					}
 
+					s.Logger.Warn("Closing connection due to read error")
 					if err := conn.Close(); err != nil {
 						s.Logger.Warn("Failed to close connection after read error", "error", err)
 					}
 
 					if time.Since(lastSuccessfulConnection) > time.Minute {
+						s.Logger.Debug("Resetting reconnect attempts due to time elapsed")
 						reconnectAttempts = 0
 					}
 
 					if reconnectAttempts >= maxReconnectAttempts {
+						s.Logger.Error("Maximum reconnection attempts reached", "attempts", reconnectAttempts)
 						exitErr = fmt.Errorf(
 							"max reconnection attempts reached after error: %w",
 							err,
@@ -696,11 +463,12 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					for {
 						select {
 						case <-ctx.Done():
+							s.Logger.Info("Context canceled during reconnection")
 							exitErr = ctx.Err()
 							return
 						default:
-
 							actualDelay := time.Duration(math.Min(float64(reconnectDelay), float64(maxReconnectDelay)))
+							s.Logger.Info("Attempting to reconnect", "attempt", reconnectAttempts+1, "delay", actualDelay)
 							time.Sleep(actualDelay)
 							reconnectDelay *= 2
 
@@ -716,11 +484,13 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 								continue
 							}
 
+							s.Logger.Info("Reconnection successful", "attempt", reconnectAttempts+1)
 							reconnectDelay = time.Second
 							reconnectAttempts = 0
 							lastSuccessfulConnection = time.Now()
 							connectionAcknowledged = false
 
+							s.Logger.Debug("Sending connection initialization on reconnect")
 							if err := newConn.WriteJSON(initMsg); err != nil {
 								s.Logger.Error("Failed to send connection initialization on reconnect", "error", err)
 								if closeErr := newConn.Close(); closeErr != nil {
@@ -732,6 +502,8 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							if err := newConn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
 								s.Logger.Warn("Failed to set read deadline on reconnect ack", "error", err)
 							}
+
+							s.Logger.Debug("Reading connection acknowledgment on reconnect")
 							if err := newConn.ReadJSON(&ackResponse); err != nil {
 								s.Logger.Error("Failed to read connection acknowledgment on reconnect", "error", err)
 								if closeErr := newConn.Close(); closeErr != nil {
@@ -743,6 +515,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 								s.Logger.Warn("Failed to reset read deadline after reconnect ack", "error", err)
 							}
 
+							s.Logger.Debug("Received acknowledgment on reconnect", "type", ackResponse.Type)
 							if ackResponse.Type != "connection_ack" {
 								s.Logger.Error("Unexpected response type on reconnect", "type", ackResponse.Type)
 								if closeErr := newConn.Close(); closeErr != nil {
@@ -751,7 +524,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 								continue reconnectLoop
 							}
 							connectionAcknowledged = true
+							s.Logger.Info("Connection re-acknowledged successfully")
 
+							s.Logger.Debug("Resending subscription on reconnect")
 							if err := newConn.WriteJSON(subscription); err != nil {
 								s.Logger.Error("Failed to resend subscription", "error", err)
 								if closeErr := newConn.Close(); closeErr != nil {
@@ -764,6 +539,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 								s.Logger.Warn("Failed to reset write deadline on reconnect", "error", err)
 							}
 
+							s.Logger.Info("Subscription re-established successfully")
 							conn = newConn
 							break reconnectLoop
 						}
@@ -771,6 +547,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 
 					continue
 				}
+
 				if err := conn.SetReadDeadline(time.Time{}); err != nil {
 					s.Logger.Warn(
 						"Failed to reset read deadline after successful read",
@@ -780,34 +557,44 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if response.Type == "data" {
+					s.Logger.Debug("Processing data message")
 					if response.Payload.Data.TelegramMessageAdded.Text == nil {
+						s.Logger.Warn("Received message with nil text, stopping subscription")
 						exitErr = ErrSubscriptionNilTextMessage
 						return
 					}
 
+					messageText := *response.Payload.Data.TelegramMessageAdded.Text
 					s.Logger.Info(
-						"Received message",
-						"message",
-						response.Payload.Data.TelegramMessageAdded.Text,
+						"Received new message from subscription",
+						"text", messageText,
+						"role", response.Payload.Data.TelegramMessageAdded.Role,
+						"id", response.Payload.Data.TelegramMessageAdded.ID,
 					)
+
 					newMessage, err := s.transformWebSocketDataToMessage(
 						ctx,
 						response.Payload.Data.TelegramMessageAdded,
 						chatUUID,
 					)
 					if err != nil {
+						s.Logger.Error("Failed to transform WebSocket data to message", "error", err)
 						continue
 					}
 
 					if newMessage == nil {
+						s.Logger.Warn("Transformed message is nil, skipping")
 						continue
 					}
 
+					s.Logger.Debug("Adding message to history", "messageCount", len(s.LastMessages)+1)
 					s.LastMessages = append(s.LastMessages, *newMessage)
 
 					telegramEnabled, _ := GetTelegramEnabled(ctx, configtable.New(s.Store.DB().DB))
+					s.Logger.Debug("Checking telegram enabled status", "enabled", telegramEnabled)
 
 					if telegramEnabled != "true" {
+						s.Logger.Info("Enabling Telegram for the first time")
 						configQueries := configtable.New(s.Store.DB().DB)
 						err := configQueries.SetConfigValue(ctx, configtable.SetConfigValueParams{
 							Key:   TelegramEnabled,
@@ -815,19 +602,25 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 						})
 						if err != nil {
 							s.Logger.Error("Error setting telegram enabled", "error", err)
+						} else {
+							s.Logger.Info("Telegram enabled successfully")
 						}
 					}
 
+					s.Logger.Debug("Executing agent with message history", "messageCount", len(s.LastMessages))
 					agentResponse, err := s.Execute(
 						ctx,
 						s.TransformToOpenAIMessages(s.LastMessages),
 						newMessage.Text,
 					)
 					if err != nil {
+						s.Logger.Error("Agent execution failed", "error", err)
 						continue
 					}
 
+					s.Logger.Debug("Agent execution completed", "responseLength", len(agentResponse.Content))
 					if agentResponse.Content != "" {
+						s.Logger.Info("Sending agent response", "response", agentResponse.Content)
 						_, err := PostMessage(
 							ctx,
 							chatUUID,
@@ -849,15 +642,21 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							s.LastMessages = append(s.LastMessages, agentMessage)
 
 							if len(s.LastMessages) > 10 {
+								s.Logger.Debug("Trimming message history", "oldCount", len(s.LastMessages), "newCount", 10)
 								s.LastMessages = s.LastMessages[len(s.LastMessages)-10:]
 							}
 						}
+					} else {
+						s.Logger.Debug("Agent response is empty, not sending")
 					}
 				} else if response.Type == "connection_ack" {
+					s.Logger.Debug("Received connection acknowledgment")
 					connectionAcknowledged = true
 				} else if response.Type == "ka" {
 				} else if response.Type == "error" {
+					s.Logger.Error("Received error message", "errors", response.Payload.Errors)
 					if !connectionAcknowledged {
+						s.Logger.Error("Received error before connection acknowledgment")
 						exitErr = fmt.Errorf("received error before connection ack: %v", response.Payload.Errors)
 						if err := conn.Close(); err != nil {
 							s.Logger.Warn("Failed to close connection after error before ack", "error", err)
@@ -871,12 +670,13 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		}
 	}()
 
+	s.Logger.Info("Waiting for subscription to complete or context cancellation")
 	select {
 	case <-ctx.Done():
-
+		s.Logger.Info("Context canceled, stopping subscription")
 		return ctx.Err()
 	case err := <-readerExitChan:
-
+		s.Logger.Info("Subscription ended", "error", err)
 		return err
 	}
 }
@@ -891,6 +691,9 @@ func PostMessage(
 	message string,
 	chatServerUrl string,
 ) (interface{}, error) {
+	// Note: We can't use the logger here as it's not passed to this function
+	// Consider refactoring to accept a logger parameter in the future
+
 	client := &http.Client{}
 	mutationPayload := map[string]interface{}{
 		"query": `
@@ -904,6 +707,7 @@ func PostMessage(
 		},
 		"operationName": "SendTelegramMessage",
 	}
+
 	mutationBody, err := json.Marshal(mutationPayload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal GraphQL mutation payload: %v", err)
@@ -952,6 +756,11 @@ func PostMessage(
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode GraphQL mutation response: %v", err)
 	}
+
+	if len(gqlResponse.Errors) > 0 {
+		return nil, fmt.Errorf("GraphQL mutation returned errors: %v", gqlResponse.Errors)
+	}
+
 	return gqlResponse, nil
 }
 
@@ -964,13 +773,19 @@ func GetTelegramEnabled(ctx context.Context, store *configtable.Queries) (string
 }
 
 func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *TelegramService, logger *log.Logger, toolRegistry *tools.ToolMapRegistry, store *configtable.Queries, envs *config.Config) {
+	logger.Info("Starting Telegram tool monitor and registration")
+
 	keys, err := store.GetAllConfigKeys(context.Background())
 	if err != nil {
 		logger.Error("Error getting all config keys", "error", err)
 		return
 	}
 
+	logger.Debug("Retrieved config keys", "count", len(keys))
+
 	if !slices.Contains(keys, "telegram_chat_id") {
+		logger.Info("Setting up initial Telegram configuration")
+
 		err = store.SetConfigValue(context.Background(), configtable.SetConfigValueParams{
 			Key: "telegram_chat_id",
 		})
@@ -978,58 +793,93 @@ func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *Telegr
 			logger.Error("Error setting telegram chat id", "error", err)
 			return
 		}
+
+		chatUUID := uuid.New().String()
+		logger.Info("Generated new chat UUID", "chatUUID", chatUUID)
+
 		err = store.SetConfigValue(context.Background(), configtable.SetConfigValueParams{
 			Key:   TelegramChatUUIDKey,
-			Value: sql.NullString{String: uuid.New().String(), Valid: true},
+			Value: sql.NullString{String: chatUUID, Valid: true},
 		})
 		if err != nil {
 			logger.Error("Error setting telegram chat uuid", "error", err)
 			return
 		}
+
+		logger.Info("Initial Telegram configuration completed")
+	} else {
+		logger.Debug("Telegram configuration already exists")
 	}
 
+	monitorCount := 0
 	for {
+		monitorCount++
+
 		telegramEnabled, errTelegramEnabled := GetTelegramEnabled(context.Background(), store)
 		_, exists := toolRegistry.Get("telegram_send_message")
 
 		if errTelegramEnabled == nil && telegramEnabled == "true" && !exists {
-			telegramTool, err := NewTelegramSendMessageTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
+			logger.Info("Telegram is enabled but tool not registered, creating tool")
+
+			telegramTool, err := NewTelegramSendMessageTool(logger, store, envs.TelegramChatServer, envs.TelegramBotName)
 			if err == nil {
+				logger.Debug("Telegram tool created successfully, registering")
 				err = toolRegistry.Register(telegramTool)
 				if err == nil {
+					logger.Info("Telegram send message tool registered successfully")
 					return
+				} else {
+					logger.Error("Failed to register telegram tool", "error", err)
 				}
 			} else {
 				logger.Error("Error creating telegram send message tool", "error", err)
 			}
+		} else if exists {
+			logger.Debug("Telegram tool already exists, monitoring complete")
+			return
 		}
+
 		time.Sleep(2 * time.Second)
 	}
 }
 
 func SubscribePoller(telegramService *TelegramService, logger *log.Logger) {
 	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
+	defer func() {
+		ticker.Stop()
+	}()
 
 	appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer appCancel()
 
+	subscriptionCount := 0
+
 	for {
 		select {
 		case <-ticker.C:
-
 			chatUUID, err := telegramService.GetChatUUID(context.Background())
 			if err != nil {
+				logger.Debug("No chat UUID found, skipping subscription attempt", "error", err)
 				continue
 			}
+
+			logger.Info("Starting subscription attempt", "chatUUID", chatUUID, "attempt", subscriptionCount+1)
+			subscriptionCount++
+
 			err = telegramService.Subscribe(appCtx, chatUUID)
 
 			if err == nil {
+				logger.Info("Subscription ended normally")
 			} else if errors.Is(err, ErrSubscriptionNilTextMessage) {
+				logger.Info("Subscription stopped due to nil text message, will retry")
 			} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				if appCtx.Err() != nil {
+					logger.Info("Subscription stopped due to application shutdown")
 					return
 				}
+				logger.Info("Subscription stopped due to context cancellation, will retry", "error", err)
+			} else {
+				logger.Error("Subscription failed with unexpected error, will retry", "error", err)
 			}
 
 		case <-appCtx.Done():
