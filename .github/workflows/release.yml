@@ -97,9 +97,9 @@ jobs:
           POSTHOG_API_KEY: phc_j0wkdCa4BCngP92yQBK3PbsuH5LWv3tliaasJEhw6v4
           INVITE_SERVER_URL: http://52.90.4.74:8080
           TTS_MODEL: kokoro
-          TTS_URL: https://audio-processing.model.tinfoil.sh/v1/
+          TTS_URL: https://inference.tinfoil.sh/v1/
           STT_MODEL: whisper-large-v3-turbo
-          STT_URL: https://audio-processing.model.tinfoil.sh/v1/
+          STT_URL: https://inference.tinfoil.sh/v1/
           PROXY_TEE_URL: https://enchanted-proxy-dev.up.railway.app
           VITE_FIREBASE_API_KEY: AIzaSyBMQG7Kw8p1Ymm1j_A-x2Jxc-x4BakXz3k
           VITE_FIREBASE_AUTH_DOMAIN: freysa-prod.firebaseapp.com
