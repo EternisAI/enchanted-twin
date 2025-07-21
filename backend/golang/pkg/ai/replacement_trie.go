@@ -37,7 +37,7 @@ func (t *ReplacementTrie) Insert(pattern, replacement string) {
 	}
 
 	current := t.root
-	
+
 	// Convert pattern to lowercase for case-insensitive matching
 	lowerPattern := strings.ToLower(pattern)
 
@@ -124,13 +124,13 @@ func (t *ReplacementTrie) applyCasePreservation(source, target string) string {
 	if len(targetRunes) == 0 {
 		return target
 	}
-	
+
 	result := make([]rune, len(targetRunes))
 	result[0] = []rune(strings.ToUpper(string(targetRunes[0])))[0]
 	for i := 1; i < len(targetRunes); i++ {
 		result[i] = []rune(strings.ToLower(string(targetRunes[i])))[0]
 	}
-	
+
 	return string(result)
 }
 
