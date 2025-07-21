@@ -100,6 +100,7 @@ export default function MessageInput({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            className="h-9"
           >
             <SendButton
               onSend={handleSend}
@@ -146,43 +147,43 @@ export function SendButton({
   }
 
   return (
-    <Button
-      size="icon"
-      variant={isWaitingTwinResponse ? 'destructive' : 'default'}
-      className={cn('rounded-full transition-all duration-200 ease-in-out relative', className)}
-      onClick={isWaitingTwinResponse ? handleStop : onSend}
-      disabled={!isWaitingTwinResponse && !text.trim()}
-    >
-      <AnimatePresence mode="wait">
-        {isWaitingTwinResponse ? (
-          <motion.div
-            key="stop"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <X className="w-4 h-4" />
-          </motion.div>
-        ) : text.trim() ? (
-          <motion.div
-            key="send"
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -20, opacity: 0 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <ArrowUp className="w-4 h-4" />
-          </motion.div>
-        ) : (
-          <EnableVoiceModeButton
-            onClick={() => onVoiceModeChange?.()}
-            isVoiceReady={isVoiceReady}
-          />
-        )}
-      </AnimatePresence>
-    </Button>
+    <>
+      {!isWaitingTwinResponse && !text.trim() ? (
+        <EnableVoiceModeButton onClick={() => onVoiceModeChange?.()} isVoiceReady={isVoiceReady} />
+      ) : (
+        <Button
+          size="icon"
+          variant={isWaitingTwinResponse ? 'destructive' : 'default'}
+          className={cn('rounded-full transition-all duration-200 ease-in-out relative', className)}
+          onClick={isWaitingTwinResponse ? handleStop : onSend}
+        >
+          <AnimatePresence mode="wait">
+            {isWaitingTwinResponse ? (
+              <motion.div
+                key="stop"
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="absolute inset-0 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="send"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -20, opacity: 0 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className="absolute inset-0 flex items-center justify-center"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Button>
+      )}
+    </>
   )
 }
