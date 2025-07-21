@@ -81,6 +81,7 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 
 	scheduleHandle, err := e.TemporalClient.ScheduleClient().Create(ctx, opts)
 	if err != nil {
+		e.Logger.Error("failed to schedule task", "error", err, "task", task, "name", name, "chat_id", chatID, "delay", delay, "cron", cron)
 		return nil, err
 	}
 
