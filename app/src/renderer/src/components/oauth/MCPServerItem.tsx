@@ -174,8 +174,12 @@ export default function MCPServerItem({
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-0">
             <span className="font-semibold text-lg leading-none">{server.name}</span>
-            <p className="text-xs text-muted-foreground">{PROVIDER_DESCRIPTION_MAP[server.type]}</p>
-            {connectedServers.length > 0 && (
+            {PROVIDER_DESCRIPTION_MAP[server.type] && (
+              <p className="text-xs text-muted-foreground">
+                {PROVIDER_DESCRIPTION_MAP[server.type]}
+              </p>
+            )}
+            {/* {connectedServers.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {connectedServers.map((connectedServer) => {
                   // Extract connection identifier from envs
@@ -212,7 +216,7 @@ export default function MCPServerItem({
                   )
                 })}
               </div>
-            )}
+            )} */}
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
