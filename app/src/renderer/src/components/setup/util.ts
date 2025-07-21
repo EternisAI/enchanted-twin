@@ -32,6 +32,10 @@ export const DEPENDENCY_CONFIG: Record<
   LLAMACCP: {
     name: 'LLM engine',
     description: ''
+  },
+  uv: {
+    name: 'Python dependency manager',
+    description: ''
   }
 }
 
