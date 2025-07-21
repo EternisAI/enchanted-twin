@@ -218,6 +218,24 @@ describe('Anonymization Helper Functions', () => {
       expect(result).toBe('Hello John')
     })
 
+    it('should respect word boundaries for digits', () => {
+      const dict = { '2': '1' }
+      const result = anonymizeTextString('The year 2025 started', dict)
+      expect(result).toBe('The year 2025 started') // Should NOT replace digits within year
+    })
+
+    it('should only replace whole words', () => {
+      const dict = { 'John': 'PERSON_001' }
+      const result = anonymizeTextString('Johnson visited John', dict)
+      expect(result).toBe('Johnson visited Person_001') // Should only replace standalone "John"
+    })
+
+    it('should respect word boundaries with punctuation', () => {
+      const dict = { 'test': 'WORD' }
+      const result = anonymizeTextString('testing test, contest test.', dict)
+      expect(result).toBe('testing word, contest word.') // Only replace standalone "test", preserve lowercase case
+    })
+
     it('should handle non-string replacements', () => {
       const dict = { John: null as unknown as string, Jane: 'PERSON_001' }
       const result = anonymizeTextString('John and Jane', dict)
