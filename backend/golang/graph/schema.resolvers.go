@@ -1099,8 +1099,8 @@ func (r *subscriptionResolver) ProcessMessageHistoryStream(ctx context.Context, 
 
 	r.Logger.Info("Processing message history with streaming", "data", string(historyJson))
 
-	// Use the streaming service method
-	streamChan, err := r.TwinChatService.ProcessMessageHistoryStream(ctx, chatID, messages, isOnboarding)
+	// Use the streaming service method with context isolation to prevent client disconnections from canceling message processing
+	streamChan, err := r.TwinChatService.ProcessMessageHistoryStream(context.WithoutCancel(ctx), chatID, messages, isOnboarding)
 	if err != nil {
 		return nil, err
 	}
