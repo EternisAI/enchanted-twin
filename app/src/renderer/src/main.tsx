@@ -9,7 +9,7 @@ import { createHashHistory } from '@tanstack/react-router'
 import { ApolloClientProvider } from './graphql/provider'
 import { SyncedThemeProvider } from './components/SyncedThemeProvider'
 import { TTSProvider } from './lib/ttsProvider'
-import { GoLogsProvider } from './contexts/GoLogsContext'
+import { GoServerProvider } from './contexts/GoServerContext'
 import { AuthProvider } from './contexts/AuthContext'
 import { routeTree } from '@renderer/routeTree.gen'
 import InvitationGate from './components/onboarding/InvitationGate'
@@ -34,7 +34,7 @@ function App() {
       <Toaster position="bottom-right" />
       <TTSProvider>
         <ApolloClientProvider>
-          <GoLogsProvider>
+          <GoServerProvider>
             {/* <AppInitialize> */}
             <div className="flex flex-col h-screen w-screen bg-background">
               <DependenciesGate>
@@ -46,7 +46,7 @@ function App() {
                 </AuthProvider>
               </DependenciesGate>
             </div>
-          </GoLogsProvider>
+          </GoServerProvider>
         </ApolloClientProvider>
       </TTSProvider>
     </SyncedThemeProvider>
