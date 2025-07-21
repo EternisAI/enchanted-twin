@@ -399,7 +399,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		for {
 			select {
 			case <-ctx.Done():
-				s.Logger.Info("Context cancelled, stopping message reader")
+				s.Logger.Info("Context canceled, stopping message reader")
 				exitErr = ctx.Err()
 				return
 			default:
@@ -463,7 +463,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					for {
 						select {
 						case <-ctx.Done():
-							s.Logger.Info("Context cancelled during reconnection")
+							s.Logger.Info("Context canceled during reconnection")
 							exitErr = ctx.Err()
 							return
 						default:
@@ -673,7 +673,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 	s.Logger.Info("Waiting for subscription to complete or context cancellation")
 	select {
 	case <-ctx.Done():
-		s.Logger.Info("Context cancelled, stopping subscription")
+		s.Logger.Info("Context canceled, stopping subscription")
 		return ctx.Err()
 	case err := <-readerExitChan:
 		s.Logger.Info("Subscription ended", "error", err)
