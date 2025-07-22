@@ -60,7 +60,7 @@ export default function ChatView({ chat }: ChatViewProps) {
     } else if (isAtBottom) {
       container.scrollTo({ ...scrollOptions, behavior: 'smooth' })
     }
-  }, [messages, mounted, isAtBottom])
+  }, [messages, mounted, isAtBottom, isVoiceMode])
 
   const scrollToBottom = () => {
     if (containerRef.current) {
