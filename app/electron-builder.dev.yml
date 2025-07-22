@@ -27,7 +27,8 @@ mac:
     - NSScreenRecordingUsageDescription: This app needs screen-recording permission so you can share your screen.
     - NSAccessibilityUsageDescription: This app needs accessibility permissions to enhance user experience.
     - NSUserNotificationUsageDescription: This app needs notification permissions to send you important updates and alerts.
-  notarize: false
+  notarize: true
+  afterSign: './build/notarize.js'
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
