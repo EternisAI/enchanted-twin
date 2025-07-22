@@ -42,6 +42,7 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
 
   if (IS_PRODUCTION) {
     const success = await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
+
     return success
   } else {
     log.info('Running in development mode - packaged Go server not started')
@@ -128,8 +129,11 @@ async function startGoServer(
       log.info('Go server process spawned. Waiting until it listens …')
       await waitForBackend(backendPort)
 
+      const duration = Date.now() - startTime
+      log.info(`[GO] Go server process ready in ${duration}ms`)
+
       capture('server_startup_success', {
-        duration: Date.now() - startTime,
+        duration: duration,
         port: backendPort
       })
 

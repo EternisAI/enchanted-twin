@@ -22,6 +22,7 @@ export default function OnboardingContainer() {
   useEffect(() => {
     if (isCompleted) {
       console.log('isCompleted and pushing', isCompleted)
+      stopVoiceMode()
       navigate({ to: '/' })
     }
   }, [isCompleted, navigate])

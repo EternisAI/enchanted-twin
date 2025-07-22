@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
+import { useDebounce } from '@renderer/hooks/useDebounce'
 import { AnimatePresence, motion } from 'framer-motion'
 
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
@@ -38,11 +39,35 @@ export default function VoiceModeChatView({
 }: VoiceModeChatViewProps) {
   const { isAgentSpeaking } = useVoiceAgent()
 
+  const [assistantMessageStack, setAssistantMessageStack] = useState<Set<string>>(new Set([]))
+  const [lastAgentMessage, setLastAgentMessage] = useState<Message | null>(null)
+
+  const debouncedMessages = useDebounce(messages, 250)
+
+  useEffect(() => {
+    // This is needed because for voice mode it does reprocess entire chat history
+    if (!chat || debouncedMessages.length === 0) return
+
+    const lastAgentMessage = debouncedMessages
+      .filter((m) => m.role === Role.Assistant)
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .pop()
+
+    if (
+      lastAgentMessage &&
+      lastAgentMessage.text &&
+      !assistantMessageStack.has(lastAgentMessage.text)
+    ) {
+      setAssistantMessageStack((prev) => new Set([...prev, lastAgentMessage.text || '']))
+      setLastAgentMessage(lastAgentMessage)
+    }
+  }, [chat, debouncedMessages, assistantMessageStack])
+
   const lastUserMessage = useMemo(() => {
-    if (!chat || messages.length === 0) return null
-    const lastUserMessage = messages.filter((m) => m.role === Role.User).pop()
+    if (!chat || debouncedMessages.length === 0) return null
+    const lastUserMessage = debouncedMessages.filter((m) => m.role === Role.User).pop()
     return lastUserMessage || null
-  }, [chat, messages])
+  }, [chat, debouncedMessages])
 
   const visualState: 0 | 1 | 2 = isAgentSpeaking ? 2 : isAgentSpeaking ? 2 : 0
 
@@ -71,8 +96,23 @@ export default function VoiceModeChatView({
             getFreqData={getMockFrequencyData}
             toolUrl={toolUrl}
           />
+
           <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
         </motion.div>
+
+        <div className="absolute bottom-40 w-full flex flex-col items-center gap-6 z-10 min-h-[250px] max-h-[250px] overflow-y-auto">
+          {lastAgentMessage && (
+            <motion.p
+              key={lastAgentMessage.text}
+              className="text-black dark:text-white text-lg text-center max-w-xl break-words"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              {lastAgentMessage.text}
+            </motion.p>
+          )}
+        </div>
 
         <div className="w-full max-w-4xl flex flex-col gap-4 px-2 pb-4">
           {lastUserMessage && (
