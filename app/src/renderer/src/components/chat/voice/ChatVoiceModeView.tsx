@@ -78,14 +78,14 @@ export default function VoiceModeChatView({
   const showAnonymizationToggle = hasUserMessages && chatPrivacyDict
 
   return (
-    <div className="flex h-full w-full items-center ">
-      <div className="flex flex-col h-full w-full items-center relative">
+    <div className="flex h-full w-full items-start">
+      <div className="flex flex-col h-full w-full items-center relative justify-between">
         {showAnonymizationToggle && (
           <AnonToggleButton isAnonymized={isAnonymized} setIsAnonymized={setIsAnonymized} />
         )}
 
         <motion.div
-          className="relative flex-1 w-full"
+          className="relative w-full h-120"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1 }}
@@ -98,21 +98,21 @@ export default function VoiceModeChatView({
           />
 
           <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
-        </motion.div>
 
-        <div className="absolute bottom-40 w-full flex flex-col items-center gap-6 z-10 min-h-[250px] max-h-[250px] overflow-y-auto">
-          {lastAgentMessage && (
-            <motion.p
-              key={lastAgentMessage.text}
-              className="text-black dark:text-white text-lg text-center max-w-xl break-words"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-            >
-              {lastAgentMessage.text}
-            </motion.p>
-          )}
-        </div>
+          <div className="flex-1 w-full flex flex-col items-center gap-6 z-10 min-h-[350px] max-h-[350px] overflow-y-auto">
+            {lastAgentMessage && (
+              <motion.p
+                key={lastAgentMessage.text}
+                className="text-black dark:text-white text-lg text-center max-w-xl break-words"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+              >
+                {lastAgentMessage.text}
+              </motion.p>
+            )}
+          </div>
+        </motion.div>
 
         <div className="w-full max-w-4xl flex flex-col gap-4 px-2 pb-4">
           {lastUserMessage && (
