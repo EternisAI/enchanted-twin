@@ -11,6 +11,8 @@ import { getMockFrequencyData } from '@renderer/lib/utils'
 import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
 import { VoiceModeInput } from './VoiceModeInput'
 import { AnonToggleButton } from '../AnonToggleButton'
+import { TypingIndicator } from '../TypingIndicator'
+import Markdown from '../messages/Markdown'
 
 interface VoiceModeChatViewProps {
   chat: Chat
@@ -37,7 +39,7 @@ export default function VoiceModeChatView({
   isAnonymized,
   setIsAnonymized
 }: VoiceModeChatViewProps) {
-  const { isAgentSpeaking } = useVoiceAgent()
+  const { isAgentSpeaking, agentState } = useVoiceAgent()
 
   const [assistantMessageStack, setAssistantMessageStack] = useState<Set<string>>(new Set([]))
   const [lastAgentMessage, setLastAgentMessage] = useState<Message | null>(null)
@@ -99,22 +101,23 @@ export default function VoiceModeChatView({
 
           <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
 
-          <div className="flex-1 w-full flex flex-col items-center gap-6 z-10 min-h-[350px] max-h-[350px] overflow-y-auto">
-            {lastAgentMessage && (
-              <motion.p
+          <div className="flex-1 w-full flex flex-col items-center gap-6 z-10 min-h-[70%] max-h-[70%] overflow-y-auto">
+            {agentState === 'thinking' && <TypingIndicator />}
+            {lastAgentMessage && agentState !== 'thinking' && (
+              <motion.div
                 key={lastAgentMessage.text}
                 className="text-black dark:text-white text-lg text-center max-w-xl break-words"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
               >
-                {lastAgentMessage.text}
-              </motion.p>
+                <Markdown>{lastAgentMessage.text || ''}</Markdown>
+              </motion.div>
             )}
           </div>
         </motion.div>
 
-        <div className="w-full max-w-4xl flex flex-col gap-4 px-2 pb-4">
+        <div className="w-full max-w-4xl flex flex-col gap-4 px-2 pb-4 z-10">
           {lastUserMessage && (
             <motion.div
               key={lastUserMessage.id}
