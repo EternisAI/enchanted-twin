@@ -38,7 +38,6 @@ mac:
     - NSAccessibilityUsageDescription: This app needs accessibility permissions to enhance user experience.
     - NSUserNotificationUsageDescription: This app needs notification permissions to send you important updates and alerts.
   notarize: true
-  afterSign: './build/notarize.js'
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
@@ -51,6 +50,7 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
+afterSign: './build/notarize.js'
 publish:
   provider: s3
   bucket: enchanted-app-dev
