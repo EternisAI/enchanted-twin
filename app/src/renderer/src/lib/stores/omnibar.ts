@@ -19,7 +19,8 @@ export const useOmnibarStore = create<OmnibarStore>((set) => ({
   setPlaceholder: (placeholder) => set({ placeholder }),
   query: '',
   setQuery: (query) => set({ query }),
-  openOmnibar: (placeholder?: string) => set({ isOpen: true, placeholder: placeholder || DEFAULT_PLACEHOLDER }),
+  openOmnibar: (placeholder?: string) =>
+    set({ isOpen: true, placeholder: placeholder || DEFAULT_PLACEHOLDER }),
   closeOmnibar: () => set({ isOpen: false, query: '' }),
   toggleOmnibar: (placeholder?: string) =>
     set((state) => ({

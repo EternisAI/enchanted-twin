@@ -85,7 +85,7 @@ export default function MessageInput({
       layout
       onClick={handleClickContainer}
     >
-      <motion.div layout="position" className="flex items-center gap-3 w-full">
+      <motion.div layout className="flex items-center gap-3 w-full">
         <motion.textarea
           layout="position"
           ref={textareaRef}

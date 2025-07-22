@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { TooltipContent } from '../ui/tooltip'
 import { TooltipTrigger } from '../ui/tooltip'
 import { Tooltip } from '../ui/tooltip'
@@ -192,6 +192,17 @@ interface ReasoningButtonProps {
   disabled?: boolean
 }
 
+const models = [
+  {
+    name: 'GPT-4.1',
+    value: 'gpt-4.1'
+  },
+  {
+    name: 'GPT-4.5',
+    value: 'gpt-4.5'
+  }
+]
+
 export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps) {
   return (
     <Tooltip>
@@ -207,7 +218,8 @@ export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButt
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>Reasoning</p>
+        <p>Turn {isSelected ? 'off' : 'on'} advanced reasoning</p>
+        <p className="text-xs opacity-50">o4-mini-high</p>
       </TooltipContent>
     </Tooltip>
   )
