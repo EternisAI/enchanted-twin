@@ -179,7 +179,11 @@ func (t *TelegramSetupTool) Definition() openai.ChatCompletionToolParam {
 		Function: openai.FunctionDefinitionParam{
 			Name:        "telegram_setup",
 			Description: param.NewOpt("Setup the Telegram chat by sending a QR code"),
-			Parameters:  openai.FunctionParameters{},
+			Parameters: openai.FunctionParameters{
+				"type":       "object",
+				"properties": map[string]any{},
+				"required":   []string{},
+			},
 		},
 	}
 }
