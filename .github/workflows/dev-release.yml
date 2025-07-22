@@ -112,9 +112,7 @@ jobs:
           USE_LOCAL_EMBEDDINGS: 'true'
           TTS_ENDPOINT: 'https://inference.tinfoil.sh/v1/audio/speech'
 
-        run: |
-          cd app
-          pnpm run build:dev:mac
+        run: make build-dev-mac-silicon
 
       - name: Create dev release
         uses: softprops/action-gh-release@v1
