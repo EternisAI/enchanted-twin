@@ -41,6 +41,7 @@ export default function AgentTasks() {
 
   return (
     <div className="p-4 w-full overflow-y-auto">
+      <h1 className="text-2xl font-semibold">Tasks</h1>
       {loading && <div className="py-4 text-center">Loading tasks...</div>}
       {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>}
 
