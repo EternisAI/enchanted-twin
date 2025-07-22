@@ -34,7 +34,8 @@ export default function ScreenpipeConnectionModal({
   const [isStartingScreenpipe, setIsStartingScreenpipe] = useState(false)
   const [isStoppingScreenpipe, setIsStoppingScreenpipe] = useState(false)
 
-  const needsPermission = screenRecordingPermission !== 'granted'
+  const permissionDenied =
+    screenRecordingPermission !== 'granted' && screenRecordingPermission !== 'not-determined'
   const needsScreenpipe = !isScreenpipeRunning
 
   // Close modal when Screenpipe is running and permissions are granted
@@ -63,7 +64,7 @@ export default function ScreenpipeConnectionModal({
     try {
       await onStartScreenpipe()
       // If successful, close the modal
-      if (!needsPermission) {
+      if (!permissionDenied) {
         onClose()
       }
     } catch (error) {
@@ -110,13 +111,13 @@ export default function ScreenpipeConnectionModal({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className={`p-4 rounded-xl border ${needsPermission ? 'border-border' : 'border-green-200 dark:border-green-800'}`}
+            className={`p-4 rounded-xl border ${permissionDenied ? 'border-border' : 'border-green-200 dark:border-green-800'}`}
           >
             <div className="flex items-start gap-3">
               <div
-                className={`p-2 rounded-lg border ${needsPermission ? 'border-border' : 'border-green-200 dark:border-green-800'}`}
+                className={`p-2 rounded-lg border ${permissionDenied ? 'border-border' : 'border-green-200 dark:border-green-800'}`}
               >
-                {needsPermission ? (
+                {permissionDenied ? (
                   <Shield className="h-5 w-5 text-muted-foreground" />
                 ) : (
                   <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
@@ -125,11 +126,11 @@ export default function ScreenpipeConnectionModal({
               <div className="flex-1">
                 <h3 className="text-sm font-medium mb-2">Step 1: Screen Permission</h3>
                 <p className="text-xs text-muted-foreground mb-4">
-                  {needsPermission
+                  {permissionDenied
                     ? 'Grant access to capture screen activity'
                     : 'Permission granted'}
                 </p>
-                {needsPermission && (
+                {permissionDenied && (
                   <Button
                     onClick={handleRequestPermission}
                     disabled={isRequestingPermission}
@@ -149,15 +150,15 @@ export default function ScreenpipeConnectionModal({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.1 }}
-            className={`p-4 rounded-xl border ${needsScreenpipe ? (needsPermission ? 'border-border bg-transparent' : 'border-border') : 'border-green-200 dark:border-green-800'}`}
+            className={`p-4 rounded-xl border ${needsScreenpipe ? (permissionDenied ? 'border-border bg-transparent' : 'border-border') : 'border-green-200 dark:border-green-800'}`}
           >
             <div className="flex items-start gap-3">
               <div
-                className={`p-2 rounded-lg border ${needsScreenpipe ? (needsPermission ? 'border-border' : 'border-border') : 'border-green-200 dark:border-green-800'}`}
+                className={`p-2 rounded-lg border ${needsScreenpipe ? (permissionDenied ? 'border-border' : 'border-border') : 'border-green-200 dark:border-green-800'}`}
               >
                 {needsScreenpipe ? (
                   <Zap
-                    className={`h-5 w-5 ${needsPermission ? 'text-muted-foreground' : 'text-muted-foreground'}`}
+                    className={`h-5 w-5 ${permissionDenied ? 'text-muted-foreground' : 'text-muted-foreground'}`}
                   />
                 ) : (
                   <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
@@ -171,10 +172,10 @@ export default function ScreenpipeConnectionModal({
                 {needsScreenpipe ? (
                   <Button
                     onClick={handleStartScreenpipe}
-                    disabled={isStartingScreenpipe || needsPermission}
+                    disabled={isStartingScreenpipe || permissionDenied}
                     size="sm"
                     className="text-sm"
-                    variant={needsPermission ? 'outline' : 'default'}
+                    variant={permissionDenied ? 'outline' : 'default'}
                   >
                     <Play className="h-4 w-4 mr-2" />
                     {isStartingScreenpipe ? 'Starting...' : 'Start Now'}
@@ -194,7 +195,7 @@ export default function ScreenpipeConnectionModal({
             </div>
           </motion.div>
 
-          {needsPermission && (
+          {permissionDenied && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -207,7 +208,10 @@ export default function ScreenpipeConnectionModal({
         </div>
 
         <div className="flex justify-end gap-2 pt-4">
-          {!needsPermission && !needsScreenpipe && (
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          {!permissionDenied && !needsScreenpipe && (
             <Button size="sm" onClick={onClose}>
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Done
