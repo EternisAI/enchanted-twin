@@ -1,0 +1,158 @@
+name: Dev Release Enchanted Twin App
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Dev version number (e.g. v0.0.1-dev)'
+        required: true
+        default: 'v0.0.1-dev'
+
+jobs:
+  build-and-release-dev:
+    runs-on: macos-latest
+    # Only run for pre-releases (dev builds)
+    if: github.event.release.prerelease == true
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24.2'
+
+      - name: Check secrets are injected
+        env:
+          COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
+          EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        run: |
+          echo "COMPLETIONS_API_KEY length: ${#COMPLETIONS_API_KEY}"
+          echo "EMBEDDINGS_API_KEY length: ${#EMBEDDINGS_API_KEY}"
+          echo "TELEGRAM_TOKEN length: ${#TELEGRAM_TOKEN}"
+
+      - name: Install dependencies
+        working-directory: app
+        run: pnpm install
+
+      - name: Write Apple API key (.p8) to disk
+        run: |
+          mkdir -p app/build
+          echo "$APPLE_API_KEY" > app/build/AuthKey.p8
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+
+      - name: Set dev app version
+        working-directory: app
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Auto-generate dev version based on branch and commit
+            BRANCH_NAME="${{ github.ref_name }}"
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            VERSION="v0.0.1-${BRANCH_NAME}-${SHORT_SHA}"
+          fi
+          VERSION_NUMBER="${VERSION#v}"
+          # Update version in package.json
+          jq ".version = \"$VERSION_NUMBER\"" package.json > package.json.tmp
+          mv package.json.tmp package.json
+          echo "Updated package.json version to $VERSION_NUMBER"
+
+      - name: Build & notarize macOS dev app
+        env:
+          COMPLETIONS_API_URL: 'https://openrouter.ai/api/v1'
+          COMPLETIONS_MODEL: 'openai/gpt-4.1'
+          REASONING_MODEL: 'openai/o4-mini-high'
+          EMBEDDINGS_API_URL: 'https://api.openai.com/v1'
+          EMBEDDINGS_MODEL: 'text-embedding-3-small'
+          IS_PROD_BUILD: 'true'
+          NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+          OLLAMA_BASE_URL: 'https://enchanted.ngrok.pro'
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_SERVER: 'https://enchanted-proxy-telegram-dev.up.railway.app/query'
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          ENCHANTED_MCP_URL: https://proxy-api-dev.ep-use1.ghostagent.org/mcp
+          POSTHOG_API_KEY: phc_j0wkdCa4BCngP92yQBK3PbsuH5LWv3tliaasJEhw6v4
+          INVITE_SERVER_URL: http://52.90.4.74:8080
+          TTS_MODEL: kokoro
+          TTS_URL: https://inference.tinfoil.sh/v1/
+          STT_MODEL: whisper-large-v3-turbo
+          STT_URL: https://inference.tinfoil.sh/v1/
+          PROXY_TEE_URL: https://proxy-api-dev.ep-use1.ghostagent.org
+          VITE_FIREBASE_API_KEY: AIzaSyBMQG7Kw8p1Ymm1j_A-x2Jxc-x4BakXz3k
+          VITE_FIREBASE_AUTH_DOMAIN: freysa-prod.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: freysa-prod
+          HOLON_API_URL: http://23.22.67.228:8123
+          ANONYMIZER_TYPE: 'local'
+          USE_LOCAL_EMBEDDINGS: 'true'
+          TTS_ENDPOINT: 'https://inference.tinfoil.sh/v1/audio/speech'
+
+        run: |
+          cd app
+          pnpm run build:dev:mac
+
+      - name: Create dev release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || format('dev-{0}', github.sha) }}
+          name: 'Dev Release - ${{ github.ref_name }}'
+          body: |
+            ## Dev Release
+
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** ${{ github.sha }}
+            **Triggered by:** ${{ github.event_name }}
+
+            This is a development build for testing purposes.
+
+            ### Changes
+            - Auto-generated from branch: ${{ github.ref_name }}
+            - Commit: ${{ github.sha }}
+
+            ### Installation
+            Download and install the DMG file. This is a dev version with app ID `com.eternis.enchanted.dev`.
+          files: app/dist/*.dmg
+          draft: true
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify notarization
+        run: |
+          RESULT=$(spctl --assess --type exec --verbose=4 app/dist/mac-arm64/Enchanted\ Dev.app 2>&1)
+          echo "$RESULT"
+          if [[ "$RESULT" != *"accepted"* ]]; then
+            echo "❌ Dev app is not notarized!"
+            exit 1
+          fi
+          echo "✅ Dev app is notarized and accepted by Gatekeeper."
+
+      - name: Notify dev release
+        run: |
+          echo "🚀 Dev release completed!"
+          echo "📦 App: Enchanted Dev"
+          echo "🏷️  Version: $(cd app && jq -r .version package.json)"
+          echo "📋 Release: https://github.com/${{ github.repository }}/releases/tag/${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || format('dev-{0}', github.sha) }}"

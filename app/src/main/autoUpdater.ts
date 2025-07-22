@@ -15,6 +15,16 @@ export function setupAutoUpdater() {
   log.transports.file.level = 'debug'
   autoUpdater.autoDownload = true
 
+  // Set update channel based on app ID
+  const appId = app.getName()
+  if (appId === 'Enchanted Dev') {
+    autoUpdater.channel = 'dev'
+    log.info('Auto-updater configured for dev channel')
+  } else {
+    autoUpdater.channel = 'latest'
+    log.info('Auto-updater configured for production channel')
+  }
+
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for update...')
     if (windowManager.mainWindow) {
