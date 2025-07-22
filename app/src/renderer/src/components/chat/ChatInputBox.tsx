@@ -1,13 +1,14 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { TooltipContent } from '../ui/tooltip'
 import { TooltipTrigger } from '../ui/tooltip'
 import { Tooltip } from '../ui/tooltip'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button } from '../ui/button'
-import { AudioLinesIcon, Lightbulb, X } from 'lucide-react'
+import { AudioLinesIcon, Brain, CheckIcon, X } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { SendButton } from './MessageInput'
 import { toast } from 'sonner'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 
 type ChatInputBoxProps = {
   query: string
@@ -114,7 +115,7 @@ export default function ChatInputBox({
               handleSubmit(e)
             }
           }}
-          placeholder="Ask a question privately…"
+          placeholder="Send a message privately…"
           className="outline-none !bg-transparent flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-auto min-h-[50px] max-h-[240px] auto-sizing-textarea"
           rows={1}
         />
@@ -192,24 +193,80 @@ interface ReasoningButtonProps {
   disabled?: boolean
 }
 
+const REASONING_MODEL = 'o4-mini-high'
+const NOT_REASONING_MODEL = 'gpt-4.1'
+
 export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps) {
+  const [open, setOpen] = useState(false)
+
+  const models = [
+    { value: false, label: 'Standard', model: NOT_REASONING_MODEL },
+    { value: true, label: 'Advanced Reasoning', model: REASONING_MODEL }
+  ]
+
+  const handleModelSelect = (value: boolean) => {
+    if (value !== isSelected) {
+      onClick()
+    }
+    setOpen(false)
+  }
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <Button
           size="icon"
-          onClick={onClick}
-          className={cn(isSelected && '!text-orange-500')}
+          className={cn('relative', isSelected && '!text-orange-500')}
           variant="outline"
           disabled={disabled}
         >
-          <Lightbulb className="w-4 h-4" />
+          <Brain className="w-4 h-4" />
         </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>Reasoning</p>
-      </TooltipContent>
-    </Tooltip>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-1" align="end">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.15 }}
+          className="flex flex-col"
+        >
+          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+            Model Selection
+          </div>
+          <div className="h-px bg-border my-1" />
+          {models.map((model, index) => (
+            <motion.button
+              key={model.model}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.15, delay: index * 0.05 }}
+              onClick={() => handleModelSelect(model.value)}
+              className={cn(
+                'flex items-center justify-between px-2 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors outline-none',
+                isSelected === model.value && 'bg-accent'
+              )}
+            >
+              <div className="flex flex-col items-start">
+                <span className="font-medium">{model.label}</span>
+                <span className="text-xs text-muted-foreground">{model.model}</span>
+              </div>
+              <AnimatePresence mode="wait">
+                {isSelected === model.value && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <CheckIcon className="w-4 h-4 text-orange-500" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.button>
+          ))}
+        </motion.div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -233,17 +290,16 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
           }}
           size="icon"
         >
-          <AnimatePresence mode="wait" initial={true}>
-            <motion.span
-              key="off"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
-            >
-              <AudioLinesIcon className="w-4 h-4" />
-            </motion.span>
-          </AnimatePresence>
+          <motion.span
+            key="off"
+            layout="position"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+          >
+            <AudioLinesIcon className="w-4 h-4" />
+          </motion.span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>
