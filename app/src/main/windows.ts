@@ -91,7 +91,7 @@ class WindowManagerImpl implements WindowManager {
       maxHeight: 500,
       minWidth: 500,
       maxWidth: 800,
-      show: true,
+      show: false,
       transparent: true,
       frame: false,
       alwaysOnTop: true,
@@ -167,7 +167,19 @@ class WindowManagerImpl implements WindowManager {
       log.info('Hiding omnibar window')
       this.omnibarWindow!.hide()
     } else {
-      log.info('Showing omnibar window at position:', this.omnibarWindow!.getPosition())
+      // Get current mouse position
+      const cursorPoint = screen.getCursorScreenPoint()
+      // Find the display nearest to the cursor
+      const nearestDisplay = screen.getDisplayNearestPoint(cursorPoint)
+      const { width, height } = nearestDisplay.workArea
+      // Calculate centered position on that display
+      const x = nearestDisplay.workArea.x + Math.round((width - 500) / 2) // Assuming width 500
+      const y = nearestDisplay.workArea.y + Math.round(height * 0.25) // 25% from top
+      this.omnibarWindow!.setPosition(x, y)
+      // Update store
+      omnibarStore.set('position', { x, y })
+      omnibarStore.set('hasCustomPosition', false) // Reset custom flag since we're repositioning
+      log.info('Showing omnibar window at position:', { x, y })
       this.omnibarWindow!.show()
       this.omnibarWindow!.focus()
     }
