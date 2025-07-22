@@ -15,14 +15,15 @@ export function setupAutoUpdater() {
   log.transports.file.level = 'debug'
   autoUpdater.autoDownload = true
 
-  // Set update channel based on app ID
-  const appId = app.getName()
-  if (appId === 'Enchanted Dev') {
+  // Set update channel based on app name
+  const appName = app.getName()
+  if (appName === 'Enchanted Dev') {
     autoUpdater.channel = 'dev'
-    log.info('Auto-updater configured for dev channel')
+    log.info(`Auto-updater configured for dev channel (app: ${appName})`)
   } else {
+    // Fallback to latest for unknown app names
     autoUpdater.channel = 'latest'
-    log.info('Auto-updater configured for production channel')
+    log.warn(`Unknown app name: ${appName}, defaulting to latest channel`)
   }
 
   autoUpdater.on('checking-for-update', () => {

@@ -136,7 +136,8 @@
     "publish": {
       "provider": "s3",
       "bucket": "enchanted-app",
-      "region": "us-east-1"
+      "region": "us-east-1",
+      "channel": "latest"
     },
     "mac": {
       "target": [
