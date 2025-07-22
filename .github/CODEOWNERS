@@ -1,0 +1,70 @@
+# CODEOWNERS file for Enchanted Twin project
+# 
+# This file defines code ownership for different parts of the codebase.
+# Global fallback rule comes first, then specific rules override it.
+# 
+# Order matters: the last matching pattern takes precedence.
+
+# =============================================================================
+# DEFAULT FALLBACK (must come first - specific rules below will override)
+# =============================================================================
+
+# Default: Everyone can review anything not specifically covered below
+* @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe @typ3c4t @juraev @lwlee2608 @gustav0frings @gluonfield
+
+# =============================================================================
+# SPECIFIC COMPONENT OWNERSHIP
+# =============================================================================
+
+# Frontend - Art, Arthur
+app/ @apokusin @Arthurgallina1
+
+# MCP (Model Context Protocol) - Navendu, Innokentii, Jack
+backend/golang/pkg/mcpserver/ @pottekkat @Enjection @JckHoe
+
+# Data Ingestion - Slim, Dmitry
+backend/golang/pkg/dataprocessing/ @gustav0frings @typ3c4t
+
+# Anonymiser - Innokentii, Jason, Jack
+backend/golang/pkg/ai/ @Enjection @lwlee2608 @JckHoe
+
+# Holon - Innokentii, Jason, Jack
+backend/golang/pkg/holon/ @Enjection @lwlee2608 @JckHoe
+
+# Chat/Agent (broad rule first) - Augustinas, Innokentii, Jason, Jack
+backend/golang/pkg/agent/ @gluonfield @Enjection @lwlee2608 @JckHoe
+backend/golang/pkg/twinchat/ @gluonfield @Enjection @lwlee2608 @JckHoe
+
+# Memory (specific rule after broader agent rule) - Dmitry, Khurshid, Jason
+backend/golang/pkg/agent/memory/ @typ3c4t @juraev @lwlee2608
+
+# =============================================================================
+# ADDITIONAL SPECIFIC PATTERNS
+# =============================================================================
+
+# Agent-related files in other locations - Augustinas, Innokentii, Jason, Jack
+backend/golang/pkg/agent/*.go @gluonfield @Enjection @lwlee2608 @JckHoe
+backend/golang/pkg/agent/tools/ @gluonfield @Enjection @lwlee2608 @JckHoe
+backend/golang/pkg/agent/types/ @gluonfield @Enjection @lwlee2608 @JckHoe
+backend/golang/pkg/agent/scheduler/ @gluonfield @Enjection @lwlee2608 @JckHoe
+backend/golang/pkg/agent/notifications/ @gluonfield @Enjection @lwlee2608 @JckHoe
+
+# Chat-related frontend components - Frontend team + Chat/Agent team
+app/src/renderer/src/components/chat/ @apokusin @Arthurgallina1 @gluonfield @Enjection @lwlee2608 @JckHoe
+
+# MCP-related frontend components - Frontend team + MCP team  
+app/src/renderer/src/components/oauth/ @apokusin @Arthurgallina1 @pottekkat @Enjection @JckHoe
+
+# Data sources frontend - Frontend team + Data Ingestion team
+app/src/renderer/src/components/data-sources/ @apokusin @Arthurgallina1 @gustav0frings @typ3c4t
+
+# Holon frontend components - Frontend team + Holon team
+app/src/renderer/src/components/holon/ @apokusin @Arthurgallina1 @Enjection @lwlee2608 @JckHoe
+
+# =============================================================================
+# OVERRIDES FOR SPECIFIC FILES
+# =============================================================================
+
+# CI/CD and workflows - Enjection, gluonfield
+.github/ @Enjection @gluonfield
+
