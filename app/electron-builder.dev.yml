@@ -2,6 +2,10 @@ productName: Enchanted Dev
 appId: com.eternis.enchanted.dev
 directories:
   buildResources: build
+extraResources:
+  - from: './resources'
+    to: 'resources'
+    filter: ['**/*']
 files:
   - '!**/.vscode/*'
   - '!src/*'
@@ -19,7 +23,13 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  gatekeeperAssess: false
   extendInfo:
     - NSCameraUsageDescription: This app requires access to the camera.
     - NSMicrophoneUsageDescription: This app requires access to the microphone.
