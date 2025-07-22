@@ -17,8 +17,8 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     selectType: 'files',
     fileRequirement: 'Select X ZIP',
     icon: (
-      <IconContainer className="bg-foreground">
-        <XformerlyTwitterIcon className="w-7 h-7 text-primary-foreground" />
+      <IconContainer className="bg-foreground size-8">
+        <XformerlyTwitterIcon className="size-5 text-primary-foreground" />
       </IconContainer>
     ),
     fileFilters: [{ name: 'X Archive', extensions: ['zip'] }]
@@ -29,7 +29,7 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     description: 'Import your ChatGPT history',
     selectType: 'files',
     fileRequirement: 'Select ChatGPT export file',
-    icon: <OpenAI className="h-10 w-10" />,
+    icon: <OpenAI className="size-8" />,
     fileFilters: [{ name: 'ChatGPT', extensions: ['zip'] }]
   },
   {
@@ -39,8 +39,8 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     selectType: 'files',
     fileRequirement: 'Select WhatsApp SQLITE file',
     icon: (
-      <IconContainer className="bg-[#01E676]">
-        <WhatsAppIcon className="w-7 h-7 text-[#01E676]" />
+      <IconContainer className="bg-[#01E676] size-8">
+        <WhatsAppIcon className="size-5 text-[#01E676]" />
       </IconContainer>
     ),
     fileFilters: [{ name: 'WhatsApp Database', extensions: ['db', 'sqlite'] }],
@@ -55,7 +55,7 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     description: 'Import your Telegram messages and media',
     selectType: 'files',
     fileRequirement: 'Select Telegram JSON export file',
-    icon: <TelegramIcon className="h-10 w-10" />,
+    icon: <TelegramIcon className="size-8" />,
     fileFilters: [{ name: 'Telegram Export', extensions: ['json'] }]
   },
   {
@@ -64,7 +64,7 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     description: 'Import your Slack workspace data',
     selectType: 'files',
     fileRequirement: 'Select Slack ZIP file',
-    icon: <SlackIcon className="h-10 w-10" />,
+    icon: <SlackIcon className="size-8" />,
     fileFilters: [{ name: 'Slack Export', extensions: ['zip'] }]
   },
   {
@@ -73,7 +73,7 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     description: 'Import your Gmail emails and attachments',
     selectType: 'files',
     fileRequirement: 'Select Google Takeout ZIP file',
-    icon: <GmailIcon className="h-10 w-10" />,
+    icon: <GmailIcon className="size-8" />,
     fileFilters: [{ name: 'Google Takeout', extensions: ['zip'] }]
   },
   {
@@ -83,8 +83,8 @@ export const SUPPORTED_DATA_SOURCES: DataSource[] = [
     selectType: 'files',
     fileRequirement: 'Select files in .txt, .pdf, .doc, .docx, .xls, .xlsx, .csv format',
     icon: (
-      <IconContainer>
-        <FileIcon strokeWidth={1.5} className="h-7 w-7" />
+      <IconContainer className="size-8">
+        <FileIcon strokeWidth={1.5} className="size-5" />
       </IconContainer>
     ),
     fileFilters: [

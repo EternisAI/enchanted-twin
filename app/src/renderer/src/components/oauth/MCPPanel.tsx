@@ -86,7 +86,7 @@ export default function MCPPanel() {
         <div className="flex flex-col gap-2">
           <h2 className="text-2xl font-bold leading-none">Quick Connects</h2>
           <p className="text-muted-foreground leading-none text-sm">
-            Allow Enchanted to reference other apps and services for more context.
+            Quick connect to your favorite apps and services.
           </p>
         </div>
         <ConnectMCPServerButton onSuccess={() => {}} />

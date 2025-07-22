@@ -144,7 +144,7 @@ function RootComponent() {
     sidebarOpen
   ])
 
-  if (location.pathname.startsWith('/settings') || location.pathname === '/omnibar-overlay') {
+  if (location.pathname.startsWith('/settings')) {
     return <Outlet />
   }
 
