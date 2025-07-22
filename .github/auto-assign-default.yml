@@ -1,0 +1,15 @@
+skipDraft: true
+addReviewers: true
+addAssignees: false
+numberOfReviewers: 1
+reviewers:
+  - apokusin
+  - Arthurgallina1
+  - pottekkat
+  - Enjection
+  - JckHoe
+  - typ3c4t
+  - juraev
+  - lwlee2608
+  - gustav0frings
+  - gluonfield

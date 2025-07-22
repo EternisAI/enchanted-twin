@@ -1,0 +1,8 @@
+skipDraft: true
+addReviewers: true
+addAssignees: false
+numberOfReviewers: 1
+reviewers:
+  - Enjection
+  - lwlee2608
+  - JckHoe
