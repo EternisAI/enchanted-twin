@@ -36,7 +36,7 @@ function OmnibarResults({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="rounded-lg overflow-auto max-h-[280px] relative"
+      className="rounded-lg overflow-auto max-h-[280px] relative font-sans"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       role="listbox"
       aria-label="Chat search results"
