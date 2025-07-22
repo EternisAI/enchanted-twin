@@ -17,7 +17,7 @@ interface ProviderConfig {
 
 export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
   [McpServerType.Google]: {
-    provider: McpServerType.Google,
+    provider: 'google',
     scope:
       'openid email profile https://www.googleapis.com/auth/drive https://mail.google.com/ https://www.googleapis.com/auth/calendar',
     description: '',
@@ -25,7 +25,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     supportsMultipleConnections: false
   },
   [McpServerType.Slack]: {
-    provider: McpServerType.Slack,
+    provider: 'slack',
     scope:
       'channels:read,groups:read,channels:history,groups:history,im:read,mpim:read,search:read,users:read',
     description: '',
@@ -33,7 +33,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     supportsMultipleConnections: false
   },
   [McpServerType.Twitter]: {
-    provider: McpServerType.Twitter,
+    provider: 'twitter',
     scope: 'like.read tweet.read users.read offline.access tweet.write bookmark.read',
     description: '',
     icon: (
@@ -44,14 +44,14 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     supportsMultipleConnections: false
   },
   [McpServerType.Screenpipe]: {
-    provider: McpServerType.Screenpipe,
+    provider: 'screenpipe',
     scope: '',
     description: 'Record screen activity for AI context',
     icon: <img src={screenpipeIcon} alt="Screenpipe" className="size-10" />,
     supportsMultipleConnections: false
   },
   [McpServerType.Other]: {
-    provider: McpServerType.Other,
+    provider: 'other',
     scope: '',
     description: 'Connect custom MCP servers',
     icon: (
@@ -62,14 +62,14 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     supportsMultipleConnections: false
   },
   [McpServerType.Enchanted]: {
-    provider: McpServerType.Enchanted,
+    provider: 'enchanted',
     scope: '',
     description: 'Generate images and search the web',
     icon: <img src={enchantedIcon} alt="Essentials" className="size-10" />,
     supportsMultipleConnections: false
   },
   [McpServerType.Freysa]: {
-    provider: McpServerType.Freysa,
+    provider: 'freysa',
     scope: '',
     description: 'Generate videos with popular templates or create your own',
     icon: <img src={enchantedIcon} alt="Freysa" className="size-10" />,
