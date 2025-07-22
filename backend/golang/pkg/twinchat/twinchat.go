@@ -329,6 +329,7 @@ func (s *Service) SendMessage(
 	)
 
 	toolsList := s.toolRegistry.Excluding("send_to_chat").GetAll()
+	// toolsList := []tools.Tool{}
 	agentSetupTime := time.Since(agentSetupStart)
 	s.logger.Info("Agent setup completed", "duration", agentSetupTime, "toolsCount", len(toolsList))
 
