@@ -330,7 +330,7 @@ export default function OmnibarOverlay() {
             initial={{ scale: 0.95, opacity: 0, y: -5 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             transition={{ type: 'spring', damping: 55, stiffness: 350 }}
-            className="w-full h-full bg-background border border-border rounded-lg shadow-lg overflow-visible"
+            className="w-full h-full !bg-transparent border-0 shadow-none overflow-visible"
             style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
           >
             <motion.form onSubmit={handleSubmit} className="w-full h-full overflow-visible">
