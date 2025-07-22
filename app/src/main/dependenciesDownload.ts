@@ -130,7 +130,7 @@ const DEPENDENCIES_CONFIGS: Record<
     }
   },
   anonymizer: {
-    url: 'https://huggingface.co/eternis/eternis_anonymizer_merge_Qwen3-0.6B_9jul_30k_gguf/resolve/main/qwen3-0.6b-q4_k_m.gguf?download=true',
+    url: 'https://freysa-public.s3.us-east-1.amazonaws.com/qwen3-4b_q4_k_m.gguf',
     name: 'anonymizer',
     dir: path.join(DEPENDENCIES_DIR, 'models', 'anonymizer'),
     install: async function () {
