@@ -28,7 +28,7 @@ export function PrivacyButton({
         <div className="max-w-xs text-wrap">
           <p className="text-xs">Your data is private</p>
           <p className="text-xs opacity-70">
-            Messages are anonymized before being sent through a TEE proxy. More details soon.
+            Messages are sent through a TEE proxy. More details soon.
           </p>
         </div>
       </TooltipContent>
