@@ -14,7 +14,6 @@ import { Route as rootRoute } from './routes/__root'
 import { Route as TasksImport } from './routes/tasks'
 import { Route as SettingsImport } from './routes/settings'
 import { Route as OnboardingImport } from './routes/onboarding'
-import { Route as OmnibarOverlayImport } from './routes/omnibar-overlay'
 import { Route as AdminImport } from './routes/admin'
 import { Route as IndexImport } from './routes/index'
 import { Route as HolonIndexImport } from './routes/holon/index'
@@ -31,85 +30,79 @@ import { Route as ChatChatIdImport } from './routes/chat/$chatId'
 const TasksRoute = TasksImport.update({
   id: '/tasks',
   path: '/tasks',
-  getParentRoute: () => rootRoute
+  getParentRoute: () => rootRoute,
 } as any)
 
 const SettingsRoute = SettingsImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRoute
+  getParentRoute: () => rootRoute,
 } as any)
 
 const OnboardingRoute = OnboardingImport.update({
   id: '/onboarding',
   path: '/onboarding',
-  getParentRoute: () => rootRoute
-} as any)
-
-const OmnibarOverlayRoute = OmnibarOverlayImport.update({
-  id: '/omnibar-overlay',
-  path: '/omnibar-overlay',
-  getParentRoute: () => rootRoute
+  getParentRoute: () => rootRoute,
 } as any)
 
 const AdminRoute = AdminImport.update({
   id: '/admin',
   path: '/admin',
-  getParentRoute: () => rootRoute
+  getParentRoute: () => rootRoute,
 } as any)
 
 const IndexRoute = IndexImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRoute
+  getParentRoute: () => rootRoute,
 } as any)
 
 const HolonIndexRoute = HolonIndexImport.update({
   id: '/holon/',
   path: '/holon/',
-  getParentRoute: () => rootRoute
+  getParentRoute: () => rootRoute,
 } as any)
 
 const SettingsPermissionsRoute = SettingsPermissionsImport.update({
   id: '/permissions',
   path: '/permissions',
-  getParentRoute: () => SettingsRoute
+  getParentRoute: () => SettingsRoute,
 } as any)
 
 const SettingsDataSourcesRoute = SettingsDataSourcesImport.update({
   id: '/data-sources',
   path: '/data-sources',
-  getParentRoute: () => SettingsRoute
+  getParentRoute: () => SettingsRoute,
 } as any)
 
 const SettingsCustomizeRoute = SettingsCustomizeImport.update({
   id: '/customize',
   path: '/customize',
-  getParentRoute: () => SettingsRoute
+  getParentRoute: () => SettingsRoute,
 } as any)
 
 const SettingsAdvancedRoute = SettingsAdvancedImport.update({
   id: '/advanced',
   path: '/advanced',
-  getParentRoute: () => SettingsRoute
+  getParentRoute: () => SettingsRoute,
 } as any)
 
 const SettingsAboutRoute = SettingsAboutImport.update({
   id: '/about',
   path: '/about',
-  getParentRoute: () => SettingsRoute
+  getParentRoute: () => SettingsRoute,
 } as any)
 
 const HolonThreadIdRoute = HolonThreadIdImport.update({
   id: '/holon/$threadId',
   path: '/holon/$threadId',
-  getParentRoute: () => rootRoute
+  getParentRoute: () => rootRoute,
 } as any)
 
 const ChatChatIdRoute = ChatChatIdImport.update({
   id: '/chat/$chatId',
   path: '/chat/$chatId',
-  getParentRoute: () => rootRoute
+  getParentRoute: () => rootRoute,
 } as any)
 
 // Populate the FileRoutesByPath interface
@@ -128,13 +121,6 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminImport
-      parentRoute: typeof rootRoute
-    }
-    '/omnibar-overlay': {
-      id: '/omnibar-overlay'
-      path: '/omnibar-overlay'
-      fullPath: '/omnibar-overlay'
-      preLoaderRoute: typeof OmnibarOverlayImport
       parentRoute: typeof rootRoute
     }
     '/onboarding': {
@@ -232,15 +218,16 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAdvancedRoute: SettingsAdvancedRoute,
   SettingsCustomizeRoute: SettingsCustomizeRoute,
   SettingsDataSourcesRoute: SettingsDataSourcesRoute,
-  SettingsPermissionsRoute: SettingsPermissionsRoute
+  SettingsPermissionsRoute: SettingsPermissionsRoute,
 }
 
-const SettingsRouteWithChildren = SettingsRoute._addFileChildren(SettingsRouteChildren)
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/omnibar-overlay': typeof OmnibarOverlayRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRouteWithChildren
   '/tasks': typeof TasksRoute
@@ -257,7 +244,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/omnibar-overlay': typeof OmnibarOverlayRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRouteWithChildren
   '/tasks': typeof TasksRoute
@@ -275,7 +261,6 @@ export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/omnibar-overlay': typeof OmnibarOverlayRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRouteWithChildren
   '/tasks': typeof TasksRoute
@@ -294,7 +279,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
-    | '/omnibar-overlay'
     | '/onboarding'
     | '/settings'
     | '/tasks'
@@ -310,7 +294,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
-    | '/omnibar-overlay'
     | '/onboarding'
     | '/settings'
     | '/tasks'
@@ -326,7 +309,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
-    | '/omnibar-overlay'
     | '/onboarding'
     | '/settings'
     | '/tasks'
@@ -344,7 +326,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
-  OmnibarOverlayRoute: typeof OmnibarOverlayRoute
   OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   TasksRoute: typeof TasksRoute
@@ -356,13 +337,12 @@ export interface RootRouteChildren {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
-  OmnibarOverlayRoute: OmnibarOverlayRoute,
   OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRouteWithChildren,
   TasksRoute: TasksRoute,
   ChatChatIdRoute: ChatChatIdRoute,
   HolonThreadIdRoute: HolonThreadIdRoute,
-  HolonIndexRoute: HolonIndexRoute
+  HolonIndexRoute: HolonIndexRoute,
 }
 
 export const routeTree = rootRoute
@@ -377,7 +357,6 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/admin",
-        "/omnibar-overlay",
         "/onboarding",
         "/settings",
         "/tasks",
@@ -391,9 +370,6 @@ export const routeTree = rootRoute
     },
     "/admin": {
       "filePath": "admin.tsx"
-    },
-    "/omnibar-overlay": {
-      "filePath": "omnibar-overlay.tsx"
     },
     "/onboarding": {
       "filePath": "onboarding.tsx"

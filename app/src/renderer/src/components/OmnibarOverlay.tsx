@@ -1,5 +1,4 @@
 // <reference path="../../../preload/index.d.ts" />
-import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence, useMotionValue, animate, LayoutGroup } from 'framer-motion'
 import { ChevronRight, Send } from 'lucide-react'
@@ -37,7 +36,7 @@ function OmnibarResults({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="rounded-lg overflow-auto max-h-[280px] relative"
+      className="rounded-lg overflow-auto max-h-[280px] relative font-sans"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       role="listbox"
       aria-label="Chat search results"
@@ -90,7 +89,7 @@ function OmnibarResults({
   )
 }
 
-function OmnibarOverlay() {
+export default function OmnibarOverlay() {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [debouncedQuery, setDebouncedQuery] = useState('')
@@ -357,7 +356,7 @@ function OmnibarOverlay() {
                           handleSubmit(e as React.FormEvent)
                         }
                       }}
-                      placeholder="Ask a question privately…"
+                      placeholder="What's on your mind?"
                       className="w-full !bg-transparent overflow-y-auto !rounded-none text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 leading-normal auto-sizing-textarea"
                       style={
                         {
@@ -413,7 +412,3 @@ function OmnibarOverlay() {
     </>
   )
 }
-
-export const Route = createFileRoute('/omnibar-overlay')({
-  component: OmnibarOverlay
-})

@@ -33,7 +33,7 @@ export const Omnibar = () => {
 
   const { isCompleted } = useOnboardingStore()
 
-  const { isOpen, query, setQuery, closeOmnibar } = useOmnibarStore()
+  const { isOpen, query, setQuery, closeOmnibar, placeholder } = useOmnibarStore()
 
   const chats = chatsData?.getChats || []
   const filteredChats = chats.filter((chat) =>
@@ -175,7 +175,7 @@ export const Omnibar = () => {
                   )}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 >
-                  <div className="flex items-start gap-3">
+                  <motion.div layout="position" className="flex items-start gap-3">
                     <Textarea
                       ref={textareaRef}
                       value={query}
@@ -189,7 +189,7 @@ export const Omnibar = () => {
                           handleSubmit(e as React.FormEvent)
                         }
                       }}
-                      placeholder="Ask a question privately…"
+                      placeholder={placeholder}
                       className="flex-1 !rounded-none !bg-transparent text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-hidden min-h-0 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
                       rows={1}
                     />
@@ -209,7 +209,7 @@ export const Omnibar = () => {
                         />
                       </motion.div>
                     )}
-                  </div>
+                  </motion.div>
 
                   <AnimatePresence mode="wait">
                     {debouncedQuery && filteredChats.length > 0 && (
