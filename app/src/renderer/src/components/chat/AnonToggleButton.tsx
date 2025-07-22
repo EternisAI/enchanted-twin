@@ -20,7 +20,7 @@ export const AnonToggleButton = memo(function AnonToggleButton({
 
   return (
     <>
-      <div className="absolute top-4 right-4 flex justify-end mb-2 z-40">
+      <div className="absolute top-10 right-4 flex justify-end mb-2 z-40">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
