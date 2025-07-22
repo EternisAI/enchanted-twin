@@ -3,6 +3,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { omnibarStore } from './stores'
+import log from 'electron-log/main'
 
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 
@@ -92,7 +93,6 @@ class WindowManagerImpl implements WindowManager {
       maxWidth: 800,
       show: true,
       transparent: true,
-      // backgroundColor: '#00000000',
       frame: false,
       alwaysOnTop: true,
       skipTaskbar: true,
@@ -146,13 +146,11 @@ class WindowManagerImpl implements WindowManager {
       }
     })
 
-    // Load the overlay page
+    // Load the omnibar-specific page
     if (!IS_PRODUCTION && process.env['ELECTRON_RENDERER_URL']) {
-      omnibarWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/omnibar-overlay`)
+      omnibarWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/omnibar.html`)
     } else {
-      omnibarWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-        hash: '/omnibar-overlay'
-      })
+      omnibarWindow.loadFile(join(__dirname, '../renderer/omnibar.html'))
     }
 
     this.omnibarWindow = omnibarWindow
@@ -160,13 +158,16 @@ class WindowManagerImpl implements WindowManager {
   }
 
   toggleOmnibarWindow(): void {
+    log.info('Toggling omnibar window')
     if (!this.omnibarWindow || this.omnibarWindow.isDestroyed()) {
+      log.info('Creating new omnibar window')
       this.createOmnibarWindow()
     }
-
     if (this.omnibarWindow!.isVisible()) {
+      log.info('Hiding omnibar window')
       this.omnibarWindow!.hide()
     } else {
+      log.info('Showing omnibar window at position:', this.omnibarWindow!.getPosition())
       this.omnibarWindow!.show()
       this.omnibarWindow!.focus()
     }

@@ -1,5 +1,4 @@
 // <reference path="../../../preload/index.d.ts" />
-import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence, useMotionValue, animate, LayoutGroup } from 'framer-motion'
 import { ChevronRight, Send } from 'lucide-react'
@@ -90,7 +89,7 @@ function OmnibarResults({
   )
 }
 
-function OmnibarOverlay() {
+export default function OmnibarOverlay() {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [debouncedQuery, setDebouncedQuery] = useState('')
@@ -331,7 +330,7 @@ function OmnibarOverlay() {
             initial={{ scale: 0.95, opacity: 0, y: -5 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             transition={{ type: 'spring', damping: 55, stiffness: 350 }}
-            className="w-full h-full !bg-transparent border-0 shadow-none overflow-visible"
+            className="w-full h-full bg-background border border-border rounded-lg shadow-lg overflow-visible"
             style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
           >
             <motion.form onSubmit={handleSubmit} className="w-full h-full overflow-visible">
@@ -413,7 +412,3 @@ function OmnibarOverlay() {
     </>
   )
 }
-
-export const Route = createFileRoute('/omnibar-overlay')({
-  component: OmnibarOverlay
-})
