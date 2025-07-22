@@ -3,6 +3,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { omnibarStore } from './stores'
+import log from 'electron-log/main'
 
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 
@@ -90,9 +91,8 @@ class WindowManagerImpl implements WindowManager {
       maxHeight: 500,
       minWidth: 500,
       maxWidth: 800,
-      show: true,
+      show: false,
       transparent: true,
-      // backgroundColor: '#00000000',
       frame: false,
       alwaysOnTop: true,
       skipTaskbar: true,
@@ -146,13 +146,11 @@ class WindowManagerImpl implements WindowManager {
       }
     })
 
-    // Load the overlay page
+    // Load the omnibar-specific page
     if (!IS_PRODUCTION && process.env['ELECTRON_RENDERER_URL']) {
-      omnibarWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/omnibar-overlay`)
+      omnibarWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/omnibar.html`)
     } else {
-      omnibarWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-        hash: '/omnibar-overlay'
-      })
+      omnibarWindow.loadFile(join(__dirname, '../renderer/omnibar.html'))
     }
 
     this.omnibarWindow = omnibarWindow
@@ -160,13 +158,28 @@ class WindowManagerImpl implements WindowManager {
   }
 
   toggleOmnibarWindow(): void {
+    log.info('Toggling omnibar window')
     if (!this.omnibarWindow || this.omnibarWindow.isDestroyed()) {
+      log.info('Creating new omnibar window')
       this.createOmnibarWindow()
     }
-
     if (this.omnibarWindow!.isVisible()) {
+      log.info('Hiding omnibar window')
       this.omnibarWindow!.hide()
     } else {
+      // Get current mouse position
+      const cursorPoint = screen.getCursorScreenPoint()
+      // Find the display nearest to the cursor
+      const nearestDisplay = screen.getDisplayNearestPoint(cursorPoint)
+      const { width, height } = nearestDisplay.workArea
+      // Calculate centered position on that display
+      const x = nearestDisplay.workArea.x + Math.round((width - 500) / 2) // Assuming width 500
+      const y = nearestDisplay.workArea.y + Math.round(height * 0.25) // 25% from top
+      this.omnibarWindow!.setPosition(x, y)
+      // Update store
+      omnibarStore.set('position', { x, y })
+      omnibarStore.set('hasCustomPosition', false) // Reset custom flag since we're repositioning
+      log.info('Showing omnibar window at position:', { x, y })
       this.omnibarWindow!.show()
       this.omnibarWindow!.focus()
     }
