@@ -27,8 +27,8 @@ import {
   SearchIcon,
   ChevronDown,
   ChevronUp,
-  CheckSquare,
-  Globe
+  Globe,
+  AlarmCheckIcon
 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
@@ -176,7 +176,10 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                 </Tooltip>
               </TooltipProvider>
             ) : (
-              <img src={logo} alt="logo" className="w-7 h-7" />
+              <>
+                <img src={logo} alt="logo" className="mx-2 w-6 h-6" />
+                <span className="text-sm font-medium">Enchanted</span>
+              </>
             )}
           </motion.div>
           {!collapsed && (
@@ -220,7 +223,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                   size="icon"
                   className={cn(
                     'group transition-all',
-                    collapsed ? 'p-0 justify-center ' : 'w-full justify-start px-3'
+                    collapsed ? 'p-0 justify-center ' : 'rounded-md w-full justify-start px-3'
                   )}
                   onClick={handleNewChat}
                 >
@@ -270,7 +273,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                       ? 'w-10 p-0 justify-center text-foreground hover:bg-accent'
                       : 'w-full justify-start px-2 text-sidebar-foreground'
                   )}
-                  onClick={openOmnibar}
+                  onClick={() => openOmnibar('Search...')}
                 >
                   <SearchIcon
                     className={cn(
@@ -320,7 +323,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                   )}
                   onClick={handleNavigateTasks}
                 >
-                  <CheckSquare
+                  <AlarmCheckIcon
                     className={cn(
                       'w-4 h-4 transition-colors duration-100',
                       collapsed
