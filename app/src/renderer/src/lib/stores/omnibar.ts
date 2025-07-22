@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-const DEFAULT_PLACEHOLDER = 'Ask a question privately…'
+const DEFAULT_PLACEHOLDER = 'Send a message privately…'
 
 interface OmnibarStore {
   isOpen: boolean

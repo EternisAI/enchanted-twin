@@ -27,7 +27,7 @@ export default function MessageInput({
   isReasonSelected,
   onReasonToggle,
   voiceMode = false,
-  placeholder = 'Ask a question privately…',
+  placeholder = 'Send a message privately…',
   isStreamingResponse,
   onVoiceModeChange
 }: MessageInputProps) {

@@ -175,7 +175,7 @@ export const Omnibar = () => {
                   )}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 >
-                  <div className="flex items-start gap-3">
+                  <motion.div layout="position" className="flex items-start gap-3">
                     <Textarea
                       ref={textareaRef}
                       value={query}
@@ -209,7 +209,7 @@ export const Omnibar = () => {
                         />
                       </motion.div>
                     )}
-                  </div>
+                  </motion.div>
 
                   <AnimatePresence mode="wait">
                     {debouncedQuery && filteredChats.length > 0 && (

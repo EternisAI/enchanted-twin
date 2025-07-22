@@ -356,7 +356,7 @@ export default function OmnibarOverlay() {
                           handleSubmit(e as React.FormEvent)
                         }
                       }}
-                      placeholder="Ask a question privately…"
+                      placeholder="What's on your mind?"
                       className="w-full !bg-transparent overflow-y-auto !rounded-none text-foreground placeholder-muted-foreground outline-none resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 leading-normal auto-sizing-textarea"
                       style={
                         {
