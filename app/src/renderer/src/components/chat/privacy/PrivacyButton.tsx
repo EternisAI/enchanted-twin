@@ -3,20 +3,26 @@ import { LockIcon } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import { cn } from '@renderer/lib/utils'
 
-export function PrivacyButton({ className }: { className?: string }) {
+export function PrivacyButton({
+  className,
+  hideLabel = false
+}: {
+  className?: string
+  hideLabel?: boolean
+}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
+          size={hideLabel ? 'icon' : 'sm'}
           className={cn(
-            'h-7 flex items-center justify-center px-2 gap-1 text-xs z-50 no-drag cursor-help',
+            'flex items-center justify-center px-2 gap-1 text-xs z-50 no-drag cursor-help text-primary/50',
             className
           )}
         >
           <LockIcon className="w-4 h-4" />
-          <span className="text-muted-foreground tracking-tight font-medium">Protected Data</span>
+          {!hideLabel && <span className="text-muted-foreground font-medium">Protected Data</span>}
         </Button>
       </TooltipTrigger>
       <TooltipContent>

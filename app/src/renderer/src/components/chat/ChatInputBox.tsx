@@ -233,17 +233,16 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
           }}
           size="icon"
         >
-          <AnimatePresence mode="wait" initial={true}>
-            <motion.span
-              key="off"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
-            >
-              <AudioLinesIcon className="w-4 h-4" />
-            </motion.span>
-          </AnimatePresence>
+          <motion.span
+            key="off"
+            layout="position"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+          >
+            <AudioLinesIcon className="w-4 h-4" />
+          </motion.span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>

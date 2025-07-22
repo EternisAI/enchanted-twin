@@ -67,7 +67,7 @@ function EmptyTasksState() {
 
   const handleSuggestionClick = (suggestion: string) => {
     setQuery(suggestion)
-    openOmnibar()
+    openOmnibar('Create a task to automate recurring activities')
   }
 
   const examples = [
