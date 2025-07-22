@@ -76,10 +76,12 @@ func (s *service) ConnectMCPServer(
 	// Here you might add validation or other business logic before calling the repo
 	enabled := true
 
-	name := input.Name
-	// Servers of MCPServerTypeFreysa are expected to have properly formatted names
-	// set in the server. Names of all URL-type MCP servers are picked up automatically.
-	if input.Type != model.MCPServerTypeOther && input.Type != model.MCPServerTypeFreysa {
+	var name string
+
+	switch input.Type {
+	case model.MCPServerTypeOther, model.MCPServerTypeEnchanted, model.MCPServerTypeFreysa:
+		name = input.Name
+	default:
 		name = CapitalizeFirst(input.Type.String())
 	}
 
@@ -135,7 +137,7 @@ func (s *service) ConnectMCPServer(
 		default:
 			return nil, fmt.Errorf("unsupported server type")
 		}
-		input.Name = CapitalizeFirst(input.Type.String())
+		input.Name = name
 		mcpServer, err = s.repo.AddMCPServer(ctx, &input, &enabled)
 		if err != nil {
 			return nil, err

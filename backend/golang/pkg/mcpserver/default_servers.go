@@ -30,7 +30,7 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 		},
 		model.MCPServerTypeEnchanted: {
 			ID:      "enchanted",
-			Name:    "Starter",
+			Name:    "Search & Image",
 			Command: "npx",
 			Args:    []string{},
 			Enabled: enabled,
