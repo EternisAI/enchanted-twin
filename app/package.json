@@ -21,9 +21,9 @@
     "build:mac": "electron-vite build && electron-builder --mac --publish always",
     "build-local:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
-    "build:dev:mac": "npm run build && electron-builder --mac --config build:dev --publish always",
-    "build:dev:win": "npm run build && electron-builder --win --config build:dev --publish always",
-    "build:dev:linux": "npm run build && electron-builder --linux --config build:dev --publish always",
+    "build:dev:mac": "npm run build && electron-builder --mac --config electron-builder.dev.yml --publish always",
+    "build:dev:win": "npm run build && electron-builder --win --config electron-builder.dev.yml --publish always",
+    "build:dev:linux": "npm run build && electron-builder --linux --config electron-builder.dev.yml --publish always",
     "build:helper": "node scripts/build.js"
   },
   "dependencies": {
@@ -138,44 +138,6 @@
       "bucket": "enchanted-app",
       "region": "us-east-1",
       "channel": "latest"
-    },
-    "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "hardenedRuntime": true,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
-      "gatekeeperAssess": false,
-      "extendInfo": {
-        "NSCameraUsageDescription": "This app requires access to the camera.",
-        "NSMicrophoneUsageDescription": "This app requires access to the microphone.",
-        "NSDocumentsFolderUsageDescription": "This app requires access to the Documents folder.",
-        "NSScreenRecordingUsageDescription": "This app needs screen-recording permission so you can share your screen.",
-        "NSAccessibilityUsageDescription": "This app needs accessibility permissions to enhance user experience.",
-        "NSUserNotificationUsageDescription": "This app needs notification permissions to send you important updates and alerts."
-      }
-    },
-    "afterSign": "./build/notarize.js"
-  },
-  "build:dev": {
-    "productName": "Enchanted Dev",
-    "appId": "com.eternis.enchanted.dev",
-    "extraResources": [
-      {
-        "from": "./resources",
-        "to": "resources",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "publish": {
-      "provider": "s3",
-      "bucket": "enchanted-app-dev",
-      "region": "us-east-1",
-      "channel": "dev"
     },
     "mac": {
       "target": [
