@@ -1,19 +1,18 @@
 const { notarize } = require('@electron/notarize')
 
 exports.default = async function notarizeApp(context) {
-  const { appOutDir, electronPlatformName } = context
-  if (electronPlatformName !== 'darwin') return
+  if (context.electronPlatformName !== 'darwin') return
+  const { appOutDir, packager } = context
+  const appName = packager.appInfo.productFilename
+  const appBundleId = packager.appInfo.appId // robust fallback
 
-  const appName = context.packager.appInfo.productFilename
-  const appBundleId = context.packager.appInfo.metadata.appId
-  console.log('🪄 Running custom notarize script…')
+  console.log('🪄 Running notarization...')
   console.log(`📦 App: ${appName}`)
   console.log(`🆔 Bundle ID: ${appBundleId}`)
 
   return notarize({
     tool: 'notarytool',
-    provider: 'api',
-    appBundleId: appBundleId,
+    appBundleId,
     appPath: `${appOutDir}/${appName}.app`,
     ascProvider: process.env.NOTARY_TEAM_ID,
     appleApiKey: './build/AuthKey.p8',
