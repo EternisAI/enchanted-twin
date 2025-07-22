@@ -223,7 +223,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                   size="icon"
                   className={cn(
                     'group transition-all',
-                    collapsed ? 'p-0 justify-center ' : 'w-full justify-start px-3'
+                    collapsed ? 'p-0 justify-center ' : 'rounded-md w-full justify-start px-3'
                   )}
                   onClick={handleNewChat}
                 >
