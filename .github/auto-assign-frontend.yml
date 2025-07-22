@@ -2,6 +2,7 @@ skipDraft: true
 addReviewers: true
 addAssignees: false
 numberOfReviewers: 1
+skipKeywords: ['[skip ci]', '[skip review]']
 reviewers:
   - apokusin
   - Arthurgallina1

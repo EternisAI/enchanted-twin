@@ -1,0 +1,42 @@
+teams:
+  frontend:
+    - apokusin
+    - Arthurgallina1
+  mcp:
+    - pottekkat
+    - Enjection
+    - JckHoe
+  memory:
+    - typ3c4t
+    - juraev
+  agent:
+    - lwlee2608
+    - gustav0frings
+  data_ingestion:
+    - typ3c4t
+    - juraev
+  anonymiser:
+    - gustav0frings
+    - gluonfield
+  holon:
+    - lwlee2608
+    - gustav0frings
+  twinchat:
+    - gluonfield
+    - Enjection
+    - lwlee2608
+    - JckHoe
+  github:
+    - Enjection
+    - gluonfield
+  default:
+    - apokusin
+    - Arthurgallina1
+    - pottekkat
+    - Enjection
+    - JckHoe
+    - typ3c4t
+    - juraev
+    - lwlee2608
+    - gustav0frings
+    - gluonfield
