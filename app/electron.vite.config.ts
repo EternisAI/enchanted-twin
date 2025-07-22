@@ -93,7 +93,15 @@ export default defineConfig(({ mode }) => {
         TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
         react(),
         tailwindcss()
-      ]
+      ],
+      build: {
+        rollupOptions: {
+          input: {
+            index: resolve(__dirname, 'src/renderer/index.html'),
+            omnibar: resolve(__dirname, 'src/renderer/omnibar.html')
+          }
+        }
+      }
     }
   }
 })
