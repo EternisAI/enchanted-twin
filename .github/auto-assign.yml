@@ -1,0 +1,52 @@
+skipDraft: true
+
+reviewers:
+  # Memory (most specific first)
+  - paths: ['backend/golang/pkg/agent/memory/**']
+    reviewers: ['typ3c4t', 'juraev', 'lwlee2608']
+    random: 1
+    
+  # Agent (broader rule after memory)
+  - paths: ['backend/golang/pkg/agent/**']
+    reviewers: ['gluonfield', 'Enjection', 'lwlee2608', 'JckHoe']
+    random: 1
+    
+  # Frontend
+  - paths: ['app/**']
+    reviewers: ['apokusin', 'Arthurgallina1']
+    random: 1
+    
+  # MCP
+  - paths: ['backend/golang/pkg/mcpserver/**']
+    reviewers: ['pottekkat', 'Enjection', 'JckHoe']
+    random: 1
+    
+  # Data Ingestion
+  - paths: ['backend/golang/pkg/dataprocessing/**']
+    reviewers: ['gustav0frings', 'typ3c4t']
+    random: 1
+    
+  # Anonymiser
+  - paths: ['backend/golang/pkg/ai/**']
+    reviewers: ['Enjection', 'lwlee2608', 'JckHoe']
+    random: 1
+    
+  # Holon
+  - paths: ['backend/golang/pkg/holon/**']
+    reviewers: ['Enjection', 'lwlee2608', 'JckHoe']
+    random: 1
+    
+  # TwinChat
+  - paths: ['backend/golang/pkg/twinchat/**']
+    reviewers: ['gluonfield', 'Enjection', 'lwlee2608', 'JckHoe']
+    random: 1
+    
+  # CI/CD
+  - paths: ['.github/**']
+    reviewers: ['Enjection', 'gluonfield']
+    random: 1
+    
+  # Default fallback
+  - paths: ['**']
+    reviewers: ['apokusin', 'Arthurgallina1', 'pottekkat', 'Enjection', 'JckHoe', 'typ3c4t', 'juraev', 'lwlee2608', 'gustav0frings', 'gluonfield']
+    random: 1
