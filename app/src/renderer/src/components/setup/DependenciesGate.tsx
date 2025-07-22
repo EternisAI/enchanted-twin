@@ -194,7 +194,8 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (!hasModelsDownloaded.LLAMACCP) return
+      if (!hasModelsDownloaded.LLAMACCP || !hasModelsDownloaded.anonymizer) return
+
       const result = await window.api.llamacpp.getStatus()
       if (result.success) {
         if (!result.isRunning && !result.setupInProgress) {
@@ -205,15 +206,23 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     }, 15000)
 
     return () => clearInterval(interval)
-  }, [startLlamaCpp, hasModelsDownloaded.LLAMACCP])
+  }, [startLlamaCpp, hasModelsDownloaded.LLAMACCP, hasModelsDownloaded.anonymizer])
 
   const allDependenciesCompleted =
     Object.values(hasModelsDownloaded).every((dependency) => dependency) ||
     Object.values(downloadState).every((dependency) => dependency.completed)
 
   // useEffect(() => {
-  //   if (!allDependenciesCompleted) return
-  //   if (process.env.NODE_ENV === 'development') return
+  //   if (
+  //     !allDependenciesCompleted ||
+  //     process.env.NODE_ENV === 'development' ||
+  //     goServerState.initializing ||
+  //     goServerState.isRunning
+  //   ) {
+  //     console.log('[DependenciesGate] Early return', allDependenciesCompleted, goServerState)
+
+  //     return
+  //   }
 
   //   const interval = setInterval(async () => {
   //     const status = await goServerActions.checkStatus()
@@ -224,7 +233,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
   //     }
   //   }, 5000)
   //   return () => clearInterval(interval)
-  // }, [allDependenciesCompleted])
+  // }, [allDependenciesCompleted, goServerState])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>
