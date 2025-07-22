@@ -4,10 +4,11 @@ import { TooltipTrigger } from '../ui/tooltip'
 import { Tooltip } from '../ui/tooltip'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button } from '../ui/button'
-import { AudioLinesIcon, Lightbulb, X } from 'lucide-react'
+import { AudioLinesIcon, Brain, CheckIcon, ChevronDown, Lightbulb, X } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { SendButton } from './MessageInput'
 import { toast } from 'sonner'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 
 type ChatInputBoxProps = {
   query: string
@@ -192,36 +193,80 @@ interface ReasoningButtonProps {
   disabled?: boolean
 }
 
-const models = [
-  {
-    name: 'GPT-4.1',
-    value: 'gpt-4.1'
-  },
-  {
-    name: 'GPT-4.5',
-    value: 'gpt-4.5'
-  }
-]
+const REASONING_MODEL = 'o4-mini-high'
+const NOT_REASONING_MODEL = 'gpt-4.1'
 
 export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps) {
+  const [open, setOpen] = useState(false)
+
+  const models = [
+    { value: false, label: 'Standard', model: NOT_REASONING_MODEL },
+    { value: true, label: 'Advanced Reasoning', model: REASONING_MODEL }
+  ]
+
+  const handleModelSelect = (value: boolean) => {
+    if (value !== isSelected) {
+      onClick()
+    }
+    setOpen(false)
+  }
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <Button
           size="icon"
-          onClick={onClick}
-          className={cn(isSelected && '!text-orange-500')}
+          className={cn('relative', isSelected && '!text-orange-500')}
           variant="outline"
           disabled={disabled}
         >
-          <Lightbulb className="w-4 h-4" />
+          <Brain className="w-4 h-4" />
         </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>Turn {isSelected ? 'off' : 'on'} advanced reasoning</p>
-        <p className="text-xs opacity-50">o4-mini-high</p>
-      </TooltipContent>
-    </Tooltip>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-1" align="end">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.15 }}
+          className="flex flex-col"
+        >
+          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+            Model Selection
+          </div>
+          <div className="h-px bg-border my-1" />
+          {models.map((model, index) => (
+            <motion.button
+              key={model.model}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.15, delay: index * 0.05 }}
+              onClick={() => handleModelSelect(model.value)}
+              className={cn(
+                'flex items-center justify-between px-2 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors outline-none',
+                isSelected === model.value && 'bg-accent'
+              )}
+            >
+              <div className="flex flex-col items-start">
+                <span className="font-medium">{model.label}</span>
+                <span className="text-xs text-muted-foreground">{model.model}</span>
+              </div>
+              <AnimatePresence mode="wait">
+                {isSelected === model.value && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <CheckIcon className="w-4 h-4 text-orange-500" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.button>
+          ))}
+        </motion.div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
