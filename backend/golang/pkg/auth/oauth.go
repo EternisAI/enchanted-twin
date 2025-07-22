@@ -167,6 +167,15 @@ func StoreToken(ctx context.Context, logger *log.Logger, store *db.Store, token 
 		logger.Info("got username from token", "username", username)
 	}
 
+	// Only one Firebase login token should be stored at a time.
+	// Multiple tokens means that the user logged in with multiple accounts.
+	// So we clear all existing tokens before storing the new one.
+	if err := store.ClearAllOAuthTokensByProvider(ctx, provider); err != nil {
+		logger.Warn("failed to clear existing firebase tokens", "error", err)
+	} else {
+		logger.Debug("cleared existing firebase tokens before storing new one", "username", username)
+	}
+
 	existingTokens, err := store.GetOAuthTokens(ctx, provider)
 	isUpdate := err == nil && existingTokens != nil
 
