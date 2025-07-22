@@ -1,6 +1,8 @@
 name: Dev Release Enchanted Twin App
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -11,8 +13,8 @@ on:
 jobs:
   build-and-release-dev:
     runs-on: macos-latest
-    # Only run for pre-releases (dev builds)
-    if: github.event.release.prerelease == true
+    # Only run for draft/pre-releases (dev builds) or manual dispatch
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == true || github.event.release.draft == true
 
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
