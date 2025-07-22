@@ -18,13 +18,10 @@ export function PrivacyButton({
         <Button
           variant="ghost"
           size={hideLabel ? 'icon' : 'sm'}
-          className={cn(
-            'flex items-center justify-center px-2 gap-1 text-xs z-50 no-drag cursor-help text-primary/50',
-            className
-          )}
+          className={cn('px-2 gap-1 text-xs z-50 no-drag cursor-help text-primary/50', className)}
         >
           <LockIcon className="w-4 h-4" />
-          {!hideLabel && <span className="font-medium">{label}</span>}
+          {!hideLabel && <span className="font-medium leading-none">{label}</span>}
         </Button>
       </TooltipTrigger>
       <TooltipContent>

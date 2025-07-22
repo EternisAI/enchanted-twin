@@ -161,7 +161,7 @@ function RootComponent() {
             {/* {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '} */}
           </motion.div>
           <div className="fixed top-0 right-0 z-50 h-8 no-drag flex items-center gap-2">
-            <PrivacyButton />
+            {location.pathname !== '/onboarding' && <PrivacyButton />}
             <GlobalIndexingStatus />
           </div>
 

@@ -6,6 +6,7 @@ import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES 
 import { Button } from '../ui/button'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
+import { PrivacyButton } from '../chat/privacy/PrivacyButton'
 
 export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLAMACCP' | 'uv'
 
@@ -282,6 +283,10 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
                 onRetry={retryGoServer}
               />
             )}
+            <PrivacyButton
+              label="Your data is private"
+              className="text-white hover:bg-transparent hover:text-white/90"
+            />
           </div>
         </div>
       </div>
