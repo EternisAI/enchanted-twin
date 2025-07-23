@@ -4,12 +4,11 @@ import { cn } from '@renderer/lib/utils'
 
 export function PrivacyButton({
   className,
-  hideLabel = false,
   label = 'Privacy Enabled'
 }: {
   className?: string
   hideLabel?: boolean
-  label?: string
+  label?: string | boolean
 }) {
   return (
     <Tooltip>
@@ -21,7 +20,7 @@ export function PrivacyButton({
           )}
         >
           <LockIcon className="w-4 h-4" />
-          {!hideLabel && <span className="font-medium leading-none">{label}</span>}
+          {label && <span className="font-medium leading-none">{label}</span>}
         </div>
       </TooltipTrigger>
       <TooltipContent>
