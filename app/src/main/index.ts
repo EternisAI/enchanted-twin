@@ -149,6 +149,32 @@ app.on('will-quit', async () => {
   cleanupScreenpipe()
 })
 
+// Handle process termination signals for force quit scenarios
+process.on('SIGINT', () => {
+  log.info('Received SIGINT, cleaning up...')
+  cleanupScreenpipe()
+  process.exit(0)
+})
+
+process.on('SIGTERM', () => {
+  log.info('Received SIGTERM, cleaning up...')
+  cleanupScreenpipe()
+  process.exit(0)
+})
+
+// Handle uncaught exceptions to ensure cleanup
+process.on('uncaughtException', (error) => {
+  log.error('Uncaught exception:', error)
+  cleanupScreenpipe()
+  process.exit(1)
+})
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  log.error('Unhandled rejection at:', promise, 'reason:', reason)
+  // Don't exit on unhandled rejections, but log them
+})
+
 // Simple rule: Non-voice mode = no process should live
 function setupLiveKitCleanup(mainWindow: Electron.BrowserWindow) {
   // Any renderer issue = stop process (keep agent ready)

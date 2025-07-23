@@ -79,8 +79,7 @@ export function startScreenpipe(): Promise<{ success: boolean; error?: string }>
 
         screenpipeProcess = spawn(screenpipeBinaryPath, screenpipeArgs, {
           stdio: 'pipe',
-          env: process.env,
-          detached: process.platform !== 'win32' // Create process group on Unix
+          env: process.env
         })
 
         log.info(`Screenpipe process spawned with PID: ${screenpipeProcess?.pid}`)
@@ -255,6 +254,12 @@ export function cleanupScreenpipe(): void {
     log.info('Shutting down screenpipe process...')
     stopScreenpipe()
   }
+  
+  // As a fallback, also kill any screenpipe processes by name
+  // This ensures cleanup even if we lost track of the process
+  killExistingScreenpipeProcesses().catch((error) => {
+    log.error('Error killing existing screenpipe processes during cleanup:', error)
+  })
 }
 
 // Start health check when process starts
