@@ -24,7 +24,7 @@ export default function EnableMicrophone({ onGrantPermission, onSkip }: EnableMi
   }
 
   return (
-    <div className="w-full max-w-2xl flex flex-col gap-6 p-10 bg-white/5 rounded-xl border border-white/50">
+    <div className="w-full max-w-2xl flex flex-col gap-6 p-10 bg-white/5 rounded-xl border border-white/25">
       <div className="flex items-center gap-3">
         <MicOff className="w-12 h-12 text-white" />
         <div className="flex flex-col gap-1.5">
