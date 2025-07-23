@@ -1,4 +1,3 @@
-import { Button } from '@renderer/components/ui/button'
 import { LockIcon } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import { cn } from '@renderer/lib/utils'
@@ -6,7 +5,7 @@ import { cn } from '@renderer/lib/utils'
 export function PrivacyButton({
   className,
   hideLabel = false,
-  label = 'Protected Data'
+  label = 'Privacy Enabled'
 }: {
   className?: string
   hideLabel?: boolean
@@ -15,22 +14,18 @@ export function PrivacyButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size={hideLabel ? 'icon' : 'sm'}
-          className={cn('px-2 gap-1 text-xs z-50 no-drag cursor-help text-primary/50', className)}
+        <div
+          className={cn(
+            'px-2 gap-1 h-8 text-xs z-50 no-drag cursor-help text-primary/50 flex items-center justify-center',
+            className
+          )}
         >
           <LockIcon className="w-4 h-4" />
           {!hideLabel && <span className="font-medium leading-none">{label}</span>}
-        </Button>
+        </div>
       </TooltipTrigger>
       <TooltipContent>
-        <div className="max-w-xs text-wrap">
-          <p className="text-xs">Privacy Enabled</p>
-          <p className="text-xs opacity-70">
-            Your messages are routed through our privacy mixing network
-          </p>
-        </div>
+        <p className="text-xs">Your messages are routed through our privacy mixing network</p>
       </TooltipContent>
     </Tooltip>
   )
