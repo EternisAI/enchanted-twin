@@ -36,7 +36,7 @@ async function killExistingScreenpipeProcesses(): Promise<void> {
           resolve(undefined)
         })
       })
-      
+
       // On macOS, also try killall as a fallback
       if (platform() === 'darwin') {
         await new Promise((resolve) => {
@@ -73,7 +73,7 @@ function killExistingScreenpipeProcessesSync(): void {
         // Ignore errors
         log.warn('Error killing existing screenpipe processes with pkill:', error)
       }
-      
+
       // On macOS, also try killall as a fallback
       if (platform() === 'darwin') {
         try {
@@ -236,7 +236,10 @@ function isScreenpipeRunning(): boolean {
     return true
   } catch (error) {
     // Process doesn't exist, clean up our reference
-    log.warn('Screenpipe process not found, cleaning up reference', error)
+    // ESRCH is expected when the process is gone
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+      log.warn('Error checking screenpipe process:', error)
+    }
     screenpipeProcess = null
     return false
   }
