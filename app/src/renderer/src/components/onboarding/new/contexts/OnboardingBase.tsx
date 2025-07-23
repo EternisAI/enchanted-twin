@@ -102,10 +102,7 @@ export function MessageDisplay({
         >
           {children}
         </motion.div>
-        <PrivacyButton
-          label="Your data is private"
-          className="text-white hover:bg-transparent hover:text-white/90"
-        />
+        <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
       </div>
     </>
   )
