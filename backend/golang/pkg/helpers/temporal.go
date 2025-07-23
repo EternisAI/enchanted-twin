@@ -123,6 +123,5 @@ func DeleteScheduleIfExists(
 		return err
 	}
 
-	logger.Info("Schedule deleted", "scheduleID", scheduleID)
 	return nil
 }
