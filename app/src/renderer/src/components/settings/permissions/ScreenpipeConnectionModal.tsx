@@ -9,6 +9,7 @@ import {
   DialogDescription
 } from '@renderer/components/ui/dialog'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 
 interface ScreenpipeConnectionModalProps {
   isOpen: boolean
@@ -31,6 +32,7 @@ export default function ScreenpipeConnectionModal({
 }: ScreenpipeConnectionModalProps) {
   const [isRequestingPermission, setIsRequestingPermission] = useState(false)
   const [isStartingScreenpipe, setIsStartingScreenpipe] = useState(false)
+  const [isStoppingScreenpipe, setIsStoppingScreenpipe] = useState(false)
 
   const needsPermission = screenRecordingPermission !== 'granted'
   const needsScreenpipe = !isScreenpipeRunning
@@ -50,6 +52,7 @@ export default function ScreenpipeConnectionModal({
       // The modal will close automatically when the component unmounts
     } catch (error) {
       console.error('Error requesting permission:', error)
+      toast.error('Failed to request permission')
     } finally {
       setIsRequestingPermission(false)
     }
@@ -65,8 +68,24 @@ export default function ScreenpipeConnectionModal({
       }
     } catch (error) {
       console.error('Error starting Screenpipe:', error)
+      toast.error('Failed to start Screenpipe')
     } finally {
       setIsStartingScreenpipe(false)
+    }
+  }
+
+  const handleStopScreenpipe = async () => {
+    setIsStoppingScreenpipe(true)
+    try {
+      await onStopScreenpipe()
+      toast.success('Screenpipe stopped successfully')
+      // Optionally close modal after stopping
+      // onClose()
+    } catch (error) {
+      console.error('Error stopping Screenpipe:', error)
+      toast.error('Failed to stop Screenpipe')
+    } finally {
+      setIsStoppingScreenpipe(false)
     }
   }
 
@@ -161,9 +180,14 @@ export default function ScreenpipeConnectionModal({
                     {isStartingScreenpipe ? 'Starting...' : 'Start Now'}
                   </Button>
                 ) : (
-                  <Button variant="outline" onClick={onStopScreenpipe} size="sm">
+                  <Button
+                    variant="outline"
+                    onClick={handleStopScreenpipe}
+                    size="sm"
+                    disabled={isStoppingScreenpipe}
+                  >
                     <StopCircleIcon className="h-4 w-4 mr-2" />
-                    Stop Screenpipe
+                    {isStoppingScreenpipe ? 'Stopping...' : 'Stop Screenpipe'}
                   </Button>
                 )}
               </div>

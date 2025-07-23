@@ -51,11 +51,14 @@ export function useScreenpipeConnection(options: UseScreenpipeConnectionOptions 
     const micStatus = await window.api.queryMediaStatus('microphone')
     const accessibilityStatus = await window.api.accessibility.getStatus()
 
-    setPermissions({
+    const newPermissions = {
       screen: screenStatus as MediaStatusType,
       microphone: micStatus as MediaStatusType,
       accessibility: accessibilityStatus as MediaStatusType
-    })
+    }
+
+    setPermissions(newPermissions)
+    return newPermissions
   }
 
   // Derived state helpers
@@ -183,8 +186,8 @@ export function useScreenpipeConnection(options: UseScreenpipeConnectionOptions 
     setIsLoading(true)
     setError(null)
     try {
-      await checkPermissions()
-      if (permissions.screen !== 'granted') {
+      const currentPermissions = await checkPermissions()
+      if (currentPermissions.screen !== 'granted') {
         setShowConnectionModal(true)
         return
       }
