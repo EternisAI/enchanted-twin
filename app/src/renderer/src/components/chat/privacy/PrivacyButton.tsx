@@ -27,7 +27,9 @@ export function PrivacyButton({
       <TooltipContent>
         <div className="max-w-xs text-wrap">
           <p className="text-xs">Privacy Enabled</p>
-          <p className="text-xs opacity-70">Your messages are routed through our privacy network</p>
+          <p className="text-xs opacity-70">
+            Your messages are routed through our privacy mixing network
+          </p>
         </div>
       </TooltipContent>
     </Tooltip>
