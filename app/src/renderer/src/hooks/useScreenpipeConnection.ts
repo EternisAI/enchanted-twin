@@ -15,7 +15,7 @@ interface ScreenpipeStatus {
 }
 
 // Unified connection states
-export type ConnectionState = 
+export type ConnectionState =
   | 'not-installed'
   | 'permissions-required'
   | 'ready'
@@ -85,7 +85,10 @@ export function useScreenpipeConnection(options: UseScreenpipeConnectionOptions 
   }
 
   const connectionState = getConnectionState()
-  const needsConnection = connectionState === 'not-installed' || connectionState === 'permissions-required' || connectionState === 'ready'
+  const needsConnection =
+    connectionState === 'not-installed' ||
+    connectionState === 'permissions-required' ||
+    connectionState === 'ready'
   const canConnect = connectionState !== 'not-installed' && connectionState !== 'loading'
 
   // Get appropriate button label based on state
@@ -262,13 +265,13 @@ export function useScreenpipeConnection(options: UseScreenpipeConnectionOptions 
     status,
     permissions,
     connectionState,
-    
+
     // UI state
     showConnectionModal,
     setShowConnectionModal,
     isLoading,
     error,
-    
+
     // Derived state
     hasAllPermissions,
     needsConnection,
@@ -276,7 +279,7 @@ export function useScreenpipeConnection(options: UseScreenpipeConnectionOptions 
     getMissingPermissions,
     getButtonLabel,
     getStatusInfo,
-    
+
     // Actions
     handleConnect,
     handleRequestPermission,
