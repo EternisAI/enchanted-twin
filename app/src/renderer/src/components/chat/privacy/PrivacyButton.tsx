@@ -7,7 +7,6 @@ export function PrivacyButton({
   label = 'Privacy Enabled'
 }: {
   className?: string
-  hideLabel?: boolean
   label?: string | boolean
 }) {
   return (
