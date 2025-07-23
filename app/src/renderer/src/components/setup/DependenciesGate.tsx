@@ -328,9 +328,11 @@ function ModelDownloadItem({
               <Loader className="animate-spin w-4 h-4 " />
               <p className="text-md">{percentage}%</p>
             </div>
-            <p className="text-xs text-white/70">
-              {remainingSize} left of {totalSize}
-            </p>
+            {totalBytes > 0 && (
+              <p className="text-xs text-white/70">
+                {remainingSize} left of {totalSize}
+              </p>
+            )}
           </>
         ) : error ? (
           <button
