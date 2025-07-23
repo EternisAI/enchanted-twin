@@ -260,8 +260,8 @@ export function initializeAnalytics() {
 
     client = new posthog.PostHog(POSTHOG_API_KEY, {
       host: POSTHOG_HOST,
-      flushAt: 1,
-      flushInterval: 5000
+      flushAt: 10,
+      flushInterval: 20000
     })
 
     identify({
