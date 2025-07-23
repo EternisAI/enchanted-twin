@@ -214,32 +214,45 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     Object.values(downloadState).every((dependency) => dependency.completed)
 
   useEffect(() => {
-    console.log('[DependenciesGate] Checking Go server status')
-    if (
-      !allDependenciesCompleted ||
-      process.env.NODE_ENV === 'development' ||
-      goServerState.initializing ||
-      goServerState.isRunning
-    ) {
-      console.log('[DependenciesGate] Early return', allDependenciesCompleted, goServerState)
+    console.log('[DependenciesGate] Setting up Go server monitoring')
 
+    // Only monitor if all dependencies are completed and not in development
+    if (!allDependenciesCompleted || process.env.NODE_ENV === 'development') {
+      console.log(
+        '[DependenciesGate] Skipping Go server monitoring - dependencies not completed or in dev mode'
+      )
       return
     }
 
-    console.log('[DependenciesGate] pre interval')
+    console.log('[DependenciesGate] Starting Go server monitoring every 10s')
 
     const interval = setInterval(async () => {
-      console.log('[DependenciesGate] Checking Go server status')
-      const status = await goServerActions.checkStatus()
-      console.log('[DependenciesGate] Go server status:', status)
-      if (!status.isRunning) {
-        console.log('[DependenciesGate] Go server is not running, initializing...')
-        await goServerActions.initializeIfNeeded()
-      }
-    }, 5000)
+      console.log('[DependenciesGate] Checking Go server status...')
 
-    return () => clearInterval(interval)
-  }, [allDependenciesCompleted, goServerState])
+      try {
+        const status = await goServerActions.checkStatus()
+        console.log('[DependenciesGate] Go server status:', status)
+
+        if (!status.isRunning && !goServerState.initializing) {
+          console.log(
+            '[DependenciesGate] Go server is not running and not initializing, starting initialization...'
+          )
+          await goServerActions.initializeIfNeeded()
+        } else if (status.isRunning) {
+          console.log('[DependenciesGate] Go server is running')
+        } else if (goServerState.initializing) {
+          console.log('[DependenciesGate] Go server is currently initializing')
+        }
+      } catch (error) {
+        console.error('[DependenciesGate] Error checking Go server status:', error)
+      }
+    }, 10000) // 10 seconds
+
+    return () => {
+      console.log('[DependenciesGate] Cleaning up Go server monitoring')
+      clearInterval(interval)
+    }
+  }, [allDependenciesCompleted, goServerState.initializing, goServerActions])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>
