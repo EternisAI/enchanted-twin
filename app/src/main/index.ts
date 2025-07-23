@@ -129,7 +129,6 @@ app.on('before-quit', () => {
     log.info('Destroying omnibar window before quit')
     windowManager.omnibarWindow.destroy()
   }
-  
   // Start cleanup of Screenpipe early (sync version for immediate effect)
   cleanupScreenpipeSync()
 })

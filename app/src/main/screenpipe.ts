@@ -42,6 +42,7 @@ async function killExistingScreenpipeProcesses(): Promise<void> {
         await new Promise((resolve) => {
           exec('killall -9 screenpipe 2>/dev/null', (err) => {
             // Ignore errors as process might not exist
+            log.warn('Error killing existing screenpipe processes with killall:', err)
             resolve(undefined)
           })
         })
@@ -79,6 +80,7 @@ function killExistingScreenpipeProcessesSync(): void {
         try {
           execSync('killall -9 screenpipe 2>/dev/null', { stdio: 'ignore' })
         } catch (error) {
+          log.warn('Error killing existing screenpipe processes with killall:', error)
           // Ignore errors as process might not exist
         }
       }
