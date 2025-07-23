@@ -23,7 +23,7 @@ export function PrivacyButton({
         </div>
       </TooltipTrigger>
       <TooltipContent>
-        <p className="text-xs">Your messages are routed through our privacy mixing network</p>
+        <p className="text-xs">Your messages are routed through our privacy network</p>
       </TooltipContent>
     </Tooltip>
   )
