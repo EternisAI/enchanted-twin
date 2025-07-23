@@ -51,6 +51,7 @@ interface IApi {
   onUpdateProgress: (callback: (progress: unknown) => void) => () => void
   checkForUpdates: (silent: boolean) => Promise<void>
   getAppVersion: () => Promise<string>
+  getAppName: () => Promise<string>
   restartApp: () => Promise<void>
   onOpenSettings: (callback: () => void) => () => void
   onNewChat: (callback: () => void) => () => void

@@ -58,6 +58,7 @@ const api = {
     return () => ipcRenderer.removeListener('update-progress', listener)
   },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getAppName: () => ipcRenderer.invoke('get-app-name'),
   onOpenSettings: (callback: () => void) => {
     const listener = () => callback()
     ipcRenderer.on('open-settings', listener)
