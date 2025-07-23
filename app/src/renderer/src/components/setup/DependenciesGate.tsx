@@ -214,6 +214,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     Object.values(downloadState).every((dependency) => dependency.completed)
 
   useEffect(() => {
+    console.log('[DependenciesGate] Checking Go server status')
     if (
       !allDependenciesCompleted ||
       process.env.NODE_ENV === 'development' ||
@@ -225,7 +226,10 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
       return
     }
 
+    console.log('[DependenciesGate] pre interval')
+
     const interval = setInterval(async () => {
+      console.log('[DependenciesGate] Checking Go server status')
       const status = await goServerActions.checkStatus()
       console.log('[DependenciesGate] Go server status:', status)
       if (!status.isRunning) {
@@ -233,6 +237,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
         await goServerActions.initializeIfNeeded()
       }
     }, 5000)
+
     return () => clearInterval(interval)
   }, [allDependenciesCompleted, goServerState])
 

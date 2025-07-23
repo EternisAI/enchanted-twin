@@ -120,8 +120,8 @@ export function registerIpcHandlers() {
     return app.getVersion()
   })
 
-  ipcMain.handle('get-app-name', () => {
-    return app.getName()
+  ipcMain.handle('get-build-channel', () => {
+    return process.env.BUILD_CHANNEL || 'latest'
   })
 
   // Clipboard handlers
