@@ -44,7 +44,7 @@ function SettingsLayout() {
       icon: Info,
       path: '/settings/about'
     },
-    ...(isDevRelease && !loadingAppName
+    ...((isDevRelease || process.env.NODE_ENV === 'development') && !loadingAppName
       ? [
           {
             value: 'advanced',
