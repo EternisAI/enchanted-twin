@@ -15,11 +15,14 @@ export function setupAutoUpdater() {
   log.transports.file.level = 'debug'
   autoUpdater.autoDownload = true
 
-  // Set update channel based on app name
   const appName = app.getName()
   if (appName === 'Enchanted Dev') {
     autoUpdater.channel = 'dev'
+    autoUpdater.updateConfigPath = 'dev-mac.yml'
     log.info(`Auto-updater configured for dev channel (app: ${appName})`)
+    log.info(
+      `Current channel: ${autoUpdater.channel} and updateConfigPath: ${autoUpdater.updateConfigPath}`
+    )
   } else {
     // Fallback to latest for unknown app names
     autoUpdater.channel = 'latest'
