@@ -26,15 +26,26 @@ async function killExistingScreenpipeProcesses(): Promise<void> {
       })
     } else {
       // Kill all screenpipe processes on macOS/Linux
+      // First try pkill
       await new Promise((resolve) => {
         exec('pkill -f screenpipe', (err) => {
           if (err && err.code !== 1) {
             // Exit code 1 means no processes found
-            log.warn('Error killing existing screenpipe processes:', err)
+            log.warn('Error killing existing screenpipe processes with pkill:', err)
           }
           resolve(undefined)
         })
       })
+      
+      // On macOS, also try killall as a fallback
+      if (platform() === 'darwin') {
+        await new Promise((resolve) => {
+          exec('killall -9 screenpipe 2>/dev/null', (err) => {
+            // Ignore errors as process might not exist
+            resolve(undefined)
+          })
+        })
+      }
     }
   } catch (error) {
     log.error('Failed to kill existing screenpipe processes:', error)
@@ -57,10 +68,19 @@ function killExistingScreenpipeProcessesSync(): void {
     } else {
       // Kill all screenpipe processes on macOS/Linux
       try {
-        execSync('pkill -f screenpipe', { stdio: 'ignore' })
+        execSync('pkill -9 -f screenpipe', { stdio: 'ignore' })
       } catch (error) {
         // Ignore errors
-        log.warn('Error killing existing screenpipe processes:', error)
+        log.warn('Error killing existing screenpipe processes with pkill:', error)
+      }
+      
+      // On macOS, also try killall as a fallback
+      if (platform() === 'darwin') {
+        try {
+          execSync('killall -9 screenpipe 2>/dev/null', { stdio: 'ignore' })
+        } catch (error) {
+          // Ignore errors as process might not exist
+        }
       }
     }
   } catch (error) {
@@ -250,12 +270,17 @@ function stopScreenpipe(): boolean {
             try {
               process.kill(-pid, 'SIGKILL')
             } catch (error) {
-              log.warn('Failed to kill process group:', error)
-              // Process group might already be dead
+              // ESRCH means the process doesn't exist, which is fine
+              if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+                log.warn('Failed to kill process group:', error)
+              }
             }
           }, 2000)
         } catch (error) {
-          log.error('Failed to kill process group:', error)
+          // ESRCH means the process doesn't exist, which is fine - it's already dead
+          if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+            log.error('Failed to kill process group:', error)
+          }
         }
       }
 
@@ -301,8 +326,10 @@ export function cleanupScreenpipeSync(): void {
         process.kill(screenpipeProcess.pid, 'SIGKILL')
       }
     } catch (error) {
-      // Ignore errors
-      log.warn('Error killing screenpipe process (sync):', error)
+      // ESRCH means the process doesn't exist, which is fine
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+        log.warn('Error killing screenpipe process (sync):', error)
+      }
     }
   }
   // Always kill by name as fallback
