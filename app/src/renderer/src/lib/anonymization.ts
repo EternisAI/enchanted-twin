@@ -14,11 +14,19 @@ export const sortKeysByLengthDesc = (privacyDict: Record<string, string>): strin
 
 // Helper function to check if all letters are uppercase
 export const isAllUppercase = (str: string): boolean => {
+  // First check if string contains at least one letter
+  if (!/[a-zA-Z]/.test(str)) {
+    return false
+  }
   return str.split('').every((char) => !char.match(/[a-z]/))
 }
 
 // Helper function to check if all letters are lowercase
 export const isAllLowercase = (str: string): boolean => {
+  // First check if string contains at least one letter
+  if (!/[a-zA-Z]/.test(str)) {
+    return false
+  }
   return str.split('').every((char) => !char.match(/[A-Z]/))
 }
 
@@ -162,7 +170,8 @@ export const anonymizeTextString = (text: string, privacyDict: Record<string, st
 // Anonymization function for HTML/Markdown strings with HTML tag avoidance
 export const anonymizeTextForMarkdownString = (
   text: string,
-  privacyDict: Record<string, string>
+  privacyDict: Record<string, string>,
+  styleConfig: AnonymizationStyleConfig = DEFAULT_ANONYMIZATION_STYLE
 ): string => {
   if (!privacyDict || Object.keys(privacyDict).length === 0) return text
 
@@ -223,7 +232,7 @@ export const anonymizeTextForMarkdownString = (
       const casePreservedReplacement = applyCasePattern(foundText, replacement)
 
       // Replace with HTML span
-      const htmlReplacement = `<span class="bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium">${casePreservedReplacement}</span>`
+      const htmlReplacement = `<span class="${styleConfig.className}">${casePreservedReplacement}</span>`
 
       // Replace in the result
       result =
@@ -355,14 +364,15 @@ export const anonymizeTextWithJson = (
 export const anonymizeTextForMarkdownWithJson = (
   text: string,
   privacyDictJson: string | null,
-  isAnonymized: boolean
+  isAnonymized: boolean,
+  styleConfig?: AnonymizationStyleConfig
 ): string => {
   if (!privacyDictJson || !isAnonymized) return text
 
   const privacyDict = parsePrivacyDict(privacyDictJson)
   if (!privacyDict) return text
 
-  return anonymizeTextForMarkdownString(text, privacyDict)
+  return anonymizeTextForMarkdownString(text, privacyDict, styleConfig)
 }
 
 // Generic AnonymizedContent component that can work with or without markdown
@@ -387,7 +397,7 @@ export const AnonymizedContent: React.FC<AnonymizedContentProps> = ({
     if (!MarkdownComponent) {
       throw new Error('MarkdownComponent must be provided when asMarkdown is true')
     }
-    const mdText = anonymizeTextForMarkdownWithJson(text, chatPrivacyDict, isAnonymized)
+    const mdText = anonymizeTextForMarkdownWithJson(text, chatPrivacyDict, isAnonymized, styleConfig)
     return React.createElement(MarkdownComponent, { children: mdText })
   } else {
     const result = anonymizeTextWithJson(text, chatPrivacyDict, isAnonymized, styleConfig)

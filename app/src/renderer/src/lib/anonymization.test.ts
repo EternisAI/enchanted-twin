@@ -8,7 +8,8 @@ import {
   isWordBoundaryAt,
   replaceWithCasePreservation,
   anonymizeTextString,
-  anonymizeTextForMarkdownString
+  anonymizeTextForMarkdownString,
+  type AnonymizationStyleConfig
 } from './anonymization'
 
 describe('Anonymization Helper Functions', () => {
@@ -48,6 +49,14 @@ describe('Anonymization Helper Functions', () => {
       expect(isAllUppercase('HeLLo')).toBe(false)
     })
 
+    it('should return false for strings without letters', () => {
+      expect(isAllUppercase('123')).toBe(false)
+      expect(isAllUppercase('!@#')).toBe(false)
+      expect(isAllUppercase(' ')).toBe(false)
+      expect(isAllUppercase('')).toBe(false)
+      expect(isAllUppercase('123!@#')).toBe(false)
+    })
+
     it('should handle strings with numbers and punctuation', () => {
       expect(isAllUppercase('HELLO123')).toBe(true)
       expect(isAllUppercase('HELLO!')).toBe(true)
@@ -66,6 +75,14 @@ describe('Anonymization Helper Functions', () => {
       expect(isAllLowercase('Hello')).toBe(false)
       expect(isAllLowercase('HELLO')).toBe(false)
       expect(isAllLowercase('heLLo')).toBe(false)
+    })
+
+    it('should return false for strings without letters', () => {
+      expect(isAllLowercase('123')).toBe(false)
+      expect(isAllLowercase('!@#')).toBe(false)
+      expect(isAllLowercase(' ')).toBe(false)
+      expect(isAllLowercase('')).toBe(false)
+      expect(isAllLowercase('123!@#')).toBe(false)
     })
 
     it('should handle strings with numbers and punctuation', () => {
@@ -288,6 +305,15 @@ describe('Anonymization Helper Functions', () => {
     it('should handle empty dictionary', () => {
       const result = anonymizeTextForMarkdownString('Hello **John**!', {})
       expect(result).toBe('Hello **John**!')
+    })
+
+    it('should use custom style configuration', () => {
+      const dict = { John: 'PERSON_001' }
+      const customStyle = { className: 'custom-anonymized-class' }
+      const result = anonymizeTextForMarkdownString('Hello **John**!', dict, customStyle)
+      expect(result).toBe(
+        'Hello **<span class="custom-anonymized-class">Person_001</span>**!'
+      )
     })
   })
 })
