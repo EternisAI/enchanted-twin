@@ -5,10 +5,12 @@ import { cn } from '@renderer/lib/utils'
 
 export function PrivacyButton({
   className,
-  hideLabel = false
+  hideLabel = false,
+  label = 'Protected Data'
 }: {
   className?: string
   hideLabel?: boolean
+  label?: string
 }) {
   return (
     <Tooltip>
@@ -16,20 +18,17 @@ export function PrivacyButton({
         <Button
           variant="ghost"
           size={hideLabel ? 'icon' : 'sm'}
-          className={cn(
-            'flex items-center justify-center px-2 gap-1 text-xs z-50 no-drag cursor-help text-primary/50',
-            className
-          )}
+          className={cn('px-2 gap-1 text-xs z-50 no-drag cursor-help text-primary/50', className)}
         >
           <LockIcon className="w-4 h-4" />
-          {!hideLabel && <span className="text-muted-foreground font-medium">Protected Data</span>}
+          {!hideLabel && <span className="font-medium leading-none">{label}</span>}
         </Button>
       </TooltipTrigger>
       <TooltipContent>
         <div className="max-w-xs text-wrap">
           <p className="text-xs">Your data is private</p>
           <p className="text-xs opacity-70">
-            Messages are anonymized before being sent through a TEE proxy. More details soon.
+            Messages are sent through a TEE proxy. More details soon.
           </p>
         </div>
       </TooltipContent>

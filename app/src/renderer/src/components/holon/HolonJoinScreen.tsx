@@ -21,7 +21,7 @@ export default function HolonJoinScreen({
       <div className="text-center flex flex-col gap-4 relative z-10">
         <h1 className="text-5xl font-bold text-foreground pb-1">What&apos;s Holon?</h1>
 
-        <div className="flex flex-col gap-4 text-primary text-balance text-base max-w-xl">
+        <div className="flex flex-col gap-4 text-primary text-balance text-base max-w-3xl">
           <p>
             Holon is an opt-in network of personal digital twins that interact, react, and
             collaborate on your behalf.
