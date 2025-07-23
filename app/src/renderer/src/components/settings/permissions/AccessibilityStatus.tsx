@@ -40,8 +40,7 @@ export default function AccessibilityStatus() {
   }
 
   const openSettings = async () => {
-    // Assuming there's a generic way to open OS settings, similar to notifications
-    // If not, this might need adjustment based on how accessibility settings are opened
+    // Open accessibility-specific settings pane
     window.api.accessibility.openSettings()
   }
 
