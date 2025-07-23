@@ -41,7 +41,7 @@ build-dev-$(1):
 	cp $(BACKEND_DIR)/bin/$(BINARY_$(1)) $(RESOURCES_DIR)/$(TARGET_$(1))
 	$(if $(findstring windows,$(1)),,chmod +x $(RESOURCES_DIR)/$(TARGET_$(1)))
 	@echo "→ [DEV] building Electron app ($(BUILD_CMD_dev-$(1)))…"
-	cd $(APP_DIR) && pnpm $(BUILD_CMD_dev-$(1))
+	cd $(APP_DIR) && pnpm run $(BUILD_CMD_dev-$(1))
 endef
 
 $(foreach target,$(BUILD_TARGETS),$(eval $(call build_recipe,$(target))))
