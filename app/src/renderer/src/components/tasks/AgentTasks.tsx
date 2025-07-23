@@ -126,7 +126,7 @@ type Props = {
 
 function AgentTaskRow({ task, onDelete, onUpdate }: Props) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-gray-300 p-4 w-full">
+    <div className="flex flex-col gap-2 rounded-xl border border-border p-4 w-full">
       <div className="flex justify-between items-start gap-4">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-4">

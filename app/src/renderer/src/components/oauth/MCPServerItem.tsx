@@ -222,9 +222,20 @@ export default function MCPServerItem({
         <div className="flex items-center gap-2 flex-shrink-0">
           {server.type === McpServerType.Screenpipe ? (
             <ScreenpipeConnectionButton
-              onConnectionSuccess={() => {
-                handleConnectMcpServer()
-                onConnect()
+              onConnectionSuccess={async () => {
+                console.log(
+                  '[MCPServerItem] Screenpipe connected successfully, registering as MCP server...'
+                )
+                try {
+                  await handleConnectMcpServer()
+                  onConnect()
+                } catch (error) {
+                  console.error(
+                    '[MCPServerItem] Failed to register Screenpipe as MCP server:',
+                    error
+                  )
+                  toast.error('Failed to register Screenpipe as MCP server')
+                }
               }}
               buttonText="Connect"
             />

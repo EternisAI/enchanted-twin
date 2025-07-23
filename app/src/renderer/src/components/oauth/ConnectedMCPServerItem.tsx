@@ -1,4 +1,4 @@
-import { McpServerDefinition } from '@renderer/graphql/generated/graphql'
+import { McpServerDefinition, McpServerType } from '@renderer/graphql/generated/graphql'
 import { useState } from 'react'
 import { Button } from '../ui/button'
 import {
@@ -14,6 +14,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { Check, Unplug, InfoIcon } from 'lucide-react'
 import { PROVIDER_ICON_MAP, PROVIDER_DESCRIPTION_MAP } from '@renderer/constants/mcpProviders'
+import { toast } from 'sonner'
 
 interface ConnectedMCPServerItemProps {
   server: McpServerDefinition
@@ -26,10 +27,40 @@ export default function ConnectedMCPServerItem({
 }: ConnectedMCPServerItemProps) {
   const [isDisconnectDialogOpen, setIsDisconnectDialogOpen] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
 
-  const handleDisconnect = () => {
-    onDisconnect()
-    setIsDisconnectDialogOpen(false)
+  const handleDisconnect = async () => {
+    setIsDisconnecting(true)
+    try {
+      // Special handling for Screenpipe - stop the process first
+      if (server.type === McpServerType.Screenpipe) {
+        console.log('[ConnectedMCPServerItem] Stopping Screenpipe process before disconnecting...')
+        const stopped = await window.api.screenpipe.stop()
+        if (!stopped) {
+          console.warn('[ConnectedMCPServerItem] Failed to stop Screenpipe process')
+          toast.error('Failed to stop Screenpipe process')
+          // Continue with disconnection anyway
+        } else {
+          console.log('[ConnectedMCPServerItem] Screenpipe process stopped successfully')
+        }
+      }
+
+      // Then disconnect from MCP
+      onDisconnect()
+      setIsDisconnectDialogOpen(false)
+    } catch (error) {
+      console.error('[ConnectedMCPServerItem] Error during disconnect:', error)
+      toast.error('Failed to disconnect properly')
+    } finally {
+      setIsDisconnecting(false)
+    }
+  }
+
+  const getDisconnectDescription = () => {
+    if (server.type === McpServerType.Screenpipe) {
+      return 'This will stop Screenpipe from recording your screen and disconnect it from your application. You can reconnect it later from the Available tab.'
+    }
+    return 'This will disconnect the server from your application. You can reconnect it later from the Available tab.'
   }
 
   return (
@@ -132,10 +163,7 @@ export default function ConnectedMCPServerItem({
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Disconnect server</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will disconnect the server from your application. You can reconnect it later
-                  from the Available tab.
-                </AlertDialogDescription>
+                <AlertDialogDescription>{getDisconnectDescription()}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>

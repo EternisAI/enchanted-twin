@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Monitor, CheckCircle2, Settings, Play, Shield, Zap } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Monitor, CheckCircle2, Settings, Play, Shield, Zap, StopCircleIcon } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import {
   Dialog,
@@ -17,6 +17,7 @@ interface ScreenpipeConnectionModalProps {
   isScreenpipeRunning: boolean
   onRequestPermission: () => Promise<void>
   onStartScreenpipe: () => Promise<void>
+  onStopScreenpipe: () => Promise<void>
 }
 
 export default function ScreenpipeConnectionModal({
@@ -25,13 +26,21 @@ export default function ScreenpipeConnectionModal({
   screenRecordingPermission,
   isScreenpipeRunning,
   onRequestPermission,
-  onStartScreenpipe
+  onStartScreenpipe,
+  onStopScreenpipe
 }: ScreenpipeConnectionModalProps) {
   const [isRequestingPermission, setIsRequestingPermission] = useState(false)
   const [isStartingScreenpipe, setIsStartingScreenpipe] = useState(false)
 
   const needsPermission = screenRecordingPermission !== 'granted'
   const needsScreenpipe = !isScreenpipeRunning
+
+  // Close modal when Screenpipe is running and permissions are granted
+  useEffect(() => {
+    if (isScreenpipeRunning && screenRecordingPermission === 'granted' && isOpen) {
+      onClose()
+    }
+  }, [isScreenpipeRunning, screenRecordingPermission, isOpen, onClose])
 
   const handleRequestPermission = async () => {
     setIsRequestingPermission(true)
@@ -140,7 +149,7 @@ export default function ScreenpipeConnectionModal({
                 <p className="text-xs text-muted-foreground mb-4">
                   {needsScreenpipe ? 'Launch background recording' : 'Service running'}
                 </p>
-                {needsScreenpipe && (
+                {needsScreenpipe ? (
                   <Button
                     onClick={handleStartScreenpipe}
                     disabled={isStartingScreenpipe || needsPermission}
@@ -150,6 +159,11 @@ export default function ScreenpipeConnectionModal({
                   >
                     <Play className="h-4 w-4 mr-2" />
                     {isStartingScreenpipe ? 'Starting...' : 'Start Now'}
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={onStopScreenpipe} size="sm">
+                    <StopCircleIcon className="h-4 w-4 mr-2" />
+                    Stop Screenpipe
                   </Button>
                 )}
               </div>
@@ -169,9 +183,6 @@ export default function ScreenpipeConnectionModal({
         </div>
 
         <div className="flex justify-end gap-2 pt-4">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
           {!needsPermission && !needsScreenpipe && (
             <Button size="sm" onClick={onClose}>
               <CheckCircle2 className="h-4 w-4 mr-2" />
