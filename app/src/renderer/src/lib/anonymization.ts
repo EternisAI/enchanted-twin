@@ -1,4 +1,11 @@
 // Helper functions for anonymization - extracted for testing
+import React from 'react'
+
+// We need to import the Markdown component for the AnonymizedContent component
+// This will be passed as a prop to avoid circular dependencies
+export interface MarkdownComponent {
+  (props: { children: string }): React.ReactElement
+}
 
 // Helper function to sort privacy dictionary keys by length (descending)
 export const sortKeysByLengthDesc = (privacyDict: Record<string, string>): string[] => {
@@ -228,4 +235,162 @@ export const anonymizeTextForMarkdownString = (
   })
 
   return result
+}
+
+// Utility function to parse privacy dictionary JSON
+export const parsePrivacyDict = (privacyDictJson: string | null): Record<string, string> | null => {
+  if (!privacyDictJson) return null
+  
+  try {
+    return JSON.parse(privacyDictJson) as Record<string, string>
+  } catch {
+    // If JSON is malformed, return null
+    return null
+  }
+}
+
+// Configuration for anonymized text styling
+export interface AnonymizationStyleConfig {
+  className: string
+}
+
+export const DEFAULT_ANONYMIZATION_STYLE: AnonymizationStyleConfig = {
+  className: "bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium"
+}
+
+// React-specific anonymization function that returns JSX elements
+export const anonymizeTextForReact = (
+  text: string, 
+  privacyDict: Record<string, string>,
+  styleConfig: AnonymizationStyleConfig = DEFAULT_ANONYMIZATION_STYLE
+): React.ReactElement => {
+  if (!privacyDict || Object.keys(privacyDict).length === 0) {
+    return React.createElement('span', {}, text)
+  }
+
+  let parts: (string | React.ReactElement)[] = [text]
+
+  // Sort rules by length (longest first) to avoid partial matches
+  const sortedOriginals = sortKeysByLengthDesc(privacyDict)
+
+  sortedOriginals.forEach((original) => {
+    const replacement = privacyDict[original]
+
+    // Skip if replacement is not a string
+    if (typeof replacement !== 'string') {
+      return
+    }
+
+    parts = parts.flatMap((part) => {
+      if (typeof part === 'string') {
+        // Use the case-preserving replacement logic
+        const processedText = replaceWithCasePreservation(part, original, replacement)
+
+        // If no replacement occurred, return the original part
+        if (processedText === part) {
+          return [part]
+        }
+
+        // Now split by the replacement to create React elements
+        const segments: (string | React.ReactElement)[] = []
+        let searchStart = 0
+
+        while (true) {
+          const lowerText = processedText.toLowerCase()
+          const idx = lowerText.indexOf(replacement.toLowerCase(), searchStart)
+
+          if (idx === -1) {
+            // No more replacements, add the rest of the text
+            if (searchStart < processedText.length) {
+              segments.push(processedText.substring(searchStart))
+            }
+            break
+          }
+
+          // Add text before the replacement
+          if (idx > searchStart) {
+            segments.push(processedText.substring(searchStart, idx))
+          }
+
+          // Add the replacement as a React element
+          segments.push(
+            React.createElement(
+              'span',
+              {
+                key: `${original}-${idx}`,
+                className: styleConfig.className
+              },
+              processedText.substring(idx, idx + replacement.length)
+            )
+          )
+
+          searchStart = idx + replacement.length
+        }
+
+        return segments.filter((segment) => segment !== '')
+      }
+      return part
+    })
+  })
+
+  return React.createElement('span', {}, ...parts)
+}
+
+// Convenience function that combines JSON parsing with React anonymization
+export const anonymizeTextWithJson = (
+  text: string,
+  privacyDictJson: string | null,
+  isAnonymized: boolean,
+  styleConfig?: AnonymizationStyleConfig
+): React.ReactElement | string => {
+  if (!privacyDictJson || !isAnonymized) return text
+
+  const privacyDict = parsePrivacyDict(privacyDictJson)
+  if (!privacyDict) return text
+
+  return anonymizeTextForReact(text, privacyDict, styleConfig)
+}
+
+// Convenience function for markdown anonymization with JSON parsing
+export const anonymizeTextForMarkdownWithJson = (
+  text: string,
+  privacyDictJson: string | null,
+  isAnonymized: boolean
+): string => {
+  if (!privacyDictJson || !isAnonymized) return text
+
+  const privacyDict = parsePrivacyDict(privacyDictJson)
+  if (!privacyDict) return text
+
+  return anonymizeTextForMarkdownString(text, privacyDict)
+}
+
+// Generic AnonymizedContent component that can work with or without markdown
+export interface AnonymizedContentProps {
+  text: string
+  chatPrivacyDict: string | null
+  isAnonymized: boolean
+  asMarkdown?: boolean
+  styleConfig?: AnonymizationStyleConfig
+  MarkdownComponent?: MarkdownComponent
+}
+
+export const AnonymizedContent: React.FC<AnonymizedContentProps> = ({
+  text,
+  chatPrivacyDict,
+  isAnonymized,
+  asMarkdown = false,
+  styleConfig,
+  MarkdownComponent
+}) => {
+  if (asMarkdown) {
+    if (!MarkdownComponent) {
+      throw new Error('MarkdownComponent must be provided when asMarkdown is true')
+    }
+    const mdText = anonymizeTextForMarkdownWithJson(text, chatPrivacyDict, isAnonymized)
+    return React.createElement(MarkdownComponent, { children: mdText })
+  } else {
+    const result = anonymizeTextWithJson(text, chatPrivacyDict, isAnonymized, styleConfig)
+    return typeof result === 'string' ? React.createElement('span', {}, result) : result
+  }
 }

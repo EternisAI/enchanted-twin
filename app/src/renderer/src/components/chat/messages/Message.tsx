@@ -17,9 +17,10 @@ import { useMemo } from 'react'
 import { ReadAloudButton } from './actions/ReadAloudButton'
 import { MessageActionsBar } from './actions/MessageActionsBar'
 import {
-  sortKeysByLengthDesc,
-  replaceWithCasePreservation,
-  anonymizeTextForMarkdownString
+  AnonymizedContent,
+  anonymizeTextWithJson,
+  anonymizeTextForMarkdownWithJson,
+  type MarkdownComponent
 } from '@renderer/lib/anonymization'
 
 const messageAnimation = {
@@ -170,6 +171,7 @@ export function AssistantMessageBubble({
             chatPrivacyDict={chatPrivacyDict}
             isAnonymized={isAnonymized}
             asMarkdown={true}
+            MarkdownComponent={MarkdownWrapper}
           />
         )}
         {message.imageUrls.length > 0 && (
@@ -241,116 +243,5 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
   )
 }
 
-const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymized: boolean) => {
-  if (!privacyDictJson || !isAnonymized) return text
-
-  let privacyDict: Record<string, string>
-  try {
-    privacyDict = JSON.parse(privacyDictJson) as Record<string, string>
-  } catch {
-    // If JSON is malformed, return original text
-    return text
-  }
-
-  let parts: (string | React.ReactElement)[] = [text]
-
-  // Sort rules by length (longest first) to avoid partial matches
-  const sortedOriginals = sortKeysByLengthDesc(privacyDict)
-
-  sortedOriginals.forEach((original) => {
-    const replacement = privacyDict[original]
-
-    // Skip if replacement is not a string
-    if (typeof replacement !== 'string') {
-      return
-    }
-
-    parts = parts.flatMap((part) => {
-      if (typeof part === 'string') {
-        // Use the case-preserving replacement logic
-        const processedText = replaceWithCasePreservation(part, original, replacement)
-
-        // If no replacement occurred, return the original part
-        if (processedText === part) {
-          return [part]
-        }
-
-        // Now split by the replacement to create React elements
-        const segments: (string | React.ReactElement)[] = []
-        let searchStart = 0
-
-        while (true) {
-          const lowerText = processedText.toLowerCase()
-          const idx = lowerText.indexOf(replacement.toLowerCase(), searchStart)
-
-          if (idx === -1) {
-            // No more replacements, add the rest of the text
-            if (searchStart < processedText.length) {
-              segments.push(processedText.substring(searchStart))
-            }
-            break
-          }
-
-          // Add text before the replacement
-          if (idx > searchStart) {
-            segments.push(processedText.substring(searchStart, idx))
-          }
-
-          // Add the replacement as a React element
-          segments.push(
-            <span
-              key={`${original}-${idx}`}
-              className="bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium"
-            >
-              {processedText.substring(idx, idx + replacement.length)}
-            </span>
-          )
-
-          searchStart = idx + replacement.length
-        }
-
-        return segments.filter((segment) => segment !== '')
-      }
-      return part
-    })
-  })
-
-  return <span>{parts}</span>
-}
-
-function anonymizeTextForMarkdown(
-  text: string,
-  privacyDictJson: string | null,
-  isAnonymized: boolean
-): string {
-  if (!privacyDictJson || !isAnonymized) return text
-
-  let privacyDict: Record<string, string>
-  try {
-    privacyDict = JSON.parse(privacyDictJson) as Record<string, string>
-  } catch {
-    // If JSON is malformed, return original text
-    return text
-  }
-
-  return anonymizeTextForMarkdownString(text, privacyDict)
-}
-
-function AnonymizedContent({
-  text,
-  chatPrivacyDict,
-  isAnonymized,
-  asMarkdown = false
-}: {
-  text: string
-  chatPrivacyDict: string | null
-  isAnonymized: boolean
-  asMarkdown?: boolean
-}) {
-  if (asMarkdown) {
-    const mdText = anonymizeTextForMarkdown(text, chatPrivacyDict, isAnonymized)
-    return <Markdown>{mdText}</Markdown>
-  } else {
-    return anonymizeText(text, chatPrivacyDict, isAnonymized)
-  }
-}
+// Create a typed wrapper for Markdown component
+const MarkdownWrapper: MarkdownComponent = ({ children }) => <Markdown>{children}</Markdown>
