@@ -8,8 +8,7 @@ import {
   isWordBoundaryAt,
   replaceWithCasePreservation,
   anonymizeTextString,
-  anonymizeTextForMarkdownString,
-  type AnonymizationStyleConfig
+  anonymizeTextForMarkdownString
 } from './anonymization'
 
 describe('Anonymization Helper Functions', () => {
@@ -242,13 +241,13 @@ describe('Anonymization Helper Functions', () => {
     })
 
     it('should only replace whole words', () => {
-      const dict = { 'John': 'PERSON_001' }
+      const dict = { John: 'PERSON_001' }
       const result = anonymizeTextString('Johnson visited John', dict)
       expect(result).toBe('Johnson visited Person_001') // Should only replace standalone "John"
     })
 
     it('should respect word boundaries with punctuation', () => {
-      const dict = { 'test': 'WORD' }
+      const dict = { test: 'WORD' }
       const result = anonymizeTextString('testing test, contest test.', dict)
       expect(result).toBe('testing word, contest word.') // Only replace standalone "test", preserve lowercase case
     })
@@ -311,9 +310,7 @@ describe('Anonymization Helper Functions', () => {
       const dict = { John: 'PERSON_001' }
       const customStyle = { className: 'custom-anonymized-class' }
       const result = anonymizeTextForMarkdownString('Hello **John**!', dict, customStyle)
-      expect(result).toBe(
-        'Hello **<span class="custom-anonymized-class">Person_001</span>**!'
-      )
+      expect(result).toBe('Hello **<span class="custom-anonymized-class">Person_001</span>**!')
     })
   })
 })

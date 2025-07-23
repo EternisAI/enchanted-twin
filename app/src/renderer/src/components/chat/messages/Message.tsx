@@ -1,4 +1,3 @@
-import React from 'react'
 import { Message, ToolCall as ToolCallType } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
@@ -16,12 +15,7 @@ import {
 import { useMemo } from 'react'
 import { ReadAloudButton } from './actions/ReadAloudButton'
 import { MessageActionsBar } from './actions/MessageActionsBar'
-import {
-  AnonymizedContent,
-  anonymizeTextWithJson,
-  anonymizeTextForMarkdownWithJson,
-  type MarkdownComponent
-} from '@renderer/lib/anonymization'
+import { AnonymizedContent, type MarkdownComponent } from '@renderer/lib/anonymization'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
@@ -244,4 +238,6 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
 }
 
 // Create a typed wrapper for Markdown component
-const MarkdownWrapper: MarkdownComponent = ({ children }) => <Markdown>{children}</Markdown>
+const MarkdownWrapper: MarkdownComponent = ({ children }: { children: string }) => (
+  <Markdown>{children}</Markdown>
+)

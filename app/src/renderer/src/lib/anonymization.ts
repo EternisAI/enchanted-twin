@@ -249,7 +249,7 @@ export const anonymizeTextForMarkdownString = (
 // Utility function to parse privacy dictionary JSON
 export const parsePrivacyDict = (privacyDictJson: string | null): Record<string, string> | null => {
   if (!privacyDictJson) return null
-  
+
   try {
     return JSON.parse(privacyDictJson) as Record<string, string>
   } catch {
@@ -264,12 +264,12 @@ export interface AnonymizationStyleConfig {
 }
 
 export const DEFAULT_ANONYMIZATION_STYLE: AnonymizationStyleConfig = {
-  className: "bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium"
+  className: 'bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium'
 }
 
 // React-specific anonymization function that returns JSX elements
 export const anonymizeTextForReact = (
-  text: string, 
+  text: string,
   privacyDict: Record<string, string>,
   styleConfig: AnonymizationStyleConfig = DEFAULT_ANONYMIZATION_STYLE
 ): React.ReactElement => {
@@ -397,8 +397,13 @@ export const AnonymizedContent: React.FC<AnonymizedContentProps> = ({
     if (!MarkdownComponent) {
       throw new Error('MarkdownComponent must be provided when asMarkdown is true')
     }
-    const mdText = anonymizeTextForMarkdownWithJson(text, chatPrivacyDict, isAnonymized, styleConfig)
-    return React.createElement(MarkdownComponent, { children: mdText })
+    const mdText = anonymizeTextForMarkdownWithJson(
+      text,
+      chatPrivacyDict,
+      isAnonymized,
+      styleConfig
+    )
+    return React.createElement(MarkdownComponent, {}, mdText)
   } else {
     const result = anonymizeTextWithJson(text, chatPrivacyDict, isAnonymized, styleConfig)
     return typeof result === 'string' ? React.createElement('span', {}, result) : result
