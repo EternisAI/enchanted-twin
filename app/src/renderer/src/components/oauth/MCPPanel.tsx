@@ -11,6 +11,7 @@ import { Skeleton } from '@renderer/components/ui/skeleton'
 import { motion } from 'framer-motion'
 import { PROVIDER_CONFIG } from '@renderer/constants/mcpProviders'
 import ConnectMCPServerButton from './MCPConnectServerButton'
+import { useRouter } from '@tanstack/react-router'
 
 const MCPServerSkeleton = () => (
   <div className="p-4 w-full rounded-md">
@@ -38,6 +39,8 @@ export default function MCPPanel() {
     }
   })
 
+  const router = useRouter()
+
   // Check for screenpipe hash fragment to auto-open modal
   const [shouldAutoOpenScreenpipe, setShouldAutoOpenScreenpipe] = useState(false)
 
@@ -46,9 +49,9 @@ export default function MCPPanel() {
     if (window.location.hash === '#screenpipe') {
       setShouldAutoOpenScreenpipe(true)
       // Clear the hash after detecting it
-      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      router.history.replace(window.location.pathname + window.location.search)
     }
-  }, [])
+  }, [router])
 
   const allMcpServers = useMemo(() => data?.getMCPServers || [], [data])
 
