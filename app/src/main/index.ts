@@ -9,6 +9,7 @@ import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaP
 import {
   registerScreenpipeIpc,
   cleanupScreenpipe,
+  cleanupScreenpipeSync,
   autoStartScreenpipeIfEnabled
 } from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
@@ -152,20 +153,20 @@ app.on('will-quit', async () => {
 // Handle process termination signals for force quit scenarios
 process.on('SIGINT', () => {
   log.info('Received SIGINT, cleaning up...')
-  cleanupScreenpipe()
+  cleanupScreenpipeSync()
   process.exit(0)
 })
 
 process.on('SIGTERM', () => {
   log.info('Received SIGTERM, cleaning up...')
-  cleanupScreenpipe()
+  cleanupScreenpipeSync()
   process.exit(0)
 })
 
 // Handle uncaught exceptions to ensure cleanup
 process.on('uncaughtException', (error) => {
   log.error('Uncaught exception:', error)
-  cleanupScreenpipe()
+  cleanupScreenpipeSync()
   process.exit(1)
 })
 
@@ -174,6 +175,15 @@ process.on('unhandledRejection', (reason, promise) => {
   log.error('Unhandled rejection at:', promise, 'reason:', reason)
   // Don't exit on unhandled rejections, but log them
 })
+
+// Windows-specific: Handle CTRL+C and close events
+if (process.platform === 'win32') {
+  process.on('SIGHUP', () => {
+    log.info('Received SIGHUP, cleaning up...')
+    cleanupScreenpipeSync()
+    process.exit(0)
+  })
+}
 
 // Simple rule: Non-voice mode = no process should live
 function setupLiveKitCleanup(mainWindow: Electron.BrowserWindow) {

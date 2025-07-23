@@ -41,6 +41,34 @@ async function killExistingScreenpipeProcesses(): Promise<void> {
   }
 }
 
+// Synchronous version for immediate cleanup
+function killExistingScreenpipeProcessesSync(): void {
+  const isWindows = platform() === 'win32'
+
+  try {
+    if (isWindows) {
+      // Kill all screenpipe.exe processes on Windows
+      try {
+        execSync('taskkill /F /IM screenpipe.exe', { stdio: 'ignore' })
+      } catch (error) {
+        // Ignore errors
+        log.warn('Error killing existing screenpipe processes:', error)
+      }
+    } else {
+      // Kill all screenpipe processes on macOS/Linux
+      try {
+        execSync('pkill -f screenpipe', { stdio: 'ignore' })
+      } catch (error) {
+        // Ignore errors
+        log.warn('Error killing existing screenpipe processes:', error)
+      }
+    }
+  } catch (error) {
+    log.warn('Error killing existing screenpipe processes:', error)
+    // Ignore errors in sync cleanup
+  }
+}
+
 export function startScreenpipe(): Promise<{ success: boolean; error?: string }> {
   console.log('Starting screenpipe!!')
 
@@ -186,9 +214,9 @@ function isScreenpipeRunning(): boolean {
     // Sending signal 0 checks if process exists without affecting it
     process.kill(screenpipeProcess.pid, 0)
     return true
-  } catch (err) {
+  } catch (error) {
     // Process doesn't exist, clean up our reference
-    log.warn('Screenpipe process not found, cleaning up reference')
+    log.warn('Screenpipe process not found, cleaning up reference', error)
     screenpipeProcess = null
     return false
   }
@@ -221,12 +249,13 @@ function stopScreenpipe(): boolean {
           setTimeout(() => {
             try {
               process.kill(-pid, 'SIGKILL')
-            } catch (err) {
+            } catch (error) {
+              log.warn('Failed to kill process group:', error)
               // Process group might already be dead
             }
           }, 2000)
-        } catch (err) {
-          log.error('Failed to kill process group:', err)
+        } catch (error) {
+          log.error('Failed to kill process group:', error)
         }
       }
 
@@ -254,12 +283,30 @@ export function cleanupScreenpipe(): void {
     log.info('Shutting down screenpipe process...')
     stopScreenpipe()
   }
-  
   // As a fallback, also kill any screenpipe processes by name
   // This ensures cleanup even if we lost track of the process
   killExistingScreenpipeProcesses().catch((error) => {
     log.error('Error killing existing screenpipe processes during cleanup:', error)
   })
+}
+
+// Synchronous cleanup for immediate termination
+export function cleanupScreenpipeSync(): void {
+  stopHealthCheck()
+  if (screenpipeProcess) {
+    log.info('Shutting down screenpipe process (sync)...')
+    try {
+      // Try to kill our tracked process
+      if (screenpipeProcess.pid) {
+        process.kill(screenpipeProcess.pid, 'SIGKILL')
+      }
+    } catch (error) {
+      // Ignore errors
+      log.warn('Error killing screenpipe process (sync):', error)
+    }
+  }
+  // Always kill by name as fallback
+  killExistingScreenpipeProcessesSync()
 }
 
 // Start health check when process starts
