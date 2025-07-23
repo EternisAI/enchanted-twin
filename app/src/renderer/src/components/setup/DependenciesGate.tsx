@@ -283,10 +283,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
                 onRetry={retryGoServer}
               />
             )}
-            <PrivacyButton
-              label="Your data is private"
-              className="text-white hover:bg-transparent hover:text-white/90"
-            />
+            <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
           </div>
         </div>
       </div>

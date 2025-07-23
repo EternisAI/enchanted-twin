@@ -26,10 +26,8 @@ export function PrivacyButton({
       </TooltipTrigger>
       <TooltipContent>
         <div className="max-w-xs text-wrap">
-          <p className="text-xs">Your data is private</p>
-          <p className="text-xs opacity-70">
-            Messages are sent through a TEE proxy. More details soon.
-          </p>
+          <p className="text-xs">Privacy Enabled</p>
+          <p className="text-xs opacity-70">Your messages are routed through our privacy network</p>
         </div>
       </TooltipContent>
     </Tooltip>
