@@ -20,10 +20,14 @@ export function setupAutoUpdater() {
   log.info(
     `Current channel: ${autoUpdater.channel} and updateConfigPath: ${autoUpdater.updateConfigPath}`
   )
-  log.info(`App name check: "${appName}" === "Enchanted Dev" = ${appName === 'Enchanted Dev'}`)
   log.info(`App version: ${app.getVersion()}`)
+  log.info(`BUILD_CHANNEL: ${process.env.BUILD_CHANNEL}`)
 
-  if (appName === 'Enchanted Dev') {
+  // Use BUILD_CHANNEL env var, set during  CI/CD build process to determine the update channel
+  const buildChannel = process.env.BUILD_CHANNEL || 'latest'
+  log.info(`Using build channel: ${buildChannel}`)
+
+  if (buildChannel === 'dev') {
     autoUpdater.channel = 'dev'
     const feedURL = {
       provider: 's3' as const,
@@ -32,11 +36,10 @@ export function setupAutoUpdater() {
       channel: 'dev'
     }
     autoUpdater.setFeedURL(feedURL)
-    log.info('Set to dev channel with S3 configuration:', JSON.stringify(feedURL, null, 2))
   } else {
-    // Fallback to latest for unknown app names
+    // Use latest channel for production builds
     autoUpdater.channel = 'latest'
-    log.warn(`Unknown app name: "${appName}", defaulting to latest channel`)
+    log.info('Set to latest channel for production build')
   }
 
   autoUpdater.on('checking-for-update', () => {

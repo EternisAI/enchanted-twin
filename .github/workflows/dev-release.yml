@@ -93,7 +93,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ENCHANTED_MCP_URL: https://proxy-api-dev.ep-use1.ghostagent.org/mcp
-          POSTHOG_API_KEY: phc_j0wkdCa4BCngP92yQBK3PbsuH5LWv3tliaasJEhw6v4
+          POSTHOG_API_KEY: ''
           INVITE_SERVER_URL: http://52.90.4.74:8080
           TTS_MODEL: kokoro
           TTS_URL: https://inference.tinfoil.sh/v1/
@@ -107,6 +107,7 @@ jobs:
           ANONYMIZER_TYPE: 'local'
           USE_LOCAL_EMBEDDINGS: 'true'
           TTS_ENDPOINT: 'https://inference.tinfoil.sh/v1/audio/speech'
+          BUILD_CHANNEL: 'dev'
         run: make build-dev-mac-silicon
 
       - name: Create dev release
