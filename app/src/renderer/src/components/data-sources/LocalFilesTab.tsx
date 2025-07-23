@@ -87,7 +87,7 @@ export default function LocalFilesTab() {
   }, [])
 
   return (
-    <div className="flex flex-col h-full gap-10">
+    <div className="flex flex-col h-full gap-10 w-full">
       <h2 className="text-2xl font-semibold">Files</h2>
       <div
         className={cn(
