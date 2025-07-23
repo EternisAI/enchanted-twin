@@ -1,13 +1,14 @@
 import { Loader } from 'lucide-react'
 
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
+import { PrivacyButton } from './chat/privacy/PrivacyButton'
 
 export default function Loading({ description }: { description?: string }) {
   return (
     <div className="flex flex-col h-screen w-screen onboarding-background">
       <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center" />
       <div className="flex-1 flex items-center justify-center">
-        <div className="flex flex-col gap-12 text-primary-foreground p-10 border border-white/50 rounded-lg bg-white/5 min-w-2xl">
+        <div className="flex flex-col gap-12 text-primary-foreground p-10 border border-white/25 rounded-lg bg-white/5 min-w-2xl">
           <div className="flex flex-col gap-1 text-center items-center">
             <img src={FreysaLoading} alt="Enchanted" className="w-16 h-16" />
             <h1 className="text-lg font-normal text-white">It begins with Freysa</h1>
@@ -19,6 +20,10 @@ export default function Loading({ description }: { description?: string }) {
               <div className="flex flex-col gap-2 items-center max-w-sm">
                 <Loader className="animate-spin w-8 h-8 text-white" />
               </div>
+              <PrivacyButton
+                label="Your data is private"
+                className="text-white hover:bg-transparent hover:text-white/90"
+              />
             </div>
           </div>
         </div>
