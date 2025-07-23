@@ -222,7 +222,6 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
       goServerState.isRunning
     ) {
       console.log('[DependenciesGate] Early return', allDependenciesCompleted, goServerState)
-
       return
     }
 

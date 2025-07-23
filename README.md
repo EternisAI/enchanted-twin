@@ -151,6 +151,7 @@ TTS_URL=https://audio-processing.model.tinfoil.sh/v1/ \
 STT_API_KEY=tinfoil-api-key \
 STT_MODEL="whisper-large-v3-turbo" \
 STT_URL=https://audio-processing.model.tinfoil.sh/v1/ \
+BUILD_CHANNEL=dev \
 pnpm build-local:mac:dev
 ```
 
