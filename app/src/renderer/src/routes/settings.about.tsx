@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { Button } from '@renderer/components/ui/button'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { LogOutIcon } from 'lucide-react'
+import { useAppName } from '@renderer/hooks/useAppName'
 
 export const Route = createFileRoute('/settings/about')({
   component: AboutSettings
@@ -38,6 +39,7 @@ const itemVariants = {
 
 function AboutSettings() {
   const { signOut } = useAuth()
+  const { appName } = useAppName()
   return (
     <div className="relative h-full">
       <SettingsContent className="p-0 gap-5 relative z-10 flex flex-col items-center justify-center">
@@ -53,8 +55,8 @@ function AboutSettings() {
             alt="Enchanted"
             className="w-24 h-24"
           />
-          <motion.h1 variants={itemVariants} className="text-4xl font-semibold">
-            Enchanted
+          <motion.h1 variants={itemVariants} className="text-4xl font-semibold capitalize">
+            {appName || 'Enchanted'}
           </motion.h1>
           <motion.div variants={itemVariants}>
             <Versions />
