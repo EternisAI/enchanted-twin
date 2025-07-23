@@ -1,6 +1,7 @@
 // Load environment variables from .env file
 import 'dotenv/config'
 
+import Logger from 'electron-log'
 import { app, session, globalShortcut } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import log from 'electron-log/main'
@@ -18,18 +19,18 @@ import { setupMenu } from './menuSetup'
 import { checkForUpdates, setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
 import { cleanupGoServer } from './goServer'
-// import { startKokoro, cleanupKokoro } from './kokoroManager'
 import { startLiveKitSetup, cleanupLiveKitAgent } from './livekitManager'
 import { initializeAnalytics } from './analytics'
 import { keyboardShortcutsStore, voiceStore } from './stores'
+import { rotateLog } from './logConfig'
 
-// const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
-
-// Check if running in production using environment variable
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 
-// Configure electron-log
-log.transports.file.level = 'info' // Log info level and above to file
+log.transports.file.maxSize = 1024 * 1024 * 10 // 10mb
+
+log.transports.file.archiveLogFn = (logFile: Logger.LogFile) => rotateLog(logFile)
+
+log.transports.file.level = 'info'
 log.info(`Log file will be written to: ${log.transports.file.getFile().path}`)
 log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
