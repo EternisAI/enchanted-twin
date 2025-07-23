@@ -216,7 +216,6 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
   useEffect(() => {
     console.log('[DependenciesGate] Setting up Go server monitoring')
 
-    // Only monitor if all dependencies are completed and not in development
     if (!allDependenciesCompleted || process.env.NODE_ENV === 'development') {
       console.log(
         '[DependenciesGate] Skipping Go server monitoring - dependencies not completed or in dev mode'
@@ -246,7 +245,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
       } catch (error) {
         console.error('[DependenciesGate] Error checking Go server status:', error)
       }
-    }, 10000) // 10 seconds
+    }, 10000)
 
     return () => {
       console.log('[DependenciesGate] Cleaning up Go server monitoring')
