@@ -29,6 +29,7 @@ type Config struct {
 	UseLocalEmbedding  string
 	AnonymizerType     string
 	TelegramBotName    string
+	TTSEndpoint        string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -73,6 +74,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		UseLocalEmbedding:  getEnv("USE_LOCAL_EMBEDDINGS", "", printEnv),
 		AnonymizerType:     getEnv("ANONYMIZER_TYPE", "llm", printEnv),
 		TelegramBotName:    getEnv("TELEGRAM_BOT_NAME", "TalkEnchantedBot", printEnv),
+		TTSEndpoint:        getEnv("TTS_ENDPOINT", "https://inference.tinfoil.sh/v1/audio/speech", printEnv),
 	}
 	return conf, nil
 }

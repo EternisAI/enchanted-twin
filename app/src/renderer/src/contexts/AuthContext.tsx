@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import {
   User,
   onAuthStateChanged,
+  onIdTokenChanged,
   signOut as firebaseSignOut,
   GoogleAuthProvider,
   TwitterAuthProvider,
@@ -17,6 +18,7 @@ import {
   McpServerType,
   GetMcpServersDocument
 } from '@renderer/graphql/generated/graphql'
+
 import { toast } from 'sonner'
 
 interface AuthContextType {
@@ -113,10 +115,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return
+
     const storeTokenPeriodically = async () => {
       try {
         const jwt = await user.getIdToken()
-        const refreshToken = await user.refreshToken
+        const refreshToken = user.refreshToken
         await storeToken({
           variables: {
             input: {
@@ -132,11 +135,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     storeTokenPeriodically()
-
     const interval = setInterval(storeTokenPeriodically, 5 * 60 * 1000)
+
+    const unsubscribe = onIdTokenChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const jwt = await user.getIdToken()
+          const refreshToken = user.refreshToken
+          await storeToken({
+            variables: {
+              input: {
+                token: jwt,
+                refreshToken: refreshToken
+              }
+            }
+          })
+          setHasUpdatedToken(true)
+          console.log('[Auth] Token refreshed via Firebase listener')
+        } catch (error) {
+          console.error('[Auth] Failed to store refreshed token:', error)
+        }
+      }
+    })
 
     return () => {
       clearInterval(interval)
+      unsubscribe()
     }
   }, [user, storeToken])
 
@@ -160,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await connectMcpServer({
             variables: {
               input: {
-                name: 'Starter',
+                name: 'Search & Image',
                 type: McpServerType.Enchanted,
                 command: 'npx',
                 args: [],
@@ -313,6 +337,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await firebaseSignOut(auth)
       setUser(null)
+      setHasUpdatedToken(false)
       setHasAutoConnected(false)
       console.log('[Auth] Signed out from Firebase')
       localStorage.removeItem('enchanted_user_data')

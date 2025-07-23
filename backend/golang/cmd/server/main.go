@@ -249,7 +249,7 @@ func main() {
 	logger.Info("Evolving memory created", "elapsed", time.Since(memoryCreateStart))
 	logger.Info("Total Weaviate setup completed", "total_elapsed", time.Since(weaviateBootstrapStart))
 
-	ttsSvc, err := bootstrapTTS(logger)
+	ttsSvc, err := bootstrapTTS(logger, envs.TTSEndpoint)
 	if err != nil {
 		logger.Error("TTS bootstrap failed", "error", err)
 		panic(errors.Wrap(err, "TTS bootstrap failed"))
@@ -559,14 +559,14 @@ type bootstrapTemporalWorkerInput struct {
 	twinchatService      *twinchat.Service
 }
 
-func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
+func bootstrapTTS(logger *log.Logger, endpoint string) (*tts.Service, error) {
 	const (
 		kokoroPort = 45000
 		ttsWsPort  = 45001
 	)
 
 	engine := tts.Kokoro{
-		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroPort),
+		Endpoint: endpoint,
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}

@@ -543,6 +543,18 @@ func (s *Store) ClearOAuthTokens(ctx context.Context, provider string, username 
 	return nil
 }
 
+// ClearAllOAuthTokensByProvider removes all tokens for a specific provider.
+func (s *Store) ClearAllOAuthTokensByProvider(ctx context.Context, provider string) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM oauth_tokens WHERE provider = ?
+	`, provider)
+	if err != nil {
+		return fmt.Errorf("failed to clear all OAuth tokens for provider '%s': %w", provider, err)
+	}
+
+	return nil
+}
+
 type OAuthStatus struct {
 	Provider  string    `db:"provider"`
 	ExpiresAt time.Time `db:"expires_at"`
