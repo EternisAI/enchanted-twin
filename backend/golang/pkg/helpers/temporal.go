@@ -109,18 +109,14 @@ func DeleteScheduleIfExists(
 ) error {
 	ctx := context.Background()
 
-	// Try to get handle to check if schedule exists
 	scheduleHandle := temporalClient.ScheduleClient().GetHandle(ctx, scheduleID)
 
-	// Check if schedule exists by attempting to describe it
 	_, err := scheduleHandle.Describe(ctx)
 	if err != nil {
-		// Schedule doesn't exist, nothing to delete
 		logger.Info("Schedule does not exist, nothing to delete", "scheduleID", scheduleID)
 		return nil
 	}
 
-	// Schedule exists, delete it
 	err = scheduleHandle.Delete(ctx)
 	if err != nil {
 		logger.Error("Failed to delete schedule", "error", err, "scheduleID", scheduleID)
