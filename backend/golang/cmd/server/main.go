@@ -712,9 +712,9 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 }
 
 func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
-	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour*12, identity.DerivePersonalityWorkflow, nil)
+	err := helpers.DeleteScheduleIfExists(logger, temporalClient, identity.PersonalityWorkflowID)
 	if err != nil {
-		logger.Warn("Failed to create identity personality workflow - continuing without it", "error", err)
+		logger.Warn("Failed to delete identity personality workflow - continuing without it", "error", err)
 	}
 
 	// Create holon sync schedule with override flag to ensure it uses the updated 30-second interval

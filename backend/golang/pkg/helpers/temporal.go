@@ -101,3 +101,27 @@ func CreateOrUpdateSchedule(
 	logger.Info("Schedule created", "scheduleID", scheduleID, "interval", interval)
 	return nil
 }
+
+func DeleteScheduleIfExists(
+	logger *log.Logger,
+	temporalClient client.Client,
+	scheduleID string,
+) error {
+	ctx := context.Background()
+
+	scheduleHandle := temporalClient.ScheduleClient().GetHandle(ctx, scheduleID)
+
+	_, err := scheduleHandle.Describe(ctx)
+	if err != nil {
+		logger.Info("Schedule does not exist, nothing to delete", "scheduleID", scheduleID)
+		return nil
+	}
+
+	err = scheduleHandle.Delete(ctx)
+	if err != nil {
+		logger.Error("Failed to delete schedule", "error", err, "scheduleID", scheduleID)
+		return err
+	}
+
+	return nil
+}
