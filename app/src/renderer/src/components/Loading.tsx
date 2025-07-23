@@ -20,10 +20,7 @@ export default function Loading({ description }: { description?: string }) {
               <div className="flex flex-col gap-2 items-center max-w-sm">
                 <Loader className="animate-spin w-8 h-8 text-white" />
               </div>
-              <PrivacyButton
-                label="Your data is private"
-                className="text-white hover:bg-transparent hover:text-white/90"
-              />
+              <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
             </div>
           </div>
         </div>

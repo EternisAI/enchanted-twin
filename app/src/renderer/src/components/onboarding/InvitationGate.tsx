@@ -13,6 +13,7 @@ import GoogleSignInButton from '../oauth/GoogleSignInButton'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import XSignInButton from '../oauth/XSignInButton'
 import Loading from '../Loading'
+import { PrivacyButton } from '../chat/privacy/PrivacyButton'
 
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')
@@ -105,6 +106,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
               <XSignInButton />
             </div>
           </div>
+          <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
         </OnboardingLayout>
       </InvitationWrapper>
     )

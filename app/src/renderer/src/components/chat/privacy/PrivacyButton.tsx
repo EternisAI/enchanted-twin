@@ -1,36 +1,29 @@
-import { Button } from '@renderer/components/ui/button'
 import { LockIcon } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import { cn } from '@renderer/lib/utils'
 
 export function PrivacyButton({
   className,
-  hideLabel = false,
-  label = 'Protected Data'
+  label = 'Privacy Enabled'
 }: {
   className?: string
-  hideLabel?: boolean
-  label?: string
+  label?: string | boolean
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size={hideLabel ? 'icon' : 'sm'}
-          className={cn('px-2 gap-1 text-xs z-50 no-drag cursor-help text-primary/50', className)}
+        <div
+          className={cn(
+            'px-2 gap-1 h-8 text-xs z-50 no-drag cursor-help text-primary/50 flex items-center justify-center',
+            className
+          )}
         >
           <LockIcon className="w-4 h-4" />
-          {!hideLabel && <span className="font-medium leading-none">{label}</span>}
-        </Button>
+          {label && <span className="font-medium leading-none">{label}</span>}
+        </div>
       </TooltipTrigger>
       <TooltipContent>
-        <div className="max-w-xs text-wrap">
-          <p className="text-xs">Your data is private</p>
-          <p className="text-xs opacity-70">
-            Messages are sent through a TEE proxy. More details soon.
-          </p>
-        </div>
+        <p className="text-xs">Your messages are routed through our privacy mixing network</p>
       </TooltipContent>
     </Tooltip>
   )
