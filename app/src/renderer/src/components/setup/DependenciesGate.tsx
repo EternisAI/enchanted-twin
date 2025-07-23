@@ -213,28 +213,28 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     Object.values(hasModelsDownloaded).every((dependency) => dependency) ||
     Object.values(downloadState).every((dependency) => dependency.completed)
 
-  // useEffect(() => {
-  //   if (
-  //     !allDependenciesCompleted ||
-  //     process.env.NODE_ENV === 'development' ||
-  //     goServerState.initializing ||
-  //     goServerState.isRunning
-  //   ) {
-  //     console.log('[DependenciesGate] Early return', allDependenciesCompleted, goServerState)
+  useEffect(() => {
+    if (
+      !allDependenciesCompleted ||
+      process.env.NODE_ENV === 'development' ||
+      goServerState.initializing ||
+      goServerState.isRunning
+    ) {
+      console.log('[DependenciesGate] Early return', allDependenciesCompleted, goServerState)
 
-  //     return
-  //   }
+      return
+    }
 
-  //   const interval = setInterval(async () => {
-  //     const status = await goServerActions.checkStatus()
-  //     console.log('[DependenciesGate] Go server status:', status)
-  //     if (!status.isRunning) {
-  //       console.log('[DependenciesGate] Go server is not running, initializing...')
-  //       await goServerActions.initializeIfNeeded()
-  //     }
-  //   }, 5000)
-  //   return () => clearInterval(interval)
-  // }, [allDependenciesCompleted, goServerState])
+    const interval = setInterval(async () => {
+      const status = await goServerActions.checkStatus()
+      console.log('[DependenciesGate] Go server status:', status)
+      if (!status.isRunning) {
+        console.log('[DependenciesGate] Go server is not running, initializing...')
+        await goServerActions.initializeIfNeeded()
+      }
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [allDependenciesCompleted, goServerState])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>
@@ -325,9 +325,11 @@ function ModelDownloadItem({
               <Loader className="animate-spin w-4 h-4 " />
               <p className="text-md">{percentage}%</p>
             </div>
-            <p className="text-xs text-white/70">
-              {remainingSize} left of {totalSize}
-            </p>
+            {totalBytes > 0 && (
+              <p className="text-xs text-white/70">
+                {remainingSize} left of {totalSize}
+              </p>
+            )}
           </>
         ) : error ? (
           <button

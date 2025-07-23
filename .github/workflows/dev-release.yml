@@ -1,14 +1,14 @@
 name: Dev Release Enchanted Twin App
 
 on:
-  release:
-    types: [prereleased]
   workflow_dispatch:
     inputs:
       version:
-        description: 'Dev version number (e.g. v0.0.1-dev)'
+        description: 'Version number (e.g. v1.2.3)'
         required: true
-        default: 'v0.0.1-dev'
+        default: 'v0.0.0'
+  release:
+    types: [prereleased]
 
 jobs:
   build-and-release-dev:
@@ -61,17 +61,17 @@ jobs:
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
 
-      - name: Set dev app version
+      - name: Set app version
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
         working-directory: app
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+          if [ "${{ github.event_name }}" == "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
           else
-            BRANCH_NAME="${{ github.ref_name }}"
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            VERSION="v0.0.1-${BRANCH_NAME}-${SHORT_SHA}"
+            VERSION="${{ github.event.inputs.version }}"
           fi
           VERSION_NUMBER="${VERSION#v}"
+          # Update version in package.json
           jq ".version = \"$VERSION_NUMBER\"" package.json > package.json.tmp
           mv package.json.tmp package.json
           echo "Updated package.json version to $VERSION_NUMBER"
@@ -112,23 +112,12 @@ jobs:
       - name: Create dev release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || format('dev-{0}', github.sha) }}
-          name: 'Dev Release - ${{ github.ref_name }}'
+          tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.version }}
+          name: 'Dev Release'
           body: |
             ## Dev Release
-
-            **Branch:** ${{ github.ref_name }}
-            **Commit:** ${{ github.sha }}
-            **Triggered by:** ${{ github.event_name }}
-
-            This is a development build for testing purposes.
-
-            ### Changes
-            - Auto-generated from branch: ${{ github.ref_name }}
-            - Commit: ${{ github.sha }}
-
-            ### Installation
-            Download and install the DMG file. This is a dev version with app ID `com.eternis.enchanted.dev`.
+            Triggered by: `${{ github.event_name }}`
+            Version: `${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.version }}`
           files: app/dist/*.dmg
           draft: true
           prerelease: true
@@ -144,10 +133,3 @@ jobs:
             exit 1
           fi
           echo "✅ Dev app is notarized and accepted by Gatekeeper."
-
-      - name: Notify dev release
-        run: |
-          echo "🚀 Dev release completed!"
-          echo "📦 App: Enchanted Dev"
-          echo "🏷️  Version: $(cd app && jq -r .version package.json)"
-          echo "📋 Release: https://github.com/${{ github.repository }}/releases/tag/${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || format('dev-{0}', github.sha) }}"

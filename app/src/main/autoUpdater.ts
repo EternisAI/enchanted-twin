@@ -14,23 +14,34 @@ export function setupAutoUpdater() {
   autoUpdater.logger = log
   log.transports.file.level = 'debug'
   autoUpdater.autoDownload = true
-
   const appName = app.getName()
+
+  log.info(`Auto-updater configured for ${autoUpdater.channel} channel (app: ${appName})`)
+  log.info(
+    `Current channel: ${autoUpdater.channel} and updateConfigPath: ${autoUpdater.updateConfigPath}`
+  )
+  log.info(`App name check: "${appName}" === "Enchanted Dev" = ${appName === 'Enchanted Dev'}`)
+  log.info(`App version: ${app.getVersion()}`)
+
   if (appName === 'Enchanted Dev') {
     autoUpdater.channel = 'dev'
-    autoUpdater.updateConfigPath = 'dev-mac.yml'
-    log.info(`Auto-updater configured for dev channel (app: ${appName})`)
-    log.info(
-      `Current channel: ${autoUpdater.channel} and updateConfigPath: ${autoUpdater.updateConfigPath}`
-    )
+    const feedURL = {
+      provider: 's3' as const,
+      bucket: 'enchanted-app-dev',
+      region: 'us-east-1',
+      channel: 'dev'
+    }
+    autoUpdater.setFeedURL(feedURL)
+    log.info('Set to dev channel with S3 configuration:', JSON.stringify(feedURL, null, 2))
   } else {
     // Fallback to latest for unknown app names
     autoUpdater.channel = 'latest'
-    log.warn(`Unknown app name: ${appName}, defaulting to latest channel`)
+    log.warn(`Unknown app name: "${appName}", defaulting to latest channel`)
   }
 
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for update...')
+    log.info(`Update server URL: ${autoUpdater.getFeedURL()}`)
     if (windowManager.mainWindow) {
       windowManager.mainWindow.webContents.send('update-status', 'Checking for update...')
     }
