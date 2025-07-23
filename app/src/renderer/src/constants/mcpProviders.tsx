@@ -65,14 +65,14 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     provider: 'enchanted',
     scope: '',
     description: 'Generate images and search the web',
-    icon: <img src={enchantedIcon} alt="Essentials" className="size-8" />,
+    icon: <img src={enchantedIcon} alt="Essentials" className="size-10" />,
     supportsMultipleConnections: false
   },
   [McpServerType.Freysa]: {
     provider: 'freysa',
     scope: '',
     description: 'Generate videos with popular templates or create your own',
-    icon: <img src={enchantedIcon} alt="Freysa" className="size-8" />,
+    icon: <img src={enchantedIcon} alt="Freysa" className="size-10" />,
     supportsMultipleConnections: false
   }
 }
