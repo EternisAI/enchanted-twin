@@ -13,6 +13,7 @@ export default function Loading({ description }: { description?: string }) {
             <img src={FreysaLoading} alt="Enchanted" className="w-16 h-16" />
             <h1 className="text-lg font-normal text-white">It begins with Freysa</h1>
             {description && <p className="text-md text-white/80">{description}</p>}
+            <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
           </div>
 
           <div className="flex flex-col gap-4">
@@ -20,7 +21,6 @@ export default function Loading({ description }: { description?: string }) {
               <div className="flex flex-col gap-2 items-center max-w-sm">
                 <Loader className="animate-spin w-8 h-8 text-white" />
               </div>
-              <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
             </div>
           </div>
         </div>
