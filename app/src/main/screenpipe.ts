@@ -7,70 +7,122 @@ import { screenpipeStore } from './stores'
 
 let screenpipeProcess: ChildProcess | null = null
 let isScreenpipeCurrentlyInstalled: boolean = false
+let isStarting: boolean = false
+let healthCheckInterval: NodeJS.Timeout | null = null
+
+async function killExistingScreenpipeProcesses(): Promise<void> {
+  const isWindows = platform() === 'win32'
+  
+  try {
+    if (isWindows) {
+      // Kill all screenpipe.exe processes on Windows
+      await new Promise((resolve) => {
+        exec('taskkill /F /IM screenpipe.exe', (err) => {
+          if (err && !err.message.includes('not found')) {
+            log.warn('Error killing existing screenpipe processes:', err)
+          }
+          resolve(undefined)
+        })
+      })
+    } else {
+      // Kill all screenpipe processes on macOS/Linux
+      await new Promise((resolve) => {
+        exec('pkill -f screenpipe', (err) => {
+          if (err && err.code !== 1) { // Exit code 1 means no processes found
+            log.warn('Error killing existing screenpipe processes:', err)
+          }
+          resolve(undefined)
+        })
+      })
+    }
+  } catch (error) {
+    log.error('Failed to kill existing screenpipe processes:', error)
+  }
+}
 
 export function startScreenpipe(): Promise<{ success: boolean; error?: string }> {
   console.log('Starting screenpipe!!')
-  return new Promise((resolve) => {
-    if (screenpipeProcess) {
-      log.warn('Screenpipe is already running.')
-      resolve({ success: false, error: 'Screenpipe is already running.' })
-      return
-    }
+  
+  // Check preconditions first
+  if (isStarting) {
+    log.warn('Screenpipe is already being started.')
+    return Promise.resolve({ success: false, error: 'Screenpipe is already being started.' })
+  }
+  
+  if (screenpipeProcess) {
+    log.warn('Screenpipe is already running.')
+    return Promise.resolve({ success: false, error: 'Screenpipe is already running.' })
+  }
+  
+  isStarting = true
+  
+  // Kill any existing screenpipe processes first
+  log.info('Checking for existing screenpipe processes...')
+  
+  return killExistingScreenpipeProcesses().then(() => {
+    return new Promise((resolve) => {
+      const isWindows = platform() === 'win32'
+      const homeDir = homedir()
+      log.info(`Screenpipe running from ${homeDir}`)
 
-    const isWindows = platform() === 'win32'
-    const homeDir = homedir()
-    log.info(`Screenpipe running from ${homeDir}`)
+      try {
+        const screenpipeBinaryPath = isWindows
+          ? path.join(homeDir, 'screenpipe', 'bin', 'screenpipe.exe')
+          : path.join(homeDir, '.local', 'bin', 'screenpipe')
 
-    try {
-      const screenpipeBinaryPath = isWindows
-        ? path.join(homeDir, 'screenpipe', 'bin', 'screenpipe.exe')
-        : path.join(homeDir, '.local', 'bin', 'screenpipe')
+        const screenpipeArgs = [
+          '--disable-audio'
+          // '--monitor-id',
+          // '1',
+        ]
 
-      const screenpipeArgs = [
-        '--disable-audio'
-        // '--monitor-id',
-        // '1',
-      ]
-
-      screenpipeProcess = spawn(screenpipeBinaryPath, screenpipeArgs, {
-        stdio: 'pipe',
-        env: process.env
-      })
-
-      log.info(`Screenpipe process spawned with PID: ${screenpipeProcess?.pid}`)
-
-      if (screenpipeProcess) {
-        screenpipeProcess.stdout?.on('data', (data) => {
-          log.info('Screenpipe stdout:', data.toString())
+        screenpipeProcess = spawn(screenpipeBinaryPath, screenpipeArgs, {
+          stdio: 'pipe',
+          env: process.env,
+          detached: process.platform !== 'win32' // Create process group on Unix
         })
 
-        screenpipeProcess.stderr?.on('data', (data) => {
-          log.error('Screenpipe stderr:', data.toString())
-        })
+        log.info(`Screenpipe process spawned with PID: ${screenpipeProcess?.pid}`)
 
-        screenpipeProcess.on('spawn', () => {
-          log.info('Screenpipe process spawned with PID:', screenpipeProcess?.pid)
-          resolve({ success: true })
-        })
+        if (screenpipeProcess) {
+          screenpipeProcess.stdout?.on('data', (data) => {
+            log.info('Screenpipe stdout:', data.toString())
+          })
 
-        screenpipeProcess.on('exit', (code) => {
-          log.info('Screenpipe process exited with code:', code)
-          screenpipeProcess = null
-        })
+          screenpipeProcess.stderr?.on('data', (data) => {
+            log.error('Screenpipe stderr:', data.toString())
+          })
 
-        screenpipeProcess.on('error', (err) => {
-          log.error('Screenpipe process error:', err)
-          screenpipeProcess = null
-          resolve({ success: false, error: err.message })
+          screenpipeProcess.on('spawn', () => {
+            log.info('Screenpipe process spawned with PID:', screenpipeProcess?.pid)
+            isStarting = false
+            startHealthCheck() // Start monitoring the process
+            resolve({ success: true })
+          })
+
+          screenpipeProcess.on('exit', (code) => {
+            log.info('Screenpipe process exited with code:', code)
+            screenpipeProcess = null
+            isStarting = false
+            stopHealthCheck() // Stop monitoring
+          })
+
+          screenpipeProcess.on('error', (err) => {
+            log.error('Screenpipe process error:', err)
+            screenpipeProcess = null
+            isStarting = false
+            resolve({ success: false, error: err.message })
+          })
+        }
+      } catch (error) {
+        log.error('Error starting screenpipe:', error)
+        isStarting = false
+        resolve({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
         })
       }
-    } catch (error) {
-      log.error('Error starting screenpipe:', error)
-      resolve({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      })
-    }
+    })
   })
 }
 
@@ -124,12 +176,72 @@ function isScreenpipeInstalled(): boolean {
 }
 
 function isScreenpipeRunning(): boolean {
-  return screenpipeProcess !== null
+  // First check our internal state
+  if (!screenpipeProcess || !screenpipeProcess.pid) {
+    return false
+  }
+  
+  // Then verify the process is actually alive
+  try {
+    // Sending signal 0 checks if process exists without affecting it
+    process.kill(screenpipeProcess.pid, 0)
+    return true
+  } catch (err) {
+    // Process doesn't exist, clean up our reference
+    log.warn('Screenpipe process not found, cleaning up reference')
+    screenpipeProcess = null
+    return false
+  }
 }
 
 function stopScreenpipe(): boolean {
   if (screenpipeProcess) {
-    screenpipeProcess.kill()
+    const pid = screenpipeProcess.pid
+    log.info(`Stopping screenpipe process with PID: ${pid}`)
+    
+    stopHealthCheck() // Stop monitoring
+    
+    try {
+      // First try SIGTERM for graceful shutdown
+      screenpipeProcess.kill('SIGTERM')
+      
+      // Set a timeout to force kill if it doesn't exit gracefully
+      setTimeout(() => {
+        if (screenpipeProcess && !screenpipeProcess.killed) {
+          log.warn('Screenpipe did not exit gracefully, force killing...')
+          screenpipeProcess.kill('SIGKILL')
+        }
+      }, 2000)
+      
+      // On macOS/Linux, also try to kill the entire process group
+      if (pid && process.platform !== 'win32') {
+        try {
+          // Kill the process group (negative PID kills the entire group)
+          process.kill(-pid, 'SIGTERM')
+          setTimeout(() => {
+            try {
+              process.kill(-pid, 'SIGKILL')
+            } catch (err) {
+              // Process group might already be dead
+            }
+          }, 2000)
+        } catch (err) {
+          log.error('Failed to kill process group:', err)
+        }
+      }
+      
+      // On Windows, use taskkill to ensure all child processes are terminated
+      if (pid && process.platform === 'win32') {
+        exec(`taskkill /F /T /PID ${pid}`, (err) => {
+          if (err) {
+            log.error('Failed to kill process tree on Windows:', err)
+          }
+        })
+      }
+    } catch (error) {
+      log.error('Error stopping screenpipe:', error)
+    }
+    
     screenpipeProcess = null
     return true
   }
@@ -137,9 +249,32 @@ function stopScreenpipe(): boolean {
 }
 
 export function cleanupScreenpipe(): void {
+  stopHealthCheck()
   if (screenpipeProcess) {
     log.info('Shutting down screenpipe process...')
     stopScreenpipe()
+  }
+}
+
+// Start health check when process starts
+function startHealthCheck() {
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval)
+  }
+  
+  healthCheckInterval = setInterval(() => {
+    if (screenpipeProcess && !isScreenpipeRunning()) {
+      log.warn('Screenpipe process died unexpectedly, cleaning up')
+      screenpipeProcess = null
+      stopHealthCheck()
+    }
+  }, 10000) // Check every 10 seconds
+}
+
+function stopHealthCheck() {
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval)
+    healthCheckInterval = null
   }
 }
 
@@ -177,9 +312,17 @@ export function autoStartScreenpipeIfEnabled(): Promise<void> {
 }
 
 export function registerScreenpipeIpc(): void {
-  ipcMain.handle('screenpipe:get-status', () => {
+  ipcMain.handle('screenpipe:get-status', async () => {
+    // Double-check the actual running state
+    const isRunning = isScreenpipeRunning()
+    
+    // If we think it's running but it's not, clean up
+    if (!isRunning && screenpipeProcess) {
+      screenpipeProcess = null
+    }
+    
     return {
-      isRunning: isScreenpipeRunning(),
+      isRunning,
       isInstalled: isScreenpipeCurrentlyInstalled || isScreenpipeInstalled()
     }
   })
