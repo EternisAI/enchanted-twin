@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await connectMcpServer({
             variables: {
               input: {
-                name: 'Starter',
+                name: 'Search & Image',
                 type: McpServerType.Enchanted,
                 command: 'npx',
                 args: [],
