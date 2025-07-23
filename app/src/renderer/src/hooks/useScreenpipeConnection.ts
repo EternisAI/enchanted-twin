@@ -149,7 +149,7 @@ export function useScreenpipeConnection(options: UseScreenpipeConnectionOptions 
 
   const handleRequestPermission = async () => {
     try {
-      await window.api.screenpipe.storeRestartIntent('/settings/permissions', true)
+      await window.api.screenpipe.storeRestartIntent('/settings/data-sources#screenpipe', true)
       await window.api.requestMediaAccess('screen')
     } catch (error) {
       console.error('Error requesting screen permission:', error)

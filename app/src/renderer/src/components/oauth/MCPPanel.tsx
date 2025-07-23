@@ -6,7 +6,7 @@ import {
 } from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
 import { toast } from 'sonner'
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { Skeleton } from '@renderer/components/ui/skeleton'
 import { motion } from 'framer-motion'
 import { PROVIDER_CONFIG } from '@renderer/constants/mcpProviders'
@@ -37,6 +37,18 @@ export default function MCPPanel() {
       toast.error('Failed to remove MCP server')
     }
   })
+
+  // Check for screenpipe hash fragment to auto-open modal
+  const [shouldAutoOpenScreenpipe, setShouldAutoOpenScreenpipe] = useState(false)
+
+  useEffect(() => {
+    // Check for #screenpipe hash fragment on mount
+    if (window.location.hash === '#screenpipe') {
+      setShouldAutoOpenScreenpipe(true)
+      // Clear the hash after detecting it
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }, [])
 
   const allMcpServers = useMemo(() => data?.getMCPServers || [], [data])
 
@@ -142,6 +154,9 @@ export default function MCPPanel() {
                     deleteMcpServer({ variables: { id: serverType.templateServer.id } })
                     refetch()
                   }}
+                  shouldAutoOpenScreenpipe={
+                    serverType.type === McpServerType.Screenpipe && shouldAutoOpenScreenpipe
+                  }
                 />
               </motion.div>
             ))}

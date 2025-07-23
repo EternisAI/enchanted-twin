@@ -26,12 +26,14 @@ interface MCPServerItemProps {
   connectedServers?: McpServerDefinition[]
   onConnect: () => void
   onRemove?: () => void
+  shouldAutoOpenScreenpipe?: boolean
 }
 
 export default function MCPServerItem({
   server,
   connectedServers = [],
-  onConnect
+  onConnect,
+  shouldAutoOpenScreenpipe = false
 }: MCPServerItemProps) {
   const [showEnvInputs, setShowEnvInputs] = useState(false)
   const [authStateId, setAuthStateId] = useState<string | null>(null)
@@ -238,6 +240,7 @@ export default function MCPServerItem({
                 }
               }}
               buttonText="Connect"
+              shouldAutoOpen={shouldAutoOpenScreenpipe}
             />
           ) : (
             <Button variant="outline" onClick={() => handleEnableToolsToggle(!showEnvInputs)}>

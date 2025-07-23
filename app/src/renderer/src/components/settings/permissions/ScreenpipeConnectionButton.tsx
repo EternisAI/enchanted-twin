@@ -11,6 +11,7 @@ interface ScreenpipeConnectionButtonProps {
   variant?: 'default' | 'outline' | 'secondary' | 'destructive' | 'ghost' | 'link'
   size?: 'default' | 'sm' | 'lg' | 'icon'
   className?: string
+  shouldAutoOpen?: boolean
 }
 
 export default function ScreenpipeConnectionButton({
@@ -18,7 +19,8 @@ export default function ScreenpipeConnectionButton({
   buttonText,
   variant = 'outline',
   size = 'default',
-  className
+  className,
+  shouldAutoOpen = false
 }: ScreenpipeConnectionButtonProps) {
   const {
     permissions,
@@ -32,7 +34,7 @@ export default function ScreenpipeConnectionButton({
     handleRequestPermission,
     handleStartScreenpipe,
     handleStopScreenpipe
-  } = useScreenpipeConnection()
+  } = useScreenpipeConnection({ shouldShowModalFromSearch: shouldAutoOpen })
 
   const previousConnectionState = useRef(connectionState)
   const hasCalledSuccess = useRef(false)

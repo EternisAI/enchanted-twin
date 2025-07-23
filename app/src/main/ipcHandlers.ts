@@ -50,9 +50,7 @@ export function registerIpcHandlers() {
       log.info(
         `Processing restart intent: ${restartIntent.route}, modal: ${restartIntent.showModal}`
       )
-      const navigationUrl = restartIntent.showModal
-        ? `${restartIntent.route}?screenpipe=true`
-        : restartIntent.route
+      const navigationUrl = restartIntent.route
       windowManager.setPendingNavigation(navigationUrl)
       windowManager.processPendingNavigation()
       // Clear the restart intent after processing
