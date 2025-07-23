@@ -39,7 +39,7 @@ const itemVariants = {
 
 function AboutSettings() {
   const { signOut } = useAuth()
-  const { appName } = useAppName()
+  const { buildChannel } = useAppName()
   return (
     <div className="relative h-full">
       <SettingsContent className="p-0 gap-5 relative z-10 flex flex-col items-center justify-center">
@@ -56,7 +56,7 @@ function AboutSettings() {
             className="w-24 h-24"
           />
           <motion.h1 variants={itemVariants} className="text-4xl font-semibold capitalize">
-            {appName || 'Enchanted'}
+            {buildChannel === 'latest' ? 'Enchanted' : 'Enchanted Dev'}
           </motion.h1>
           <motion.div variants={itemVariants}>
             <Versions />

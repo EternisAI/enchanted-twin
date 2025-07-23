@@ -40,7 +40,7 @@ interface IApi {
   onUpdateStatus: (callback: (status: string) => void) => () => void
   onUpdateProgress: (callback: (progress: unknown) => void) => () => void
   getAppVersion: () => Promise<string>
-  getAppName: () => Promise<string>
+  getBuildChannel: () => Promise<string>
   onOpenSettings: (callback: () => void) => () => void
   onNewChat: (callback: () => void) => () => void
   onToggleSidebar: (callback: () => void) => () => void
