@@ -403,7 +403,7 @@ export const AnonymizedContent: React.FC<AnonymizedContentProps> = ({
       isAnonymized,
       styleConfig
     )
-    return React.createElement(MarkdownComponent, {}, mdText)
+    return MarkdownComponent({ children: mdText })
   } else {
     const result = anonymizeTextWithJson(text, chatPrivacyDict, isAnonymized, styleConfig)
     return typeof result === 'string' ? React.createElement('span', {}, result) : result
