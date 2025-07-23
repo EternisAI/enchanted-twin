@@ -120,6 +120,10 @@ export function registerIpcHandlers() {
     return app.getVersion()
   })
 
+  ipcMain.handle('get-app-name', () => {
+    return app.getName()
+  })
+
   // Clipboard handlers
   ipcMain.handle('clipboard:writeText', async (_event, text: string) => {
     try {
