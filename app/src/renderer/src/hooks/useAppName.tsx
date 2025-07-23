@@ -1,24 +1,28 @@
 import { useState, useEffect } from 'react'
 
 export function useAppName() {
-  const [appName, setAppName] = useState<string | null>(null)
+  const [buildChannel, setBuildChannel] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function fetchAppName() {
+    async function fetchBuildChannel() {
       try {
-        const name = await window.api.getAppName()
-        setAppName(name)
+        const channel = await window.api.getBuildChannel()
+        setBuildChannel(channel)
       } catch (error) {
-        console.error('Failed to get app name:', error)
-        setAppName('Unknown')
+        console.error('Failed to get build channel:', error)
+        setBuildChannel('latest')
       } finally {
         setLoading(false)
       }
     }
 
-    fetchAppName()
+    fetchBuildChannel()
   }, [])
 
-  return { appName, loading, isDevRelease: appName === 'Enchanted Dev' }
+  return {
+    buildChannel,
+    loading,
+    isDevRelease: buildChannel === 'dev'
+  }
 }
