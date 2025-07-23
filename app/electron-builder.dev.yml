@@ -2,6 +2,10 @@ productName: Enchanted Dev
 appId: com.eternis.enchanted.dev
 directories:
   buildResources: build
+extraResources:
+  - from: './resources'
+    to: 'resources'
+    filter: ['**/*']
 files:
   - '!**/.vscode/*'
   - '!src/*'
@@ -19,7 +23,13 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  gatekeeperAssess: false
   extendInfo:
     - NSCameraUsageDescription: This app requires access to the camera.
     - NSMicrophoneUsageDescription: This app requires access to the microphone.
@@ -27,7 +37,6 @@ mac:
     - NSScreenRecordingUsageDescription: This app needs screen-recording permission so you can share your screen.
     - NSAccessibilityUsageDescription: This app needs accessibility permissions to enhance user experience.
     - NSUserNotificationUsageDescription: This app needs notification permissions to send you important updates and alerts.
-  notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
@@ -40,6 +49,7 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
+afterSign: './build/notarize.js'
 publish:
   provider: s3
   bucket: enchanted-app-dev
