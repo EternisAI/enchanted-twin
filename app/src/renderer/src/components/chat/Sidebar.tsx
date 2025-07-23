@@ -273,7 +273,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                       ? 'w-10 p-0 justify-center text-foreground hover:bg-accent'
                       : 'w-full justify-start px-2 text-sidebar-foreground'
                   )}
-                  onClick={() => openOmnibar('Search...')}
+                  onClick={() => openOmnibar('Find a conversation...')}
                 >
                   <SearchIcon
                     className={cn(

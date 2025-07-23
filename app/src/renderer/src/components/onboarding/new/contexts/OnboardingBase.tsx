@@ -6,6 +6,7 @@ import { Button } from '@renderer/components/ui/button'
 
 import { getMockFrequencyData } from '@renderer/lib/utils'
 import { UserMessageBubble } from '@renderer/components/chat/messages/Message'
+import { PrivacyButton } from '@renderer/components/chat/privacy/PrivacyButton'
 
 export function OnboardingBase({
   children,
@@ -101,6 +102,10 @@ export function MessageDisplay({
         >
           {children}
         </motion.div>
+        <PrivacyButton
+          label="Your data is private"
+          className="text-white hover:bg-transparent hover:text-white/90"
+        />
       </div>
     </>
   )
