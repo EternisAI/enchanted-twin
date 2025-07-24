@@ -35,11 +35,13 @@ interface IApi {
   accessibility: {
     getStatus: () => Promise<any>
     request: () => Promise<any>
+    openSettings: () => Promise<boolean>
   }
   checkForUpdates: (silent?: boolean) => Promise<boolean>
   onUpdateStatus: (callback: (status: string) => void) => () => void
   onUpdateProgress: (callback: (progress: unknown) => void) => () => void
   getAppVersion: () => Promise<string>
+  getBuildChannel: () => Promise<string>
   onOpenSettings: (callback: () => void) => () => void
   onNewChat: (callback: () => void) => () => void
   onToggleSidebar: (callback: () => void) => () => void
@@ -135,7 +137,12 @@ interface IApi {
   goServer: {
     initialize: () => Promise<{ success: boolean; error?: string }>
     cleanup: () => Promise<{ success: boolean; error?: string }>
-    getStatus: () => Promise<{ success: boolean; isRunning: boolean; message: string }>
+    getStatus: () => Promise<{
+      success: boolean
+      isRunning: boolean
+      isInitializing: boolean
+      message: string
+    }>
   }
   llamacpp: {
     start: () => Promise<{ success: boolean; error?: string }>

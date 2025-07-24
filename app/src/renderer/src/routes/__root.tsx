@@ -93,7 +93,6 @@ function RootComponent() {
             case 'toggleSidebar':
               // Only prevent toggling on settings pages where sidebar doesn't exist
               if (!location.pathname.startsWith('/settings')) {
-                console.log('Toggling sidebar from keyboard shortcut')
                 setSidebarOpen(!sidebarOpen)
               }
               break
@@ -146,7 +145,12 @@ function RootComponent() {
   ])
 
   if (location.pathname.startsWith('/settings')) {
-    return <Outlet />
+    return (
+      <>
+        <Omnibar />
+        <Outlet />
+      </>
+    )
   }
 
   return (
@@ -161,13 +165,13 @@ function RootComponent() {
             {/* {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '} */}
           </motion.div>
           <div className="fixed top-0 right-0 z-50 h-8 no-drag flex items-center gap-2">
-            <PrivacyButton />
+            {location.pathname !== '/onboarding' && <PrivacyButton />}
             <GlobalIndexingStatus />
           </div>
 
           <div className="flex flex-1 overflow-hidden">
             <AnimatePresence>
-              {isCompleted && !location.pathname.startsWith('/settings') && (
+              {isCompleted && (
                 <motion.div
                   key="sidebar"
                   initial={{ width: sidebarOpen ? 256 : 64 }}

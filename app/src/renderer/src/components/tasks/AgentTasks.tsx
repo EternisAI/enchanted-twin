@@ -14,6 +14,7 @@ import {
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 
 export default function AgentTasks() {
+  const { openOmnibar } = useOmnibarStore()
   const { data, loading, error, refetch } = useQuery(GetAgentTasksDocument, {
     fetchPolicy: 'network-only'
   })
@@ -45,6 +46,20 @@ export default function AgentTasks() {
       {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>}
 
       <div className="flex flex-col gap-4 pb-6">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-2xl font-semibold flex items-center gap-2">
+            <AlarmClockCheckIcon className="w-6 h-6" />
+            Tasks
+          </h1>
+          <Button
+            onClick={() => openOmnibar('Create a task to automate recurring activities')}
+            variant="default"
+            size="sm"
+          >
+            <Plus className="w-4 h-4" />
+            Create task
+          </Button>
+        </div>
         {agentTasks.length === 0 ? (
           <EmptyTasksState />
         ) : (
@@ -126,7 +141,7 @@ type Props = {
 
 function AgentTaskRow({ task, onDelete, onUpdate }: Props) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-gray-300 p-4 w-full">
+    <div className="flex flex-col gap-2 rounded-xl border border-border p-4 w-full">
       <div className="flex justify-between items-start gap-4">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-4">

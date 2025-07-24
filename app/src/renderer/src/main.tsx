@@ -35,12 +35,11 @@ function App() {
       <TTSProvider>
         <ApolloClientProvider>
           <GoServerProvider>
-            {/* <AppInitialize> */}
+            <UpdateNotification />
             <div className="flex flex-col h-screen w-screen bg-background">
               <DependenciesGate>
                 <AuthProvider>
                   <InvitationGate>
-                    <UpdateNotification />
                     <RouterProvider router={router} />
                   </InvitationGate>
                 </AuthProvider>

@@ -45,12 +45,14 @@ interface IApi {
   accessibility: {
     getStatus: () => Promise<string>
     request: () => Promise<string>
+    openSettings: () => Promise<boolean>
   }
   checkForUpdates: (silent?: boolean) => Promise<boolean>
   onUpdateStatus: (callback: (status: string) => void) => () => void
   onUpdateProgress: (callback: (progress: unknown) => void) => () => void
   checkForUpdates: (silent: boolean) => Promise<void>
   getAppVersion: () => Promise<string>
+  getBuildChannel: () => Promise<string>
   restartApp: () => Promise<void>
   onOpenSettings: (callback: () => void) => () => void
   onNewChat: (callback: () => void) => () => void
@@ -161,7 +163,12 @@ interface IApi {
   goServer: {
     initialize: () => Promise<{ success: boolean; error?: string }>
     cleanup: () => Promise<{ success: boolean; error?: string }>
-    getStatus: () => Promise<{ success: boolean; isRunning: boolean; message: string }>
+    getStatus: () => Promise<{
+      success: boolean
+      isRunning: boolean
+      isInitializing: boolean
+      message: string
+    }>
   }
   clipboard: {
     readText: () => Promise<{ success: boolean; text: string; error?: string }>

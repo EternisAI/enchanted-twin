@@ -6,6 +6,7 @@ import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES 
 import { Button } from '../ui/button'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
+import { PrivacyButton } from '../chat/privacy/PrivacyButton'
 
 export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLAMACCP' | 'uv'
 
@@ -194,7 +195,12 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (!hasModelsDownloaded.LLAMACCP || !hasModelsDownloaded.anonymizer) return
+      if (
+        !hasModelsDownloaded.LLAMACCP ||
+        !hasModelsDownloaded.anonymizer ||
+        DEPENDENCY_CONFIG.anonymizer.disabled // @TODO: remove this when anonymizer is released
+      )
+        return
 
       const result = await window.api.llamacpp.getStatus()
       if (result.success) {
@@ -212,28 +218,46 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     Object.values(hasModelsDownloaded).every((dependency) => dependency) ||
     Object.values(downloadState).every((dependency) => dependency.completed)
 
-  // useEffect(() => {
-  //   if (
-  //     !allDependenciesCompleted ||
-  //     process.env.NODE_ENV === 'development' ||
-  //     goServerState.initializing ||
-  //     goServerState.isRunning
-  //   ) {
-  //     console.log('[DependenciesGate] Early return', allDependenciesCompleted, goServerState)
+  useEffect(() => {
+    console.log('[DependenciesGate] Setting up Go server monitoring')
 
-  //     return
-  //   }
+    if (!allDependenciesCompleted || process.env.NODE_ENV === 'development') {
+      console.log(
+        '[DependenciesGate] Skipping Go server monitoring - dependencies not completed or in dev mode'
+      )
+      return
+    }
 
-  //   const interval = setInterval(async () => {
-  //     const status = await goServerActions.checkStatus()
-  //     console.log('[DependenciesGate] Go server status:', status)
-  //     if (!status.isRunning) {
-  //       console.log('[DependenciesGate] Go server is not running, initializing...')
-  //       await goServerActions.initializeIfNeeded()
-  //     }
-  //   }, 5000)
-  //   return () => clearInterval(interval)
-  // }, [allDependenciesCompleted, goServerState])
+    console.log('[DependenciesGate] Starting Go server monitoring every 10s')
+
+    const interval = setInterval(async () => {
+      console.log('[DependenciesGate] Checking Go server status...')
+
+      try {
+        const status = await goServerActions.checkStatus()
+        console.log('[DependenciesGate] Go server status:', status)
+
+        if (!status.isRunning && !status.isInitializing) {
+          console.log(
+            '[DependenciesGate] Go server is not running and not initializing, starting initialization...'
+          )
+          const result = await goServerActions.initializeIfNeeded()
+          console.log('[DependenciesGate] Go server initialization result:', result)
+        } else if (status.isRunning) {
+          console.log('[DependenciesGate] Go server is running')
+        } else if (status.isInitializing) {
+          console.log('[DependenciesGate] Go server is currently initializing')
+        }
+      } catch (error) {
+        console.error('[DependenciesGate] Error checking Go server status:', error)
+      }
+    }, 10000)
+
+    return () => {
+      console.log('[DependenciesGate] Cleaning up Go server monitoring')
+      clearInterval(interval)
+    }
+  }, [allDependenciesCompleted])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>
@@ -243,13 +267,14 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     <div className="flex flex-col h-screen w-screen onboarding-background">
       <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center" />
       <div className="flex-1 flex items-center justify-center">
-        <div className="flex flex-col gap-12 text-primary-foreground p-10 border border-white/50 rounded-lg bg-white/5 min-w-2xl">
+        <div className="flex flex-col gap-12 text-primary-foreground p-10 border border-white/25 rounded-lg bg-white/5 min-w-2xl">
           <div className="flex flex-col gap-1 text-center items-center">
             <img src={FreysaLoading} alt="Enchanted" className="w-16 h-16" />
             <h1 className="text-lg font-normal text-white">
               {allDependenciesCompleted ? 'It begins with Freysa' : 'Enchanted is loading'}
             </h1>
             {!allDependenciesCompleted && <p className="text-xs text-white">~5 minutes</p>}
+            <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
           </div>
 
           <div className="flex flex-col gap-4">
@@ -323,9 +348,11 @@ function ModelDownloadItem({
               <Loader className="animate-spin w-4 h-4 " />
               <p className="text-md">{percentage}%</p>
             </div>
-            <p className="text-xs text-white/70">
-              {remainingSize} left of {totalSize}
-            </p>
+            {totalBytes > 0 && (
+              <p className="text-xs text-white/70">
+                {remainingSize} left of {totalSize}
+              </p>
+            )}
           </>
         ) : error ? (
           <button

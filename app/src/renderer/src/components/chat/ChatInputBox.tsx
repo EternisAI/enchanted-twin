@@ -73,7 +73,7 @@ export default function ChatInputBox({
           min-height: 50px;
           max-height: 240px;
         }
-        
+
         @supports not (field-sizing: content) {
           /* Fallback for browsers that don't support field-sizing */
           .auto-sizing-textarea {
@@ -81,7 +81,7 @@ export default function ChatInputBox({
             max-height: 240px;
           }
         }
-        
+
         .auto-sizing-textarea::-webkit-scrollbar {
           width: 4px;
         }
@@ -193,7 +193,7 @@ interface ReasoningButtonProps {
   disabled?: boolean
 }
 
-const REASONING_MODEL = 'o4-mini-high'
+const REASONING_MODEL = 'o3'
 const NOT_REASONING_MODEL = 'gpt-4.1'
 
 export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps) {
