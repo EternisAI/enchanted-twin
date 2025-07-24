@@ -817,7 +817,8 @@ func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
 	for _, tool := range tools.Tools {
 		toolNames = append(toolNames, tool.GetName())
 	}
-	s.registry = s.registry.Excluding(toolNames...)
+	log.Debug("Deregistering MCP tools", "toolNames", toolNames)
+	s.registry.Unregister(toolNames...)
 }
 
 // GetTransport creates a transport based on the server configuration.
