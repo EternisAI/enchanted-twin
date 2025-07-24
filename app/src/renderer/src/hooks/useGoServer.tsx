@@ -36,6 +36,14 @@ export async function cleanupGoServer(): Promise<GoServerResponse> {
 
 export async function getGoServerStatus(): Promise<GoServerStatus> {
   try {
+    if (process.env.NODE_ENV === 'development') {
+      return {
+        success: true,
+        isRunning: true,
+        isInitializing: false,
+        message: 'Go server is development mode'
+      }
+    }
     return await window.api.goServer.getStatus()
   } catch (error) {
     return {
