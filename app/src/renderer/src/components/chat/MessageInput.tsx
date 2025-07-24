@@ -6,6 +6,7 @@ import { cn } from '../../lib/utils'
 
 import { EnableVoiceModeButton, ReasoningButton } from './ChatInputBox'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
+import { PrivacyButton } from './privacy/PrivacyButton'
 
 type MessageInputProps = {
   onSend: (text: string, reasoning: boolean, voice: boolean) => void
@@ -26,7 +27,7 @@ export default function MessageInput({
   isReasonSelected,
   onReasonToggle,
   voiceMode = false,
-  placeholder = 'Ask a question privately…',
+  placeholder = 'Send a message privately…',
   isStreamingResponse,
   onVoiceModeChange
 }: MessageInputProps) {
@@ -36,7 +37,7 @@ export default function MessageInput({
   const { isVoiceReady } = useDependencyStatus()
 
   const handleSend = () => {
-    if (!text.trim() || isWaitingTwinResponse) return
+    if (!text.trim() || isWaitingTwinResponse || isStreamingResponse) return
     onSend(text, isReasonSelected, voiceMode)
     setText('')
   }
@@ -84,8 +85,9 @@ export default function MessageInput({
       layout
       onClick={handleClickContainer}
     >
-      <div className="flex items-center gap-3 w-full">
+      <motion.div layout className="flex items-center gap-3 w-full">
         <motion.textarea
+          layout="position"
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -95,7 +97,8 @@ export default function MessageInput({
           placeholder={placeholder}
           className="flex-1 placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
         />
-        <div className="flex justify-end items-center gap-3 h-fit">
+        <motion.div layout="position" className="flex justify-end items-center gap-3 h-fit">
+          <PrivacyButton className="text-primary/50" label={false} />
           {!voiceMode && <ReasoningButton isSelected={isReasonSelected} onClick={toggleReason} />}
           <motion.div
             key="send-button"
@@ -114,8 +117,8 @@ export default function MessageInput({
               isVoiceReady={isVoiceReady}
             />
           </motion.div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </motion.div>
   )
 }

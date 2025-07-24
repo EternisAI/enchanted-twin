@@ -11,6 +11,7 @@ import { capture } from './analytics'
 import { startLlamaCppSetup, cleanupLlamaCpp } from './llamaCppServer'
 
 let goServerProcess: ChildProcess | null = null
+let isInitializing = false
 
 export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND_PORT: number) {
   if (goServerProcess && !goServerProcess.killed) {
@@ -18,35 +19,45 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
     return true
   }
 
-  const userDataPath = app.getPath('userData')
-  const dbDir = join(userDataPath, 'db')
-
-  if (!existsSync(dbDir)) {
-    try {
-      mkdirSync(dbDir, { recursive: true })
-      log.info(`Created database directory: ${dbDir}`)
-    } catch (err) {
-      log.error(`Failed to create database directory: ${err}`)
-    }
+  if (isInitializing) {
+    log.info('[GO] Go server is already initializing, skipping duplicate initialization')
+    return true
   }
 
-  const dbPath = join(dbDir, 'enchanted-twin.db')
-  log.info(`Database path: ${dbPath}`)
+  isInitializing = true
 
-  const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
-  const goBinaryPath = !IS_PRODUCTION
-    ? join(__dirname, '..', '..', 'resources', executable)
-    : join(process.resourcesPath, 'resources', executable)
+  try {
+    const userDataPath = app.getPath('userData')
+    const dbDir = join(userDataPath, 'db')
 
-  startLlamaCppSetup()
+    if (!existsSync(dbDir)) {
+      try {
+        mkdirSync(dbDir, { recursive: true })
+        log.info(`Created database directory: ${dbDir}`)
+      } catch (err) {
+        log.error(`Failed to create database directory: ${err}`)
+      }
+    }
 
-  if (IS_PRODUCTION) {
-    const success = await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
+    const dbPath = join(dbDir, 'enchanted-twin.db')
+    log.info(`Database path: ${dbPath}`)
 
-    return success
-  } else {
-    log.info('Running in development mode - packaged Go server not started')
-    return true
+    const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
+    const goBinaryPath = !IS_PRODUCTION
+      ? join(__dirname, '..', '..', 'resources', executable)
+      : join(process.resourcesPath, 'resources', executable)
+
+    startLlamaCppSetup()
+
+    if (IS_PRODUCTION) {
+      const success = await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
+      return success
+    } else {
+      log.info('Running in development mode - packaged Go server not started')
+      return true
+    }
+  } finally {
+    isInitializing = false
   }
 }
 
@@ -182,6 +193,13 @@ export function cleanupGoServer() {
 
 export function isGoServerRunning(): boolean {
   return goServerProcess !== null && !goServerProcess.killed
+}
+
+export function getGoServerState() {
+  return {
+    isRunning: isGoServerRunning(),
+    isInitializing
+  }
 }
 
 function forward(stream: NodeJS.ReadableStream, source: 'stdout' | 'stderr') {

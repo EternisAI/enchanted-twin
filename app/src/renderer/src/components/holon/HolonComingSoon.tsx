@@ -1,16 +1,6 @@
 import { Button } from '../ui/button'
 
-export default function HolonJoinScreen({
-  joinHolon,
-  joinHolonLoading
-}: {
-  joinHolon: () => void
-  joinHolonLoading: boolean
-}) {
-  const handleJoinHolon = () => {
-    joinHolon()
-  }
-
+export default function HolonComingSoon() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen max-w-3xl mx-auto">
       {/* Background decorative circle */}
@@ -34,8 +24,8 @@ export default function HolonJoinScreen({
         </div>
 
         <div className="flex justify-center">
-          <Button onClick={handleJoinHolon} size="lg" disabled={joinHolonLoading}>
-            {joinHolonLoading ? 'Joining...' : 'Join Holon'}
+          <Button disabled size="lg">
+            Coming Soon
           </Button>
         </div>
       </div>

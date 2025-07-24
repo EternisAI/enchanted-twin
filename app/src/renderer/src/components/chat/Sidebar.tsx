@@ -27,19 +27,19 @@ import {
   SearchIcon,
   ChevronDown,
   ChevronUp,
-  CheckSquare,
-  Globe
+  Globe,
+  AlarmCheckIcon,
+  HistoryIcon
 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
-import { Omnibar } from '../Omnibar'
 import { isToday, isYesterday, isWithinInterval, subDays } from 'date-fns'
-import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip'
 import { useCallback, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { formatShortcutForDisplay } from '@renderer/lib/utils/shortcuts'
+import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 
 interface SidebarProps {
   chats: Chat[]
@@ -176,7 +176,10 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                 </Tooltip>
               </TooltipProvider>
             ) : (
-              <img src={logo} alt="logo" className="w-7 h-7" />
+              <>
+                <img src={logo} alt="logo" className="mx-2 w-6 h-6" />
+                <span className="text-sm font-medium">Enchanted</span>
+              </>
             )}
           </motion.div>
           {!collapsed && (
@@ -220,7 +223,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                   size="icon"
                   className={cn(
                     'group transition-all',
-                    collapsed ? 'p-0 justify-center ' : 'w-full justify-start px-3'
+                    collapsed ? 'p-0 justify-center ' : 'rounded-md w-full justify-start px-3'
                   )}
                   onClick={handleNewChat}
                 >
@@ -270,7 +273,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                       ? 'w-10 p-0 justify-center text-foreground hover:bg-accent'
                       : 'w-full justify-start px-2 text-sidebar-foreground'
                   )}
-                  onClick={openOmnibar}
+                  onClick={() => openOmnibar('Find a conversation...')}
                 >
                   <SearchIcon
                     className={cn(
@@ -320,7 +323,7 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                   )}
                   onClick={handleNavigateTasks}
                 >
-                  <CheckSquare
+                  <AlarmCheckIcon
                     className={cn(
                       'w-4 h-4 transition-colors duration-100',
                       collapsed
@@ -371,6 +374,40 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
               )}
             </Tooltip>
           </TooltipProvider>
+          {collapsed && (
+            <TooltipProvider>
+              <Tooltip delayDuration={collapsed ? 300 : 1000}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    data-active={location.pathname === '/holon'}
+                    className={cn(
+                      'group h-9 transition-all',
+                      collapsed
+                        ? 'w-10 p-0 justify-center text-foreground hover:bg-accent [&[data-active=true]]:text-foreground [&[data-active=true]]:bg-accent'
+                        : 'w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent'
+                    )}
+                    onClick={() => setSidebarOpen(true)}
+                  >
+                    <HistoryIcon
+                      className={cn(
+                        'w-4 h-4 transition-colors duration-100',
+                        collapsed
+                          ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground'
+                          : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
+                      )}
+                    />
+                    {!collapsed && <span className="text-sm">History</span>}
+                  </Button>
+                </TooltipTrigger>
+                {collapsed && (
+                  <TooltipContent side="right" align="center">
+                    <span>History</span>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
 
         {!collapsed && (
@@ -453,7 +490,6 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
           </TooltipProvider>
         </div>
       </aside>
-      <Omnibar />
     </>
   )
 }

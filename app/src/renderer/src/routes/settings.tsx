@@ -8,51 +8,53 @@ import { cn } from '@renderer/lib/utils'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
 import { ErrorBoundary } from '@renderer/components/ui/error-boundary'
 import { motion } from 'framer-motion'
+import { useAppName } from '@renderer/hooks/useAppName'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsLayout
 })
 
-const settingsTabs = [
-  {
-    value: 'data-sources',
-    label: 'Connections',
-    icon: PlugIcon,
-    path: '/settings/data-sources'
-  },
-  {
-    value: 'permissions',
-    label: 'Permissions',
-    icon: Shield,
-    path: '/settings/permissions'
-  },
-  {
-    value: 'customize',
-    label: 'Customize',
-    icon: Settings2,
-    path: '/settings/customize'
-  },
-  {
-    value: 'about',
-    label: 'About',
-    icon: Info,
-    path: '/settings/about'
-  },
-  // ...(process.env.NODE_ENV === 'development'
-  // ? [
-  {
-    value: 'advanced',
-    label: 'Advanced',
-    icon: Settings2,
-    path: '/settings/advanced'
-  }
-  // ]
-  // : [])
-]
-
 function SettingsLayout() {
   const { location } = useRouterState()
   const router = useRouter()
+  const { isDevRelease, loading: loadingAppName } = useAppName()
+
+  const settingsTabs = [
+    {
+      value: 'data-sources',
+      label: 'Connections',
+      icon: PlugIcon,
+      path: '/settings/data-sources'
+    },
+    {
+      value: 'permissions',
+      label: 'Permissions',
+      icon: Shield,
+      path: '/settings/permissions'
+    },
+    {
+      value: 'customize',
+      label: 'Customize',
+      icon: Settings2,
+      path: '/settings/customize'
+    },
+    {
+      value: 'about',
+      label: 'About',
+      icon: Info,
+      path: '/settings/about'
+    },
+    // ...((isDevRelease || process.env.NODE_ENV === 'development') && !loadingAppName
+    // ? [
+    {
+      value: 'advanced',
+      label: 'Advanced',
+      icon: Settings2,
+      path: '/settings/advanced'
+    }
+    // ]
+    // : [])
+  ]
 
   // Default to appearance tab if on base settings route
   const isBaseSettingsRoute = location.pathname === '/settings'

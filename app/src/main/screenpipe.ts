@@ -111,7 +111,6 @@ function isScreenpipeInstalled(): boolean {
     const home = homedir()
     const localBin = path.join(home, '.local', 'bin')
     process.env.PATH = `${process.env.PATH}:${localBin}`
-    log.info('Application PATH', process.env.PATH)
     execSync(checkCommand)
     log.info('Screenpipe already installed')
     isScreenpipeCurrentlyInstalled = true
