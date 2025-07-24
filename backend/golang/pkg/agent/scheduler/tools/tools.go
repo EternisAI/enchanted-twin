@@ -15,20 +15,35 @@ import (
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 type ScheduleTask struct {
 	Logger         *log.Logger
 	TemporalClient client.Client
+	ToolsRegistry  tools.ToolRegistry
 }
 
 func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
+	// Log all available tools in the registry for debugging
+	if e.ToolsRegistry != nil {
+		availableTools := e.ToolsRegistry.List()
+		e.Logger.Info("Available tools in registry", "count", len(availableTools), "tools", availableTools)
+		for i, toolName := range availableTools {
+			if tool, exists := e.ToolsRegistry.Get(toolName); exists {
+				def := tool.Definition()
+				e.Logger.Debug("Tool details", "index", i+1, "name", toolName, "description", def.Function.Description)
+			}
+		}
+	} else {
+		e.Logger.Warn("ToolsRegistry is nil - no tools available for validation")
+	}
+
 	task, ok := inputs["task"].(string)
 	if !ok {
 		return nil, errors.New("task is required")
 	}
-
 	delay := 0.0
 	delayValue, ok := inputs["delay"].(float64)
 	if ok {
@@ -51,6 +66,38 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		return nil, errors.New("chat_id is required")
 	}
 
+	// Check for required tools
+	var requiredTools []string
+	if reqToolsInput, ok := inputs["required_tools"]; ok {
+		if reqToolsArray, ok := reqToolsInput.([]interface{}); ok {
+			for _, tool := range reqToolsArray {
+				if toolStr, ok := tool.(string); ok {
+					requiredTools = append(requiredTools, toolStr)
+				}
+			}
+		}
+	}
+
+	// Auto-detect tools from task content
+	detectedTools := e.detectRequiredTools(task)
+	for _, tool := range detectedTools {
+		if !contains(requiredTools, tool) {
+			requiredTools = append(requiredTools, tool)
+		}
+	}
+
+	// Validate that required tools are available
+	if len(requiredTools) > 0 {
+		unavailableTools := e.validateRequiredTools(requiredTools)
+		if len(unavailableTools) > 0 {
+			return &types.StructuredToolResult{
+				ToolName:   "schedule_task",
+				ToolParams: inputs,
+				ToolError:  fmt.Sprintf("Required tools are not available: %v. Please ensure these tools are enabled before scheduling the task.", unavailableTools),
+			}, fmt.Errorf("required tools not available: %v", unavailableTools)
+		}
+	}
+
 	id := fmt.Sprintf("scheduled-task-%s-%s", toSnake(name), uuid.New().String())
 	opts := client.ScheduleOptions{
 		ID: id,
@@ -64,7 +111,6 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 	}
 
 	if cron == "" {
-		// If delay was given, schedule the task to be executed after the delay once
 		opts.Spec = client.ScheduleSpec{
 			Intervals: []client.ScheduleIntervalSpec{{
 				Every: time.Duration(delay) * time.Second,
@@ -73,7 +119,6 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		}
 		opts.RemainingActions = 1
 	} else {
-		// If cron string was given, schedule the task to be executed periodically
 		opts.Spec = client.ScheduleSpec{
 			CronExpressions: []string{cron},
 		}
@@ -96,12 +141,69 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 	}, nil
 }
 
+// detectRequiredTools analyzes the task content to automatically detect tool dependencies
+func (e *ScheduleTask) detectRequiredTools(task string) []string {
+	var detectedTools []string
+	taskLower := strings.ToLower(task)
+
+	// Tool detection patterns
+	toolPatterns := map[string][]string{
+		"telegram_send_message": {"telegram", "send telegram", "telegram message", "message telegram"},
+		"twitter":               {"twitter", "tweet", "x.com", "post tweet", "twitter post"},
+		"whatsapp":              {"whatsapp", "whatsapp message", "send whatsapp"},
+		"gmail":                 {"gmail", "email", "send email", "compose email"},
+		"slack":                 {"slack", "slack message", "send slack"},
+		"screenpipe":            {"screenpipe", "screen capture", "screenshot"},
+	}
+
+	for toolName, patterns := range toolPatterns {
+		for _, pattern := range patterns {
+			if strings.Contains(taskLower, pattern) {
+				if !contains(detectedTools, toolName) {
+					detectedTools = append(detectedTools, toolName)
+				}
+				break
+			}
+		}
+	}
+
+	return detectedTools
+}
+
+// validateRequiredTools checks if the required tools are available in the registry
+func (e *ScheduleTask) validateRequiredTools(requiredTools []string) []string {
+	var unavailableTools []string
+
+	if e.ToolsRegistry == nil {
+		e.Logger.Warn("ToolsRegistry is nil, cannot validate required tools")
+		return requiredTools
+	}
+
+	for _, toolName := range requiredTools {
+		if _, exists := e.ToolsRegistry.Get(toolName); !exists {
+			unavailableTools = append(unavailableTools, toolName)
+		}
+	}
+
+	return unavailableTools
+}
+
+// contains checks if a string slice contains a specific string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
 			Name:        "schedule_task",
-			Description: param.NewOpt("Schedule a task to be executed once or on a recurring basis"),
+			Description: param.NewOpt("Schedule a task to be executed once or on a recurring basis. The system will automatically detect required tools from the task content and validate their availability."),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
@@ -124,6 +226,13 @@ func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
 					"chat_id": map[string]string{
 						"type":        "string",
 						"description": "The ID of the chat to send the message to. No chat_id specified would send the message to a new chat.",
+					},
+					"required_tools": map[string]any{
+						"type": "array",
+						"items": map[string]string{
+							"type": "string",
+						},
+						"description": "Optional list of tools required for this task. If not specified, the system will auto-detect from task content. Common tools: telegram_send_message, twitter, whatsapp, gmail, slack, screenpipe.",
 					},
 				},
 				"required": []string{"task", "delay", "name", "chat_id"},
