@@ -19,6 +19,10 @@ export function ConnectSourcesButton() {
     [allMcpServers]
   )
 
+  if (availableMcpServers.length === 0) {
+    return null
+  }
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
