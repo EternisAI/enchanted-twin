@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
@@ -71,19 +72,42 @@ func (l *LocalAnonymizer) anonymizeInMemory(ctx context.Context, messages []open
 			continue
 		}
 
-		// Use local LLM to find new names/entities
-		nameReplacements, err := l.llama.Anonymize(ctx, content)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to anonymize message content: %w", err)
+		// Check if content contains only already anonymized names
+		shouldAnonymize := l.shouldAnonymizeContent(content, workingDict)
+
+		var nameReplacements map[string]string
+		if shouldAnonymize {
+			// Use local LLM to find new names/entities
+			var err error
+			nameReplacements, err = l.llama.Anonymize(ctx, content)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to anonymize message content: %w", err)
+			}
+		} else {
+			nameReplacements = make(map[string]string)
 		}
 
-		// Update dictionaries with new discoveries
+		// Update dictionaries with new discoveries, but prevent re-anonymizing already anonymized names
 		for original, replacement := range nameReplacements {
 			if original != "" && replacement != "" && original != replacement {
-				// Only add if not already in dictionary
+				// Only add if not already in dictionary AND original is not already an anonymized name
 				if _, exists := workingDict[original]; !exists {
-					workingDict[original] = replacement
-					newRules[replacement] = original // Store as token -> original
+					// Check if 'original' is actually an already-anonymized name (exists as a value in workingDict)
+					isAlreadyAnonymized := false
+					for _, anonymizedName := range workingDict {
+						if strings.EqualFold(anonymizedName, original) {
+							isAlreadyAnonymized = true
+							l.logger.Debug("Prevented re-anonymization of already anonymized name",
+								"already_anonymized", original,
+								"would_become", replacement)
+							break
+						}
+					}
+
+					if !isAlreadyAnonymized {
+						workingDict[original] = replacement
+						newRules[replacement] = original // Store as token -> original
+					}
 				}
 			}
 		}
@@ -93,11 +117,14 @@ func (l *LocalAnonymizer) anonymizeInMemory(ctx context.Context, messages []open
 		anonymizedMessages[i] = l.replaceMessageContent(message, anonymizedContent)
 	}
 
-	// Convert workingDict to standard format (token -> original)
+	// Convert workingDict to standard format (token -> original) and resolve chains
 	updatedDict := make(map[string]string)
 	for original, token := range workingDict {
 		updatedDict[token] = original
 	}
+
+	// Resolve any chain mappings in the dictionary
+	updatedDict = l.resolveChainMappings(updatedDict)
 
 	l.logger.Debug("Memory-only local anonymization complete", "messageCount", len(messages), "newRulesCount", len(newRules))
 	return anonymizedMessages, updatedDict, newRules, nil
@@ -186,11 +213,14 @@ func (l *LocalAnonymizer) anonymizeWithPersistence(ctx context.Context, conversa
 		}
 	}
 
-	// Convert workingDict to standard format for storage
+	// Convert workingDict to standard format for storage and resolve chains
 	updatedDict := make(map[string]string)
 	for original, token := range workingDict {
 		updatedDict[token] = original
 	}
+
+	// Resolve any chain mappings in the dictionary
+	updatedDict = l.resolveChainMappings(updatedDict)
 
 	// Save updated dictionary
 	if err := l.store.SaveConversationDict(conversationID, updatedDict); err != nil {
@@ -304,6 +334,124 @@ func (l *LocalAnonymizer) replaceMessageContent(message openai.ChatCompletionMes
 	}
 
 	return anonymizedMessage
+}
+
+func (l *LocalAnonymizer) shouldAnonymizeContent(content string, workingDict map[string]string) bool {
+	// Create a trie with reverse mappings (anonymized -> original) to detect already anonymized content
+	reverseDict := make(map[string]string)
+	for original, anonymized := range workingDict {
+		reverseDict[anonymized] = original
+	}
+
+	if len(reverseDict) == 0 {
+		// No existing anonymizations, should anonymize
+		return true
+	}
+
+	// Use replacement trie to find all anonymized names in content
+	trie := NewReplacementTrieFromRules(reverseDict)
+	_, foundMappings := trie.ReplaceAll(content)
+
+	// If we found anonymized names in the content, check if they cover most of the named entities
+	if len(foundMappings) > 0 {
+		// Extract potential names using simple heuristics (capitalized words)
+		potentialNames := l.extractPotentialNames(content)
+
+		// If most potential names are already anonymized, skip LLM anonymization
+		anonymizedCount := 0
+		for _, name := range potentialNames {
+			if _, exists := reverseDict[name]; exists {
+				anonymizedCount++
+			}
+		}
+
+		// If more than 50% of potential names are already anonymized, don't re-anonymize
+		if len(potentialNames) > 0 && float64(anonymizedCount)/float64(len(potentialNames)) > 0.5 {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (l *LocalAnonymizer) extractPotentialNames(text string) []string {
+	// Simple heuristic: find sequences of capitalized words that could be names
+	// This is a basic implementation - could be improved with NLP libraries
+	words := strings.Fields(text)
+	var potentialNames []string
+
+	for _, word := range words {
+		// Remove punctuation and check if it starts with capital letter
+		cleaned := strings.Trim(word, ".,!?;:")
+		if len(cleaned) > 1 && cleaned[0] >= 'A' && cleaned[0] <= 'Z' {
+			// Check if it's not a common word (basic check)
+			if !l.isCommonWord(cleaned) {
+				potentialNames = append(potentialNames, cleaned)
+			}
+		}
+	}
+
+	return potentialNames
+}
+
+func (l *LocalAnonymizer) isCommonWord(word string) bool {
+	// Basic list of common words that shouldn't be considered names
+	commonWords := map[string]bool{
+		"I": true, "The": true, "This": true, "That": true, "What": true, "Who": true,
+		"When": true, "Where": true, "How": true, "Why": true, "Can": true, "Will": true,
+		"Should": true, "Could": true, "Would": true, "May": true, "Might": true,
+		"Please": true, "Thank": true, "Thanks": true, "Hello": true, "Hi": true,
+		"Yes": true, "No": true, "OK": true, "Okay": true,
+	}
+	return commonWords[word]
+}
+
+func (l *LocalAnonymizer) resolveChainMappings(dict map[string]string) map[string]string {
+	resolved := make(map[string]string)
+
+	// For each mapping in the dictionary
+	for anonymized, original := range dict {
+		// Trace back to find the true original
+		trueOriginal := original
+		visited := make(map[string]bool)
+
+		// Follow the chain backwards until we find a non-anonymized original
+		for {
+			// Prevent infinite loops
+			if visited[trueOriginal] {
+				l.logger.Warn("Detected circular reference in anonymization dictionary",
+					"anonymized", anonymized, "circular_original", trueOriginal)
+				break
+			}
+			visited[trueOriginal] = true
+
+			// Check if this "original" is actually an anonymized version of something else
+			foundDeeperOriginal := false
+			for anonKey, origValue := range dict {
+				if anonKey == trueOriginal {
+					trueOriginal = origValue
+					foundDeeperOriginal = true
+					break
+				}
+			}
+
+			// If we didn't find a deeper original, we've reached the true original
+			if !foundDeeperOriginal {
+				break
+			}
+		}
+
+		resolved[anonymized] = trueOriginal
+
+		if trueOriginal != original {
+			l.logger.Debug("Resolved chain mapping",
+				"anonymized", anonymized,
+				"chain_original", original,
+				"true_original", trueOriginal)
+		}
+	}
+
+	return resolved
 }
 
 func (l *LocalAnonymizer) applyReplacements(text string, rules map[string]string) string {

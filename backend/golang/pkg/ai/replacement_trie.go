@@ -1,5 +1,7 @@
 package ai
 
+import "strings"
+
 // TrieNode represents a node in the replacement trie.
 type TrieNode struct {
 	children    map[rune]*TrieNode
@@ -22,6 +24,87 @@ func NewReplacementTrie() *ReplacementTrie {
 	}
 }
 
+// MergeRules takes a map of rules and merges case-insensitive duplicates.
+// For example: "innokentii" -> "boris" + "InnokenTii" -> "Boris" becomes "innokentii" -> "boris".
+func MergeRules(rules map[string]string) map[string]string {
+	merged := make(map[string]string)
+	caseTracker := make(map[string]string) // lowercase key -> canonical key
+
+	// First pass: collect all variants for each lowercase key
+	variants := make(map[string][]string)
+	for original, replacement := range rules {
+		lowerOriginal := strings.ToLower(original)
+		variants[lowerOriginal] = append(variants[lowerOriginal], replacement)
+	}
+
+	// Second pass: merge by preferring lowercase for regular words, preserving tokens
+	for lowerOriginal, replacements := range variants {
+		canonicalKey := lowerOriginal
+		caseTracker[lowerOriginal] = canonicalKey
+		// Find the best replacement: prefer lowercase over all other formats
+		var bestReplacement string
+
+		// First, look for lowercase versions
+		for _, replacement := range replacements {
+			if strings.ToLower(replacement) == replacement {
+				bestReplacement = replacement
+				break
+			}
+		}
+
+		// If no lowercase found, look for tokens
+		if bestReplacement == "" {
+			for _, replacement := range replacements {
+				if isTokenFormat(replacement) {
+					bestReplacement = replacement
+					break
+				}
+			}
+		}
+
+		// If no lowercase or tokens found, use first one and convert to lowercase
+		if bestReplacement == "" && len(replacements) > 0 {
+			bestReplacement = strings.ToLower(replacements[0])
+		}
+
+		merged[canonicalKey] = bestReplacement
+	}
+
+	return merged
+}
+
+// isTokenFormat checks if a string looks like an anonymization token.
+func isTokenFormat(s string) bool {
+	// Check for patterns like PERSON_001, COMPANY_001, ANON_1, WORD, etc.
+	// Token format: contains uppercase letters and optionally underscores/numbers
+	hasUpper := false
+	hasLower := false
+
+	for _, r := range s {
+		if r >= 'A' && r <= 'Z' {
+			hasUpper = true
+		}
+		if r >= 'a' && r <= 'z' {
+			hasLower = true
+		}
+	}
+
+	// Token format if it has uppercase letters and no lowercase letters (all caps)
+	return hasUpper && !hasLower
+}
+
+// NewReplacementTrieFromRules creates a trie from a map of rules, merging case duplicates.
+func NewReplacementTrieFromRules(rules map[string]string) *ReplacementTrie {
+	trie := NewReplacementTrie()
+	mergedRules := MergeRules(rules)
+
+	for pattern, replacement := range mergedRules {
+		trie.Insert(pattern, replacement)
+	}
+
+	return trie
+}
+
 // Insert adds a pattern and its replacement to the trie.
 func (t *ReplacementTrie) Insert(pattern, replacement string) {
 	// Validate input pattern - empty patterns can cause matching issues
@@ -36,7 +119,10 @@ func (t *ReplacementTrie) Insert(pattern, replacement string) {
 
 	current := t.root
 
-	for _, r := range pattern {
+	// Convert pattern to lowercase for case-insensitive matching
+	lowerPattern := strings.ToLower(pattern)
+
+	for _, r := range lowerPattern {
 		if _, exists := current.children[r]; !exists {
 			current.children[r] = &TrieNode{
 				children: make(map[rune]*TrieNode),
@@ -46,8 +132,8 @@ func (t *ReplacementTrie) Insert(pattern, replacement string) {
 	}
 
 	current.isEndOfWord = true
-	current.replacement = replacement
-	current.original = pattern
+	current.replacement = replacement // Store original replacement case
+	current.original = pattern        // Store original case for reference
 }
 
 // ReplaceAll performs all replacements in the text with longest match first behavior.
@@ -65,19 +151,86 @@ func (t *ReplacementTrie) ReplaceAll(text string) (string, map[string]string) {
 		// Try to find longest match starting at position i
 		match, matchLen := t.findLongestMatch(runes, i)
 
-		if match != nil {
-			// Found a match, replace it
-			result = append(result, []rune(match.replacement)...)
-			rules[match.replacement] = match.original
+		if match != nil && t.isWordBoundary(runes, i, matchLen) {
+			// Found a match at word boundary, apply case-preserving replacement
+			originalText := string(runes[i : i+matchLen])
+			casePreservedReplacement := t.applyCasePreservation(originalText, match.replacement)
+			result = append(result, []rune(casePreservedReplacement)...)
+			rules[casePreservedReplacement] = match.original
 			i += matchLen
 		} else {
-			// No match, keep original character
+			// No match or not at word boundary, keep original character
 			result = append(result, runes[i])
 			i++
 		}
 	}
 
 	return string(result), rules
+}
+
+// applyCasePreservation applies case pattern from source to target.
+func (t *ReplacementTrie) applyCasePreservation(source, target string) string {
+	if len(source) == 0 || len(target) == 0 {
+		return target
+	}
+
+	// If target looks like an anonymization token, preserve its format
+	if isTokenFormat(target) {
+		return target
+	}
+
+	// If source doesn't contain latin letters, preserve target as-is
+	sourceRunes := []rune(source)
+	hasLatinLetters := false
+	for _, r := range sourceRunes {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			hasLatinLetters = true
+			break
+		}
+	}
+
+	if !hasLatinLetters {
+		return target
+	}
+
+	targetRunes := []rune(target)
+
+	// Check if source is all uppercase
+	allUpper := true
+	for _, r := range sourceRunes {
+		if r >= 'a' && r <= 'z' {
+			allUpper = false
+			break
+		}
+	}
+	if allUpper {
+		return strings.ToUpper(target)
+	}
+
+	// Check if source is all lowercase
+	allLower := true
+	for _, r := range sourceRunes {
+		if r >= 'A' && r <= 'Z' {
+			allLower = false
+			break
+		}
+	}
+	if allLower {
+		return strings.ToLower(target)
+	}
+
+	// Mixed case - capitalize first letter only
+	if len(targetRunes) == 0 {
+		return target
+	}
+
+	result := make([]rune, len(targetRunes))
+	result[0] = []rune(strings.ToUpper(string(targetRunes[0])))[0]
+	for i := 1; i < len(targetRunes); i++ {
+		result[i] = []rune(strings.ToLower(string(targetRunes[i])))[0]
+	}
+
+	return string(result)
 }
 
 // findLongestMatch finds the longest pattern match starting at the given position.
@@ -88,7 +241,9 @@ func (t *ReplacementTrie) findLongestMatch(runes []rune, startPos int) (*TrieNod
 
 	for i := startPos; i < len(runes); i++ {
 		r := runes[i]
-		if child, exists := current.children[r]; exists {
+		// Convert character to lowercase for case-insensitive matching
+		lowerR := []rune(strings.ToLower(string(r)))[0]
+		if child, exists := current.children[lowerR]; exists {
 			current = child
 			if current.isEndOfWord {
 				longestMatch = current
@@ -100,6 +255,32 @@ func (t *ReplacementTrie) findLongestMatch(runes []rune, startPos int) (*TrieNod
 	}
 
 	return longestMatch, longestMatchLen
+}
+
+// isWordBoundary checks if the match at the given position is at word boundaries.
+func (t *ReplacementTrie) isWordBoundary(runes []rune, idx int, length int) bool {
+	// Check character before - should not be alphanumeric
+	if idx > 0 {
+		prevChar := runes[idx-1]
+		if (prevChar >= 'a' && prevChar <= 'z') ||
+			(prevChar >= 'A' && prevChar <= 'Z') ||
+			(prevChar >= '0' && prevChar <= '9') {
+			return false
+		}
+	}
+
+	// Check character after - should not be alphanumeric
+	endIdx := idx + length
+	if endIdx < len(runes) {
+		nextChar := runes[endIdx]
+		if (nextChar >= 'a' && nextChar <= 'z') ||
+			(nextChar >= 'A' && nextChar <= 'Z') ||
+			(nextChar >= '0' && nextChar <= '9') {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Size returns the number of patterns in the trie.

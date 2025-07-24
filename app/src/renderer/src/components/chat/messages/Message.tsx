@@ -1,4 +1,3 @@
-import React from 'react'
 import { Message, ToolCall as ToolCallType } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
@@ -16,6 +15,7 @@ import {
 import { useMemo } from 'react'
 import { ReadAloudButton } from './actions/ReadAloudButton'
 import { MessageActionsBar } from './actions/MessageActionsBar'
+import { AnonymizedContent, type MarkdownComponent } from '@renderer/lib/anonymization'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
@@ -165,6 +165,7 @@ export function AssistantMessageBubble({
             chatPrivacyDict={chatPrivacyDict}
             isAnonymized={isAnonymized}
             asMarkdown={true}
+            MarkdownComponent={MarkdownWrapper}
           />
         )}
         {message.imageUrls.length > 0 && (
@@ -236,77 +237,7 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
   )
 }
 
-const anonymizeText = (text: string, privacyDictJson: string | null, isAnonymized: boolean) => {
-  if (!privacyDictJson || !isAnonymized) return text
-
-  const privacyDict = JSON.parse(privacyDictJson) as Record<string, string>
-
-  let parts: (string | React.ReactElement)[] = [text]
-
-  Object.entries(privacyDict).forEach(([original, replacement]) => {
-    const regex = new RegExp(`(${original})`, 'gi')
-    parts = parts.flatMap((part) => {
-      if (typeof part === 'string') {
-        return part
-          .split(regex)
-          .map((segment, index) => {
-            if (regex.test(segment)) {
-              return (
-                <span
-                  key={`${original}-${index}`}
-                  className="bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium"
-                >
-                  {replacement}
-                </span>
-              )
-            }
-            return segment
-          })
-          .filter((segment) => segment !== '')
-      }
-      return part
-    })
-  })
-
-  return <span>{parts}</span>
-}
-
-function anonymizeTextForMarkdown(
-  text: string,
-  privacyDictJson: string | null,
-  isAnonymized: boolean
-): string {
-  if (!privacyDictJson || !isAnonymized) return text
-
-  const privacyDict = JSON.parse(privacyDictJson) as Record<string, string>
-
-  let result = text
-
-  Object.entries(privacyDict).forEach(([original, replacement]) => {
-    const regex = new RegExp(`(${original})`, 'gi')
-    result = result.replace(regex, () => {
-      return `<span class="bg-muted-foreground px-1.25 py-0.25 rounded text-primary-foreground font-medium">${replacement}</span>`
-    })
-  })
-
-  return result
-}
-
-function AnonymizedContent({
-  text,
-  chatPrivacyDict,
-  isAnonymized,
-  asMarkdown = false
-}: {
-  text: string
-  chatPrivacyDict: string | null
-  isAnonymized: boolean
-  asMarkdown?: boolean
-}) {
-  if (asMarkdown) {
-    const mdText = anonymizeTextForMarkdown(text, chatPrivacyDict, isAnonymized)
-    return <Markdown>{mdText}</Markdown>
-  } else {
-    return anonymizeText(text, chatPrivacyDict, isAnonymized)
-  }
-}
+// Create a typed wrapper for Markdown component
+const MarkdownWrapper: MarkdownComponent = ({ children }: { children: string }) => (
+  <Markdown>{children}</Markdown>
+)
