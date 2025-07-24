@@ -1,14 +1,9 @@
-import { useState, useCallback } from 'react'
-
-interface GoServerState {
-  initializing: boolean
-  isRunning: boolean
-  error?: string
-}
+import { useState, useCallback, useEffect } from 'react'
 
 export interface GoServerStatus {
   success: boolean
   isRunning: boolean
+  isInitializing: boolean
   message: string
 }
 
@@ -46,126 +41,147 @@ export async function getGoServerStatus(): Promise<GoServerStatus> {
     return {
       success: false,
       isRunning: false,
+      isInitializing: false,
       message: error instanceof Error ? error.message : 'Unknown error'
     }
   }
 }
 
 export function useGoServer() {
-  const [state, setState] = useState<GoServerState>({
-    initializing: false,
-    isRunning: false
+  const [status, setStatus] = useState<GoServerStatus>({
+    success: false,
+    isRunning: false,
+    isInitializing: false,
+    message: 'Loading...'
   })
 
   const checkStatus = useCallback(async () => {
     try {
-      const status = await getGoServerStatus()
-      setState((prev) => ({
-        ...prev,
-        isRunning: status.isRunning,
-        error: status.success ? undefined : status.message
-      }))
-      return status
+      const currentStatus = await getGoServerStatus()
+      setStatus(currentStatus)
+      return currentStatus
     } catch (error) {
-      setState((prev) => ({
-        ...prev,
+      const errorStatus: GoServerStatus = {
+        success: false,
         isRunning: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }))
+        isInitializing: false,
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }
+      setStatus(errorStatus)
       throw error
     }
   }, [])
 
   const start = useCallback(async () => {
     try {
-      const status = await getGoServerStatus()
+      // First check current status
+      const currentStatus = await getGoServerStatus()
 
-      if (status.isRunning) {
-        setState({ initializing: false, isRunning: true })
+      if (currentStatus.isRunning) {
+        setStatus(currentStatus)
         return { success: true }
       }
 
-      setState((prev) => ({ ...prev, initializing: true, error: undefined }))
+      if (currentStatus.isInitializing) {
+        setStatus(currentStatus)
+        return { success: true }
+      }
 
+      // Initialize the server
       const result = await initializeGoServer()
 
       if (result.success) {
-        setState({ initializing: false, isRunning: true })
+        // Refresh status after successful initialization
+        await checkStatus()
       } else {
-        setState({
-          initializing: false,
-          isRunning: false,
-          error: result.error
-        })
+        // Update status with error
+        setStatus((prev) => ({
+          ...prev,
+          success: false,
+          message: result.error || 'Failed to initialize Go server'
+        }))
       }
+
       return result
     } catch (error) {
-      setState({
-        initializing: false,
+      const errorStatus: GoServerStatus = {
+        success: false,
         isRunning: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      })
+        isInitializing: false,
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }
+      setStatus(errorStatus)
       throw error
     }
-  }, [])
+  }, [checkStatus])
 
   const stop = useCallback(async () => {
     try {
-      setState((prev) => ({ ...prev, initializing: true, error: undefined }))
-
       const result = await cleanupGoServer()
+
       if (result.success) {
-        setState({ initializing: false, isRunning: false })
+        // Refresh status after successful cleanup
+        await checkStatus()
       } else {
-        setState((prev) => ({
+        // Update status with error
+        setStatus((prev) => ({
           ...prev,
-          initializing: false,
-          error: result.error
+          success: false,
+          message: result.error || 'Failed to cleanup Go server'
         }))
       }
+
       return result
     } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        initializing: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }))
+      const errorStatus: GoServerStatus = {
+        success: false,
+        isRunning: false,
+        isInitializing: false,
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }
+      setStatus(errorStatus)
       throw error
     }
-  }, [])
+  }, [checkStatus])
 
   const initializeIfNeeded = useCallback(async () => {
-    if (state.initializing || state.isRunning) {
-      return { success: true }
-    }
-
     try {
-      setState((prev) => ({ ...prev, initializing: true, error: undefined }))
-      console.log('[useGoServer] Initializing Go Server')
-      const status = await getGoServerStatus()
-      if (status.isRunning) {
-        setState({ initializing: false, isRunning: true })
+      // Check current status first
+      const currentStatus = await getGoServerStatus()
+
+      if (currentStatus.isRunning || currentStatus.isInitializing) {
+        setStatus(currentStatus)
         return { success: true }
       }
 
+      // Initialize if not running and not initializing
       return await start()
     } catch (error) {
-      setState({
-        initializing: false,
+      const errorStatus: GoServerStatus = {
+        success: false,
         isRunning: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      })
+        isInitializing: false,
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }
+      setStatus(errorStatus)
       throw error
     }
-  }, [start, state.initializing, state.isRunning])
+  }, [start])
 
   const retry = useCallback(async () => {
-    setState((prev) => ({ ...prev, error: undefined }))
     return await initializeIfNeeded()
   }, [initializeIfNeeded])
 
+  useEffect(() => {
+    checkStatus()
+  }, [checkStatus])
+
   return {
-    state,
+    state: {
+      initializing: status.isInitializing,
+      isRunning: status.isRunning,
+      error: status.success ? undefined : status.message
+    },
     checkStatus,
     start,
     stop,
