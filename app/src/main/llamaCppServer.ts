@@ -5,37 +5,15 @@ import fs from 'node:fs'
 
 import { getDependencyPath, hasDependenciesDownloaded } from './dependenciesDownload'
 
-function findModelFile(modelDir: string): string | null {
-  try {
-    //@TODO: Confirm if this is needed
-    const files = fs.readdirSync(modelDir)
-
-    const ggufs = files.filter((file) => file.endsWith('.gguf'))
-
-    if (ggufs.length === 0) {
-      log.warn(`[LlamaCpp] No GGUF files found in ${modelDir}`)
-      return null
-    }
-
-    const qwenModel = ggufs.find((file) => file.toLowerCase().includes('qwen'))
-    const selectedModel = qwenModel || ggufs[0]
-
-    const modelPath = path.join(modelDir, selectedModel)
-    log.info(`[LlamaCpp] Found model file: ${modelPath}`)
-    return modelPath
-  } catch (error) {
-    log.error(`[LlamaCpp] Error searching for model file in ${modelDir}:`, error)
-    return null
-  }
-}
-
 export class LlamaCppServerManager {
   private childProcess: import('child_process').ChildProcess | null = null
-  private readonly modelPath: string
+  private readonly model4bPath: string
+  private readonly model06bPath: string | null
   private readonly port: number
 
-  constructor(modelPath: string, port: number = 11435) {
-    this.modelPath = modelPath
+  constructor(model4bPath: string, model06bPath: string | null = null, port: number = 11435) {
+    this.model4bPath = model4bPath
+    this.model06bPath = model06bPath
     this.port = port
   }
 
@@ -46,7 +24,11 @@ export class LlamaCppServerManager {
     }
 
     log.info('[LlamaCpp] Starting llama-server service')
-    log.info({ modelPath: this.modelPath, port: this.port })
+    log.info({
+      model4bPath: this.model4bPath,
+      model06bPath: this.model06bPath,
+      port: this.port
+    })
 
     const llamaServerPath = this.findLlamaServerExecutable()
     if (!llamaServerPath) {
@@ -55,14 +37,14 @@ export class LlamaCppServerManager {
 
     const args = [
       '-m',
-      this.modelPath,
+      this.model4bPath,
       '--flash-attn',
       '--ctx-size',
       '8192',
       '--cache-type-k',
-      'q8_0',
+      'q4_0',
       '--cache-type-v',
-      'q8_0',
+      'q4_0',
       '-ngl',
       '99',
       '-t',
@@ -70,10 +52,19 @@ export class LlamaCppServerManager {
       '-b',
       '2048',
       '--mlock',
-      '--metrics',
       '--port',
-      this.port.toString()
+      this.port.toString(),
+      '--jinja'
     ]
+
+    // Add 0.6b model arguments if 0.6b model is available
+    if (this.model06bPath) {
+      args.push('-md', this.model06bPath)
+      args.push('-ngld', '99')
+      args.push('--draft-max', '12')
+      args.push('--draft-min', '1')
+      args.push('--draft-p-min', '0.9')
+    }
 
     this.childProcess = spawn(llamaServerPath, args, {
       cwd: path.dirname(llamaServerPath),
@@ -167,7 +158,6 @@ export async function startLlamaCppSetup(): Promise<void> {
 
     const dependencies = hasDependenciesDownloaded()
 
-    // Check if we have the required dependencies
     if (!dependencies.LLAMACCP) {
       log.warn('[LlamaCpp] LLAMACCP binaries not yet downloaded, skipping setup')
       return
@@ -179,17 +169,15 @@ export async function startLlamaCppSetup(): Promise<void> {
     }
 
     const modelDir = getDependencyPath('anonymizer')
-    // Look for GGUF model file in the anonymizer directory
-    const modelPath = findModelFile(modelDir)
+    const { model4b, model06b } = findModelFiles(modelDir)
 
-    if (!modelPath) {
-      log.warn('[LlamaCpp] No GGUF model file found in anonymizer directory, skipping setup')
+    if (!model4b) {
+      log.warn('[LlamaCpp] No 4b GGUF model file found in anonymizer directory, skipping setup')
       return
     }
 
-    // Create instance only if it doesn't exist
     if (!llamaCppInstance) {
-      llamaCppInstance = new LlamaCppServerManager(modelPath, 11435)
+      llamaCppInstance = new LlamaCppServerManager(model4b, model06b, 11435)
     }
 
     await llamaCppInstance.run()
@@ -222,5 +210,40 @@ export function getLlamaCppStatus(): {
     isRunning: llamaCppInstance?.isRunning() ?? false,
     isSetup: setupCompleted,
     setupInProgress
+  }
+}
+
+function findModelFiles(modelDir: string): { model4b: string | null; model06b: string | null } {
+  try {
+    const files = fs.readdirSync(modelDir)
+    const ggufs = files.filter((file) => file.endsWith('.gguf'))
+
+    if (ggufs.length === 0) {
+      log.warn(`[LlamaCpp] No GGUF files found in ${modelDir}`)
+      return { model4b: null, model06b: null }
+    }
+
+    const model4b = ggufs.find(
+      (file) =>
+        file.toLowerCase().includes('qwen') &&
+        (file.toLowerCase().includes('4b') || file.toLowerCase().includes('4-b'))
+    )
+
+    const model06b = ggufs.find(
+      (file) =>
+        file.toLowerCase().includes('qwen') &&
+        (file.toLowerCase().includes('0.6b') || file.toLowerCase().includes('0.6-b'))
+    )
+
+    const model4bPath = model4b ? path.join(modelDir, model4b) : null
+    const model06bPath = model06b ? path.join(modelDir, model06b) : null
+
+    log.info(`[LlamaCpp] Found 4b model: ${model4bPath}`)
+    log.info(`[LlamaCpp] Found 0.6b model: ${model06bPath}`)
+
+    return { model4b: model4bPath, model06b: model06bPath }
+  } catch (error) {
+    log.error(`[LlamaCpp] Error searching for model files in ${modelDir}:`, error)
+    return { model4b: null, model06b: null }
   }
 }
