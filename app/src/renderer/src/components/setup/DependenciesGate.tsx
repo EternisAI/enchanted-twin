@@ -195,12 +195,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (
-        !hasModelsDownloaded.LLAMACCP ||
-        !hasModelsDownloaded.anonymizer ||
-        DEPENDENCY_CONFIG.anonymizer.disabled // @TODO: remove this when anonymizer is released
-      )
-        return
+      if (!hasModelsDownloaded.LLAMACCP || !hasModelsDownloaded.anonymizer) return
 
       const result = await window.api.llamacpp.getStatus()
       if (result.success) {

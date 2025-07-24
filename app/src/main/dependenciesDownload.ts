@@ -89,7 +89,6 @@ const DEPENDENCIES_CONFIGS: Record<
       await extractZip(file, this.dir)
     },
     isDownloaded: function () {
-      return true // TODO: remove this when anonymizer is released
       // For anonymizer, we need both 4b and 0.6b models
       if (!isExtractedDirValid(this.dir)) {
         return false
