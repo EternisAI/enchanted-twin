@@ -213,46 +213,46 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     Object.values(hasModelsDownloaded).every((dependency) => dependency) ||
     Object.values(downloadState).every((dependency) => dependency.completed)
 
-  // useEffect(() => {
-  //   console.log('[DependenciesGate] Setting up Go server monitoring')
+  useEffect(() => {
+    console.log('[DependenciesGate] Setting up Go server monitoring')
 
-  //   if (!allDependenciesCompleted || process.env.NODE_ENV === 'development') {
-  //     console.log(
-  //       '[DependenciesGate] Skipping Go server monitoring - dependencies not completed or in dev mode'
-  //     )
-  //     return
-  //   }
+    if (!allDependenciesCompleted || process.env.NODE_ENV === 'development') {
+      console.log(
+        '[DependenciesGate] Skipping Go server monitoring - dependencies not completed or in dev mode'
+      )
+      return
+    }
 
-  //   console.log('[DependenciesGate] Starting Go server monitoring every 10s')
+    console.log('[DependenciesGate] Starting Go server monitoring every 10s')
 
-  //   const interval = setInterval(async () => {
-  //     console.log('[DependenciesGate] Checking Go server status...')
+    const interval = setInterval(async () => {
+      console.log('[DependenciesGate] Checking Go server status...')
 
-  //     try {
-  //       const status = await goServerActions.checkStatus()
-  //       console.log('[DependenciesGate] Go server status:', status)
+      try {
+        const status = await goServerActions.checkStatus()
+        console.log('[DependenciesGate] Go server status:', status)
 
-  //       if (!status.isRunning && !status.isInitializing) {
-  //         console.log(
-  //           '[DependenciesGate] Go server is not running and not initializing, starting initialization...'
-  //         )
-  //         const result = await goServerActions.initializeIfNeeded()
-  //         console.log('[DependenciesGate] Go server initialization result:', result)
-  //       } else if (status.isRunning) {
-  //         console.log('[DependenciesGate] Go server is running')
-  //       } else if (status.isInitializing) {
-  //         console.log('[DependenciesGate] Go server is currently initializing')
-  //       }
-  //     } catch (error) {
-  //       console.error('[DependenciesGate] Error checking Go server status:', error)
-  //     }
-  //   }, 10000)
+        if (!status.isRunning && !status.isInitializing) {
+          console.log(
+            '[DependenciesGate] Go server is not running and not initializing, starting initialization...'
+          )
+          const result = await goServerActions.initializeIfNeeded()
+          console.log('[DependenciesGate] Go server initialization result:', result)
+        } else if (status.isRunning) {
+          console.log('[DependenciesGate] Go server is running')
+        } else if (status.isInitializing) {
+          console.log('[DependenciesGate] Go server is currently initializing')
+        }
+      } catch (error) {
+        console.error('[DependenciesGate] Error checking Go server status:', error)
+      }
+    }, 10000)
 
-  //   return () => {
-  //     console.log('[DependenciesGate] Cleaning up Go server monitoring')
-  //     clearInterval(interval)
-  //   }
-  // }, [allDependenciesCompleted])
+    return () => {
+      console.log('[DependenciesGate] Cleaning up Go server monitoring')
+      clearInterval(interval)
+    }
+  }, [allDependenciesCompleted])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>
