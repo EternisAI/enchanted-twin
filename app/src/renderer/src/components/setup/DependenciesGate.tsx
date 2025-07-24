@@ -274,6 +274,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
               {allDependenciesCompleted ? 'It begins with Freysa' : 'Enchanted is loading'}
             </h1>
             {!allDependenciesCompleted && <p className="text-xs text-white">~5 minutes</p>}
+            <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
           </div>
 
           <div className="flex flex-col gap-4">
@@ -306,7 +307,6 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
                 onRetry={retryGoServer}
               />
             )}
-            <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
           </div>
         </div>
       </div>

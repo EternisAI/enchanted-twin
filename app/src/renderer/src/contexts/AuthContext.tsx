@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [activateInviteCodeMutation] = useMutation(ActivateInviteCodeDocument, {
     onCompleted: async () => {
-      toast.success('Invite code activated successfully!')
+      toast.success('Invite code activated successfully! You will be redirected shortly...')
       await refetchWhitelist()
     },
     onError: (error) => {
