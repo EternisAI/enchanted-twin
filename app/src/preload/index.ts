@@ -59,6 +59,7 @@ const api = {
     return () => ipcRenderer.removeListener('update-progress', listener)
   },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getBuildChannel: () => ipcRenderer.invoke('get-build-channel'),
   onOpenSettings: (callback: () => void) => {
     const listener = () => callback()
     ipcRenderer.on('open-settings', listener)

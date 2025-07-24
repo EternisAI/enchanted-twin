@@ -29,7 +29,8 @@ async function downloadFile(
     resp.data.on('data', (chunk: Buffer) => {
       downloaded += chunk.length
       if (onProgress && total > 0) {
-        const pct = Math.round((downloaded / total) * 100)
+        // Cap progress at 99% during download, 100% will be sent after extraction
+        const pct = Math.min(99, Math.round((downloaded / total) * 100))
         onProgress(pct, total, downloaded)
       }
     })
@@ -214,12 +215,15 @@ export async function downloadDependency(dependencyName: DependencyName) {
     throw new Error(`Unknown dependency: ${dependencyName}`)
   }
   await cfg.install()
+
+  await new Promise((resolve) => setTimeout(resolve, 1000)) // Small delay
   windowManager.mainWindow?.webContents.send('models:progress', {
     modelName: dependencyName,
     pct: 100,
     totalBytes: 0,
     downloadedBytes: 0
   })
+
   return { success: true, path: cfg.dir }
 }
 

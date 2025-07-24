@@ -35,7 +35,6 @@ function App() {
       <TTSProvider>
         <ApolloClientProvider>
           <GoServerProvider>
-            {/* <AppInitialize> */}
             <div className="flex flex-col h-screen w-screen bg-background">
               <DependenciesGate>
                 <AuthProvider>

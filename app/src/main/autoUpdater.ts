@@ -14,20 +14,37 @@ export function setupAutoUpdater() {
   autoUpdater.logger = log
   log.transports.file.level = 'debug'
   autoUpdater.autoDownload = true
-
-  // Set update channel based on app name
   const appName = app.getName()
-  if (appName === 'Enchanted Dev') {
+
+  log.info(`Auto-updater configured for ${autoUpdater.channel} channel (app: ${appName})`)
+  log.info(
+    `Current channel: ${autoUpdater.channel} and updateConfigPath: ${autoUpdater.updateConfigPath}`
+  )
+  log.info(`App version: ${app.getVersion()}`)
+  log.info(`BUILD_CHANNEL: ${process.env.BUILD_CHANNEL}`)
+
+  // Use BUILD_CHANNEL env var, set during  CI/CD build process to determine the update channel
+  const buildChannel = process.env.BUILD_CHANNEL || 'latest'
+  log.info(`Using build channel: ${buildChannel}`)
+
+  if (buildChannel === 'dev') {
     autoUpdater.channel = 'dev'
-    log.info(`Auto-updater configured for dev channel (app: ${appName})`)
+    const feedURL = {
+      provider: 's3' as const,
+      bucket: 'enchanted-app-dev',
+      region: 'us-east-1',
+      channel: 'dev'
+    }
+    autoUpdater.setFeedURL(feedURL)
   } else {
-    // Fallback to latest for unknown app names
+    // Use latest channel for production builds
     autoUpdater.channel = 'latest'
-    log.warn(`Unknown app name: ${appName}, defaulting to latest channel`)
+    log.info('Set to latest channel for production build')
   }
 
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for update...')
+    log.info(`Update server URL: ${autoUpdater.getFeedURL()}`)
     if (windowManager.mainWindow) {
       windowManager.mainWindow.webContents.send('update-status', 'Checking for update...')
     }

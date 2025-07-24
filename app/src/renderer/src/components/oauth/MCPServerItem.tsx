@@ -154,7 +154,7 @@ export default function MCPServerItem({
           toast.success(`Connected successfully to ${data.completeOAuthFlow}!`)
           onConnect()
 
-          window.api.analytics.capture('server_connected', {
+          window.api.analytics.capture('mcp_server_connected', {
             server: server.name,
             type: server.type
           })
