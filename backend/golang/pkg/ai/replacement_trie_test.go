@@ -285,3 +285,146 @@ func BenchmarkReplacementTrie_ManyPatterns(b *testing.B) {
 		_, _ = trie.ReplaceAll(text)
 	}
 }
+
+func TestReplacementTrie_WordBoundaries(t *testing.T) {
+	trie := NewReplacementTrie()
+	trie.Insert("2", "1")
+	trie.Insert("John", "PERSON_001")
+	trie.Insert("test", "WORD")
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Digit boundaries - should not replace digits within year",
+			input:    "The year 2025 started",
+			expected: "The year 2025 started",
+		},
+		{
+			name:     "Word boundaries - should not replace part of word",
+			input:    "Johnson visited John",
+			expected: "Johnson visited PERSON_001",
+		},
+		{
+			name:     "Punctuation boundaries - should replace standalone words",
+			input:    "testing test, contest test.",
+			expected: "testing WORD, contest WORD.",
+		},
+		{
+			name:     "Start and end boundaries",
+			input:    "test at start and end test",
+			expected: "WORD at start and end WORD",
+		},
+		{
+			name:     "Digit boundaries - standalone digit should replace",
+			input:    "Number 2 in the list",
+			expected: "Number 1 in the list",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, _ := trie.ReplaceAll(tc.input)
+			if result != tc.expected {
+				t.Errorf("Expected %q, got %q", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestMergeRules(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    map[string]string
+		expected map[string]string
+	}{
+		{
+			name: "Basic case merging",
+			input: map[string]string{
+				"innokentii": "boris",
+				"InnokenTii": "Boris",
+			},
+			expected: map[string]string{
+				"innokentii": "boris",
+			},
+		},
+		{
+			name: "Multiple case variations",
+			input: map[string]string{
+				"john": "person1",
+				"John": "Person1",
+				"JOHN": "PERSON1",
+				"JoHn": "PeRsOn1",
+				"jane": "person2",
+				"Jane": "Person2",
+			},
+			expected: map[string]string{
+				"john": "person1",
+				"jane": "person2",
+			},
+		},
+		{
+			name: "No duplicates - should remain unchanged",
+			input: map[string]string{
+				"alice": "person1",
+				"bob":   "person2",
+				"carol": "person3",
+			},
+			expected: map[string]string{
+				"alice": "person1",
+				"bob":   "person2",
+				"carol": "person3",
+			},
+		},
+		{
+			name:     "Empty input",
+			input:    map[string]string{},
+			expected: map[string]string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := MergeRules(tc.input)
+
+			if len(result) != len(tc.expected) {
+				t.Errorf("Expected %d rules, got %d", len(tc.expected), len(result))
+				return
+			}
+
+			for expectedKey, expectedValue := range tc.expected {
+				if actualValue, exists := result[expectedKey]; !exists {
+					t.Errorf("Expected key %q not found in result", expectedKey)
+				} else if actualValue != expectedValue {
+					t.Errorf("For key %q: expected %q, got %q", expectedKey, expectedValue, actualValue)
+				}
+			}
+		})
+	}
+}
+
+func TestNewReplacementTrieFromRules(t *testing.T) {
+	rules := map[string]string{
+		"innokentii": "boris",
+		"InnokenTii": "Boris",
+		"JOHN":       "PERSON1",
+		"john":       "person1",
+		"Jane":       "Person2",
+	}
+
+	trie := NewReplacementTrieFromRules(rules)
+
+	// Should have 3 unique rules after merging (innokentii, john, jane)
+	if trie.Size() != 3 {
+		t.Errorf("Expected 3 rules after merging, got %d", trie.Size())
+	}
+
+	result, _ := trie.ReplaceAll("Hello innokentii and john and Jane")
+	expected := "Hello boris and person1 and Person2"
+
+	if result != expected {
+		t.Errorf("Expected %q, got %q", expected, result)
+	}
+}

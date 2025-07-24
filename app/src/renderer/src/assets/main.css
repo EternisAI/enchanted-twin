@@ -230,13 +230,12 @@
   }
 
   .onboarding-background {
-    background: linear-gradient(180deg, #6068E9 0%, #A5AAF9 100%);
+    background: linear-gradient(180deg, #6068e9 0%, #a5aaf9 100%);
   }
   .dark .onboarding-background {
-    background: linear-gradient(180deg, #18181B 0%, #000 100%);
+    background: linear-gradient(180deg, #18181b 0%, #000 100%);
   }
 }
-
 
 @layer utilities {
   @keyframes subtle-scale {
@@ -307,4 +306,3 @@
 /* button {
   cursor: pointer;
 } */
-

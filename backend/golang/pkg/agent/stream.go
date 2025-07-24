@@ -51,7 +51,35 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 
 		finalContent = result.Message.Content
 		finalReplacementRules = result.ReplacementRules
-		messages = append(messages, result.Message.ToParam())
+
+		// Create anonymized version of the agent response for conversation context
+		// We need to reverse the replacement rules to convert from de-anonymized back to anonymized
+		reverseRules := make(map[string]string)
+		for anonymized, original := range result.ReplacementRules {
+			reverseRules[original] = anonymized
+		}
+
+		// Apply reverse anonymization to the agent response
+		anonymizedAgentResponse := result.Message
+		if anonymizedAgentResponse.Content != "" {
+			// Use replacement trie for case-preserving anonymization
+			trie := ai.NewReplacementTrieFromRules(reverseRules)
+			anonymizedContent, _ := trie.ReplaceAll(anonymizedAgentResponse.Content)
+			anonymizedAgentResponse.Content = anonymizedContent
+		}
+
+		// Handle tool calls anonymization if present
+		if len(anonymizedAgentResponse.ToolCalls) > 0 {
+			trie := ai.NewReplacementTrieFromRules(reverseRules)
+			for i, toolCall := range anonymizedAgentResponse.ToolCalls {
+				if toolCall.Function.Arguments != "" {
+					anonymizedArgs, _ := trie.ReplaceAll(toolCall.Function.Arguments)
+					anonymizedAgentResponse.ToolCalls[i].Function.Arguments = anonymizedArgs
+				}
+			}
+		}
+
+		messages = append(messages, anonymizedAgentResponse.ToParam())
 
 		if len(result.Message.ToolCalls) == 0 {
 			break
