@@ -19,7 +19,6 @@ import {
 } from '../ui/alert-dialog'
 import { Button } from '../ui/button'
 import {
-  Plus,
   Trash2,
   PanelLeftClose,
   PanelLeftOpen,
@@ -29,7 +28,8 @@ import {
   ChevronUp,
   Globe,
   AlarmCheckIcon,
-  HistoryIcon
+  HistoryIcon,
+  SquarePen
 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
@@ -227,17 +227,17 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
                   )}
                   onClick={handleNewChat}
                 >
-                  <Plus
+                  <SquarePen
                     className={cn(
                       'w-4 h-4 transition-colors duration-100',
                       collapsed
-                        ? 'w-5 h-5 group-hover:text-foreground'
-                        : 'group-hover:text-sidebar-foreground'
+                        ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground'
+                        : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
                     )}
                   />
                   {!collapsed && (
                     <>
-                      <span className="text-sm">New chat</span>
+                      <span className="text-sm">Chat</span>
                       {shortcuts.newChat?.keys && (
                         <div className="absolute right-2 group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-sidebar-foreground/60">
                           {formatShortcutForDisplay(shortcuts.newChat.keys)}
