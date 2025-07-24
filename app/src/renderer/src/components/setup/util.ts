@@ -15,6 +15,7 @@ export const DEPENDENCY_CONFIG: Record<
   {
     name: string
     description: string
+    disabled?: boolean
   }
 > = {
   embeddings: {
@@ -23,7 +24,8 @@ export const DEPENDENCY_CONFIG: Record<
   },
   anonymizer: {
     name: 'Anonymizer model',
-    description: 'Enchanted keeps your data private'
+    description: 'Enchanted keeps your data private',
+    disabled: true // @TODO: remove this when anonymizer is released
   },
   onnx: {
     name: 'Inference engine',
