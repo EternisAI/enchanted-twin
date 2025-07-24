@@ -44,16 +44,16 @@ function SettingsLayout() {
       icon: Info,
       path: '/settings/about'
     },
-    ...((isDevRelease || process.env.NODE_ENV === 'development') && !loadingAppName
-      ? [
-          {
-            value: 'advanced',
-            label: 'Advanced',
-            icon: Settings2,
-            path: '/settings/advanced'
-          }
-        ]
-      : [])
+    // ...((isDevRelease || process.env.NODE_ENV === 'development') && !loadingAppName
+    // ? [
+    {
+      value: 'advanced',
+      label: 'Advanced',
+      icon: Settings2,
+      path: '/settings/advanced'
+    }
+    // ]
+    // : [])
   ]
 
   // Default to appearance tab if on base settings route
