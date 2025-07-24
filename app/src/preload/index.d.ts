@@ -136,7 +136,12 @@ interface IApi {
   goServer: {
     initialize: () => Promise<{ success: boolean; error?: string }>
     cleanup: () => Promise<{ success: boolean; error?: string }>
-    getStatus: () => Promise<{ success: boolean; isRunning: boolean; message: string }>
+    getStatus: () => Promise<{
+      success: boolean
+      isRunning: boolean
+      isInitializing: boolean
+      message: string
+    }>
   }
   llamacpp: {
     start: () => Promise<{ success: boolean; error?: string }>

@@ -13,11 +13,16 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { useGoServerContext } from '../../contexts/GoServerContext'
-import { useGoServer } from '../../hooks/useGoServer'
 
 export default function GoLogsViewer() {
-  const { logs, clearLogs, downloadLogs } = useGoServerContext()
-  const { state, checkStatus, start, stop, retry } = useGoServer()
+  const {
+    logs,
+    clearLogs,
+    downloadLogs,
+    goServerState: state,
+    goServerActions
+  } = useGoServerContext()
+  const { checkStatus, start, stop, retry } = goServerActions
   const [autoScroll, setAutoScroll] = useState(true)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
