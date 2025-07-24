@@ -17,7 +17,7 @@ export function PrivacyButton({
       <TooltipTrigger asChild>
         <div
           className={cn(
-            'px-2 gap-1 h-8 text-xs z-50 no-drag cursor-help text-primary/50 flex items-center justify-center',
+            'px-2 gap-1 h-8 text-xs z-50 no-drag text-primary/50 flex items-center justify-center',
             className
           )}
         >
