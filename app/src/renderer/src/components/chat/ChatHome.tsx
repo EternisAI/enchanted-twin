@@ -1,17 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Calendar,
-  Search,
-  GraduationCap,
-  Telescope,
-  Brain,
-  MessageCircle,
-  Plus,
-  AlarmCheck,
-  VideoIcon,
-  AlarmCheckIcon
-} from 'lucide-react'
+import { motion } from 'framer-motion'
+import { GraduationCap, Telescope, VideoIcon, AlarmCheckIcon } from 'lucide-react'
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation } from '@apollo/client'
 import {
@@ -21,21 +10,13 @@ import {
   SendMessageDocument
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
-import { ContextCard } from './personalize/ContextCard'
-import { cn } from '@renderer/lib/utils'
 import { useDebounce } from '@renderer/hooks/useDebounce'
-import { ScrollArea } from '../ui/scroll-area'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import ChatInputBox from './ChatInputBox'
-import VoiceVisualizer from './voice/VoiceVisualizer'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
-import { VoiceModeInput } from './voice/VoiceModeInput'
-import { TwinNameInput } from './personalize/TwinNameInput'
 import { ChatHomeHeader } from './ChatHomeHeader'
-import { VoiceVisualizerSection } from './VoiceVisualizerSection'
 import { ChatHomeSuggestions } from './ChatHomeSuggestions'
 import { Suggestion } from './ChatHomeSuggestions'
-import { Button } from '../ui/button'
 import { ConnectSourcesButton } from '../data-sources/ConnectButton'
 
 interface IndexRouteSearch {
@@ -75,8 +56,6 @@ export function Home() {
     { id: 'learn', name: 'Help me learn a new skill or concept', icon: GraduationCap }
   ]
 
-  const suggestions = debouncedQuery ? filteredChats : dummySuggestions
-
   useEffect(() => {
     if (!debouncedQuery) {
       setSelectedIndex(-1)
@@ -113,13 +92,6 @@ export function Home() {
   useEffect(() => {
     adjustTextareaHeight()
   }, [query])
-
-  useEffect(() => {
-    // Reset showSuggestions when voice mode changes
-    if (isVoiceMode) {
-      setShowSuggestions(false)
-    }
-  }, [isVoiceMode])
 
   const handleCreateChat = useCallback(
     async (chatTitle?: string, isVoiceMode?: boolean) => {
@@ -268,7 +240,7 @@ export function Home() {
     } else {
       initShowSuggestionsTimeout.current = setTimeout(() => {
         setShowSuggestions(true)
-      }, 1000)
+      }, 500)
     }
     return () => {
       if (initShowSuggestionsTimeout.current) {
