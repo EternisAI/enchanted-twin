@@ -140,8 +140,11 @@ async function startGoServer(
       log.info('Go server process spawned. Waiting until it listens …')
       await waitForBackend(backendPort)
 
+      const duration = Date.now() - startTime
+      log.info(`[GO] Go server process ready in ${duration}ms`)
+
       capture('server_startup_success', {
-        duration: Date.now() - startTime,
+        duration: duration,
         port: backendPort
       })
 

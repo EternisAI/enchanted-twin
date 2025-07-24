@@ -288,7 +288,7 @@ function CubeParticles({
     material.uniforms.uTime.value = clock.elapsedTime
   })
 
-  return <points ref={mesh} geometry={geometry} material={material} />
+  return <points ref={mesh} geometry={geometry} material={material} scale={[2, 2, 2]} />
 }
 
 /* ──────────── shaders (unchanged) ──────────── */
