@@ -1,0 +1,72 @@
+import { Loader2, Plus } from 'lucide-react'
+import { Button } from '../ui/button'
+import { useNavigate } from '@tanstack/react-router'
+import { GetMcpServersDocument } from '@renderer/graphql/generated/graphql'
+import { useQuery } from '@apollo/client'
+
+import { SMALL_PROVIDER_ICON_MAP } from '@renderer/constants/mcpProviders'
+import { useMemo } from 'react'
+import { motion } from 'framer-motion'
+
+export function ConnectSourcesButton() {
+  const navigate = useNavigate()
+  const { data, loading } = useQuery(GetMcpServersDocument, {
+    fetchPolicy: 'network-only'
+  })
+  const allMcpServers = useMemo(() => data?.getMCPServers || [], [data])
+  const availableMcpServers = useMemo(
+    () => allMcpServers.filter((server) => !server.connected),
+    [allMcpServers]
+  )
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  }
+  const itemVariants = {
+    hidden: { opacity: 0, x: -10 },
+    visible: { opacity: 1, x: 0 }
+  }
+
+  return (
+    <Button
+      onClick={() => {
+        navigate({
+          to: '/settings/data-sources'
+        })
+      }}
+      variant="outline"
+      size="sm"
+    >
+      <Plus className="w-4 h-4" />
+      Connect Sources
+      <motion.div className="flex items-center">
+        {loading ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <motion.div
+            className="flex flex-row items-center -space-x-2"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {availableMcpServers.map((server) => (
+              <motion.div
+                className="rounded-sm bg-white p-0.5"
+                key={server.id}
+                variants={itemVariants}
+              >
+                {SMALL_PROVIDER_ICON_MAP[server.type]}
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </motion.div>
+    </Button>
+  )
+}

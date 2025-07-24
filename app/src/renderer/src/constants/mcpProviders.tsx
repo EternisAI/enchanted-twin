@@ -93,3 +93,22 @@ export const PROVIDER_DESCRIPTION_MAP: Record<McpServerType, string> = Object.fr
 export const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = Object.fromEntries(
   Object.entries(PROVIDER_CONFIG).map(([key, value]) => [key, value.icon])
 ) as Record<McpServerType, React.ReactNode>
+
+// Small icons for compact displays
+export const SMALL_PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
+  [McpServerType.Google]: <Google className="size-4" />,
+  [McpServerType.Slack]: <Slack className="size-4" />,
+  [McpServerType.Twitter]: (
+    <IconContainer className="bg-foreground size-4 rounded-xs">
+      <XformerlyTwitter className="size-[10px] text-primary-foreground" />
+    </IconContainer>
+  ),
+  [McpServerType.Screenpipe]: <img src={screenpipeIcon} alt="Screenpipe" className="size-5" />,
+  [McpServerType.Other]: (
+    <IconContainer className="size-4 rounded-xs">
+      <PlugIcon strokeWidth={1.5} className="size-[8px]" />
+    </IconContainer>
+  ),
+  [McpServerType.Enchanted]: <img src={enchantedIcon} alt="Essentials" className="size-5" />,
+  [McpServerType.Freysa]: <img src={enchantedIcon} alt="Freysa" className="size-5" />
+}
