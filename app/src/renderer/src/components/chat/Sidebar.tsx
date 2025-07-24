@@ -28,7 +28,8 @@ import {
   ChevronDown,
   ChevronUp,
   Globe,
-  AlarmCheckIcon
+  AlarmCheckIcon,
+  HistoryIcon
 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
@@ -373,6 +374,40 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
               )}
             </Tooltip>
           </TooltipProvider>
+          {collapsed && (
+            <TooltipProvider>
+              <Tooltip delayDuration={collapsed ? 300 : 1000}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    data-active={location.pathname === '/holon'}
+                    className={cn(
+                      'group h-9 transition-all',
+                      collapsed
+                        ? 'w-10 p-0 justify-center text-foreground hover:bg-accent [&[data-active=true]]:text-foreground [&[data-active=true]]:bg-accent'
+                        : 'w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent'
+                    )}
+                    onClick={() => setSidebarOpen(true)}
+                  >
+                    <HistoryIcon
+                      className={cn(
+                        'w-4 h-4 transition-colors duration-100',
+                        collapsed
+                          ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground'
+                          : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
+                      )}
+                    />
+                    {!collapsed && <span className="text-sm">History</span>}
+                  </Button>
+                </TooltipTrigger>
+                {collapsed && (
+                  <TooltipContent side="right" align="center">
+                    <span>History</span>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
 
         {!collapsed && (
