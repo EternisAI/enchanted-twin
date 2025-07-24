@@ -71,7 +71,6 @@ function EmptyTasksState() {
   }
 
   const examples = [
-    'Send me a joke on Telegram every day at 9am',
     'Remind me to move the bins to the street every Wednesday at 8pm',
     'Summarize the latest crypto news every Monday morning'
   ]
