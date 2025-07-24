@@ -21,7 +21,7 @@ import {
 } from './livekitManager'
 import { downloadDependency, hasDependenciesDownloaded } from './dependenciesDownload'
 import { DependencyName } from './types/dependencies'
-import { initializeGoServer, cleanupGoServer, isGoServerRunning } from './goServer'
+import { initializeGoServer, cleanupGoServer, getGoServerState } from './goServer'
 import { generateTTS } from './ttsManager'
 import { startLlamaCppSetup, cleanupLlamaCpp, getLlamaCppStatus } from './llamaCppServer'
 
@@ -787,11 +787,16 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('go-server:status', () => {
-    const isRunning = isGoServerRunning()
+    const state = getGoServerState()
     return {
       success: true,
-      isRunning,
-      message: isRunning ? 'Go server is running' : 'Go server is not running'
+      isRunning: state.isRunning,
+      isInitializing: state.isInitializing,
+      message: state.isRunning
+        ? 'Go server is running'
+        : state.isInitializing
+          ? 'Go server is initializing'
+          : 'Go server is not running'
     }
   })
 

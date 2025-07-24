@@ -232,14 +232,15 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
         const status = await goServerActions.checkStatus()
         console.log('[DependenciesGate] Go server status:', status)
 
-        if (!status.isRunning && !goServerState.initializing) {
+        if (!status.isRunning && !status.isInitializing) {
           console.log(
             '[DependenciesGate] Go server is not running and not initializing, starting initialization...'
           )
-          await goServerActions.initializeIfNeeded()
+          const result = await goServerActions.initializeIfNeeded()
+          console.log('[DependenciesGate] Go server initialization result:', result)
         } else if (status.isRunning) {
           console.log('[DependenciesGate] Go server is running')
-        } else if (goServerState.initializing) {
+        } else if (status.isInitializing) {
           console.log('[DependenciesGate] Go server is currently initializing')
         }
       } catch (error) {
@@ -251,7 +252,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
       console.log('[DependenciesGate] Cleaning up Go server monitoring')
       clearInterval(interval)
     }
-  }, [allDependenciesCompleted, goServerState.initializing, goServerActions])
+  }, [allDependenciesCompleted])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>
