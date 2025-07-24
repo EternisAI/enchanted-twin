@@ -290,7 +290,7 @@ export function Home() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: showSuggestions ? 1 : 0, y: showSuggestions ? 0 : 10 }}
-        transition={{ type: 'spring', stiffness: 150, damping: 10 }}
+        transition={{ type: 'spring', stiffness: 150, damping: 15 }}
         className="flex justify-center absolute bottom-0 left-0 right-0 p-4"
       >
         <ConnectSourcesButton />
