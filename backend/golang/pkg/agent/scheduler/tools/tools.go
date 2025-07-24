@@ -119,7 +119,7 @@ func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
 					},
 					"cron": map[string]string{
 						"type":        "string",
-						"description": "Cron expression for the task to be executed periodically. Cron expressions only accept integers. Examples `*/30 * * * * *`, `0 15 10 15 * *`, `0 */5 9-17 * * 1-5`.",
+						"description": "Cron expression for the task to be executed periodically. Uses standard 5-field format: minute hour day-of-month month day-of-week. Examples: `*/30 * * * *` (every 30 minutes), `15 10 * * *` (daily at 10:15 AM), `*/5 9-17 * * 1-5` (every 5 minutes, 9 AM to 5 PM, weekdays only).",
 					},
 					"chat_id": map[string]string{
 						"type":        "string",
