@@ -33,7 +33,8 @@ export default function ScreenpipeConnectionButton({
     handlePrimaryAction,
     handleRequestPermission,
     handleStartScreenpipe,
-    handleStopScreenpipe
+    handleStopScreenpipe,
+    fetchStatus
   } = useScreenpipeConnection({ shouldShowModalFromSearch: shouldAutoOpen })
 
   const previousConnectionState = useRef(connectionState)
@@ -80,6 +81,28 @@ export default function ScreenpipeConnectionButton({
     }
   }
 
+  // Special version for modal auto-start that throws on permission issues
+  const handleAutoStartForModal = async () => {
+    try {
+      // Always try to start Screenpipe - it will handle the system permission dialog
+      const result = await window.api.screenpipe.start()
+
+      if (!result.success) {
+        // Check if the failure is due to permissions
+        if (result.error && result.error.toLowerCase().includes('permission')) {
+          throw new Error('Permission denied')
+        }
+        throw new Error(result.error || 'Failed to start Screenpipe')
+      }
+
+      // If successful, fetch the latest status
+      await fetchStatus()
+    } catch (error) {
+      console.error('[ScreenpipeConnectionButton] Auto-start failed:', error)
+      throw error // Re-throw to trigger the permissions UI in the modal
+    }
+  }
+
   // Get the appropriate icon based on state
   const getIcon = () => {
     if (isLoading) return <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -119,7 +142,7 @@ export default function ScreenpipeConnectionButton({
         screenRecordingPermission={getSafeScreenRecordingPermission(permissions.screen)}
         isScreenpipeRunning={connectionState === 'running'}
         onRequestPermission={handleRequestPermission}
-        onStartScreenpipe={handleStartScreenpipeWithCallback}
+        onStartScreenpipe={handleAutoStartForModal}
         onStopScreenpipe={handleStopScreenpipe}
       />
     </>
