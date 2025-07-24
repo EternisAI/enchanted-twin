@@ -13,6 +13,7 @@ import { ArrowDown } from 'lucide-react'
 import { Fade } from '../ui/blur-fade'
 import Error from './Error'
 import { AnonToggleButton } from './AnonToggleButton'
+import { usePrevious } from '@renderer/lib/hooks/usePrevious'
 
 interface ChatViewProps {
   chat: Chat
@@ -41,6 +42,8 @@ export default function ChatView({ chat }: ChatViewProps) {
     setIsReasonSelected
   } = useChat()
 
+  const comingFromVoiceMode = usePrevious(isVoiceMode)
+
   // TODO: replace with intersection observer instead of scroll event listener - performance improvement
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
@@ -54,13 +57,13 @@ export default function ChatView({ chat }: ChatViewProps) {
     if (!container) return
 
     const scrollOptions = { top: container.scrollHeight }
-    if (!mounted) {
+    if (!mounted || comingFromVoiceMode) {
       container.scrollTo({ ...scrollOptions, behavior: 'instant' })
       setMounted(true)
     } else if (isAtBottom) {
       container.scrollTo({ ...scrollOptions, behavior: 'smooth' })
     }
-  }, [messages, mounted, isAtBottom, isVoiceMode])
+  }, [messages, mounted, isAtBottom, isVoiceMode, comingFromVoiceMode])
 
   const scrollToBottom = () => {
     if (containerRef.current) {
