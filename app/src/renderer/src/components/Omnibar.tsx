@@ -155,7 +155,7 @@ export const Omnibar = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ type: 'spring', damping: 55, stiffness: 350 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-background pointer-events-auto"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-sm pointer-events-auto"
             onClick={closeOmnibar}
           >
             <motion.div
