@@ -11,7 +11,6 @@ import (
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -30,7 +29,7 @@ type EnchantedMCPClient struct {
 }
 
 // NewEnchantedMCPClient creates a new Enchanted MCP client.
-func NewEnchantedMCPClient(store *db.Store, logger *log.Logger, enchantedMcpURL string) *EnchantedMCPClient {
+func NewClient(store *db.Store, logger *log.Logger, enchantedMcpURL string) *EnchantedMCPClient {
 	return &EnchantedMCPClient{
 		store:           store,
 		logger:          logger,
@@ -38,24 +37,15 @@ func NewEnchantedMCPClient(store *db.Store, logger *log.Logger, enchantedMcpURL 
 	}
 }
 
-// getCurrentFirebaseToken gets the current Firebase
-// token from the store and refreshes it if needed.
+// getCurrentFirebaseToken gets the current Firebase token from the store.
 func (d *EnchantedMCPClient) getCurrentFirebaseToken(ctx context.Context) (string, error) {
 	oauth, err := d.store.GetOAuthTokens(ctx, "firebase")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("database error retrieving Firebase token, user may need to re-login: %w", err)
 	}
 
 	if oauth != nil && (oauth.ExpiresAt.Before(time.Now()) || oauth.Error) {
-		d.logger.Debug("Refreshing expired Firebase token for Enchanted MCP server")
-		_, err = auth.RefreshOAuthToken(ctx, d.logger, d.store, "firebase")
-		if err != nil {
-			return "", err
-		}
-		oauth, err = d.store.GetOAuthTokens(ctx, "firebase")
-		if err != nil {
-			return "", err
-		}
+		d.logger.Debug("Firebase token is expired, need to be refreshed")
 	}
 
 	if oauth == nil || oauth.AccessToken == "" {
@@ -71,6 +61,11 @@ func (d *EnchantedMCPClient) ensureClientWithFreshToken(ctx context.Context) err
 	currentToken, err := d.getCurrentFirebaseToken(ctx)
 	if err != nil {
 		return err
+	}
+
+	// Don't create client without valid token.
+	if currentToken == "" {
+		return fmt.Errorf("no Firebase token available, user may not be logged in")
 	}
 
 	d.mu.Lock()
