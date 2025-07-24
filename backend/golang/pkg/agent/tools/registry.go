@@ -15,6 +15,9 @@ type ToolRegistry interface {
 	// Register adds a tool to the registry.
 	Register(tools ...Tool) error
 
+	// Unregister removes tools from the registry by name.
+	Unregister(toolNames ...string)
+
 	// Get retrieves a tool by name.
 	Get(name string) (Tool, bool)
 
@@ -75,6 +78,16 @@ func (r *ToolMapRegistry) Register(tools ...Tool) error {
 	}
 
 	return nil
+}
+
+// Unregister removes tools from the registry by name.
+func (r *ToolMapRegistry) Unregister(toolNames ...string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, toolName := range toolNames {
+		delete(r.tools, toolName)
+	}
 }
 
 // Get retrieves a tool by name.
