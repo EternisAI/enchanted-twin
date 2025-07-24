@@ -44,7 +44,8 @@ const api = {
   requestMediaAccess: (type: MediaType) => ipcRenderer.invoke('permissions:request', type),
   accessibility: {
     getStatus: () => ipcRenderer.invoke('accessibility:get-status'),
-    request: () => ipcRenderer.invoke('accessibility:request')
+    request: () => ipcRenderer.invoke('accessibility:request'),
+    openSettings: () => ipcRenderer.invoke('accessibility:open-settings')
   },
   checkForUpdates: (silent: boolean = false) => ipcRenderer.invoke('check-for-updates', silent),
   onUpdateStatus: (callback: (status: string) => void) => {
