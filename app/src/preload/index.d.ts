@@ -35,6 +35,7 @@ interface IApi {
   accessibility: {
     getStatus: () => Promise<any>
     request: () => Promise<any>
+    openSettings: () => Promise<boolean>
   }
   checkForUpdates: (silent?: boolean) => Promise<boolean>
   onUpdateStatus: (callback: (status: string) => void) => () => void

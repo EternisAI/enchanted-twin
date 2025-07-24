@@ -14,6 +14,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { Check, Unplug, InfoIcon } from 'lucide-react'
 import { PROVIDER_ICON_MAP, PROVIDER_DESCRIPTION_MAP } from '@renderer/constants/mcpProviders'
+import { toast } from 'sonner'
 
 interface ConnectedMCPServerItemProps {
   server: McpServerDefinition
@@ -26,10 +27,24 @@ export default function ConnectedMCPServerItem({
 }: ConnectedMCPServerItemProps) {
   const [isDisconnectDialogOpen, setIsDisconnectDialogOpen] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
 
-  const handleDisconnect = () => {
-    onDisconnect()
-    setIsDisconnectDialogOpen(false)
+  const handleDisconnect = async () => {
+    setIsDisconnecting(true)
+    try {
+      // Remove direct Screenpipe handling - ConnectedMCPPanel already handles this
+      onDisconnect()
+      setIsDisconnectDialogOpen(false)
+    } catch (error) {
+      console.error('[ConnectedMCPServerItem] Error during disconnect:', error)
+      toast.error('Failed to disconnect properly')
+    } finally {
+      setIsDisconnecting(false)
+    }
+  }
+
+  const getDisconnectDescription = () => {
+    return 'This will disconnect the server from your application. You can reconnect it later from the Available tab.'
   }
 
   return (
@@ -132,15 +147,12 @@ export default function ConnectedMCPServerItem({
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Disconnect server</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will disconnect the server from your application. You can reconnect it later
-                  from the Available tab.
-                </AlertDialogDescription>
+                <AlertDialogDescription>{getDisconnectDescription()}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <Button variant="destructive" onClick={handleDisconnect}>
-                  Disconnect
+                <Button variant="destructive" onClick={handleDisconnect} disabled={isDisconnecting}>
+                  {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
                 </Button>
               </AlertDialogFooter>
             </AlertDialogContent>

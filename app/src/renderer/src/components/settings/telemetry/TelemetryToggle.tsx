@@ -37,6 +37,7 @@ export default function TelemetryToggle() {
       isLoading={false}
       grantedIcon="Disable"
       explanation="Share anonymised app activity to improve the Enchanted. No personal information or memories will be shared."
+      isToggle
     />
   )
 }
