@@ -133,11 +133,17 @@ func (s *service) ConnectMCPServer(
 				return nil, fmt.Errorf("ENCHANTED_MCP_URL is not configured")
 			}
 
-			client = enchanted.NewEnchantedMCPClient(s.store, log.Default(), s.config.EnchantedMcpURL)
+			client = enchanted.NewClient(s.store, log.Default(), s.config.EnchantedMcpURL)
 		default:
 			return nil, fmt.Errorf("unsupported server type")
 		}
 		input.Name = name
+		// Register tools with the registry first
+		if err := s.registerMCPTools(ctx, client, name); err != nil {
+			log.Error("Failed to register MCP tools", "server", name, "error", err)
+			return nil, fmt.Errorf("MCP server tool registration failed: %w", err)
+		}
+
 		mcpServer, err = s.repo.AddMCPServer(ctx, &input, &enabled)
 		if err != nil {
 			return nil, err
@@ -147,9 +153,6 @@ func (s *service) ConnectMCPServer(
 			ID:     mcpServer.ID,
 			Client: client,
 		})
-
-		// Register tools with the registry
-		s.registerMCPTools(ctx, client, mcpServer.Name)
 
 		return mcpServer, nil
 	}
@@ -238,11 +241,14 @@ func (s *service) ConnectMCPServer(
 						log.Error("Failed to initialize HTTP MCP client after OAuth", "server", input.Name, "error", initErr)
 						return
 					}
+					if err := s.registerMCPTools(ctx, mcpClient, input.Name); err != nil {
+						log.Error("Failed to register MCP tools after OAuth", "server", input.Name, "error", err)
+						return
+					}
 					s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 						ID:     newMCPServer.ID,
 						Client: mcpClient,
 					})
-					s.registerMCPTools(ctx, mcpClient, input.Name)
 					log.Info("OAuth MCP server successfully connected", "server", input.Name)
 				}()
 				return newMCPServer, nil
@@ -304,8 +310,11 @@ func (s *service) ConnectMCPServer(
 	// Use the initialized client as an MCPClient interface
 	clientInterface := mcpClient
 
-	// Register tools with the registry
-	s.registerMCPTools(ctx, clientInterface, input.Name)
+	// Register tools with the registry first
+	if err := s.registerMCPTools(ctx, clientInterface, input.Name); err != nil {
+		log.Error("Failed to register MCP tools", "server", input.Name, "error", err)
+		return nil, fmt.Errorf("MCP server tool registration failed: %w", err)
+	}
 
 	mcpServer, err = s.repo.AddMCPServer(ctx, &input, &enabled)
 	if err != nil {
@@ -433,19 +442,37 @@ func (s *service) LoadMCP(ctx context.Context) error {
 					continue
 				}
 
-				client = enchanted.NewEnchantedMCPClient(s.store, log.Default(), s.config.EnchantedMcpURL)
+				client = enchanted.NewClient(s.store, log.Default(), s.config.EnchantedMcpURL)
 			default:
 				// nothing to do
 				continue
 			}
 
-			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-				ID:     server.ID,
-				Client: client,
-			})
+			// For Enchanted MCP, defer tool registration until we have a valid token.
+			// This is because the Enchanted MCP server uses the login Firebase token to authenticate.
+			// During restart, if this token is expired, the MCP server will not be able to authenticate.
+			// So we defer tool registration until we have a valid token.
+			if server.Type == model.MCPServerTypeEnchanted {
+				log.Info("Deferring Enchanted MCP tool registration until valid Firebase token is available", "server", server.Name)
+				// The token will always be refreshed. So we can add the client to the connected servers.
+				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+					ID:     server.ID,
+					Client: client,
+				})
+				// Periodically retry tool registration until we have a valid token.
+				go s.retryRegistration(ctx, client, server.Name)
+			} else {
+				if err := s.registerMCPTools(ctx, client, server.Name); err != nil {
+					log.Error("Failed to register MCP tools during startup", "server", server.Name, "error", err)
+					// Don't add to connectedServers.
+					continue
+				}
 
-			// Register tools with the registry
-			s.registerMCPTools(ctx, client, server.Name)
+				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+					ID:     server.ID,
+					Client: client,
+				})
+			}
 
 			continue
 		}
@@ -513,11 +540,15 @@ func (s *service) LoadMCP(ctx context.Context) error {
 							log.Error("Error initializing HTTP MCP client after OAuth during startup", "server", server.Name, "error", initErr)
 							return
 						}
+						// Register tools with the registry first
+						if err := s.registerMCPTools(ctx, mcpClient, server.Name); err != nil {
+							log.Error("Failed to register MCP tools after OAuth during startup", "server", server.Name, "error", err)
+							return
+						}
 						s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 							ID:     server.ID,
 							Client: mcpClient,
 						})
-						s.registerMCPTools(ctx, mcpClient, server.Name)
 						log.Info("OAuth MCP server successfully connected during startup", "server", server.Name)
 					}()
 					continue
@@ -567,13 +598,28 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		// Use the initialized client as an MCPClient interface
 		client = mcpClient
 
-		s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-			ID:     server.ID,
-			Client: client,
-		})
+		// For Enchanted MCP, defer tool registration until we have a valid token.
+		if server.Type == model.MCPServerTypeEnchanted {
+			log.Info("Deferring Enchanted MCP tool registration until valid Firebase token is available", "server", server.Name)
+			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+				ID:     server.ID,
+				Client: client,
+			})
+			// Schedule periodic retry for Enchanted MCP tool registration.
+			go s.retryRegistration(ctx, client, server.Name)
+		} else {
+			// Register tools with the registry first for non-Enchanted servers.
+			if err := s.registerMCPTools(ctx, client, server.Name); err != nil {
+				log.Error("Failed to register MCP tools during startup", "server", server.Name, "error", err)
+				// Don't add to connectedServers if tool registration fails.
+				continue
+			}
 
-		// Register tools with the registry
-		s.registerMCPTools(ctx, client, server.Name)
+			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+				ID:     server.ID,
+				Client: client,
+			})
+		}
 	}
 
 	return nil
@@ -664,20 +710,24 @@ func (s *service) isServerConnected(serverID string) bool {
 }
 
 // registerMCPTools registers tools from an MCP client with the tool registry.
-func (s *service) registerMCPTools(ctx context.Context, client MCPClient, serverName string) {
+func (s *service) registerMCPTools(ctx context.Context, client MCPClient, serverName string) error {
 	if s.registry == nil {
-		return
+		return fmt.Errorf("tool registry is not initialized")
 	}
+
 	request := mcp.ListToolsRequest{}
 	tools, err := client.ListTools(ctx, request)
 	if err != nil {
-		log.Warn("Error getting tools from MCP client", "error", err)
-		return
+		return fmt.Errorf("failed to list tools from %s: %w", serverName, err)
 	}
 
 	if tools == nil || len(tools.Tools) == 0 {
-		return
+		log.Warn("No tools available from MCP server", "server", serverName)
+		return nil
 	}
+
+	registeredCount := 0
+	var registrationErrors []string
 
 	for _, tool := range tools.Tools {
 		mcpTool := &MCPTool{
@@ -686,7 +736,66 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient, server
 			ServerName: serverName,
 		}
 		if err := s.registry.Register(mcpTool); err != nil {
-			log.Warn("Error registering MCP tool", "tool", tool.GetName(), "error", err)
+			registrationErrors = append(registrationErrors, fmt.Sprintf("%s: %v", tool.GetName(), err))
+			log.Warn("Error registering MCP tool", "tool", tool.GetName(), "server", serverName, "error", err)
+		} else {
+			registeredCount++
+		}
+	}
+
+	if registeredCount == 0 {
+		return fmt.Errorf("no tools successfully registered from %s (total tools: %d, errors: %v)",
+			serverName, len(tools.Tools), registrationErrors)
+	}
+
+	log.Info("MCP tools registered successfully",
+		"server", serverName,
+		"registered", registeredCount,
+		"total", len(tools.Tools),
+		"failed", len(registrationErrors))
+
+	return nil
+}
+
+// retryRegistration tries to register tools for a given MCP server.
+func (s *service) retryRegistration(ctx context.Context, client MCPClient, serverName string) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	maxRetries := 60 // Give up after 5 minutes (60 * 5 seconds)
+	retryCount := 0
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Debug("Context canceled, stopping Enchanted MCP retry", "server", serverName)
+			return
+		case <-ticker.C:
+			retryCount++
+
+			// Check if tools are already registered.
+			tools, err := s.GetInternalTools(ctx)
+			if err == nil {
+				for _, tool := range tools {
+					if mcpTool, ok := tool.(*MCPTool); ok && mcpTool.ServerName == serverName {
+						log.Info("Enchanted MCP tools already registered, stopping retry", "server", serverName)
+						return
+					}
+				}
+			}
+
+			err = s.registerMCPTools(ctx, client, serverName)
+			if err == nil {
+				log.Info("Successfully registered Enchanted MCP tools after retry", "server", serverName, "attempts", retryCount)
+				return
+			}
+
+			log.Debug("Enchanted MCP tool registration retry failed", "server", serverName, "attempt", retryCount, "error", err)
+
+			if retryCount >= maxRetries {
+				log.Warn("Gave up retrying Enchanted MCP tool registration", "server", serverName, "maxRetries", maxRetries)
+				return
+			}
 		}
 	}
 }
