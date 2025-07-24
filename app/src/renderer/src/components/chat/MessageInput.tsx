@@ -37,7 +37,7 @@ export default function MessageInput({
   const { isVoiceReady } = useDependencyStatus()
 
   const handleSend = () => {
-    if (!text.trim() || isWaitingTwinResponse) return
+    if (!text.trim() || isWaitingTwinResponse || isStreamingResponse) return
     onSend(text, isReasonSelected, voiceMode)
     setText('')
   }
