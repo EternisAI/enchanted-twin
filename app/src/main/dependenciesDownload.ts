@@ -10,67 +10,6 @@ import { LiveKitAgentBootstrap } from './livekitAgent'
 
 const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
-async function downloadFile(
-  url: string,
-  destDir: string,
-  fileName: string,
-  onProgress?: (pct: number, total: number, downloaded: number) => void
-): Promise<string> {
-  if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(destDir, { recursive: true })
-  }
-  const tmpFile = path.join(destDir, fileName)
-  let total = 0
-  let downloaded = 0
-  const resp = await axios.get(url, { responseType: 'stream' })
-  total = Number(resp.headers['content-length'] || 0)
-  await new Promise<void>((resolve, reject) => {
-    const ws = fs.createWriteStream(tmpFile)
-    resp.data.on('data', (chunk: Buffer) => {
-      downloaded += chunk.length
-      if (onProgress && total > 0) {
-        const pct = Math.round((downloaded / total) * 100)
-        onProgress(pct, total, downloaded)
-      }
-    })
-    resp.data.pipe(ws)
-    ws.on('finish', resolve)
-    ws.on('error', reject)
-  })
-  return tmpFile
-}
-
-async function extractZip(file: string, destDir: string) {
-  await extract(file, { dir: destDir })
-  fs.unlinkSync(file)
-}
-
-async function extractTarGz(file: string, destDir: string) {
-  await tar.extract({ file, cwd: destDir })
-  fs.unlinkSync(file)
-}
-
-function isExtractedDirValid(dir: string): boolean {
-  if (!fs.existsSync(dir)) return false
-  try {
-    const files = fs.readdirSync(dir)
-    if (files.length === 0) return false
-    const nonArchiveFiles = files.filter((file) => {
-      const ext = path.extname(file).toLowerCase()
-      return !ext.match(/\.(zip|tar|tgz|tar\.gz)$/)
-    })
-    if (nonArchiveFiles.length === 0) return false
-    const validFiles = nonArchiveFiles.filter((file) => {
-      const filePath = path.join(dir, file)
-      const stat = fs.statSync(filePath)
-      return stat.isDirectory() || stat.size > 0
-    })
-    return validFiles.length > 0
-  } catch {
-    return false
-  }
-}
-
 const DEPENDENCIES_CONFIGS: Record<
   DependencyName,
   {
@@ -130,21 +69,52 @@ const DEPENDENCIES_CONFIGS: Record<
     }
   },
   anonymizer: {
-    url: 'https://freysa-public.s3.us-east-1.amazonaws.com/qwen3-4b_q4_k_m.gguf',
+    url: 'https://d3o88a4htgfnky.cloudfront.net/models/qwen3-4b_q4_k_m.zip',
     name: 'anonymizer',
     dir: path.join(DEPENDENCIES_DIR, 'models', 'anonymizer'),
     install: async function () {
-      await downloadFile(this.url, this.dir, 'anonymizer.gguf', (pct, total, downloaded) => {
-        windowManager.mainWindow?.webContents.send('models:progress', {
-          modelName: this.name,
-          pct,
-          totalBytes: total,
-          downloadedBytes: downloaded
-        })
-      })
+      const file = await downloadFile(
+        this.url,
+        this.dir,
+        'anonymizer.zip',
+        (pct, total, downloaded) => {
+          windowManager.mainWindow?.webContents.send('models:progress', {
+            modelName: this.name,
+            pct,
+            totalBytes: total,
+            downloadedBytes: downloaded
+          })
+        }
+      )
+      await extractZip(file, this.dir)
     },
     isDownloaded: function () {
-      return fs.existsSync(path.join(this.dir, 'anonymizer.gguf'))
+      return true // TODO: remove this when anonymizer is released
+      // For anonymizer, we need both 4b and 0.6b models
+      if (!isExtractedDirValid(this.dir)) {
+        return false
+      }
+
+      try {
+        const files = fs.readdirSync(this.dir)
+        const ggufs = files.filter((file) => file.endsWith('.gguf'))
+
+        const has4bModel = ggufs.some(
+          (file) =>
+            file.toLowerCase().includes('qwen') &&
+            (file.toLowerCase().includes('4b') || file.toLowerCase().includes('4-b'))
+        )
+
+        const has06bModel = ggufs.some(
+          (file) =>
+            file.toLowerCase().includes('qwen') &&
+            (file.toLowerCase().includes('0.6b') || file.toLowerCase().includes('0.6-b'))
+        )
+
+        return has4bModel && has06bModel
+      } catch (error) {
+        return false
+      }
     }
   },
   LLAMACCP: {
@@ -214,12 +184,15 @@ export async function downloadDependency(dependencyName: DependencyName) {
     throw new Error(`Unknown dependency: ${dependencyName}`)
   }
   await cfg.install()
+
+  await new Promise((resolve) => setTimeout(resolve, 1000)) // Small delay
   windowManager.mainWindow?.webContents.send('models:progress', {
     modelName: dependencyName,
     pct: 100,
     totalBytes: 0,
     downloadedBytes: 0
   })
+
   return { success: true, path: cfg.dir }
 }
 
@@ -230,5 +203,67 @@ export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
     onnx: DEPENDENCIES_CONFIGS.onnx.isDownloaded(),
     LLAMACCP: DEPENDENCIES_CONFIGS.LLAMACCP.isDownloaded(),
     uv: DEPENDENCIES_CONFIGS.uv.isDownloaded()
+  }
+}
+
+async function downloadFile(
+  url: string,
+  destDir: string,
+  fileName: string,
+  onProgress?: (pct: number, total: number, downloaded: number) => void
+): Promise<string> {
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true })
+  }
+  const tmpFile = path.join(destDir, fileName)
+  let total = 0
+  let downloaded = 0
+  const resp = await axios.get(url, { responseType: 'stream' })
+  total = Number(resp.headers['content-length'] || 0)
+  await new Promise<void>((resolve, reject) => {
+    const ws = fs.createWriteStream(tmpFile)
+    resp.data.on('data', (chunk: Buffer) => {
+      downloaded += chunk.length
+      if (onProgress && total > 0) {
+        // Cap progress at 99% during download, 100% will be sent after extraction
+        const pct = Math.min(99, Math.round((downloaded / total) * 100))
+        onProgress(pct, total, downloaded)
+      }
+    })
+    resp.data.pipe(ws)
+    ws.on('finish', resolve)
+    ws.on('error', reject)
+  })
+  return tmpFile
+}
+
+async function extractZip(file: string, destDir: string) {
+  await extract(file, { dir: destDir })
+  fs.unlinkSync(file)
+}
+
+async function extractTarGz(file: string, destDir: string) {
+  await tar.extract({ file, cwd: destDir })
+  fs.unlinkSync(file)
+}
+
+function isExtractedDirValid(dir: string): boolean {
+  if (!fs.existsSync(dir)) return false
+  try {
+    const files = fs.readdirSync(dir)
+    if (files.length === 0) return false
+    const nonArchiveFiles = files.filter((file) => {
+      const ext = path.extname(file).toLowerCase()
+      return !ext.match(/\.(zip|tar|tgz|tar\.gz)$/)
+    })
+    if (nonArchiveFiles.length === 0) return false
+    const validFiles = nonArchiveFiles.filter((file) => {
+      const filePath = path.join(dir, file)
+      const stat = fs.statSync(filePath)
+      return stat.isDirectory() || stat.size > 0
+    })
+    return validFiles.length > 0
+  } catch {
+    return false
   }
 }

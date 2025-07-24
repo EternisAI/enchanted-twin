@@ -1,6 +1,7 @@
 // Load environment variables from .env file
 import 'dotenv/config'
 
+import Logger from 'electron-log'
 import { app, session, globalShortcut } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import log from 'electron-log/main'
@@ -9,6 +10,7 @@ import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaP
 import {
   registerScreenpipeIpc,
   cleanupScreenpipe,
+  cleanupScreenpipeSync,
   autoStartScreenpipeIfEnabled
 } from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
@@ -18,18 +20,18 @@ import { setupMenu } from './menuSetup'
 import { checkForUpdates, setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
 import { cleanupGoServer } from './goServer'
-// import { startKokoro, cleanupKokoro } from './kokoroManager'
 import { startLiveKitSetup, cleanupLiveKitAgent } from './livekitManager'
 import { initializeAnalytics } from './analytics'
 import { keyboardShortcutsStore, voiceStore } from './stores'
+import { rotateLog } from './logConfig'
 
-// const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
-
-// Check if running in production using environment variable
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 
-// Configure electron-log
-log.transports.file.level = 'info' // Log info level and above to file
+log.transports.file.maxSize = 1024 * 1024 * 10 // 10mb
+
+log.transports.file.archiveLogFn = (logFile: Logger.LogFile) => rotateLog(logFile)
+
+log.transports.file.level = 'info'
 log.info(`Log file will be written to: ${log.transports.file.getFile().path}`)
 log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
@@ -128,6 +130,8 @@ app.on('before-quit', () => {
     log.info('Destroying omnibar window before quit')
     windowManager.omnibarWindow.destroy()
   }
+  // Start cleanup of Screenpipe early (sync version for immediate effect)
+  cleanupScreenpipeSync()
 })
 
 app.on('will-quit', async () => {
@@ -148,6 +152,41 @@ app.on('will-quit', async () => {
   await cleanupLiveKitAgent()
   cleanupScreenpipe()
 })
+
+// Handle process termination signals for force quit scenarios
+process.on('SIGINT', () => {
+  log.info('Received SIGINT, cleaning up...')
+  cleanupScreenpipeSync()
+  process.exit(0)
+})
+
+process.on('SIGTERM', () => {
+  log.info('Received SIGTERM, cleaning up...')
+  cleanupScreenpipeSync()
+  process.exit(0)
+})
+
+// Handle uncaught exceptions to ensure cleanup
+process.on('uncaughtException', (error) => {
+  log.error('Uncaught exception:', error)
+  cleanupScreenpipeSync()
+  process.exit(1)
+})
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  log.error('Unhandled rejection at:', promise, 'reason:', reason)
+  // Don't exit on unhandled rejections, but log them
+})
+
+// Windows-specific: Handle CTRL+C and close events
+if (process.platform === 'win32') {
+  process.on('SIGHUP', () => {
+    log.info('Received SIGHUP, cleaning up...')
+    cleanupScreenpipeSync()
+    process.exit(0)
+  })
+}
 
 // Simple rule: Non-voice mode = no process should live
 function setupLiveKitCleanup(mainWindow: Electron.BrowserWindow) {

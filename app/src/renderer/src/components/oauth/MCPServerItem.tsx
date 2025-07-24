@@ -26,12 +26,14 @@ interface MCPServerItemProps {
   connectedServers?: McpServerDefinition[]
   onConnect: () => void
   onRemove?: () => void
+  shouldAutoOpenScreenpipe?: boolean
 }
 
 export default function MCPServerItem({
   server,
   connectedServers = [],
-  onConnect
+  onConnect,
+  shouldAutoOpenScreenpipe = false
 }: MCPServerItemProps) {
   const [showEnvInputs, setShowEnvInputs] = useState(false)
   const [authStateId, setAuthStateId] = useState<string | null>(null)
@@ -152,7 +154,7 @@ export default function MCPServerItem({
           toast.success(`Connected successfully to ${data.completeOAuthFlow}!`)
           onConnect()
 
-          window.api.analytics.capture('server_connected', {
+          window.api.analytics.capture('mcp_server_connected', {
             server: server.name,
             type: server.type
           })
@@ -179,7 +181,7 @@ export default function MCPServerItem({
                 {PROVIDER_DESCRIPTION_MAP[server.type]}
               </p>
             )}
-            {connectedServers.length > 0 && (
+            {/* {connectedServers.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {connectedServers.map((connectedServer) => {
                   // Extract connection identifier from envs
@@ -216,17 +218,29 @@ export default function MCPServerItem({
                   )
                 })}
               </div>
-            )}
+            )} */}
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {server.type === McpServerType.Screenpipe ? (
             <ScreenpipeConnectionButton
-              onConnectionSuccess={() => {
-                handleConnectMcpServer()
-                onConnect()
+              onConnectionSuccess={async () => {
+                console.log(
+                  '[MCPServerItem] Screenpipe connected successfully, registering as MCP server...'
+                )
+                try {
+                  await handleConnectMcpServer()
+                  onConnect()
+                } catch (error) {
+                  console.error(
+                    '[MCPServerItem] Failed to register Screenpipe as MCP server:',
+                    error
+                  )
+                  toast.error('Failed to register Screenpipe as MCP server')
+                }
               }}
               buttonText="Connect"
+              shouldAutoOpen={shouldAutoOpenScreenpipe}
             />
           ) : (
             <Button variant="outline" onClick={() => handleEnableToolsToggle(!showEnvInputs)}>

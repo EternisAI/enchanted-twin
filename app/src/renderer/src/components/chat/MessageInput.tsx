@@ -37,7 +37,7 @@ export default function MessageInput({
   const { isVoiceReady } = useDependencyStatus()
 
   const handleSend = () => {
-    if (!text.trim() || isWaitingTwinResponse) return
+    if (!text.trim() || isWaitingTwinResponse || isStreamingResponse) return
     onSend(text, isReasonSelected, voiceMode)
     setText('')
   }
@@ -98,7 +98,7 @@ export default function MessageInput({
           className="flex-1 placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none !overflow-y-auto max-h-[12rem] "
         />
         <motion.div layout="position" className="flex justify-end items-center gap-3 h-fit">
-          <PrivacyButton hideLabel className="text-primary/50" />
+          <PrivacyButton className="text-primary/50" label={false} />
           {!voiceMode && <ReasoningButton isSelected={isReasonSelected} onClick={toggleReason} />}
           <motion.div
             key="send-button"
