@@ -99,7 +99,7 @@ export const SMALL_PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
   [McpServerType.Google]: <Google className="size-4" />,
   [McpServerType.Slack]: <Slack className="size-4" />,
   [McpServerType.Twitter]: (
-    <IconContainer className="bg-foreground size-4 rounded-xs">
+    <IconContainer className="bg-foreground size-4 rounded-[3px]">
       <XformerlyTwitter className="size-[10px] text-primary-foreground" />
     </IconContainer>
   ),

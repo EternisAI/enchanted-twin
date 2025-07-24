@@ -41,6 +41,7 @@ export function ConnectSourcesButton() {
         })
       }}
       variant="outline"
+      className="group"
       size="sm"
     >
       <Plus className="w-4 h-4" />
@@ -50,14 +51,14 @@ export function ConnectSourcesButton() {
           <Loader2 className="size-4 animate-spin" />
         ) : (
           <motion.div
-            className="flex flex-row items-center -space-x-2"
+            className="flex flex-row items-center -space-x-1.5"
             variants={containerVariants}
             initial="hidden"
             animate="visible"
           >
             {availableMcpServers.map((server) => (
               <motion.div
-                className="rounded-sm bg-white p-0.5"
+                className="rounded-sm overflow-hidden bg-white group-hover:bg-muted p-0.5 transition-all duration-200 ease-in-out"
                 key={server.id}
                 variants={itemVariants}
               >
