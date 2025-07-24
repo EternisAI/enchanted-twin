@@ -23,7 +23,7 @@ export function PrivacyButton({
           variant="ghost"
           size={label ? 'sm' : 'icon'}
           className={cn(
-            'px-2 gap-1 h-8 text-xs z-50 no-drag text-primary/50 flex items-center justify-center',
+            'px-2 gap-1 h-8 text-xs z-50 no-drag text-primary/50 flex items-center justify-center w-fit self-center active:bg-transparent hover:bg-transparent',
             className
           )}
           onClick={handleClick}
