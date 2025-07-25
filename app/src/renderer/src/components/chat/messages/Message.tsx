@@ -4,6 +4,7 @@ import { cn } from '@renderer/lib/utils'
 import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, XCircle } from 'lucide-react'
 import { extractReasoningAndReply, getToolConfig } from '@renderer/components/chat/config'
 import { Badge } from '@renderer/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import ImagePreview from './ImagePreview'
 import Markdown from '@renderer/components/chat/messages/Markdown'
 import { FeedbackPopover } from './actions/FeedbackPopover'
@@ -228,10 +229,17 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
     >
       {toolCall.isCompleted ? (
         toolCall.error ? (
-          <Badge className="text-red-600 border-red-500" variant="outline">
-            <XCircle className="h-4 w-4" />
-            <span>Failed: {toolNameCompleted}</span>
-          </Badge>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge className="text-red-600 border-red-500 cursor-pointer" variant="outline">
+                <XCircle className="h-4 w-4" />
+                <span>Failed: {toolNameCompleted}</span>
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs">
+              <span className="font-medium">Error:</span> {toolCall.error}
+            </TooltipContent>
+          </Tooltip>
         ) : (
           <Badge className="text-green-600 border-green-500" variant="outline">
             <CheckCircle className="h-4 w-4" />
@@ -243,13 +251,6 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
           <LoaderIcon className="h-4 w-4 animate-spin" />
           <span>{toolNameInProgress}...</span>
         </Badge>
-      )}
-
-      {/* Show error message if present */}
-      {toolCall.error && (
-        <div className="text-sm text-red-600 max-w-md">
-          <span className="font-medium">Error:</span> {toolCall.error}
-        </div>
       )}
     </div>
   )
