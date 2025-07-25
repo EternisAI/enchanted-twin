@@ -75,7 +75,7 @@ func (m *MockCompletionsService) GetPrivateCompletionsService() *PrivateCompleti
 }
 
 func setupTestDB(t *testing.T) *sql.DB {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite3_safe", ":memory:")
 	require.NoError(t, err)
 
 	_, err = db.Exec(`

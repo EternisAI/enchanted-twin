@@ -110,7 +110,7 @@ func getHostname() string {
 }
 
 func getSQLiteVersion() string {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite3_safe", ":memory:")
 	if err != nil {
 		return "unknown"
 	}

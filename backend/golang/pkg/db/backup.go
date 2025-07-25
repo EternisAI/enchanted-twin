@@ -382,7 +382,7 @@ func (srm *StartupRecoveryManager) RecoverCorruptedDatabase(ctx context.Context)
 func (srm *StartupRecoveryManager) attemptReindexRecovery(ctx context.Context) error {
 	srm.logger.Println("Attempting REINDEX recovery...")
 
-	db, err := sql.Open("sqlite3", srm.dbPath+"?_busy_timeout=30000")
+	db, err := sql.Open("sqlite3_safe", srm.dbPath+"?_busy_timeout=30000")
 	if err != nil {
 		return err
 	}
@@ -397,7 +397,7 @@ func (srm *StartupRecoveryManager) attemptReindexRecovery(ctx context.Context) e
 func (srm *StartupRecoveryManager) attemptVacuumRecovery(ctx context.Context) error {
 	srm.logger.Println("Attempting VACUUM recovery...")
 
-	db, err := sql.Open("sqlite3", srm.dbPath+"?_busy_timeout=30000")
+	db, err := sql.Open("sqlite3_safe", srm.dbPath+"?_busy_timeout=30000")
 	if err != nil {
 		return err
 	}
@@ -415,7 +415,7 @@ func (srm *StartupRecoveryManager) attemptVacuumIntoRecovery(ctx context.Context
 
 	tempPath := srm.dbPath + ".vacuum_recovery"
 
-	db, err := sql.Open("sqlite3", srm.dbPath+"?_busy_timeout=30000")
+	db, err := sql.Open("sqlite3_safe", srm.dbPath+"?_busy_timeout=30000")
 	if err != nil {
 		return err
 	}
@@ -610,7 +610,7 @@ func (srm *StartupRecoveryManager) createDatabaseFromDump(ctx context.Context, d
 
 // Verify database integrity and functionality.
 func (srm *StartupRecoveryManager) verifyDatabase(ctx context.Context, dbPath string) error {
-	db, err := sql.Open("sqlite3", dbPath+"?mode=ro")
+	db, err := sql.Open("sqlite3_safe", dbPath+"?mode=ro")
 	if err != nil {
 		return err
 	}
@@ -649,7 +649,7 @@ func (srm *StartupRecoveryManager) verifyRecovery(ctx context.Context) error {
 	}
 
 	// Test basic operations
-	db, err := sql.Open("sqlite3", srm.dbPath)
+	db, err := sql.Open("sqlite3_safe", srm.dbPath)
 	if err != nil {
 		return err
 	}
