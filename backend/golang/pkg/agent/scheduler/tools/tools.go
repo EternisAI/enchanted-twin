@@ -48,10 +48,14 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		}, errors.New("is_possible is required")
 	}
 	if !isPossible {
+		reasoning, reasoningOk := inputs["is_possible_reasoning"].(string)
+		if !reasoningOk || reasoning == "" {
+			reasoning = "No reasoning provided"
+		}
 		return &types.StructuredToolResult{
 			ToolName:   "schedule_task",
 			ToolParams: inputs,
-			ToolError:  fmt.Sprintf("Task is not possible to be executed: %s", inputs["is_possible_reasoning"]),
+			ToolError:  fmt.Sprintf("Task is not possible to be executed: %s", reasoning),
 		}, errors.New("task is not possible to be executed")
 	}
 
