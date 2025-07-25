@@ -211,6 +211,7 @@ export function ChatProvider({
 
     // Use deanonymized content for display, fallback to accumulated if not available
     const messageText = deanonymizedAccumulatedMessage || accumulatedMessage || ''
+
     if (messageText.length === 0) return
 
     if (!existingMessage) {

@@ -164,7 +164,7 @@ function RootComponent() {
           <motion.div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center">
             {/* {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '} */}
           </motion.div>
-          <div className="fixed top-0 right-0 z-50 h-8 no-drag flex items-center gap-2">
+          <div className="fixed top-0.5 right-3.5 z-50 h-8 no-drag flex items-center gap-2">
             {location.pathname !== '/onboarding' && <PrivacyButton />}
             <GlobalIndexingStatus />
           </div>

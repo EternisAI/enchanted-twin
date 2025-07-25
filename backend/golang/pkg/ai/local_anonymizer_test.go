@@ -582,3 +582,120 @@ func TestLocalAnonymizer_LlamaServiceError(t *testing.T) {
 
 	mockLlama.AssertExpectations(t)
 }
+
+// Test for the re-anonymization prevention fix.
+func TestLocalAnonymizer_PreventReAnonymization(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close() //nolint:errcheck
+
+	mockLlama := &MockLlamaAnonymizer{}
+	logger := log.New(nil)
+	anonymizer := NewLocalAnonymizer(mockLlama, db, logger)
+
+	// Mock response that tries to re-anonymize already anonymized names
+	mockLlama.On("Anonymize", mock.Anything, "Paul Goodwin works at the company").Return(
+		map[string]string{"Paul Goodwin": "David Smith"}, nil)
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("Paul Goodwin works at the company"),
+	}
+
+	// Existing dictionary with john dodd -> Paul Goodwin
+	existingDict := map[string]string{
+		"Paul Goodwin": "john dodd", // token -> original
+	}
+	interruptChan := make(chan struct{})
+
+	// Test memory-only mode
+	_, updatedDict, newRules, err := anonymizer.AnonymizeMessages(
+		context.Background(),
+		"", // memory-only mode
+		messages,
+		existingDict,
+		interruptChan,
+	)
+
+	assert.NoError(t, err)
+
+	// Should NOT have created a new mapping for Paul Goodwin -> David Smith
+	assert.NotContains(t, updatedDict, "David Smith")
+	assert.NotContains(t, newRules, "David Smith")
+
+	// Should still have the original mapping
+	assert.Contains(t, updatedDict, "Paul Goodwin")
+	assert.Equal(t, "john dodd", updatedDict["Paul Goodwin"])
+
+	mockLlama.AssertExpectations(t)
+}
+
+// Test for the chain mapping resolution fix.
+func TestLocalAnonymizer_ResolveChainMappings(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close() //nolint:errcheck
+
+	mockLlama := &MockLlamaAnonymizer{}
+	logger := log.New(nil)
+	anonymizer := NewLocalAnonymizer(mockLlama, db, logger)
+
+	// Chain mapping dictionary: anonymized -> chain_original -> true_original
+	chainDict := map[string]string{
+		"jane smith": "john dodd",  // jane smith is anonymized version of john dodd
+		"mary smith": "jane smith", // mary smith is anonymized version of jane smith
+		"lily smith": "mary smith", // lily smith is anonymized version of mary smith
+	}
+
+	resolved := anonymizer.resolveChainMappings(chainDict)
+
+	// All should resolve to the true original "john dodd"
+	expectedMappings := map[string]string{
+		"jane smith": "john dodd",
+		"mary smith": "john dodd",
+		"lily smith": "john dodd",
+	}
+
+	for anonymized, expectedOriginal := range expectedMappings {
+		assert.Contains(t, resolved, anonymized)
+		assert.Equal(t, expectedOriginal, resolved[anonymized],
+			"Chain mapping resolution failed for %s", anonymized)
+	}
+}
+
+// Test for the shouldAnonymizeContent intelligence.
+func TestLocalAnonymizer_ShouldAnonymizeContent(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close() //nolint:errcheck
+
+	mockLlama := &MockLlamaAnonymizer{}
+	logger := log.New(nil)
+	anonymizer := NewLocalAnonymizer(mockLlama, db, logger)
+
+	tests := []struct {
+		name        string
+		content     string
+		workingDict map[string]string
+		expected    bool
+	}{
+		{
+			name:        "no existing dictionary should anonymize",
+			content:     "John Doe works here",
+			workingDict: make(map[string]string),
+			expected:    true,
+		},
+		{
+			name:    "content with new names should anonymize",
+			content: "Michael Johnson and Sarah Wilson work together",
+			workingDict: map[string]string{
+				"john dodd": "Paul Goodwin",
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := anonymizer.shouldAnonymizeContent(tt.content, tt.workingDict)
+			assert.Equal(t, tt.expected, result,
+				"shouldAnonymizeContent() failed for content: %s", tt.content)
+		})
+	}
+}

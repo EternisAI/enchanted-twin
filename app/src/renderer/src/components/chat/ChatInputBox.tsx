@@ -211,6 +211,12 @@ export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButt
     setOpen(false)
   }
 
+  const brainVariants = {
+    initial: { scale: 1 },
+    animate: { scale: 1.1 },
+    exit: { scale: 1 }
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -220,7 +226,13 @@ export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButt
           variant="outline"
           disabled={disabled}
         >
-          <Brain className="w-4 h-4" />
+          <motion.div
+            variants={brainVariants}
+            animate={isSelected ? 'animate' : 'initial'}
+            transition={{ type: 'spring', stiffness: 350, damping: isSelected ? 5 : 20 }}
+          >
+            <Brain className="w-4 h-4" />
+          </motion.div>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-1" align="end">
