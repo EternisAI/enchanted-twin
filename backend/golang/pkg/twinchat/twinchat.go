@@ -257,6 +257,11 @@ func (s *Service) SendMessage(
 
 	toolCallResultsMap := make(map[string]model.ToolCallResult)
 	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
+		var errorField *string
+		if toolResult.Error() != "" {
+			errorField = helpers.Ptr(toolResult.Error())
+		}
+
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:        toolCall.ID,
 			Name:      toolCall.Function.Name,
@@ -266,6 +271,7 @@ func (s *Service) SendMessage(
 				ImageUrls: toolResult.ImageURLs(),
 			},
 			IsCompleted: true,
+			Error:       errorField,
 		})
 		toolCallResultsMap[toolCall.ID] = model.ToolCallResult{
 			Content:   helpers.Ptr(toolResult.Content()),

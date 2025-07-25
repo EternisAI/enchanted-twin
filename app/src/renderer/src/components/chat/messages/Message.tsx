@@ -1,7 +1,7 @@
 import { Message, ToolCall as ToolCallType } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
-import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon } from 'lucide-react'
+import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, XCircle } from 'lucide-react'
 import { extractReasoningAndReply, getToolConfig } from '@renderer/components/chat/config'
 import { Badge } from '@renderer/components/ui/badge'
 import ImagePreview from './ImagePreview'
@@ -211,27 +211,45 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
     customComponent: CustomComponent
   } = getToolConfig(toolCall.name)
 
-  if (toolCall.isCompleted && CustomComponent) {
+  if (toolCall.isCompleted && CustomComponent && !toolCall.error) {
     return <CustomComponent toolCall={toolCall} />
   }
 
   return (
     <div
       className={cn(
-        'flex items-center gap-2 pt-2',
-        toolCall.isCompleted ? 'text-green-600' : 'text-muted-foreground'
+        'flex flex-col gap-2 pt-2',
+        toolCall.isCompleted
+          ? toolCall.error
+            ? 'text-red-600'
+            : 'text-green-600'
+          : 'text-muted-foreground'
       )}
     >
       {toolCall.isCompleted ? (
-        <Badge className="text-green-600 border-green-500" variant="outline">
-          <CheckCircle className="h-4 w-4" />
-          <span>{toolNameCompleted}</span>
-        </Badge>
+        toolCall.error ? (
+          <Badge className="text-red-600 border-red-500" variant="outline">
+            <XCircle className="h-4 w-4" />
+            <span>Failed: {toolNameCompleted}</span>
+          </Badge>
+        ) : (
+          <Badge className="text-green-600 border-green-500" variant="outline">
+            <CheckCircle className="h-4 w-4" />
+            <span>{toolNameCompleted}</span>
+          </Badge>
+        )
       ) : (
         <Badge variant="outline" className="border-border">
           <LoaderIcon className="h-4 w-4 animate-spin" />
           <span>{toolNameInProgress}...</span>
         </Badge>
+      )}
+
+      {/* Show error message if present */}
+      {toolCall.error && (
+        <div className="text-sm text-red-600 max-w-md">
+          <span className="font-medium">Error:</span> {toolCall.error}
+        </div>
       )}
     </div>
   )

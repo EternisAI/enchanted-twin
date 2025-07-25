@@ -231,6 +231,7 @@ type ToolCall struct {
 	IsCompleted bool            `json:"isCompleted"`
 	MessageID   string          `json:"messageId"`
 	Result      *ToolCallResult `json:"result,omitempty"`
+	Error       *string         `json:"error,omitempty"`
 }
 
 type ToolCallResult struct {
