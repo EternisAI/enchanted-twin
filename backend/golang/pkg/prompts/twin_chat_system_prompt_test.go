@@ -19,6 +19,7 @@ func TestBuildTwinChatSystemPrompt(t *testing.T) {
 		ChatID:        &chatID,
 		CurrentTime:   timeStr,
 		EmailAccounts: emails,
+		CanSearchWeb:  true,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -52,11 +53,37 @@ func TestBuildTwinChatSystemPrompt(t *testing.T) {
 		CurrentTime:   timeStr,
 		EmailAccounts: emails,
 		IsVoice:       true,
+		CanSearchWeb:  true,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error (IsVoice): %v", err)
 	}
 	if !strings.Contains(promptVoice, "You keep responses tight, usually under three sentences, because impact beats length every time.") {
 		t.Errorf("expected IsVoice prompt to contain voice-specific instructions")
+	}
+
+	// Test web search capability
+	promptWithWebSearch, err := BuildTwinChatSystemPrompt(TwinChatSystemPrompt{
+		UserName:     &userName,
+		CurrentTime:  timeStr,
+		CanSearchWeb: true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error (CanSearchWeb=true): %v", err)
+	}
+	if !strings.Contains(promptWithWebSearch, "When you are asked to search the web or about news or very recent events, you should use the `perplexity_ask` tool if it exists.") {
+		t.Errorf("expected prompt with web search to contain perplexity_ask instruction")
+	}
+
+	promptWithoutWebSearch, err := BuildTwinChatSystemPrompt(TwinChatSystemPrompt{
+		UserName:     &userName,
+		CurrentTime:  timeStr,
+		CanSearchWeb: false,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error (CanSearchWeb=false): %v", err)
+	}
+	if !strings.Contains(promptWithoutWebSearch, "You cannot search the web at this time. If the user asks you to search for information online or latest news, tell them they need to connect a search tool in their settings to enable web search functionality.") {
+		t.Errorf("expected prompt without web search to contain settings instruction")
 	}
 }
