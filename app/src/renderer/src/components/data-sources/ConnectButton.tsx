@@ -62,7 +62,7 @@ export function ConnectSourcesButton() {
           >
             {availableMcpServers.map((server) => (
               <motion.div
-                className="rounded-sm overflow-hidden bg-white group-hover:bg-muted p-0.5 transition-all duration-200 ease-in-out"
+                className="rounded-sm overflow-hidden bg-white dark:bg-transparent group-hover:bg-muted p-0.5 transition-all duration-200 ease-in-out"
                 key={server.id}
                 variants={itemVariants}
               >
