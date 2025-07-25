@@ -18,6 +18,7 @@ type TwinChatSystemPrompt struct {
 	IsVoice           bool
 	UserMemoryProfile string
 	HolonThreadID     *string
+	CanSearchWeb      bool
 }
 
 func BuildTwinChatSystemPrompt(data TwinChatSystemPrompt) (string, error) {
