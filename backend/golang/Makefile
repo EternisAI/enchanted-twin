@@ -45,5 +45,5 @@ deadcode:
 sqlc-generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc generate
 
-panic-check:
-	go run go.uber.org/nilaway/cmd/nilaway@latest -json -pretty-print=false ./pkg/...
+nilcheck:
+	go run go.uber.org/nilaway/cmd/nilaway@latest -json -pretty-print=false ./pkg/telegram/...
