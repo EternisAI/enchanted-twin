@@ -142,3 +142,4 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config: .github/auto_request_review.yml
+          use_local: true
