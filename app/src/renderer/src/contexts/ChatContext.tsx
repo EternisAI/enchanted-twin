@@ -69,7 +69,6 @@ export function ChatProvider({
   })
   const [isStreamingResponse, setIsStreamingResponse] = useState(false)
 
-  console.log('historicToolCalls', chat.messages.map((m) => m.toolCalls).flat())
   const [messages, setMessages] = useState<Message[]>(() => {
     // Handle first message optimistically
     if (initialMessage && chat.messages.length === 0) {
