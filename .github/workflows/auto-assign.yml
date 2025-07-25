@@ -1,5 +1,7 @@
 name: 'Auto Assign'
-on: pull_request_target
+on:
+  pull_request_target:
+    types: [opened, synchronize, ready_for_review]
 
 permissions:
   pull-requests: write

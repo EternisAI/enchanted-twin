@@ -276,6 +276,7 @@ func main() {
 	if err := toolRegistry.Register(&schedulerTools.ScheduleTask{
 		Logger:         logger,
 		TemporalClient: temporalClient,
+		ToolsRegistry:  toolRegistry,
 	}); err != nil {
 		logger.Error("Failed to register schedule task tool", "error", err)
 		panic(errors.Wrap(err, "Failed to register schedule task tool"))

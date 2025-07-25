@@ -134,6 +134,8 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 	}
 	holonThreadId := chat.HolonThreadID
 
+	canSearchWeb := s.checkWebSearchCapability()
+
 	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
 		UserName:          userProfile.Name,
 		Bio:               userProfile.Bio,
@@ -143,11 +145,24 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 		IsVoice:           isVoice,
 		UserMemoryProfile: userMemoryProfile,
 		HolonThreadID:     holonThreadId,
+		CanSearchWeb:      canSearchWeb,
 	})
 	if err != nil {
 		return "", err
 	}
 	return systemPrompt, nil
+}
+
+func (s *Service) checkWebSearchCapability() bool {
+	webSearchTools := []string{"perplexity_ask", "web_search", "search_web", "google_search", "search_internet"}
+
+	for _, toolName := range webSearchTools {
+		if _, exists := s.toolRegistry.Get(toolName); exists {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *Service) SendMessage(

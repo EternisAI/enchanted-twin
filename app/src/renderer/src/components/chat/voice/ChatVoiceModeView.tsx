@@ -77,7 +77,7 @@ export default function VoiceModeChatView({
   const { toolUrl } = getToolConfig(currentToolCall?.name || '')
 
   const hasUserMessages = messages.some((msg) => msg.role === Role.User)
-  const showAnonymizationToggle = hasUserMessages && chatPrivacyDict
+  const showAnonymizationToggle = !!(hasUserMessages && chatPrivacyDict)
 
   return (
     <div className="flex h-full w-full items-start">
