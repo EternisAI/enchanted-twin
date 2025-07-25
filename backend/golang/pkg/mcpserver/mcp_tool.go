@@ -132,7 +132,7 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 }
 
 // isAPIError checks if the response content indicates an API error
-// This detects common error patterns from external APIs
+// This detects common error patterns from external APIs.
 func isAPIError(content string) bool {
 	if content == "" {
 		return false
