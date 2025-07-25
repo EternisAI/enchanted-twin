@@ -271,8 +271,8 @@ export function Home() {
           setIsReasonSelected={setIsReasonSelected}
           handleCreateChat={handleCreateChat}
           onLayoutAnimationComplete={() => {
-            console.log('Layout animation complete')
             setShowSuggestions(true)
+          }}
           }}
         />
 
