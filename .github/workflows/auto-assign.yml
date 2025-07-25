@@ -16,6 +16,11 @@ jobs:
         with:
           fetch-depth: 0
           
+      - name: Install yq
+        run: |
+          sudo wget -O /usr/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/bin/yq
+          
       - name: Generate auto-assign configs from teams.yml
         run: |
           # Generate config files using yq
