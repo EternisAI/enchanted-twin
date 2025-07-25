@@ -26,7 +26,6 @@ type ScheduleTask struct {
 }
 
 func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
-	// Log all available tools in the registry for debugging
 	if e.ToolsRegistry != nil {
 		availableTools := e.ToolsRegistry.List()
 		e.Logger.Info("Available tools in registry", "count", len(availableTools), "tools", availableTools)
@@ -66,7 +65,6 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		return nil, errors.New("chat_id is required")
 	}
 
-	// Check for required tools
 	var requiredTools []string
 	if reqToolsInput, ok := inputs["required_tools"]; ok {
 		if reqToolsArray, ok := reqToolsInput.([]interface{}); ok {
@@ -78,7 +76,6 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		}
 	}
 
-	// Auto-detect tools from task content
 	detectedTools := e.detectRequiredTools(task)
 	for _, tool := range detectedTools {
 		if !contains(requiredTools, tool) {
@@ -146,7 +143,6 @@ func (e *ScheduleTask) detectRequiredTools(task string) []string {
 	var detectedTools []string
 	taskLower := strings.ToLower(task)
 
-	// Tool detection patterns
 	toolPatterns := map[string][]string{
 		"telegram_send_message": {"telegram", "send telegram", "telegram message", "message telegram"},
 		"twitter":               {"twitter", "tweet", "x.com", "post tweet", "twitter post"},
@@ -154,6 +150,7 @@ func (e *ScheduleTask) detectRequiredTools(task string) []string {
 		"gmail":                 {"gmail", "email", "send email", "compose email"},
 		"slack":                 {"slack", "slack message", "send slack"},
 		"screenpipe":            {"screenpipe", "screen capture", "screenshot"},
+		"perplexity_ask":        {"perplexity", "search", "search the web", "search the internet", "search the web for", "search the internet for"},
 	}
 
 	for toolName, patterns := range toolPatterns {
