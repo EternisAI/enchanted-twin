@@ -1,10 +1,13 @@
 // routes/chat/$chatId.tsx
+import { useEffect } from 'react'
 import ChatView from '@renderer/components/chat/ChatView'
 import { ChatProvider } from '@renderer/contexts/ChatContext'
 import { client } from '@renderer/graphql/lib'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { GetChatDocument } from '@renderer/graphql/generated/graphql'
 import { TypingIndicator } from '@renderer/components/chat/TypingIndicator'
+import { useVoiceStore } from '@renderer/lib/stores/voice'
+import { usePrevious } from '@renderer/lib/hooks/usePrevious'
 
 interface ChatSearchParams {
   initialMessage?: string
@@ -57,6 +60,15 @@ export const Route = createFileRoute('/chat/$chatId')({
 function ChatRouteComponent() {
   const { data, error } = Route.useLoaderData()
   const { initialMessage, reasoning } = Route.useSearch()
+  const router = useRouter()
+  const { isVoiceMode } = useVoiceStore()
+  const comingFromVoiceMode = usePrevious(isVoiceMode)
+
+  useEffect(() => {
+    if (comingFromVoiceMode && !isVoiceMode) {
+      router.invalidate()
+    }
+  }, [isVoiceMode, comingFromVoiceMode, router])
 
   if (!data) return <div className="p-4">Invalid chat ID.</div>
   if (error) return <div className="p-4 text-red-500">Error loading chat.</div>
