@@ -98,7 +98,6 @@ async function startGoServer(
         TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
         TELEGRAM_CHAT_SERVER: process.env.TELEGRAM_CHAT_SERVER,
         ENCHANTED_MCP_URL: process.env.ENCHANTED_MCP_URL,
-        INVITE_SERVER_URL: process.env.INVITE_SERVER_URL,
         PROXY_TEE_URL: process.env.PROXY_TEE_URL,
         HOLON_API_URL: process.env.HOLON_API_URL,
         ANONYMIZER_TYPE: process.env.ANONYMIZER_TYPE,
@@ -140,8 +139,11 @@ async function startGoServer(
       log.info('Go server process spawned. Waiting until it listens …')
       await waitForBackend(backendPort)
 
+      const duration = Date.now() - startTime
+      log.info(`[GO] Go server process ready in ${duration}ms`)
+
       capture('server_startup_success', {
-        duration: Date.now() - startTime,
+        duration: duration,
         port: backendPort
       })
 

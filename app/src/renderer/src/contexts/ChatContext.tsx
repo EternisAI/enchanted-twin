@@ -212,6 +212,8 @@ export function ChatProvider({
     // Use deanonymized content for display, fallback to accumulated if not available
     const messageText = deanonymizedAccumulatedMessage || accumulatedMessage || ''
 
+    if (messageText.length === 0) return
+
     if (!existingMessage) {
       if (lastMessageStartTime) {
         window.api.analytics.capture('message_response_time', {
@@ -257,6 +259,27 @@ export function ChatProvider({
       return [...prev, toolCall]
     })
   })
+
+  useEffect(() => {
+    const completedToolCalls = activeToolCalls.filter((tc) => tc.isCompleted)
+
+    if (completedToolCalls.length > 0) {
+      const timeoutIds: NodeJS.Timeout[] = []
+
+      completedToolCalls.forEach((toolCall) => {
+        const timeoutId = setTimeout(() => {
+          setActiveToolCalls((prev) => prev.filter((tc) => tc.id !== toolCall.id))
+          setHistoricToolCalls((prev) => [toolCall, ...prev])
+        }, 8000)
+
+        timeoutIds.push(timeoutId)
+      })
+
+      return () => {
+        timeoutIds.forEach((id) => clearTimeout(id))
+      }
+    }
+  }, [activeToolCalls])
 
   usePrivacyDictUpdate(chat.id, (privacyDict) => {
     updatePrivacyDict(privacyDict)

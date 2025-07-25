@@ -9,7 +9,7 @@ export default function Loading({ description }: { description?: string }) {
       <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center" />
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col gap-12 text-primary-foreground p-10 border border-white/25 rounded-lg bg-white/5 min-w-2xl">
-          <div className="flex flex-col gap-1 text-center items-center">
+          <div className="flex flex-col gap-2 text-center items-center">
             <img src={FreysaLoading} alt="Enchanted" className="w-16 h-16" />
             <h1 className="text-lg font-normal text-white">It begins with Freysa</h1>
             {description && <p className="text-md text-white/80">{description}</p>}

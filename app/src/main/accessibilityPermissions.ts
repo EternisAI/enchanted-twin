@@ -18,7 +18,7 @@ export async function requestAccessibilityAccess(): Promise<string> {
 
   // This will prompt the user with the system dialog to grant accessibility permissions
   const willPrompt = systemPreferences.isTrustedAccessibilityClient(true)
-  
+
   // Only open settings if the system didn't show a prompt (user previously denied)
   if (!willPrompt) {
     shell.openExternal(
