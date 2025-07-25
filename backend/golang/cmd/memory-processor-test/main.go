@@ -219,9 +219,9 @@ func runDataProcessor(name string, filePatterns []string, outputFile string, pro
 
 	logger.Info("Converting data", "name", name, "file", inputFile)
 
-	// Create processor
 	ctx := context.Background()
-	store, _ := db.NewStore(ctx, ":memory:")
+	testLogger := log.New(os.Stdout)
+	store, _ := db.NewStoreWithLogger(ctx, ":memory:", testLogger)
 	defer func() {
 		if err := store.Close(); err != nil {
 			logger.Error("Failed to close store", "error", err)
@@ -402,9 +402,9 @@ func runGmailSenders() {
 
 	logger.Info("Analyzing Gmail senders", "file", inputFile)
 
-	// Create processor
 	ctx := context.Background()
-	store, _ := db.NewStore(ctx, ":memory:")
+	testLogger := log.New(os.Stdout)
+	store, _ := db.NewStoreWithLogger(ctx, ":memory:", testLogger)
 	defer func() {
 		if err := store.Close(); err != nil {
 			logger.Error("Failed to close store", "error", err)

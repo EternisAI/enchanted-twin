@@ -89,11 +89,11 @@ func TestToDocuments(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	logger := log.New(os.Stdout)
+	store, err := db.NewStoreWithLogger(ctx, dbFile.Name(), logger)
 	require.NoError(t, err)
 	defer store.Close() //nolint:errcheck
 
-	logger := log.New(os.Stdout)
 	telegramProcessor, err := NewTelegramProcessor(store, logger)
 	require.NoError(t, err)
 
@@ -186,13 +186,13 @@ func TestProcessDirectoryInput(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	logger := log.New(os.Stdout)
+	store, err := db.NewStoreWithLogger(ctx, dbFile.Name(), logger)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
 	defer store.Close() //nolint:errcheck
 
-	logger := log.New(os.Stdout)
 	processor, err := NewTelegramProcessor(store, logger)
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)

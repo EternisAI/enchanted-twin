@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -99,6 +100,11 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 	uiPort := port + 1000
 	clusterName := "active"
 
+	// Create separate database path for Temporal
+	// This avoids conflicts with the main application database
+	temporalDBPath := dbPath + ".temporal"
+	logger.Info("Temporal using separate database", "path", temporalDBPath)
+
 	// Check if ports are available
 	if err := checkPortsAvailable(ip, []int{port, historyPort, matchingPort, workerPort, uiPort}); err != nil {
 		logger.Error("Port conflict detected", "error", err)
@@ -130,7 +136,19 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 				"sqlite-default": {
 					SQL: &config.SQL{
 						PluginName:   sqliteplugin.PluginName,
-						DatabaseName: dbPath,
+						DatabaseName: temporalDBPath, // Use separate database file
+						// Add safe SQLite connection attributes
+						ConnectAttributes: map[string]string{
+							"_journal_mode": "WAL",    // Enable WAL mode for better concurrency
+							"_foreign_keys": "1",      // Enable foreign key constraints
+							"_busy_timeout": "20000",  // 20 second timeout
+							"_synchronous":  "NORMAL", // Balance safety and performance
+							"_cache_size":   "-64000", // 64MB cache
+						},
+						// Configure connection pool for safety
+						MaxConns:        25,
+						MaxIdleConns:    25,
+						MaxConnLifetime: 5 * time.Minute,
 					},
 				},
 			},
