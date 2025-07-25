@@ -9,6 +9,11 @@ import (
 //go:embed templates/twin_chat_system_prompt.tmpl
 var twinChatSystemPromptTemplate string
 
+type ToolInfo struct {
+	Name        string
+	Description string
+}
+
 type TwinChatSystemPrompt struct {
 	UserName          *string
 	Bio               *string
@@ -19,6 +24,7 @@ type TwinChatSystemPrompt struct {
 	UserMemoryProfile string
 	HolonThreadID     *string
 	CanSearchWeb      bool
+	AvailableTools    []ToolInfo
 }
 
 func BuildTwinChatSystemPrompt(data TwinChatSystemPrompt) (string, error) {

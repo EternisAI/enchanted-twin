@@ -39,6 +39,22 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		e.Logger.Warn("ToolsRegistry is nil - no tools available for validation")
 	}
 
+	isPossible, ok := inputs["is_possible"].(bool)
+	if !ok {
+		return &types.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: inputs,
+			ToolError:  "is_possible is required",
+		}, errors.New("is_possible is required")
+	}
+	if !isPossible {
+		return &types.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: inputs,
+			ToolError:  fmt.Sprintf("Task is not possible to be executed: %s", inputs["is_possible_reasoning"]),
+		}, errors.New("task is not possible to be executed")
+	}
+
 	task, ok := inputs["task"].(string)
 	if !ok {
 		return nil, errors.New("task is required")
@@ -66,6 +82,10 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		return nil, errors.New("chat_id is required")
 	}
 
+	e.Logger.Info("🟡 Required tools", "required_tools", inputs["required_tools"])
+	e.Logger.Info("🟡 Is possible", "is_possible", inputs["is_possible"])
+	e.Logger.Info("🟡 Is possible reasoning", "is_possible_reasoning", inputs["is_possible_reasoning"])
+
 	var requiredTools []string
 	if reqToolsInput, ok := inputs["required_tools"]; ok {
 		if reqToolsArray, ok := reqToolsInput.([]interface{}); ok {
@@ -91,14 +111,6 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		}
 	}
 
-	detectedTools := e.detectRequiredTools(task)
-	for _, tool := range detectedTools {
-		if !contains(requiredTools, tool) {
-			requiredTools = append(requiredTools, tool)
-		}
-	}
-
-	// Validate that required tools are available
 	if len(requiredTools) > 0 {
 		unavailableTools := e.validateRequiredTools(requiredTools)
 		if len(unavailableTools) > 0 {
@@ -151,35 +163,6 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 			"content": fmt.Sprintf("Task `%s` has been scheduled successfully.", task),
 		},
 	}, nil
-}
-
-// detectRequiredTools analyzes the task content to automatically detect tool dependencies.
-func (e *ScheduleTask) detectRequiredTools(task string) []string {
-	var detectedTools []string
-	taskLower := strings.ToLower(task)
-
-	toolPatterns := map[string][]string{
-		"telegram_send_message": {"telegram", "send telegram", "telegram message", "message telegram"},
-		"twitter":               {"twitter", "tweet", "x.com", "post tweet", "twitter post"},
-		"whatsapp":              {"whatsapp", "whatsapp message", "send whatsapp"},
-		"gmail":                 {"gmail", "email", "send email", "compose email"},
-		"slack":                 {"slack", "slack message", "send slack"},
-		"screenpipe":            {"screenpipe", "screen capture", "screenshot"},
-		"perplexity_ask":        {"perplexity", "search", "search the web", "search the internet", "search the web for", "search the internet for"},
-	}
-
-	for toolName, patterns := range toolPatterns {
-		for _, pattern := range patterns {
-			if strings.Contains(taskLower, pattern) {
-				if !contains(detectedTools, toolName) {
-					detectedTools = append(detectedTools, toolName)
-				}
-				break
-			}
-		}
-	}
-
-	return detectedTools
 }
 
 // validateRequiredTools checks if the required tools are available in the registry.
@@ -246,8 +229,16 @@ func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
 						},
 						"description": "Optional list of tools required for this task. If not specified, the system will auto-detect from task content. Common tools: telegram_send_message, twitter, whatsapp, gmail, slack, screenpipe.",
 					},
+					"is_possible": map[string]string{
+						"type":        "boolean",
+						"description": "Whether the task is possible to be executed",
+					},
+					"is_possible_reasoning": map[string]string{
+						"type":        "string",
+						"description": "Reasoning about why the task is possible to be executed given available tools",
+					},
 				},
-				"required": []string{"task", "delay", "name", "chat_id"},
+				"required": []string{"task", "delay", "name", "chat_id", "required_tools", "is_possible", "is_possible_reasoning"},
 			},
 		},
 	}
