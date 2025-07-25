@@ -73,55 +73,55 @@ jobs:
               
       - name: Auto-assign reviewers - Frontend
         if: steps.filter.outputs.frontend == 'true' && !contains(steps.teams.outputs.frontend, github.actor)
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+        uses: kentaro-m/auto-assign-action@v2.0.0
         with:
           configuration-path: '.github/auto-assign-frontend.yml'
           
       - name: Auto-assign reviewers - MCP  
         if: steps.filter.outputs.mcp == 'true' && !contains(steps.teams.outputs.mcp, github.actor)
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+        uses: kentaro-m/auto-assign-action@v2.0.0
         with:
           configuration-path: '.github/auto-assign-mcp.yml'
           
       - name: Auto-assign reviewers - Memory
         if: steps.filter.outputs.memory == 'true' && steps.filter.outputs.agent != 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+        uses: kentaro-m/auto-assign-action@v2.0.0
         with:
           configuration-path: '.github/auto-assign-memory.yml'
           
       - name: Auto-assign reviewers - Agent
         if: steps.filter.outputs.agent == 'true' && steps.filter.outputs.memory != 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+        uses: kentaro-m/auto-assign-action@v2.0.0
         with:
           configuration-path: '.github/auto-assign-agent.yml'
           
       - name: Auto-assign reviewers - Data Ingestion
         if: steps.filter.outputs.data_ingestion == 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+        uses: kentaro-m/auto-assign-action@v2.0.0
         with:
           configuration-path: '.github/auto-assign-data-ingestion.yml'
           
       - name: Auto-assign reviewers - Anonymiser
         if: steps.filter.outputs.anonymiser == 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+        uses: kentaro-m/auto-assign-action@v2.0.0
         with:
           configuration-path: '.github/auto-assign-anonymiser.yml'
           
       - name: Auto-assign reviewers - Holon
         if: steps.filter.outputs.holon == 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+        uses: kentaro-m/auto-assign-action@v2.0.0
         with:
           configuration-path: '.github/auto-assign-holon.yml'
           
       - name: Auto-assign reviewers - TwinChat
         if: steps.filter.outputs.twinchat == 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+        uses: kentaro-m/auto-assign-action@v2.0.0
         with:
           configuration-path: '.github/auto-assign-twinchat.yml'
           
       - name: Auto-assign reviewers - GitHub/CI
         if: steps.filter.outputs.github == 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+        uses: kentaro-m/auto-assign-action@v2.0.0
         with:
           configuration-path: '.github/auto-assign-github.yml'
           
@@ -136,6 +136,6 @@ jobs:
           steps.filter.outputs.holon != 'true' &&
           steps.filter.outputs.twinchat != 'true' &&
           steps.filter.outputs.github != 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+        uses: kentaro-m/auto-assign-action@v2.0.0
         with:
           configuration-path: '.github/auto-assign-default.yml'
