@@ -256,10 +256,12 @@ func (s *Service) SendMessage(
 	}
 
 	toolCallResultsMap := make(map[string]model.ToolCallResult)
+	toolCallErrorsMap := make(map[string]string)
 	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
 		var errorField *string
 		if toolResult.Error() != "" {
 			errorField = helpers.Ptr(toolResult.Error())
+			toolCallErrorsMap[toolCall.ID] = toolResult.Error()
 		}
 
 		tcJson, err := json.Marshal(model.ToolCall{
@@ -320,12 +322,14 @@ func (s *Service) SendMessage(
 
 	// Add to database
 	userDbStart := time.Now()
+	s.logger.Info("📦 Storing user message in database", "messageID", userMsgID, "chatID", chatID, "messageLength", len(message))
 	_, err = s.storage.AddMessageToChat(ctx, userMsg)
 	if err != nil {
+		s.logger.Error("❌ Failed to store user message in database", "messageID", userMsgID, "chatID", chatID, "error", err)
 		return nil, err
 	}
 	userDbTime := time.Since(userDbStart)
-	s.logger.Info("User message stored in database", "duration", userDbTime)
+	s.logger.Info("✅ User message stored in database", "messageID", userMsgID, "chatID", chatID, "duration", userDbTime)
 
 	userNatsStart := time.Now()
 	userNatsMsg := model.Message{
@@ -381,6 +385,8 @@ func (s *Service) SendMessage(
 		len(response.ToolCalls),
 		"tool_results",
 		len(response.ToolResults),
+		"errors",
+		response.Errors,
 	)
 
 	subject := fmt.Sprintf("chat.%s", chatID)
@@ -395,11 +401,18 @@ func (s *Service) SendMessage(
 
 	toolCalls := make([]*model.ToolCall, len(response.ToolCalls))
 	for i, v := range response.ToolCalls {
-		toolCalls[i] = &model.ToolCall{
+		toolCall := &model.ToolCall{
 			ID:          v.ID,
 			Name:        v.Function.Name,
 			IsCompleted: true,
 		}
+
+		// Add error information if available
+		if errorMsg, hasError := toolCallErrorsMap[v.ID]; hasError {
+			toolCall.Error = helpers.Ptr(errorMsg)
+		}
+
+		toolCalls[i] = toolCall
 	}
 
 	messageContent := response.Content
@@ -474,36 +487,100 @@ func (s *Service) SendMessage(
 			if ok {
 				toolCall.Result = &result
 			}
+
+			// Add error information if available
+			if errorMsg, hasError := toolCallErrorsMap[toolCall.ID]; hasError {
+				toolCall.Error = helpers.Ptr(errorMsg)
+			}
+
 			toolCalls = append(toolCalls, toolCall)
 		}
+		s.logger.Info("📝 Marshaling tool calls for database storage",
+			"toolCallsCount", len(toolCalls),
+			"toolCallsWithErrors", func() int {
+				count := 0
+				for _, tc := range toolCalls {
+					if tc.Error != nil {
+						count++
+					}
+				}
+				return count
+			}())
+
 		toolCallsJson, err := json.Marshal(toolCalls)
 		if err != nil {
+			s.logger.Error("❌ Failed to marshal tool calls", "error", err, "toolCallsCount", len(toolCalls))
 			return nil, errors.Wrap(err, "failed to marshal tool calls")
 		}
+		s.logger.Debug("📝 Tool calls JSON for database", "json", string(toolCallsJson))
 		assistantMessageDb.ToolCallsStr = helpers.Ptr(string(toolCallsJson))
 	}
 	if len(response.ToolResults) > 0 {
+		s.logger.Info("📝 Marshaling tool results for database storage",
+			"toolResultsCount", len(response.ToolResults),
+			"toolResultsWithErrors", func() int {
+				count := 0
+				for _, tr := range response.ToolResults {
+					if tr.Error() != "" {
+						count++
+					}
+				}
+				return count
+			}())
+
 		toolResultsJson, err := json.Marshal(response.ToolResults)
 		if err != nil {
+			s.logger.Error("❌ Failed to marshal tool results", "error", err, "toolResultsCount", len(response.ToolResults))
 			return nil, errors.Wrap(err, "failed to marshal tool results")
 		}
+		s.logger.Debug("📝 Tool results JSON for database", "json", string(toolResultsJson))
 		assistantMessageDb.ToolResultsStr = helpers.Ptr(string(toolResultsJson))
 	}
 	if len(response.ImageURLs) > 0 {
+		s.logger.Info("📝 Marshaling image URLs for database storage", "imageURLsCount", len(response.ImageURLs))
 		imageURLsJson, err := json.Marshal(response.ImageURLs)
 		if err != nil {
+			s.logger.Error("❌ Failed to marshal image URLs", "error", err, "imageURLsCount", len(response.ImageURLs))
 			return nil, errors.Wrap(err, "failed to marshal image URLs")
 		}
+		s.logger.Debug("📝 Image URLs JSON for database", "json", string(imageURLsJson))
 		assistantMessageDb.ImageURLsStr = helpers.Ptr(string(imageURLsJson))
 	}
 
 	assistantDbStart := time.Now()
+	s.logger.Info("📦 Storing assistant message in database",
+		"messageID", assistantMessageId,
+		"chatID", chatID,
+		"contentLength", len(messageContent),
+		"toolCallsCount", len(response.ToolCalls),
+		"toolResultsCount", len(response.ToolResults),
+		"imageURLsCount", len(response.ImageURLs),
+		"hasToolCallsStr", assistantMessageDb.ToolCallsStr != nil,
+		"hasToolResultsStr", assistantMessageDb.ToolResultsStr != nil,
+		"hasImageURLsStr", assistantMessageDb.ImageURLsStr != nil)
+
 	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
 	if err != nil {
+		s.logger.Error("❌ Failed to store assistant message in database",
+			"messageID", assistantMessageId,
+			"chatID", chatID,
+			"error", err)
 		return nil, err
 	}
 	assistantDbTime := time.Since(assistantDbStart)
-	s.logger.Info("Assistant message stored in database", "duration", assistantDbTime)
+	s.logger.Info("✅ Assistant message stored in database",
+		"messageID", assistantMessageId,
+		"returnedID", idAssistant,
+		"chatID", chatID,
+		"duration", assistantDbTime)
+
+	for _, toolCall := range toolCalls {
+		if toolCall.Error != nil {
+			s.logger.Info("🔴 Tool call failed", "toolName", toolCall.Name, "toolID", toolCall.ID, "error", *toolCall.Error)
+		} else {
+			s.logger.Info("🟢 Tool call succeeded", "toolName", toolCall.Name, "toolID", toolCall.ID)
+		}
+	}
 
 	assistantMessageJson, err := json.Marshal(model.Message{
 		ID:          idAssistant,
