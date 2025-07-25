@@ -25,154 +25,120 @@ jobs:
           echo "${YQ_SHA256}  yq" | sha256sum -c -
           sudo install -m0755 yq /usr/local/bin/yq
           rm yq
-      - name: Load team members as environment variables
+      - name: Generate auto-request-review config
         run: |
-          echo "FRONTEND_REVIEWERS=$(yq -r '.teams.frontend | join(",")' .github/teams.yml)" >> $GITHUB_ENV
-          echo "MCP_REVIEWERS=$(yq -r '.teams.mcp | join(",")' .github/teams.yml)" >> $GITHUB_ENV
-          echo "MEMORY_REVIEWERS=$(yq -r '.teams.memory | join(",")' .github/teams.yml)" >> $GITHUB_ENV
-          echo "AGENT_REVIEWERS=$(yq -r '.teams.agent | join(",")' .github/teams.yml)" >> $GITHUB_ENV
-          echo "DATA_INGESTION_REVIEWERS=$(yq -r '.teams.data_ingestion | join(",")' .github/teams.yml)" >> $GITHUB_ENV
-          echo "ANONYMISER_REVIEWERS=$(yq -r '.teams.anonymiser | join(",")' .github/teams.yml)" >> $GITHUB_ENV
-          echo "HOLON_REVIEWERS=$(yq -r '.teams.holon | join(",")' .github/teams.yml)" >> $GITHUB_ENV
-          echo "TWINCHAT_REVIEWERS=$(yq -r '.teams.twinchat | join(",")' .github/teams.yml)" >> $GITHUB_ENV
-          echo "GITHUB_REVIEWERS=$(yq -r '.teams.github | join(",")' .github/teams.yml)" >> $GITHUB_ENV
-          echo "DEFAULT_REVIEWERS=$(yq -r '.teams.default | join(",")' .github/teams.yml)" >> $GITHUB_ENV
-          
-      - name: Load teams for self-assignment prevention
-        id: teams
-        run: |
-          echo "frontend=$(yq -r '.teams.frontend | join("\" \"")' .github/teams.yml)" >> $GITHUB_OUTPUT
-          echo "mcp=$(yq -r '.teams.mcp | join("\" \"")' .github/teams.yml)" >> $GITHUB_OUTPUT
-          
-      - name: Check changed paths
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
-        id: filter
-        with:
-          filters: |
-            frontend:
-              - 'app/**'
+          cat > .github/auto_request_review.yml << EOF
+          groups:
+            frontend: 
+          $(yq -r '.teams.frontend[]' .github/teams.yml | sed 's/^/      - /')
             mcp:
-              - 'backend/golang/pkg/mcpserver/**'
+          $(yq -r '.teams.mcp[]' .github/teams.yml | sed 's/^/      - /')
             memory:
-              - 'backend/golang/pkg/agent/memory/**'
+          $(yq -r '.teams.memory[]' .github/teams.yml | sed 's/^/      - /')
             agent:
-              - 'backend/golang/pkg/agent/**'
+          $(yq -r '.teams.agent[]' .github/teams.yml | sed 's/^/      - /')
             data_ingestion:
-              - 'backend/golang/pkg/dataprocessing/**'
+          $(yq -r '.teams.data_ingestion[]' .github/teams.yml | sed 's/^/      - /')
             anonymiser:
-              - 'backend/golang/pkg/ai/**'
+          $(yq -r '.teams.anonymiser[]' .github/teams.yml | sed 's/^/      - /')
             holon:
-              - 'backend/golang/pkg/holon/**'
+          $(yq -r '.teams.holon[]' .github/teams.yml | sed 's/^/      - /')
             twinchat:
-              - 'backend/golang/pkg/twinchat/**'
+          $(yq -r '.teams.twinchat[]' .github/teams.yml | sed 's/^/      - /')
             github:
-              - '.github/**'
-              
-      - name: Auto-assign reviewers - Frontend
-        if: steps.filter.outputs.frontend == 'true' && !contains(steps.teams.outputs.frontend, github.actor)
-        uses: kentaro-m/auto-assign-action@v2.0.0
-        with:
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          reviewers: ${{ env.FRONTEND_REVIEWERS }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          $(yq -r '.teams.github[]' .github/teams.yml | sed 's/^/      - /')
           
-      - name: Auto-assign reviewers - MCP  
-        if: steps.filter.outputs.mcp == 'true' && !contains(steps.teams.outputs.mcp, github.actor)
-        uses: kentaro-m/auto-assign-action@v2.0.0
-        with:
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          reviewers: ${{ env.MCP_REVIEWERS }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          options:
+            ignore_draft: true
+            ignore_paths:
+              - '**.md'
           
-      - name: Auto-assign reviewers - Memory
-        if: steps.filter.outputs.memory == 'true' && steps.filter.outputs.agent != 'true'
-        uses: kentaro-m/auto-assign-action@v2.0.0
-        with:
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          reviewers: ${{ env.MEMORY_REVIEWERS }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          rules:
+            - name: Frontend changes
+              condition:
+                files:
+                  - 'app/**'
+              reviewers:
+                groups:
+                  - frontend
+                users: []
+              random_count: 1
+            - name: MCP changes  
+              condition:
+                files:
+                  - 'backend/golang/pkg/mcpserver/**'
+              reviewers:
+                groups:
+                  - mcp
+                users: []
+              random_count: 1
+            - name: Memory changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/agent/memory/**'
+              reviewers:
+                groups:
+                  - memory
+                users: []
+              random_count: 1
+            - name: Agent changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/agent/**'
+              reviewers:
+                groups:
+                  - agent
+                users: []
+              random_count: 1
+            - name: Data ingestion changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/dataprocessing/**'
+              reviewers:
+                groups:
+                  - data_ingestion
+                users: []
+              random_count: 1
+            - name: Anonymiser changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/ai/**'
+              reviewers:
+                groups:
+                  - anonymiser
+                users: []
+              random_count: 1
+            - name: Holon changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/holon/**'
+              reviewers:
+                groups:
+                  - holon
+                users: []
+              random_count: 1
+            - name: TwinChat changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/twinchat/**'
+              reviewers:
+                groups:
+                  - twinchat
+                users: []
+              random_count: 1
+            - name: GitHub/CI changes
+              condition:
+                files:
+                  - '.github/**'
+              reviewers:
+                groups:
+                  - github
+                users: []
+              random_count: 1
+          EOF
           
-      - name: Auto-assign reviewers - Agent
-        if: steps.filter.outputs.agent == 'true' && steps.filter.outputs.memory != 'true'
-        uses: kentaro-m/auto-assign-action@v2.0.0
+      - name: Auto-assign reviewers
+        uses: necojackarc/auto-request-review@v0.13.0
         with:
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          reviewers: ${{ env.AGENT_REVIEWERS }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Auto-assign reviewers - Data Ingestion
-        if: steps.filter.outputs.data_ingestion == 'true'
-        uses: kentaro-m/auto-assign-action@v2.0.0
-        with:
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          reviewers: ${{ env.DATA_INGESTION_REVIEWERS }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Auto-assign reviewers - Anonymiser
-        if: steps.filter.outputs.anonymiser == 'true'
-        uses: kentaro-m/auto-assign-action@v2.0.0
-        with:
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          reviewers: ${{ env.ANONYMISER_REVIEWERS }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Auto-assign reviewers - Holon
-        if: steps.filter.outputs.holon == 'true'
-        uses: kentaro-m/auto-assign-action@v2.0.0
-        with:
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          reviewers: ${{ env.HOLON_REVIEWERS }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Auto-assign reviewers - TwinChat
-        if: steps.filter.outputs.twinchat == 'true'
-        uses: kentaro-m/auto-assign-action@v2.0.0
-        with:
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          reviewers: ${{ env.TWINCHAT_REVIEWERS }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Auto-assign reviewers - GitHub/CI
-        if: steps.filter.outputs.github == 'true'
-        uses: kentaro-m/auto-assign-action@v2.0.0
-        with:
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          reviewers: ${{ env.GITHUB_REVIEWERS }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Auto-assign reviewers - Default
-        if: |
-          steps.filter.outputs.frontend != 'true' &&
-          steps.filter.outputs.mcp != 'true' &&
-          steps.filter.outputs.memory != 'true' &&
-          steps.filter.outputs.agent != 'true' &&
-          steps.filter.outputs.data_ingestion != 'true' &&
-          steps.filter.outputs.anonymiser != 'true' &&
-          steps.filter.outputs.holon != 'true' &&
-          steps.filter.outputs.twinchat != 'true' &&
-          steps.filter.outputs.github != 'true'
-        uses: kentaro-m/auto-assign-action@v2.0.0
-        with:
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          reviewers: ${{ env.DEFAULT_REVIEWERS }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config: .github/auto_request_review.yml
