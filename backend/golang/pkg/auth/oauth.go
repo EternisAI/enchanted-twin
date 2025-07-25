@@ -668,10 +668,9 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 	if err != nil {
 		return false, fmt.Errorf("failed to load config: %w", err)
 	}
-	inviteServerURL := conf.ProxyTeeURL
 
 	// Make GET request to check if this email is whitelisted
-	whitelistURL := fmt.Sprintf("%s/api/v1/invites/%s/whitelist", inviteServerURL, oauthToken.Username)
+	whitelistURL := fmt.Sprintf("%s/api/v1/invites/%s/whitelist", conf.ProxyTeeURL, oauthToken.Username)
 	req, err := http.NewRequestWithContext(ctx, "GET", whitelistURL, nil)
 	if err != nil {
 		logger.Error("failed to create whitelist request", "email", oauthToken.Username, "error", err)
