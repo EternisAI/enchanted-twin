@@ -69,7 +69,7 @@ const DEPENDENCIES_CONFIGS: Record<
     }
   },
   anonymizer: {
-    url: 'https://d3o88a4htgfnky.cloudfront.net/models/qwen3-4b_q4_k_m.zip',
+    url: 'https://dgbaewh9qedok.cloudfront.net/models/qwen3-4b_q4_k_m.zip',
     name: 'anonymizer',
     dir: path.join(DEPENDENCIES_DIR, 'models', 'anonymizer'),
     install: async function () {
