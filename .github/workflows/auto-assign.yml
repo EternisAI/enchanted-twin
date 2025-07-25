@@ -17,10 +17,14 @@ jobs:
           fetch-depth: 0
           
       - name: Install yq
+        env:
+          YQ_VERSION: "v4.44.1"          # 📌 bump intentionally on updates
+          YQ_SHA256: "REPLACE_WITH_SHA256"
         run: |
-          sudo wget -O /usr/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/bin/yq
-          
+          curl -L -o yq https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64
+          echo "${YQ_SHA256}  yq" | sha256sum -c -
+          sudo install -m0755 yq /usr/local/bin/yq
+          rm yq
       - name: Generate auto-assign configs from teams.yml
         run: |
           # Generate config files using yq
