@@ -206,6 +206,7 @@ export const Omnibar = () => {
                           isWaitingTwinResponse={false}
                           text={query}
                           isVoiceReady={false}
+                          type="button"
                         />
                       </motion.div>
                     )}

@@ -131,7 +131,8 @@ export function SendButton({
   text,
   className,
   onVoiceModeChange,
-  isVoiceReady
+  isVoiceReady,
+  type = 'submit'
 }: {
   isWaitingTwinResponse: boolean
   onSend: () => void
@@ -141,6 +142,7 @@ export function SendButton({
   className?: string
   onVoiceModeChange?: () => void
   isVoiceReady: boolean
+  type?: 'button' | 'submit' | 'reset'
 }) {
   const [prevWaitingState, setPrevWaitingState] = useState(false)
 
@@ -162,6 +164,7 @@ export function SendButton({
         <EnableVoiceModeButton onClick={() => onVoiceModeChange?.()} isVoiceReady={isVoiceReady} />
       ) : (
         <Button
+          type={type}
           size="icon"
           variant={isWaitingForAgent ? 'destructive' : 'default'}
           className={cn('rounded-full transition-all duration-200 ease-in-out relative', className)}
