@@ -86,9 +86,9 @@ function EmptyTasksState() {
   }
 
   const examples = [
-    'Send me a joke on Telegram every day at 9am',
-    'Remind me to move the bins to the street every Wednesday at 8pm',
-    'Summarize the latest crypto news every Monday morning'
+    'Summarize the daily AI news every Monday morning',
+    'Check BTC price every minute and send me a message if it breaks $123,000',
+    'Remind me to move the bins to the street every Wednesday at 8pm'
   ]
 
   return (
