@@ -43,6 +43,7 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 	if !ok {
 		return nil, errors.New("task is required")
 	}
+
 	delay := 0.0
 	delayValue, ok := inputs["delay"].(float64)
 	if ok {
@@ -68,11 +69,25 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 	var requiredTools []string
 	if reqToolsInput, ok := inputs["required_tools"]; ok {
 		if reqToolsArray, ok := reqToolsInput.([]interface{}); ok {
-			for _, tool := range reqToolsArray {
+			for i, tool := range reqToolsArray {
 				if toolStr, ok := tool.(string); ok {
 					requiredTools = append(requiredTools, toolStr)
+				} else {
+					e.Logger.Warn("Invalid tool type in required_tools array", "index", i, "type", fmt.Sprintf("%T", tool), "value", tool)
+					return &types.StructuredToolResult{
+						ToolName:   "schedule_task",
+						ToolParams: inputs,
+						ToolError:  fmt.Sprintf("Invalid tool type at index %d in required_tools: expected string, got %T", i, tool),
+					}, fmt.Errorf("invalid tool type at index %d in required_tools: expected string, got %T", i, tool)
 				}
 			}
+		} else {
+			e.Logger.Warn("Invalid required_tools format", "type", fmt.Sprintf("%T", reqToolsInput), "value", reqToolsInput)
+			return &types.StructuredToolResult{
+				ToolName:   "schedule_task",
+				ToolParams: inputs,
+				ToolError:  fmt.Sprintf("Invalid required_tools format: expected array, got %T", reqToolsInput),
+			}, fmt.Errorf("invalid required_tools format: expected array, got %T", reqToolsInput)
 		}
 	}
 
