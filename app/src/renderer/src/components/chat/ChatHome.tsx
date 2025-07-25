@@ -273,7 +273,6 @@ export function Home() {
           onLayoutAnimationComplete={() => {
             setShowSuggestions(true)
           }}
-          }}
         />
 
         <ChatHomeSuggestions
