@@ -71,7 +71,7 @@ func TestBuildTwinChatSystemPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error (CanSearchWeb=true): %v", err)
 	}
-	if !strings.Contains(promptWithWebSearch, "When you are asked to search the web, you should use the `perplexity_ask` tool if it exists.") {
+	if !strings.Contains(promptWithWebSearch, "When you are asked to search the web or about news or very recent events, you should use the `perplexity_ask` tool if it exists.") {
 		t.Errorf("expected prompt with web search to contain perplexity_ask instruction")
 	}
 
@@ -83,7 +83,7 @@ func TestBuildTwinChatSystemPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error (CanSearchWeb=false): %v", err)
 	}
-	if !strings.Contains(promptWithoutWebSearch, "You cannot search the web at this time. If the user asks you to search for information online, tell them they need to connect a search tool in their settings to enable web search functionality.") {
+	if !strings.Contains(promptWithoutWebSearch, "You cannot search the web at this time. If the user asks you to search for information online or latest news, tell them they need to connect a search tool in their settings to enable web search functionality.") {
 		t.Errorf("expected prompt without web search to contain settings instruction")
 	}
 }
