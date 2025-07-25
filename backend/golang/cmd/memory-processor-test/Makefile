@@ -1,6 +1,6 @@
 # Telegram & WhatsApp Memory Pipeline Makefile
 # 
-# Simplified Pipeline: Raw → ConversationDocument (X_0) → Chunks (X_1) → Facts (X_2)
+# Simplified Pipeline: Raw → ConversationDocument (X_0) → Chunks (X_1) → Prompts (X_2) → Facts (X_3)
 #
 # Usage:
 #   make whatsapp      - Convert WhatsApp SQLite to ConversationDocument (X_0)
@@ -8,9 +8,11 @@
 #   make chatgpt       - Convert ChatGPT JSON to ConversationDocument (X_0)
 #   make gmail         - Convert Gmail MBOX to ConversationDocument (X_0)
 #   make gmail-senders - Analyze Gmail senders to include/exclude them from the ConversationDocument (X_0)
-#   make chunks        - Convert ConversationDocument (X_0) to chunks (X_1)  
-#   make facts         - Convert chunks (X_1) to facts (X_2)
-#   make all           - Run complete pipeline (Raw → X_2)
+#   make chunks        - Convert ConversationDocument (X_0) to chunks (X_1)
+#   make prompts       - Convert chunks (X_1) to formatted prompts (X_2)
+#   make facts         - Convert formatted prompts (X_2) to facts (X_3)
+#   TYPE=gmail         - Add fuzzy type filtering to any command (e.g. make chunks TYPE=gm)
+#   make all           - Run complete pipeline (Raw → X_3)
 #   make clean         - Remove all output files
 #   make build         - Build the pipeline tool
 
@@ -147,46 +149,76 @@ gmail-senders:
 chunks:
 	@echo "🧩 Converting ConversationDocument to chunks (X_0 → X_1)..."
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
-	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.jsonl" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.jsonl" ] || [ -f "$(OUTPUT_DIR)/X_0_chatgpt.jsonl" ] || [ -f "$(OUTPUT_DIR)/X_0_gmail.jsonl" ]; then \
+	@if ls "$(OUTPUT_DIR)"/X_0_*.jsonl >/dev/null 2>&1; then \
 		echo "✅ Auto-detecting X_0 ConversationDocument..."; \
-		go run . chunks; \
-		echo "✅ X_1 chunks created: $(OUTPUT_DIR)/X_1_chunked_documents.jsonl"; \
+		if [ -n "$(TYPE)" ]; then \
+			echo "🔍 Using type filter: $(TYPE)"; \
+			go run . chunks --type=$(TYPE); \
+		else \
+			go run . chunks; \
+		fi; \
+		echo "✅ X_1 chunks created in $(OUTPUT_DIR)/"; \
 	else \
 		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp', 'make telegram', 'make chatgpt', or 'make gmail' first."; \
 		exit 1; \
 	fi
 
-# Convert chunks to facts (X_1 → X_2)
-facts:
-	@echo "🧠 Converting chunks to facts (X_1 → X_2)..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_1_chunked_documents.jsonl" ]; then \
-		echo "❌ X_1_chunked_documents.jsonl not found. Run 'make chunks' first."; \
+# Convert chunks to formatted prompts (X_1 → X_2)
+prompts:
+	@echo "📝 Converting chunks to formatted prompts (X_1 → X_2)..."
+	@if ls "$(OUTPUT_DIR)"/X_1_*.jsonl >/dev/null 2>&1; then \
+		echo "✅ Auto-detecting X_1 chunks..."; \
+		if [ -n "$(TYPE)" ]; then \
+			echo "🔍 Using type filter: $(TYPE)"; \
+			go run . prompts --type=$(TYPE); \
+		else \
+			go run . prompts; \
+		fi; \
+		echo "✅ X_2 formatted prompts created in $(OUTPUT_DIR)/"; \
+	else \
+		echo "❌ No X_1 chunks file found. Run 'make chunks' first."; \
 		exit 1; \
 	fi
-	@go run . facts
-	@echo "✅ X_2 facts created: $(OUTPUT_DIR)/X_2_extracted_facts.jsonl"
 
-# Store facts in Weaviate database (X_2 → Weaviate)
+# Convert formatted prompts to facts (X_2 → X_3)
+facts:
+	@echo "🧠 Converting formatted prompts to facts (X_2 → X_3)..."
+	@if ls "$(OUTPUT_DIR)"/X_2_*.jsonl >/dev/null 2>&1; then \
+		echo "✅ Auto-detecting X_2 formatted prompts..."; \
+		if [ -n "$(TYPE)" ]; then \
+			echo "🔍 Using type filter: $(TYPE)"; \
+			go run . facts --type=$(TYPE); \
+		else \
+			go run . facts; \
+		fi; \
+		echo "✅ X_3 facts created in $(OUTPUT_DIR)/"; \
+	else \
+		echo "❌ No X_2 formatted prompts file found. Run 'make prompts' first."; \
+		exit 1; \
+	fi
+
+# Store facts in Weaviate database (X_3 → Weaviate)
 store:
 	@echo "💾 Storing facts in Weaviate database..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_2_extracted_facts.jsonl" ]; then \
-		echo "❌ X_2_extracted_facts.jsonl not found. Run 'make facts' first."; \
+	@if ls "$(OUTPUT_DIR)"/X_3_*.jsonl >/dev/null 2>&1; then \
+		go run . store; \
+		echo "✅ Facts stored in Weaviate database"; \
+	else \
+		echo "❌ No X_3 facts file found. Run 'make facts' first."; \
 		exit 1; \
 	fi
-	@go run . store
-	@echo "✅ Facts stored in Weaviate database"
 
-# Run comprehensive memory consolidation for all 20 subjects (Weaviate → X_3)
+# Run comprehensive memory consolidation for all 20 subjects (Weaviate → X_4)
 consolidation:
 	@echo "🧩 Running comprehensive memory consolidation for all subjects..."
 	@go run . consolidation
-	@echo "✅ Comprehensive consolidation reports created: $(OUTPUT_DIR)/X_3_consolidation_reports.jsonl"
+	@echo "✅ Comprehensive consolidation reports created: $(OUTPUT_DIR)/X_4_consolidation_reports.jsonl"
 
-# Store consolidated facts back into Weaviate (X_3 → Weaviate consolidations)
+# Store consolidated facts back into Weaviate (X_4 → Weaviate consolidations)
 store-consolidations:
 	@echo "📦 Storing consolidated facts in Weaviate database..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_3_consolidation_reports.jsonl" ]; then \
-		echo "❌ X_3_consolidation_reports.jsonl not found. Run 'make consolidation' first."; \
+	@if [ ! -f "$(OUTPUT_DIR)/X_4_consolidation_reports.jsonl" ]; then \
+		echo "❌ X_4_consolidation_reports.jsonl not found. Run 'make consolidation' first."; \
 		exit 1; \
 	fi
 	@go run . store-consolidations
@@ -310,7 +342,7 @@ status:
 	@if [ -f "$(OUTPUT_DIR)/X_0_gmail.json" ]; then echo "✅ Gmail X_0 ConversationDocument ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_1_chunked_documents.json" ]; then echo "✅ X_1 chunks ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_2_extracted_facts.json" ]; then echo "✅ X_2 facts ready"; fi
-	@if [ -f "$(OUTPUT_DIR)/X_3_consolidation_reports.jsonl" ]; then echo "✅ X_3 consolidation reports ready"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_4_consolidation_reports.jsonl" ]; then echo "✅ X_4 consolidation reports ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_4_query_results_*.json" ]; then echo "✅ X_4 query results available"; fi
 
 # Help
@@ -325,15 +357,21 @@ help:
 	@echo
 	@echo "🧠 Atomic Memory Pipeline (X_i → X_{i+1}):"
 	@echo "  make chunks     - X_0 ConversationDocument → X_1 chunks"
-	@echo "  make facts      - X_1 chunks → X_2 facts"
-	@echo "  make store      - X_2 facts → Weaviate database"
-	@echo "  make consolidation - Weaviate → X_3 comprehensive consolidation (all 20 subjects)"
-	@echo "  make store-consolidations - X_3 consolidation → Weaviate consolidations storage"
+	@echo "  make prompts    - X_1 chunks → X_2 formatted prompts"
+	@echo "  make facts      - X_2 formatted prompts → X_3 facts"
+	@echo "  make store      - X_3 facts → Weaviate database"
+	@echo
+	@echo "🔍 Type Filtering (fuzzy substring matching):"
+	@echo "  make chunks TYPE=gmail     - Process only gmail files"
+	@echo "  make prompts TYPE=whats    - Process only whatsapp files"
+	@echo "  make facts TYPE=tel        - Process only telegram files"
+	@echo "  make consolidation - Weaviate → X_4 comprehensive consolidation (all 20 subjects)"
+	@echo "  make store-consolidations - X_4 consolidation → Weaviate consolidations storage"
 	@echo "  make query-consolidations - Test consolidated vs raw fact querying"
 	@echo "  make query QUERY=\"...\" - Vector search on consolidated facts"
 	@echo
 	@echo "⚡ Utilities:"
-	@echo "  make all        - Auto-detect data source and run complete pipeline (Raw → X_2)"
+	@echo "  make all        - Auto-detect data source and run complete pipeline (Raw → X_3)"
 	@echo "  make build      - Build the tool"
 	@echo "  make clean      - Remove output files"
 	@echo "  make status     - Show current pipeline state"
@@ -341,33 +379,37 @@ help:
 	@echo
 	@echo "📋 Simplified Workflow:"
 	@echo
-	@echo "For WhatsApp:"
-	@echo "  make whatsapp   # SQLite → X_0 ConversationDocument"
+		@echo "For WhatsApp:"
+	@echo "  make whatsapp   # SQLite → X_0 ConversationDocument" 
 	@echo "  make chunks     # X_0 → X_1 chunks"
-	@echo "  make facts      # X_1 → X_2 facts"
-	@echo "  make store      # X_2 → Weaviate database"
-	@echo "  make consolidation # Weaviate → X_3 report"
+	@echo "  make prompts    # X_1 → X_2 prompts"
+	@echo "  make facts      # X_2 → X_3 facts"
+	@echo "  make store      # X_3 → Weaviate database"
+	@echo "  make consolidation # Weaviate → X_4 report"
 	@echo
 	@echo "For Telegram:"
 	@echo "  make telegram   # JSON → X_0 ConversationDocument"  
 	@echo "  make chunks     # X_0 → X_1 chunks"
-	@echo "  make facts      # X_1 → X_2 facts"
-	@echo "  make store      # X_2 → Weaviate database"
-	@echo "  make consolidation # Weaviate → X_3 report"
+	@echo "  make prompts    # X_1 → X_2 prompts"
+	@echo "  make facts      # X_2 → X_3 facts"
+	@echo "  make store      # X_3 → Weaviate database"
+	@echo "  make consolidation # Weaviate → X_4 report"
 	@echo
 	@echo "For ChatGPT:"
 	@echo "  make chatgpt    # JSON → X_0 ConversationDocument"
 	@echo "  make chunks     # X_0 → X_1 chunks"
-	@echo "  make facts      # X_1 → X_2 facts"
-	@echo "  make store      # X_2 → Weaviate database"
-	@echo "  make consolidation # Weaviate → X_3 report"
+	@echo "  make prompts    # X_1 → X_2 prompts"
+	@echo "  make facts      # X_2 → X_3 facts"
+	@echo "  make store      # X_3 → Weaviate database"
+	@echo "  make consolidation # Weaviate → X_4 report"
 	@echo
 	@echo "For Gmail:"
 	@echo "  make gmail      # MBOX → X_0 ConversationDocument"
 	@echo "  make chunks     # X_0 → X_1 chunks"
-	@echo "  make facts      # X_1 → X_2 facts"
-	@echo "  make store      # X_2 → Weaviate database"
-	@echo "  make consolidation # Weaviate → X_3 report"
+	@echo "  make prompts    # X_1 → X_2 prompts"
+	@echo "  make facts      # X_2 → X_3 facts"
+	@echo "  make store      # X_3 → Weaviate database"
+	@echo "  make consolidation # Weaviate → X_4 report"
 	@echo
 	@echo "🔥 Clean Pipeline - No intermediate JSONL step!"
 	@echo
