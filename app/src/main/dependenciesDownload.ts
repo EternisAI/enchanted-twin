@@ -10,6 +10,20 @@ import { LiveKitAgentBootstrap } from './livekitAgent'
 
 const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
+const extractVersionFromUrl = (url: string): string | null => {
+  const match = url.match(/-(\d{4}-\d{2}-\d{2})\.zip$/)
+  return match ? match[1] : null
+}
+
+const hasSpecificVersion = (dir: string, version: string): boolean => {
+  try {
+    const files = fs.readdirSync(dir)
+    return files.some((file) => file.toLowerCase().includes('qwen') && file.includes(version))
+  } catch (error) {
+    return false
+  }
+}
+
 const DEPENDENCIES_CONFIGS: Record<
   DependencyName,
   {
@@ -69,7 +83,7 @@ const DEPENDENCIES_CONFIGS: Record<
     }
   },
   anonymizer: {
-    url: 'https://dgbaewh9qedok.cloudfront.net/models/qwen3-4b_q4_k_m.zip',
+    url: 'https://freysa-public.s3.us-east-1.amazonaws.com/models/qwen3-4b_q4_k_m-2025-07-25.zip',
     name: 'anonymizer',
     dir: path.join(DEPENDENCIES_DIR, 'models', 'anonymizer'),
     install: async function () {
@@ -89,26 +103,36 @@ const DEPENDENCIES_CONFIGS: Record<
       await extractZip(file, this.dir)
     },
     isDownloaded: function () {
-      // For anonymizer, we need both 4b and 0.6b models
+      // For anonymizer, we need both 4b and 0.6b models with specific version
       if (!isExtractedDirValid(this.dir)) {
         return false
       }
 
       try {
-        const files = fs.readdirSync(this.dir)
-        const ggufs = files.filter((file) => file.endsWith('.gguf'))
+        const version = extractVersionFromUrl(this.url)
+        if (!version) {
+          const files = fs.readdirSync(this.dir)
+          const ggufs = files.filter((file) => file.endsWith('.gguf'))
 
-        const has4bModel = ggufs.some(
-          (file) =>
-            file.toLowerCase().includes('qwen') &&
-            (file.toLowerCase().includes('4b') || file.toLowerCase().includes('4-b'))
-        )
+          const has4bModel = ggufs.some(
+            (file) =>
+              file.toLowerCase().includes('qwen') &&
+              (file.toLowerCase().includes('4b') || file.toLowerCase().includes('4-b'))
+          )
 
-        const has06bModel = ggufs.some(
-          (file) =>
-            file.toLowerCase().includes('qwen') &&
-            (file.toLowerCase().includes('0.6b') || file.toLowerCase().includes('0.6-b'))
-        )
+          const has06bModel = ggufs.some(
+            (file) =>
+              file.toLowerCase().includes('qwen') &&
+              (file.toLowerCase().includes('0.6b') || file.toLowerCase().includes('0.6-b'))
+          )
+
+          return has4bModel && has06bModel
+        }
+
+        const has4bModel =
+          hasSpecificVersion(this.dir, version) && hasSpecificVersion(this.dir, '4b')
+        const has06bModel =
+          hasSpecificVersion(this.dir, version) && hasSpecificVersion(this.dir, '0.6b')
 
         return has4bModel && has06bModel
       } catch (error) {
