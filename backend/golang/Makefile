@@ -46,5 +46,5 @@ sqlc-generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc generate
 
 nilcheck:
-	go run go.uber.org/nilaway/cmd/nilaway@latest -json -pretty-print=false ./pkg/... 
+	go run go.uber.org/nilaway/cmd/nilaway@latest -json -v -pretty-print=false ./pkg/... 
 	#replace './pkg/...' with the path to the package you want to check for faster results
