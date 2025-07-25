@@ -69,6 +69,7 @@ export function ChatProvider({
   })
   const [isStreamingResponse, setIsStreamingResponse] = useState(false)
 
+  console.log('historicToolCalls', chat.messages.map((m) => m.toolCalls).flat())
   const [messages, setMessages] = useState<Message[]>(() => {
     // Handle first message optimistically
     if (initialMessage && chat.messages.length === 0) {
@@ -259,6 +260,27 @@ export function ChatProvider({
       return [...prev, toolCall]
     })
   })
+
+  useEffect(() => {
+    const completedToolCalls = activeToolCalls.filter((tc) => tc.isCompleted)
+
+    if (completedToolCalls.length > 0) {
+      const timeoutIds: NodeJS.Timeout[] = []
+
+      completedToolCalls.forEach((toolCall) => {
+        const timeoutId = setTimeout(() => {
+          setActiveToolCalls((prev) => prev.filter((tc) => tc.id !== toolCall.id))
+          setHistoricToolCalls((prev) => [toolCall, ...prev])
+        }, 8000)
+
+        timeoutIds.push(timeoutId)
+      })
+
+      return () => {
+        timeoutIds.forEach((id) => clearTimeout(id))
+      }
+    }
+  }, [activeToolCalls])
 
   usePrivacyDictUpdate(chat.id, (privacyDict) => {
     updatePrivacyDict(privacyDict)
