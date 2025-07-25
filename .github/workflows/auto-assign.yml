@@ -19,7 +19,7 @@ jobs:
       - name: Install yq
         env:
           YQ_VERSION: "v4.44.1"          # 📌 bump intentionally on updates
-          YQ_SHA256: "REPLACE_WITH_SHA256"
+          YQ_SHA256: "6dc2d0cd4e0caca5aeffd0d784a48263591080e4a0895abe69f3a76eb50d1ba3"
         run: |
           curl -L -o yq https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64
           echo "${YQ_SHA256}  yq" | sha256sum -c -
@@ -44,8 +44,8 @@ jobs:
       - name: Load teams for self-assignment prevention
         id: teams
         run: |
-          echo "frontend=$(yq -r '.teams.frontend | join(",")' .github/teams.yml)" >> $GITHUB_OUTPUT
-          echo "mcp=$(yq -r '.teams.mcp | join(",")' .github/teams.yml)" >> $GITHUB_OUTPUT
+          echo "frontend=$(yq -r '.teams.frontend | join("\" \"")' .github/teams.yml)" >> $GITHUB_OUTPUT
+          echo "mcp=$(yq -r '.teams.mcp | join("\" \"")' .github/teams.yml)" >> $GITHUB_OUTPUT
           
       - name: Check changed paths
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
@@ -72,13 +72,13 @@ jobs:
               - '.github/**'
               
       - name: Auto-assign reviewers - Frontend
-        if: steps.filter.outputs.frontend == 'true' && !contains(fromJSON(format('["{0}"]', replace(steps.teams.outputs.frontend, ',', '","'))), github.actor)
+        if: steps.filter.outputs.frontend == 'true' && !contains(steps.teams.outputs.frontend, github.actor)
         uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
         with:
           configuration-path: '.github/auto-assign-frontend.yml'
           
       - name: Auto-assign reviewers - MCP  
-        if: steps.filter.outputs.mcp == 'true' && !contains(fromJSON(format('["{0}"]', replace(steps.teams.outputs.mcp, ',', '","'))), github.actor)
+        if: steps.filter.outputs.mcp == 'true' && !contains(steps.teams.outputs.mcp, github.actor)
         uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
         with:
           configuration-path: '.github/auto-assign-mcp.yml'
