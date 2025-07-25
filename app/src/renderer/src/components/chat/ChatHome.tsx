@@ -6,8 +6,7 @@ import { useQuery, useMutation } from '@apollo/client'
 import {
   GetChatsDocument,
   CreateChatDocument,
-  ChatCategory,
-  SendMessageDocument
+  ChatCategory
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
 import { useDebounce } from '@renderer/hooks/useDebounce'
@@ -39,7 +38,6 @@ export function Home() {
   const [isReasonSelected, setIsReasonSelected] = useState(false)
 
   const [createChat] = useMutation(CreateChatDocument)
-  const [sendMessage] = useMutation(SendMessageDocument)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -103,7 +101,8 @@ export function Home() {
         const { data: createData } = await createChat({
           variables: {
             name: chatTitle || reducedMessage,
-            category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text
+            category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
+            initialMessage: message
           }
         })
         const newChatId = createData?.createChat?.id
@@ -112,15 +111,6 @@ export function Home() {
           navigate({
             to: `/chat/${newChatId}`,
             search: { initialMessage: message, reasoning: isReasonSelected }
-          })
-
-          sendMessage({
-            variables: {
-              chatId: newChatId,
-              text: message,
-              reasoning: isReasonSelected,
-              voice: isVoiceMode || false
-            }
           })
 
           await client.cache.evict({ fieldName: 'getChats' })
@@ -135,7 +125,7 @@ export function Home() {
         console.error('Failed to create chat:', error)
       }
     },
-    [query, navigate, createChat, router, startVoiceMode, isReasonSelected, sendMessage]
+    [query, navigate, createChat, router, startVoiceMode, isReasonSelected]
   )
 
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
