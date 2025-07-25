@@ -160,6 +160,7 @@ func decodeAnonymizationResponse(logger *log.Logger, content string) (map[string
 }
 
 func (c *OllamaClient) Anonymize(ctx context.Context, prompt string) (map[string]string, error) {
+	c.logger.Info("Anonymizing prompt", "prompt", prompt)
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(createUserPrompt(prompt)),
 		openai.AssistantMessage(`<think> Let me output exact tool call ONLY </think> <|tool_call|>{"name":"replace_entities","arguments":{"replacements":[`),
