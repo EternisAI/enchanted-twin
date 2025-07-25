@@ -25,21 +25,18 @@ jobs:
           echo "${YQ_SHA256}  yq" | sha256sum -c -
           sudo install -m0755 yq /usr/local/bin/yq
           rm yq
-      - name: Generate auto-assign configs from teams.yml
+      - name: Load team members as environment variables
         run: |
-          # Generate config files using yq
-          for team in frontend mcp memory agent data_ingestion anonymiser holon twinchat github default; do
-            team_file=$(echo $team | tr '_' '-')
-            cat > .github/auto-assign-${team_file}.yml << EOF
-          skipDraft: true
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          skipKeywords: ['[skip ci]', '[skip review]']
-          reviewers:
-          $(yq -r ".teams.${team}[]" .github/teams.yml | sed 's/^/  - /')
-          EOF
-          done
+          echo "FRONTEND_REVIEWERS=$(yq -r '.teams.frontend | join(",")' .github/teams.yml)" >> $GITHUB_ENV
+          echo "MCP_REVIEWERS=$(yq -r '.teams.mcp | join(",")' .github/teams.yml)" >> $GITHUB_ENV
+          echo "MEMORY_REVIEWERS=$(yq -r '.teams.memory | join(",")' .github/teams.yml)" >> $GITHUB_ENV
+          echo "AGENT_REVIEWERS=$(yq -r '.teams.agent | join(",")' .github/teams.yml)" >> $GITHUB_ENV
+          echo "DATA_INGESTION_REVIEWERS=$(yq -r '.teams.data_ingestion | join(",")' .github/teams.yml)" >> $GITHUB_ENV
+          echo "ANONYMISER_REVIEWERS=$(yq -r '.teams.anonymiser | join(",")' .github/teams.yml)" >> $GITHUB_ENV
+          echo "HOLON_REVIEWERS=$(yq -r '.teams.holon | join(",")' .github/teams.yml)" >> $GITHUB_ENV
+          echo "TWINCHAT_REVIEWERS=$(yq -r '.teams.twinchat | join(",")' .github/teams.yml)" >> $GITHUB_ENV
+          echo "GITHUB_REVIEWERS=$(yq -r '.teams.github | join(",")' .github/teams.yml)" >> $GITHUB_ENV
+          echo "DEFAULT_REVIEWERS=$(yq -r '.teams.default | join(",")' .github/teams.yml)" >> $GITHUB_ENV
           
       - name: Load teams for self-assignment prevention
         id: teams
@@ -75,55 +72,91 @@ jobs:
         if: steps.filter.outputs.frontend == 'true' && !contains(steps.teams.outputs.frontend, github.actor)
         uses: kentaro-m/auto-assign-action@v2.0.0
         with:
-          configuration-path: '.github/auto-assign-frontend.yml'
+          addReviewers: true
+          addAssignees: false
+          numberOfReviewers: 1
+          reviewers: ${{ env.FRONTEND_REVIEWERS }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Auto-assign reviewers - MCP  
         if: steps.filter.outputs.mcp == 'true' && !contains(steps.teams.outputs.mcp, github.actor)
         uses: kentaro-m/auto-assign-action@v2.0.0
         with:
-          configuration-path: '.github/auto-assign-mcp.yml'
+          addReviewers: true
+          addAssignees: false
+          numberOfReviewers: 1
+          reviewers: ${{ env.MCP_REVIEWERS }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Auto-assign reviewers - Memory
         if: steps.filter.outputs.memory == 'true' && steps.filter.outputs.agent != 'true'
         uses: kentaro-m/auto-assign-action@v2.0.0
         with:
-          configuration-path: '.github/auto-assign-memory.yml'
+          addReviewers: true
+          addAssignees: false
+          numberOfReviewers: 1
+          reviewers: ${{ env.MEMORY_REVIEWERS }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Auto-assign reviewers - Agent
         if: steps.filter.outputs.agent == 'true' && steps.filter.outputs.memory != 'true'
         uses: kentaro-m/auto-assign-action@v2.0.0
         with:
-          configuration-path: '.github/auto-assign-agent.yml'
+          addReviewers: true
+          addAssignees: false
+          numberOfReviewers: 1
+          reviewers: ${{ env.AGENT_REVIEWERS }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Auto-assign reviewers - Data Ingestion
         if: steps.filter.outputs.data_ingestion == 'true'
         uses: kentaro-m/auto-assign-action@v2.0.0
         with:
-          configuration-path: '.github/auto-assign-data-ingestion.yml'
+          addReviewers: true
+          addAssignees: false
+          numberOfReviewers: 1
+          reviewers: ${{ env.DATA_INGESTION_REVIEWERS }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Auto-assign reviewers - Anonymiser
         if: steps.filter.outputs.anonymiser == 'true'
         uses: kentaro-m/auto-assign-action@v2.0.0
         with:
-          configuration-path: '.github/auto-assign-anonymiser.yml'
+          addReviewers: true
+          addAssignees: false
+          numberOfReviewers: 1
+          reviewers: ${{ env.ANONYMISER_REVIEWERS }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Auto-assign reviewers - Holon
         if: steps.filter.outputs.holon == 'true'
         uses: kentaro-m/auto-assign-action@v2.0.0
         with:
-          configuration-path: '.github/auto-assign-holon.yml'
+          addReviewers: true
+          addAssignees: false
+          numberOfReviewers: 1
+          reviewers: ${{ env.HOLON_REVIEWERS }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Auto-assign reviewers - TwinChat
         if: steps.filter.outputs.twinchat == 'true'
         uses: kentaro-m/auto-assign-action@v2.0.0
         with:
-          configuration-path: '.github/auto-assign-twinchat.yml'
+          addReviewers: true
+          addAssignees: false
+          numberOfReviewers: 1
+          reviewers: ${{ env.TWINCHAT_REVIEWERS }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Auto-assign reviewers - GitHub/CI
         if: steps.filter.outputs.github == 'true'
         uses: kentaro-m/auto-assign-action@v2.0.0
         with:
-          configuration-path: '.github/auto-assign-github.yml'
+          addReviewers: true
+          addAssignees: false
+          numberOfReviewers: 1
+          reviewers: ${{ env.GITHUB_REVIEWERS }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Auto-assign reviewers - Default
         if: |
@@ -138,4 +171,8 @@ jobs:
           steps.filter.outputs.github != 'true'
         uses: kentaro-m/auto-assign-action@v2.0.0
         with:
-          configuration-path: '.github/auto-assign-default.yml'
+          addReviewers: true
+          addAssignees: false
+          numberOfReviewers: 1
+          reviewers: ${{ env.DEFAULT_REVIEWERS }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
