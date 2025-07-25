@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -172,6 +173,8 @@ func main() {
 		runGmail()
 	case "chunks":
 		runChunks()
+	case "prompts":
+		runPrompts()
 	case "facts":
 		runFacts()
 	case "store":
@@ -259,17 +262,65 @@ func findInputFile(pattern string) string {
 	return ""
 }
 
+// findFileByType searches for files matching a pattern with optional type filtering.
+func findFileByType(pattern string, typeFilter string) string {
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return ""
+	}
+
+	if typeFilter == "" {
+		// No type filter - use original priority order
+		priorities := []string{"whatsapp", "telegram", "gmail", "chatgpt"}
+		for _, priority := range priorities {
+			for _, file := range files {
+				if strings.Contains(strings.ToLower(filepath.Base(file)), priority) {
+					return file
+				}
+			}
+		}
+		// Return first file if no priority match
+		if len(files) > 0 {
+			return files[0]
+		}
+		return ""
+	}
+
+	// Filter files by substring match (case-insensitive)
+	var matches []string
+	typeFilter = strings.ToLower(typeFilter)
+	for _, file := range files {
+		filename := strings.ToLower(filepath.Base(file))
+		if strings.Contains(filename, typeFilter) {
+			matches = append(matches, file)
+		}
+	}
+
+	if len(matches) == 0 {
+		logger.Warn("No files found matching type filter", "pattern", pattern, "type", typeFilter, "available", files)
+		return ""
+	}
+
+	if len(matches) > 1 {
+		logger.Warn("Multiple files match type filter, using first", "type", typeFilter, "matches", matches)
+	}
+
+	return matches[0]
+}
+
+// parseTypeFlag extracts --type=X from command line arguments.
+func parseTypeFlag() string {
+	for _, arg := range os.Args {
+		if strings.HasPrefix(arg, "--type=") {
+			return strings.TrimPrefix(arg, "--type=")
+		}
+	}
+	return ""
+}
+
 func findX0File() string {
-	if f := findInputFile("pipeline_output/X_0_whatsapp.jsonl"); f != "" {
-		return f
-	}
-	if f := findInputFile("pipeline_output/X_0_telegram.jsonl"); f != "" {
-		return f
-	}
-	if f := findInputFile("pipeline_output/X_0_gmail.jsonl"); f != "" {
-		return f
-	}
-	return findInputFile("pipeline_output/X_0_chatgpt.jsonl")
+	typeFilter := parseTypeFlag()
+	return findFileByType("pipeline_output/X_0_*.jsonl", typeFilter)
 }
 
 func saveJSON(data interface{}, filename string) error {
@@ -453,13 +504,24 @@ func runChunks() {
 		}
 	}
 
+	// Generate output filename based on input file type
+	baseName := strings.TrimSuffix(filepath.Base(inputFile), ".jsonl")
+	typeSuffix := strings.TrimPrefix(baseName, "X_0_")
+	if typeSuffix == baseName {
+		// Fallback if naming doesn't match expected pattern
+		typeSuffix = "chunked_documents"
+	} else {
+		typeSuffix += "_chunks"
+	}
+	outputFile := fmt.Sprintf("pipeline_output/X_1_%s.jsonl", typeSuffix)
+
 	// Save chunked documents as JSONL using memory package helper
-	if err := memory.ExportConversationDocumentsJSON(chunkedDocs, "pipeline_output/X_1_chunked_documents.jsonl"); err != nil {
-		logger.Error("Save failed", "error", err)
+	if err := memory.ExportConversationDocumentsJSON(chunkedDocs, outputFile); err != nil {
+		logger.Error("Save failed", "error", err, "output", outputFile)
 		os.Exit(1)
 	}
 
-	logger.Info("Chunking done", "original", len(documents), "chunks", len(chunkedDocs))
+	logger.Info("Chunking done", "original", len(documents), "chunks", len(chunkedDocs), "output", outputFile)
 }
 
 // 🔥 PARALLEL FACT EXTRACTION WORKER POOL.
@@ -560,28 +622,149 @@ func extractFactsParallel(documents []memory.Document, numWorkers int) []*memory
 	return allFacts
 }
 
+func runPrompts() {
+	logger.Info("Converting chunked documents to formatted prompts")
+
+	// Find X_1 file with optional type filtering
+	typeFilter := parseTypeFlag()
+	inputFile := findFileByType("pipeline_output/X_1_*.jsonl", typeFilter)
+	if inputFile == "" {
+		if typeFilter != "" {
+			logger.Error("No X_1 file found matching type", "type", typeFilter)
+		} else {
+			logger.Error("No X_1 file found")
+		}
+		os.Exit(1)
+	}
+
+	logger.Info("Using X_1 file", "file", inputFile, "type_filter", typeFilter)
+
+	// Load chunked documents from the selected file
+	conversationDocs, err := memory.LoadConversationDocumentsFromJSON(inputFile)
+	if err != nil {
+		logger.Error("Load failed", "error", err, "file", inputFile)
+		os.Exit(1)
+	}
+
+	logger.Info("Formatting prompts", "documents", len(conversationDocs))
+
+	// Convert documents to formatted prompts using their Content() method
+	type FormattedPrompt struct {
+		ID      string `json:"id"`
+		Source  string `json:"source"`
+		Content string `json:"content"`
+	}
+
+	var prompts []FormattedPrompt
+	for _, doc := range conversationDocs {
+		prompts = append(prompts, FormattedPrompt{
+			ID:      doc.ID(),
+			Source:  doc.Source(),
+			Content: doc.Content(), // This is the key - extracting the formatted prompt
+		})
+	}
+
+	// Generate output filename based on input file type
+	baseName := strings.TrimSuffix(filepath.Base(inputFile), ".jsonl")
+	typeSuffix := strings.TrimPrefix(baseName, "X_1_")
+	typeSuffix = strings.TrimSuffix(typeSuffix, "_chunks") // Remove _chunks suffix
+	if typeSuffix == baseName || typeSuffix == "" {
+		// Fallback if naming doesn't match expected pattern
+		typeSuffix = "chunked_documents"
+	}
+	outputFile := fmt.Sprintf("pipeline_output/X_2_%s_prompts.jsonl", typeSuffix)
+	file, err := os.Create(outputFile)
+	if err != nil {
+		logger.Error("Failed to create output file", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = file.Close() }()
+
+	encoder := json.NewEncoder(file)
+	for _, prompt := range prompts {
+		if err := encoder.Encode(prompt); err != nil {
+			logger.Error("Failed to encode prompt", "error", err)
+			os.Exit(1)
+		}
+	}
+
+	logger.Info("Prompt formatting done", "documents", len(conversationDocs), "output", outputFile)
+}
+
+// FormattedPromptDocument wraps a pre-formatted prompt to implement the Document interface.
+type FormattedPromptDocument struct {
+	id      string
+	source  string
+	content string
+}
+
+func (fpd *FormattedPromptDocument) ID() string                  { return fpd.id }
+func (fpd *FormattedPromptDocument) Content() string             { return fpd.content }
+func (fpd *FormattedPromptDocument) Timestamp() *time.Time       { return nil }
+func (fpd *FormattedPromptDocument) Tags() []string              { return []string{} }
+func (fpd *FormattedPromptDocument) Metadata() map[string]string { return make(map[string]string) }
+func (fpd *FormattedPromptDocument) Source() string              { return fpd.source }
+func (fpd *FormattedPromptDocument) FilePath() string            { return "" }
+func (fpd *FormattedPromptDocument) Chunk() []memory.Document    { return []memory.Document{} }
+
 func runFacts() {
 	if os.Getenv("COMPLETIONS_API_KEY") == "" {
 		logger.Error("COMPLETIONS_API_KEY required for fact extraction")
 		os.Exit(1)
 	}
 
-	logger.Info("Extracting facts")
+	logger.Info("Extracting facts from formatted prompts")
 
-	// Load chunked documents directly from JSONL using memory package helper
-	conversationDocs, err := memory.LoadConversationDocumentsFromJSON("pipeline_output/X_1_chunked_documents.jsonl")
-	if err != nil {
-		logger.Error("Load failed", "error", err)
+	// Find X_2 file with optional type filtering
+	typeFilter := parseTypeFlag()
+	inputFile := findFileByType("pipeline_output/X_2_*.jsonl", typeFilter)
+	if inputFile == "" {
+		if typeFilter != "" {
+			logger.Error("No X_2 file found matching type", "type", typeFilter)
+		} else {
+			logger.Error("No X_2 file found")
+		}
 		os.Exit(1)
 	}
 
-	// Convert to Document interface
-	var documents []memory.Document
-	for i := range conversationDocs {
-		documents = append(documents, &conversationDocs[i])
+	logger.Info("Using X_2 file", "file", inputFile, "type_filter", typeFilter)
+
+	// Load formatted prompts from the selected file
+	type FormattedPrompt struct {
+		ID      string `json:"id"`
+		Source  string `json:"source"`
+		Content string `json:"content"`
 	}
 
-	logger.Info("Starting parallel fact extraction", "documents", len(documents))
+	file, err := os.Open(inputFile)
+	if err != nil {
+		logger.Error("Failed to open X_2 file", "error", err, "file", inputFile)
+		os.Exit(1)
+	}
+	defer func() { _ = file.Close() }()
+
+	var prompts []FormattedPrompt
+	decoder := json.NewDecoder(file)
+	for decoder.More() {
+		var prompt FormattedPrompt
+		if err := decoder.Decode(&prompt); err != nil {
+			logger.Error("Failed to decode prompt", "error", err)
+			os.Exit(1)
+		}
+		prompts = append(prompts, prompt)
+	}
+
+	// Convert formatted prompts to Document interface
+	var documents []memory.Document
+	for _, prompt := range prompts {
+		documents = append(documents, &FormattedPromptDocument{
+			id:      prompt.ID,
+			source:  prompt.Source,
+			content: prompt.Content, // Pre-formatted content with ||| delimiters and primaryUser
+		})
+	}
+
+	logger.Info("Starting parallel fact extraction from formatted prompts", "documents", len(documents))
 
 	// 🚀 PARALLEL FACT EXTRACTION WITH WORKER POOL
 	numWorkers := 100 // YOLO mode - maximize those OpenAI credits! 💸
@@ -593,13 +776,23 @@ func runFacts() {
 		facts[i] = *fact
 	}
 
+	// Generate output filename based on input file type
+	baseName := strings.TrimSuffix(filepath.Base(inputFile), ".jsonl")
+	typeSuffix := strings.TrimPrefix(baseName, "X_2_")
+	typeSuffix = strings.TrimSuffix(typeSuffix, "_prompts")
+	if typeSuffix == baseName || typeSuffix == "" {
+		// Fallback if naming doesn't match expected pattern
+		typeSuffix = "formatted_prompts"
+	}
+	outputFile := fmt.Sprintf("pipeline_output/X_3_%s_facts.jsonl", typeSuffix)
+
 	// Save facts as JSONL using memory package helper
-	if err := memory.ExportMemoryFactsJSON(facts, "pipeline_output/X_2_extracted_facts.jsonl"); err != nil {
-		logger.Error("Save failed", "error", err)
+	if err := memory.ExportMemoryFactsJSON(facts, outputFile); err != nil {
+		logger.Error("Save failed", "error", err, "output", outputFile)
 		os.Exit(1)
 	}
 
-	logger.Info("Fact extraction done", "documents", len(documents), "facts", len(facts))
+	logger.Info("Fact extraction done", "prompts", len(prompts), "facts", len(facts), "output", outputFile)
 }
 
 func runStore() {
@@ -864,7 +1057,7 @@ func runConsolidation() {
 	allReports := consolidateSubjectsParallel(ctx, evolvingmemory.ConsolidationSubjects[:], consolidationDeps, numWorkers)
 
 	// Export consolidation reports as JSONL (consistent with X_0, X_1, X_2 format)
-	outputFile := "pipeline_output/X_3_consolidation_reports.jsonl"
+	outputFile := "pipeline_output/X_4_consolidation_reports.jsonl"
 	if err := exportConsolidationReportsJSONL(allReports, outputFile); err != nil {
 		logger.Error("Failed to export consolidation reports", "error", err)
 		os.Exit(1)
@@ -889,7 +1082,7 @@ func runStoreConsolidations() {
 	logger.Info("Storing consolidated facts in Weaviate database")
 
 	// Check if consolidation reports exist (new JSONL format)
-	consolidationFile := "pipeline_output/X_3_consolidation_reports.jsonl"
+	consolidationFile := "pipeline_output/X_4_consolidation_reports.jsonl"
 	if _, err := os.Stat(consolidationFile); os.IsNotExist(err) {
 		logger.Error("Consolidation reports not found. Run 'make consolidation' first.", "file", consolidationFile)
 		os.Exit(1)
@@ -1078,6 +1271,7 @@ func printUsage() {
 	fmt.Println("  memory-processor-test gmail")
 	fmt.Println("  memory-processor-test gmail --senders  # Analyze senders only")
 	fmt.Println("  memory-processor-test chunks")
+	fmt.Println("  memory-processor-test prompts")
 	fmt.Println("  memory-processor-test facts")
 	fmt.Println("  memory-processor-test store")
 	fmt.Println("  memory-processor-test consolidation")
@@ -1091,10 +1285,11 @@ func printUsage() {
 	fmt.Println("  make gmail    # Convert Gmail mbox")
 	fmt.Println("  make gmail --senders # Analyze Gmail senders, create senders.json")
 	fmt.Println("  make chunks   # X_0 → X_1")
-	fmt.Println("  make facts    # X_1 → X_2")
-	fmt.Println("  make store    # X_2 → Weaviate")
-	fmt.Println("  make consolidation # Weaviate → X_3 (all 20 subjects)")
-	fmt.Println("  make store-consolidations # Weaviate → X_3 (all 20 subjects)")
+	fmt.Println("  make prompts  # X_1 → X_2")
+	fmt.Println("  make facts    # X_2 → X_3")
+	fmt.Println("  make store    # X_3 → Weaviate")
+	fmt.Println("  make consolidation # Weaviate → X_4 (all 20 subjects)")
+	fmt.Println("  make store-consolidations # Weaviate → X_4 (all 20 subjects)")
 	fmt.Println("  make query-consolidations # Query consolidation")
 	fmt.Println()
 	fmt.Println("Examples:")
