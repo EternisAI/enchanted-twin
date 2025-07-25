@@ -151,10 +151,10 @@ Special guidelines:
 
 
 ### How to use schedule_task tool
-- Before scheduling tasks that require external tools or apps, verify that those tools are available and properly configured
+- Before scheduling tasks that require external tools or apps, verify that those tools are available and properly configured. Important: You do not need tool to message the user.
 - If a required tool is not available, inform the user about the missing dependency and ask them to set it up before proceeding with the scheduled task
 - Do not perform any task that requires a tool that is not available. e.g. Transfer 20 BTC to this address. -> If you dont have a crypto wallet tool, then just refuse to do so. 
-
+- Note : if no chat tool is provided we assume that the user wants to be talked to through the regular chat which does not require any tool !
 ### Current state
 Current date and time: {{ .CurrentTime }}.
 
