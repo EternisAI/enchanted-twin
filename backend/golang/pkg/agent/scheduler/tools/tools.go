@@ -141,7 +141,7 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 	}, nil
 }
 
-// detectRequiredTools analyzes the task content to automatically detect tool dependencies
+// detectRequiredTools analyzes the task content to automatically detect tool dependencies.
 func (e *ScheduleTask) detectRequiredTools(task string) []string {
 	var detectedTools []string
 	taskLower := strings.ToLower(task)
@@ -170,7 +170,7 @@ func (e *ScheduleTask) detectRequiredTools(task string) []string {
 	return detectedTools
 }
 
-// validateRequiredTools checks if the required tools are available in the registry
+// validateRequiredTools checks if the required tools are available in the registry.
 func (e *ScheduleTask) validateRequiredTools(requiredTools []string) []string {
 	var unavailableTools []string
 
@@ -188,7 +188,7 @@ func (e *ScheduleTask) validateRequiredTools(requiredTools []string) []string {
 	return unavailableTools
 }
 
-// contains checks if a string slice contains a specific string
+// contains checks if a string slice contains a specific string.
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
