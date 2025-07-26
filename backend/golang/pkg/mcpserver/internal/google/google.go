@@ -128,6 +128,17 @@ func (c *GoogleClient) CallTool(
 			return nil, err
 		}
 		content = result
+	case GET_LABELS_TOOL_NAME:
+		var argumentsTyped GetLabelsArguments
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		result, err := processGetLabels(ctx, c.Store, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
 	case SEARCH_FILES_TOOL_NAME:
 		var argumentsTyped SearchFilesArguments
 		err := request.BindArguments(&argumentsTyped)
