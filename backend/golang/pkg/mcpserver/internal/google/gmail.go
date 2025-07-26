@@ -27,7 +27,7 @@ const (
 )
 
 const (
-	SEARCH_EMAILS_TOOL_DESCRIPTION       = "Search the emails from the user's inbox, returns subject, from, date and id"
+	SEARCH_EMAILS_TOOL_DESCRIPTION       = "Search the emails from the user's inbox in batches (of size `limit`), returns subject, from, date, id, and `page_token` for next page"
 	SEND_EMAIL_TOOL_DESCRIPTION          = "Send an email to recipient email address"
 	EMAIL_BY_ID_TOOL_DESCRIPTION         = "Get the email by id, returns subject, from, date and body"
 	LIST_EMAIL_ACCOUNTS_TOOL_DESCRIPTION = "List the email accounts the user has"
@@ -48,8 +48,8 @@ type EmailQuery struct {
 type SearchEmailsArguments struct {
 	EmailAccount string     `json:"email_account" jsonschema:"required,description=The email account to list emails from"`
 	Query        EmailQuery `json:"query"         jsonschema:"description=The query to list emails, default is 'in:inbox'"`
-	PageToken    string     `json:"page_token"    jsonschema:"description=The page token to list, default is empty"`
-	Limit        int        `json:"limit"         jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
+	PageToken    string     `json:"page_token"    jsonschema:"description=The page token to get the next page of emails obtained from the previous search_emails call, default is empty"`
+	Limit        int        `json:"limit"         jsonschema:"required,description=The number of emails to list in a batch, minimum 10, maximum 50"`
 }
 
 type SendEmailArguments struct {
@@ -165,6 +165,14 @@ func processSearchEmails(
 	}
 
 	contents := make([]mcp_golang.Content, 0)
+
+	// Add NextPageToken/page_token to the response, if it exists.
+	if response.NextPageToken != "" {
+		paginationText := fmt.Sprintf("NextPageToken: %s\n(Use this token in page_token parameter for your next search_emails call to get more emails or mention explicitly that you can get more emails)\n",
+			response.NextPageToken)
+		paginationContent := mcp_golang.NewTextContent(paginationText)
+		contents = append(contents, paginationContent)
+	}
 
 	for _, message := range response.Messages {
 		// Get the message details
