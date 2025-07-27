@@ -86,7 +86,7 @@ func (c *TwitterClient) CallTool(
 		logger.Debug("Refreshing token for twitter")
 		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "twitter")
 		if err != nil {
-			return nil, err
+			return mcp_golang.NewToolResultError("Twitter authentication expired. Please reconnect your Twitter account in settings to continue."), err
 		}
 		oauthTokens, err = c.Store.GetOAuthTokens(ctx, "twitter")
 		if err != nil {
