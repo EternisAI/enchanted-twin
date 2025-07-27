@@ -103,6 +103,11 @@ sql:
             go_type:
               import: "github.com/pgvector/pgvector-go"
               type: "Vector"
+              pointer: true
+          - column: "*.fact_subject"
+            go_type:
+              import: "github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage/types"
+              type: "NullableSanitizedString"
           - column: "*.created_at"
             go_type: "time.Time"
           - column: "*.timestamp"

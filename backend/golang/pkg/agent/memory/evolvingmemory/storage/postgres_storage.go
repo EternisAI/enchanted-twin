@@ -15,6 +15,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage/sqlc"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage/types"
 )
 
 // PostgresStorage implements the storage interface using PostgreSQL + pgvector.
@@ -58,9 +59,19 @@ func NewPostgresStorage(input NewPostgresStorageInput) (Interface, error) {
 // ValidateSchema validates that the database schema is properly set up.
 func (s *PostgresStorage) ValidateSchema(ctx context.Context) error {
 	// Check if tables exist by trying to query them
+	allowedTables := map[string]bool{
+		"memory_facts":     true,
+		"source_documents": true,
+		"document_chunks":  true,
+	}
 	tables := []string{"memory_facts", "source_documents", "document_chunks"}
 
 	for _, table := range tables {
+		// Validate table name against whitelist
+		if !allowedTables[table] {
+			return fmt.Errorf("invalid table name: %s", table)
+		}
+
 		var count int
 		query := fmt.Sprintf("SELECT COUNT(*) FROM %s LIMIT 1", table)
 		row := s.db.QueryRow(ctx, query)
@@ -117,16 +128,21 @@ func (s *PostgresStorage) Update(ctx context.Context, id string, fact *memory.Me
 
 	// Convert vector to pgvector format
 	pgVector := pgvector.NewVector(vector)
+	pgVectorPtr := &pgVector
 
 	// Convert strings to pgtype.Text for nullable fields
-	var factCategory, factSubject, factAttribute, factValue, factTemporalContext, factSensitivity, factFilePath pgtype.Text
+	var factCategory, factAttribute, factValue, factTemporalContext, factSensitivity, factFilePath pgtype.Text
+	var factSubject types.NullableSanitizedString
 	var factImportance pgtype.Int4
 
 	if fact.Category != "" {
 		factCategory = pgtype.Text{String: fact.Category, Valid: true}
 	}
 	if fact.Subject != "" {
-		factSubject = pgtype.Text{String: fact.Subject, Valid: true}
+		factSubject = types.NullableSanitizedString{
+			String: types.NewSanitizedString(fact.Subject),
+			Valid:  true,
+		}
 	}
 	if fact.Attribute != "" {
 		factAttribute = pgtype.Text{String: fact.Attribute, Valid: true}
@@ -156,7 +172,7 @@ func (s *PostgresStorage) Update(ctx context.Context, id string, fact *memory.Me
 	params := sqlc.UpdateMemoryFactParams{
 		ID:                  pgFactID,
 		Content:             fact.Content,
-		ContentVector:       pgVector,
+		ContentVector:       pgVectorPtr,
 		Timestamp:           fact.Timestamp,
 		Source:              fact.Source,
 		Tags:                fact.Tags,
@@ -223,9 +239,13 @@ func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*models.Obje
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
+
+	committed := false
 	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
-			s.logger.Error("Failed to rollback transaction", "error", err)
+		if !committed {
+			if err := tx.Rollback(ctx); err != nil {
+				s.logger.Error("Failed to rollback transaction", "error", err)
+			}
 		}
 	}()
 
@@ -240,6 +260,7 @@ func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*models.Obje
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("committing transaction: %w", err)
 	}
+	committed = true
 
 	s.logger.Infof("Successfully stored batch of %d objects", len(objects))
 	return nil
@@ -300,14 +321,18 @@ func (s *PostgresStorage) storeMemoryFact(ctx context.Context, txQueries *sqlc.Q
 	documentReferences := s.extractStringArray(props["documentReferences"])
 
 	// Extract optional string fields and convert to pgtype.Text
-	var factCategory, factSubject, factAttribute, factValue, factTemporalContext, factSensitivity, factFilePath pgtype.Text
+	var factCategory, factAttribute, factValue, factTemporalContext, factSensitivity, factFilePath pgtype.Text
+	var factSubject types.NullableSanitizedString
 	var factImportance pgtype.Int4
 
 	if val, ok := props["factCategory"].(string); ok && val != "" {
 		factCategory = pgtype.Text{String: val, Valid: true}
 	}
 	if val, ok := props["factSubject"].(string); ok && val != "" {
-		factSubject = pgtype.Text{String: val, Valid: true}
+		factSubject = types.NullableSanitizedString{
+			String: types.NewSanitizedString(val),
+			Valid:  true,
+		}
 	}
 	if val, ok := props["factAttribute"].(string); ok && val != "" {
 		factAttribute = pgtype.Text{String: val, Valid: true}
@@ -340,7 +365,7 @@ func (s *PostgresStorage) storeMemoryFact(ctx context.Context, txQueries *sqlc.Q
 	params := sqlc.CreateMemoryFactParams{
 		ID:                  id,
 		Content:             content,
-		ContentVector:       pgVector,
+		ContentVector:       &pgVector,
 		Timestamp:           timestamp,
 		Source:              source,
 		Tags:                tags,
@@ -423,7 +448,7 @@ func (s *PostgresStorage) storeDocumentChunk(ctx context.Context, txQueries *sql
 	params := sqlc.CreateDocumentChunkParams{
 		ID:                 id,
 		Content:            content,
-		ContentVector:      pgVector,
+		ContentVector:      &pgVector,
 		ChunkIndex:         chunkIndex,
 		OriginalDocumentID: originalDocumentID,
 		Source:             source,
@@ -476,7 +501,7 @@ func (s *PostgresStorage) convertSQLCToMemoryFact(fact sqlc.MemoryFact) (*memory
 		category = fact.FactCategory.String
 	}
 	if fact.FactSubject.Valid {
-		subject = fact.FactSubject.String
+		subject = fact.FactSubject.String.String()
 	}
 	if fact.FactAttribute.Valid {
 		attribute = fact.FactAttribute.String
@@ -589,7 +614,8 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 	}
 
 	// Convert nullable parameters to pgtype
-	var pgSource, pgCategory, pgSubject, pgFilePath pgtype.Text
+	var pgSource, pgCategory, pgFilePath pgtype.Text
+	var pgSubject types.NullableSanitizedString
 	var pgImportance, pgMinImportance, pgMaxImportance pgtype.Int4
 	var pgStartTime, pgEndTime pgtype.Timestamptz
 	var pgTags, pgDocumentRefs []string
@@ -601,7 +627,10 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 		pgCategory = pgtype.Text{String: *category, Valid: true}
 	}
 	if subject != nil {
-		pgSubject = pgtype.Text{String: *subject, Valid: true}
+		pgSubject = types.NullableSanitizedString{
+			String: types.NewSanitizedString(*subject),
+			Valid:  true,
+		}
 	}
 	if filePath != nil {
 		pgFilePath = pgtype.Text{String: *filePath, Valid: true}
@@ -639,7 +668,7 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 		categoryParam = pgCategory.String
 	}
 	if pgSubject.Valid {
-		subjectParam = pgSubject.String
+		subjectParam = pgSubject.String.String()
 	}
 	if pgFilePath.Valid {
 		filePathParam = pgFilePath.String
@@ -656,7 +685,7 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 
 	// Execute vector similarity query
 	params := sqlc.QueryMemoryFactsByVectorParams{
-		ContentVector: pgVector,
+		ContentVector: &pgVector,
 		Column2:       sourceParam,        // source
 		Column3:       categoryParam,      // fact_category
 		Column4:       subjectParam,       // fact_subject
@@ -1058,7 +1087,7 @@ func (s *PostgresStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 		params := sqlc.CreateDocumentChunkParams{
 			ID:                 pgChunkID,
 			Content:            chunk.Content,
-			ContentVector:      pgVector,
+			ContentVector:      &pgVector,
 			ChunkIndex:         int32(chunk.ChunkIndex),
 			OriginalDocumentID: chunk.OriginalDocumentID,
 			Source:             chunk.Source,
@@ -1141,7 +1170,7 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 	}
 
 	params := sqlc.QueryDocumentChunksByVectorParams{
-		ContentVector: pgVector,
+		ContentVector: &pgVector,
 		Column2:       sourceParam,   // source parameter
 		Column3:       filePathParam, // file_path parameter
 		Column4:       pgTags,        // tags parameter

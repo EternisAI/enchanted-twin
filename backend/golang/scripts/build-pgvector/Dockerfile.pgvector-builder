@@ -3,12 +3,16 @@
 
 ARG POSTGRES_VERSION=16.4
 ARG PGVECTOR_VERSION=0.7.4
+ARG POSTGRES_SHA256=""
+ARG PGVECTOR_SHA256=""
 
 # Build stage
 FROM ubuntu:22.04 as builder
 
 ARG POSTGRES_VERSION
 ARG PGVECTOR_VERSION
+ARG POSTGRES_SHA256
+ARG PGVECTOR_SHA256
 ARG TARGETARCH
 ARG TARGETOS
 
@@ -40,8 +44,14 @@ RUN apt-get update && apt-get install -y \
 # Set work directory
 WORKDIR /build
 
-# Download and build PostgreSQL with portable flags
+# Download and verify PostgreSQL
 RUN wget https://ftp.postgresql.org/pub/source/v${POSTGRES_VERSION}/postgresql-${POSTGRES_VERSION}.tar.gz \
+    && if [ -n "$POSTGRES_SHA256" ]; then \
+         echo "$POSTGRES_SHA256  postgresql-${POSTGRES_VERSION}.tar.gz" | sha256sum -c - || \
+         (echo "PostgreSQL checksum verification failed" && exit 1); \
+       else \
+         echo "WARNING: No PostgreSQL checksum provided - skipping verification"; \
+       fi \
     && tar -xzf postgresql-${POSTGRES_VERSION}.tar.gz \
     && cd postgresql-${POSTGRES_VERSION} \
     && ./configure \
@@ -65,9 +75,15 @@ RUN wget https://ftp.postgresql.org/pub/source/v${POSTGRES_VERSION}/postgresql-$
     && make install \
     && make -C contrib install
 
-# Download and build pgvector extension
+# Download and verify pgvector extension
 RUN cd /build \
     && wget https://github.com/pgvector/pgvector/archive/v${PGVECTOR_VERSION}.tar.gz \
+    && if [ -n "$PGVECTOR_SHA256" ]; then \
+         echo "$PGVECTOR_SHA256  v${PGVECTOR_VERSION}.tar.gz" | sha256sum -c - || \
+         (echo "pgvector checksum verification failed" && exit 1); \
+       else \
+         echo "WARNING: No pgvector checksum provided - skipping verification"; \
+       fi \
     && tar -xzf v${PGVECTOR_VERSION}.tar.gz \
     && cd pgvector-${PGVECTOR_VERSION} \
     && export PATH="/usr/local/pgsql/bin:$PATH" \

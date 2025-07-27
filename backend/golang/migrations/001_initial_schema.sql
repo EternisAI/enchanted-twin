@@ -6,15 +6,15 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE memory_facts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     content TEXT NOT NULL,
-    content_vector VECTOR(1536), -- OpenAI embedding dimensions
+    content_vector VECTOR(1536) NOT NULL, -- OpenAI embedding dimensions
     timestamp TIMESTAMPTZ NOT NULL,
     source TEXT NOT NULL,
     tags TEXT[] DEFAULT '{}',
     document_references TEXT[] DEFAULT '{}',
     metadata_json JSONB DEFAULT '{}',
     -- Structured fact fields
-    fact_category TEXT,
-    fact_subject TEXT, 
+    fact_category TEXT NOT NULL,
+    fact_subject TEXT NOT NULL, 
     fact_attribute TEXT,
     fact_value TEXT,
     fact_temporal_context TEXT,

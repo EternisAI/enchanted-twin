@@ -72,7 +72,8 @@ LIMIT $12;
 
 -- name: GetMemoryFactsByIDs :many
 SELECT * FROM memory_facts
-WHERE id = ANY($1::uuid[]);
+WHERE id = ANY($1::uuid[])
+LIMIT 1000;
 
 -- Source Documents Queries
 
@@ -93,7 +94,8 @@ WHERE content_hash = $1;
 
 -- name: GetSourceDocumentsBatch :many
 SELECT * FROM source_documents
-WHERE id = ANY($1::uuid[]);
+WHERE id = ANY($1::uuid[])
+LIMIT 1000;
 
 -- Document Chunks Queries
 

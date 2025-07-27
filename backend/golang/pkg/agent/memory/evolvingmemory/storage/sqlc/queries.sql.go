@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage/types"
 	"github.com/jackc/pgx/v5/pgtype"
 	pgvector_go "github.com/pgvector/pgvector-go"
 )
@@ -23,15 +24,15 @@ INSERT INTO document_chunks (
 `
 
 type CreateDocumentChunkParams struct {
-	ID                 pgtype.UUID        `json:"id"`
-	Content            string             `json:"content"`
-	ContentVector      pgvector_go.Vector `json:"contentVector"`
-	ChunkIndex         int32              `json:"chunkIndex"`
-	OriginalDocumentID string             `json:"originalDocumentId"`
-	Source             string             `json:"source"`
-	FilePath           pgtype.Text        `json:"filePath"`
-	Tags               []string           `json:"tags"`
-	MetadataJson       []byte             `json:"metadataJson"`
+	ID                 pgtype.UUID         `json:"id"`
+	Content            string              `json:"content"`
+	ContentVector      *pgvector_go.Vector `json:"contentVector"`
+	ChunkIndex         int32               `json:"chunkIndex"`
+	OriginalDocumentID string              `json:"originalDocumentId"`
+	Source             string              `json:"source"`
+	FilePath           pgtype.Text         `json:"filePath"`
+	Tags               []string            `json:"tags"`
+	MetadataJson       []byte              `json:"metadataJson"`
 }
 
 func (q *Queries) CreateDocumentChunk(ctx context.Context, arg CreateDocumentChunkParams) (DocumentChunk, error) {
@@ -73,22 +74,22 @@ INSERT INTO memory_facts (
 `
 
 type CreateMemoryFactParams struct {
-	ID                  pgtype.UUID        `json:"id"`
-	Content             string             `json:"content"`
-	ContentVector       pgvector_go.Vector `json:"contentVector"`
-	Timestamp           time.Time          `json:"timestamp"`
-	Source              string             `json:"source"`
-	Tags                []string           `json:"tags"`
-	DocumentReferences  []string           `json:"documentReferences"`
-	MetadataJson        []byte             `json:"metadataJson"`
-	FactCategory        pgtype.Text        `json:"factCategory"`
-	FactSubject         pgtype.Text        `json:"factSubject"`
-	FactAttribute       pgtype.Text        `json:"factAttribute"`
-	FactValue           pgtype.Text        `json:"factValue"`
-	FactTemporalContext pgtype.Text        `json:"factTemporalContext"`
-	FactSensitivity     pgtype.Text        `json:"factSensitivity"`
-	FactImportance      pgtype.Int4        `json:"factImportance"`
-	FactFilePath        pgtype.Text        `json:"factFilePath"`
+	ID                  pgtype.UUID                   `json:"id"`
+	Content             string                        `json:"content"`
+	ContentVector       *pgvector_go.Vector           `json:"contentVector"`
+	Timestamp           time.Time                     `json:"timestamp"`
+	Source              string                        `json:"source"`
+	Tags                []string                      `json:"tags"`
+	DocumentReferences  []string                      `json:"documentReferences"`
+	MetadataJson        []byte                        `json:"metadataJson"`
+	FactCategory        pgtype.Text                   `json:"factCategory"`
+	FactSubject         types.NullableSanitizedString `json:"factSubject"`
+	FactAttribute       pgtype.Text                   `json:"factAttribute"`
+	FactValue           pgtype.Text                   `json:"factValue"`
+	FactTemporalContext pgtype.Text                   `json:"factTemporalContext"`
+	FactSensitivity     pgtype.Text                   `json:"factSensitivity"`
+	FactImportance      pgtype.Int4                   `json:"factImportance"`
+	FactFilePath        pgtype.Text                   `json:"factFilePath"`
 }
 
 func (q *Queries) CreateMemoryFact(ctx context.Context, arg CreateMemoryFactParams) (MemoryFact, error) {
@@ -278,6 +279,7 @@ func (q *Queries) GetMemoryFact(ctx context.Context, id pgtype.UUID) (MemoryFact
 const getMemoryFactsByIDs = `-- name: GetMemoryFactsByIDs :many
 SELECT id, content, content_vector, timestamp, source, tags, document_references, metadata_json, fact_category, fact_subject, fact_attribute, fact_value, fact_temporal_context, fact_sensitivity, fact_importance, fact_file_path, created_at FROM memory_facts
 WHERE id = ANY($1::uuid[])
+LIMIT 1000
 `
 
 func (q *Queries) GetMemoryFactsByIDs(ctx context.Context, dollar_1 []pgtype.UUID) ([]MemoryFact, error) {
@@ -363,6 +365,7 @@ func (q *Queries) GetSourceDocumentByHash(ctx context.Context, contentHash strin
 const getSourceDocumentsBatch = `-- name: GetSourceDocumentsBatch :many
 SELECT id, content, content_hash, document_type, original_id, metadata_json, created_at FROM source_documents
 WHERE id = ANY($1::uuid[])
+LIMIT 1000
 `
 
 func (q *Queries) GetSourceDocumentsBatch(ctx context.Context, dollar_1 []pgtype.UUID) ([]SourceDocument, error) {
@@ -404,25 +407,25 @@ LIMIT $5
 `
 
 type QueryDocumentChunksByVectorParams struct {
-	ContentVector pgvector_go.Vector `json:"contentVector"`
-	Column2       string             `json:"column2"`
-	Column3       string             `json:"column3"`
-	Column4       []string           `json:"column4"`
-	Limit         int32              `json:"limit"`
+	ContentVector *pgvector_go.Vector `json:"contentVector"`
+	Column2       string              `json:"column2"`
+	Column3       string              `json:"column3"`
+	Column4       []string            `json:"column4"`
+	Limit         int32               `json:"limit"`
 }
 
 type QueryDocumentChunksByVectorRow struct {
-	ID                 pgtype.UUID        `json:"id"`
-	Content            string             `json:"content"`
-	ContentVector      pgvector_go.Vector `json:"contentVector"`
-	ChunkIndex         int32              `json:"chunkIndex"`
-	OriginalDocumentID string             `json:"originalDocumentId"`
-	Source             string             `json:"source"`
-	FilePath           pgtype.Text        `json:"filePath"`
-	Tags               []string           `json:"tags"`
-	MetadataJson       []byte             `json:"metadataJson"`
-	CreatedAt          time.Time          `json:"createdAt"`
-	Distance           interface{}        `json:"distance"`
+	ID                 pgtype.UUID         `json:"id"`
+	Content            string              `json:"content"`
+	ContentVector      *pgvector_go.Vector `json:"contentVector"`
+	ChunkIndex         int32               `json:"chunkIndex"`
+	OriginalDocumentID string              `json:"originalDocumentId"`
+	Source             string              `json:"source"`
+	FilePath           pgtype.Text         `json:"filePath"`
+	Tags               []string            `json:"tags"`
+	MetadataJson       []byte              `json:"metadataJson"`
+	CreatedAt          time.Time           `json:"createdAt"`
+	Distance           interface{}         `json:"distance"`
 }
 
 func (q *Queries) QueryDocumentChunksByVector(ctx context.Context, arg QueryDocumentChunksByVectorParams) ([]QueryDocumentChunksByVectorRow, error) {
@@ -482,40 +485,40 @@ LIMIT $13
 `
 
 type QueryMemoryFactsByVectorParams struct {
-	ContentVector pgvector_go.Vector `json:"contentVector"`
-	Column2       string             `json:"column2"`
-	Column3       string             `json:"column3"`
-	Column4       string             `json:"column4"`
-	Column5       int32              `json:"column5"`
-	Column6       int32              `json:"column6"`
-	Column7       int32              `json:"column7"`
-	Column8       pgtype.Timestamptz `json:"column8"`
-	Column9       pgtype.Timestamptz `json:"column9"`
-	Column10      string             `json:"column10"`
-	Column11      []string           `json:"column11"`
-	Column12      []string           `json:"column12"`
-	Limit         int32              `json:"limit"`
+	ContentVector *pgvector_go.Vector `json:"contentVector"`
+	Column2       string              `json:"column2"`
+	Column3       string              `json:"column3"`
+	Column4       string              `json:"column4"`
+	Column5       int32               `json:"column5"`
+	Column6       int32               `json:"column6"`
+	Column7       int32               `json:"column7"`
+	Column8       pgtype.Timestamptz  `json:"column8"`
+	Column9       pgtype.Timestamptz  `json:"column9"`
+	Column10      string              `json:"column10"`
+	Column11      []string            `json:"column11"`
+	Column12      []string            `json:"column12"`
+	Limit         int32               `json:"limit"`
 }
 
 type QueryMemoryFactsByVectorRow struct {
-	ID                  pgtype.UUID        `json:"id"`
-	Content             string             `json:"content"`
-	ContentVector       pgvector_go.Vector `json:"contentVector"`
-	Timestamp           time.Time          `json:"timestamp"`
-	Source              string             `json:"source"`
-	Tags                []string           `json:"tags"`
-	DocumentReferences  []string           `json:"documentReferences"`
-	MetadataJson        []byte             `json:"metadataJson"`
-	FactCategory        pgtype.Text        `json:"factCategory"`
-	FactSubject         pgtype.Text        `json:"factSubject"`
-	FactAttribute       pgtype.Text        `json:"factAttribute"`
-	FactValue           pgtype.Text        `json:"factValue"`
-	FactTemporalContext pgtype.Text        `json:"factTemporalContext"`
-	FactSensitivity     pgtype.Text        `json:"factSensitivity"`
-	FactImportance      pgtype.Int4        `json:"factImportance"`
-	FactFilePath        pgtype.Text        `json:"factFilePath"`
-	CreatedAt           time.Time          `json:"createdAt"`
-	Distance            interface{}        `json:"distance"`
+	ID                  pgtype.UUID                   `json:"id"`
+	Content             string                        `json:"content"`
+	ContentVector       *pgvector_go.Vector           `json:"contentVector"`
+	Timestamp           time.Time                     `json:"timestamp"`
+	Source              string                        `json:"source"`
+	Tags                []string                      `json:"tags"`
+	DocumentReferences  []string                      `json:"documentReferences"`
+	MetadataJson        []byte                        `json:"metadataJson"`
+	FactCategory        pgtype.Text                   `json:"factCategory"`
+	FactSubject         types.NullableSanitizedString `json:"factSubject"`
+	FactAttribute       pgtype.Text                   `json:"factAttribute"`
+	FactValue           pgtype.Text                   `json:"factValue"`
+	FactTemporalContext pgtype.Text                   `json:"factTemporalContext"`
+	FactSensitivity     pgtype.Text                   `json:"factSensitivity"`
+	FactImportance      pgtype.Int4                   `json:"factImportance"`
+	FactFilePath        pgtype.Text                   `json:"factFilePath"`
+	CreatedAt           time.Time                     `json:"createdAt"`
+	Distance            interface{}                   `json:"distance"`
 }
 
 func (q *Queries) QueryMemoryFactsByVector(ctx context.Context, arg QueryMemoryFactsByVectorParams) ([]QueryMemoryFactsByVectorRow, error) {
@@ -677,22 +680,22 @@ RETURNING id, content, content_vector, timestamp, source, tags, document_referen
 `
 
 type UpdateMemoryFactParams struct {
-	ID                  pgtype.UUID        `json:"id"`
-	Content             string             `json:"content"`
-	ContentVector       pgvector_go.Vector `json:"contentVector"`
-	Timestamp           time.Time          `json:"timestamp"`
-	Source              string             `json:"source"`
-	Tags                []string           `json:"tags"`
-	DocumentReferences  []string           `json:"documentReferences"`
-	MetadataJson        []byte             `json:"metadataJson"`
-	FactCategory        pgtype.Text        `json:"factCategory"`
-	FactSubject         pgtype.Text        `json:"factSubject"`
-	FactAttribute       pgtype.Text        `json:"factAttribute"`
-	FactValue           pgtype.Text        `json:"factValue"`
-	FactTemporalContext pgtype.Text        `json:"factTemporalContext"`
-	FactSensitivity     pgtype.Text        `json:"factSensitivity"`
-	FactImportance      pgtype.Int4        `json:"factImportance"`
-	FactFilePath        pgtype.Text        `json:"factFilePath"`
+	ID                  pgtype.UUID                   `json:"id"`
+	Content             string                        `json:"content"`
+	ContentVector       *pgvector_go.Vector           `json:"contentVector"`
+	Timestamp           time.Time                     `json:"timestamp"`
+	Source              string                        `json:"source"`
+	Tags                []string                      `json:"tags"`
+	DocumentReferences  []string                      `json:"documentReferences"`
+	MetadataJson        []byte                        `json:"metadataJson"`
+	FactCategory        pgtype.Text                   `json:"factCategory"`
+	FactSubject         types.NullableSanitizedString `json:"factSubject"`
+	FactAttribute       pgtype.Text                   `json:"factAttribute"`
+	FactValue           pgtype.Text                   `json:"factValue"`
+	FactTemporalContext pgtype.Text                   `json:"factTemporalContext"`
+	FactSensitivity     pgtype.Text                   `json:"factSensitivity"`
+	FactImportance      pgtype.Int4                   `json:"factImportance"`
+	FactFilePath        pgtype.Text                   `json:"factFilePath"`
 }
 
 func (q *Queries) UpdateMemoryFact(ctx context.Context, arg UpdateMemoryFactParams) (MemoryFact, error) {

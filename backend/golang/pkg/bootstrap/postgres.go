@@ -78,13 +78,19 @@ func BootstrapPostgresServerWithOptions(ctx context.Context, logger *log.Logger,
 		}
 	}
 
+	// Get password from environment variable or use default for embedded server
+	password := os.Getenv("POSTGRES_PASSWORD")
+	if password == "" {
+		password = "testpassword" // Default for embedded server only
+	}
+
 	// Create embedded postgres configuration
 	config := embeddedpostgres.DefaultConfig().
 		Port(actualPort).
 		DataPath(dataPath).
 		RuntimePath(runtimePath).
 		Username("postgres").
-		Password("testpassword").
+		Password(password).
 		Database("postgres").
 		StartTimeout(60 * time.Second)
 
@@ -194,7 +200,10 @@ func (s *PostgresServer) runMigrations(ctx context.Context) error {
 	}
 
 	// Run migrations from the migrations directory
-	migrationsDir := "./migrations"
+	migrationsDir := os.Getenv("MIGRATIONS_DIR")
+	if migrationsDir == "" {
+		migrationsDir = "./migrations" // Default path
+	}
 	if err := goose.UpContext(ctx, s.db, migrationsDir); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}

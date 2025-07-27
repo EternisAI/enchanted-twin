@@ -1,5 +1,9 @@
 -- Schema file for SQLC (matches migration files)
 
+-- Enable required PostgreSQL extensions
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- Memory facts table (equivalent to MemoryFact class)
 CREATE TABLE memory_facts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -9,7 +13,7 @@ CREATE TABLE memory_facts (
     source TEXT NOT NULL,
     tags TEXT[] DEFAULT '{}',
     document_references TEXT[] DEFAULT '{}',
-    metadata_json JSONB DEFAULT '{}',
+    metadata_json JSONB DEFAULT '{}'::jsonb,
     -- Structured fact fields
     fact_category TEXT,
     fact_subject TEXT, 
@@ -29,7 +33,7 @@ CREATE TABLE source_documents (
     content_hash TEXT NOT NULL UNIQUE,
     document_type TEXT NOT NULL,
     original_id TEXT NOT NULL,
-    metadata_json JSONB DEFAULT '{}',
+    metadata_json JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -43,6 +47,6 @@ CREATE TABLE document_chunks (
     source TEXT NOT NULL,
     file_path TEXT,
     tags TEXT[] DEFAULT '{}',
-    metadata_json JSONB DEFAULT '{}',
+    metadata_json JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
