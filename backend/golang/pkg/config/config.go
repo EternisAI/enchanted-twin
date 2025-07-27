@@ -23,6 +23,9 @@ type Config struct {
 	WatchDirectoryPath string
 	TelegramChatServer string
 	ContainerRuntime   string
+	PostgresPort       string
+	PostgresDataPath   string
+	MemoryBackend      string
 	WeaviatePort       string
 	EnchantedMcpURL    string
 	ProxyTeeURL        string
@@ -68,6 +71,9 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
+		PostgresPort:       getEnv("POSTGRES_PORT", "5432", printEnv),
+		PostgresDataPath:   getEnv("POSTGRES_DATA_PATH", "./output/postgres", printEnv),
+		MemoryBackend:      getEnv("MEMORY_BACKEND", "postgresql", printEnv),
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),

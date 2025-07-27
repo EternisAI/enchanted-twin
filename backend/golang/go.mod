@@ -100,6 +100,7 @@ require (
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
+	github.com/fergusstrange/embedded-postgres v1.31.0 // indirect
 	github.com/getsentry/sentry-go v0.30.0 // indirect
 	github.com/go-ego/gse v0.80.3 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -170,6 +171,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/petermattis/goid v0.0.0-20250319124200-ccd6737f222a // indirect
+	github.com/pgvector/pgvector-go v0.3.0 // indirect
 	github.com/pingcap/errors v0.11.5-0.20240311024730-e056997136bb // indirect
 	github.com/pion/datachannel v1.5.10 // indirect
 	github.com/pion/dtls/v3 v3.0.6 // indirect
@@ -211,6 +213,7 @@ require (
 	github.com/weaviate/sroar v0.0.9 // indirect
 	github.com/weaviate/tiktoken-go v0.0.2 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
@@ -293,7 +296,7 @@ require (
 	github.com/invopop/jsonschema v0.13.0
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.7.4 // indirect
+	github.com/jackc/pgx/v5 v5.7.5 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

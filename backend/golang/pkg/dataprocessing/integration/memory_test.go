@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,10 +18,9 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	tcweaviate "github.com/testcontainers/testcontainers-go/modules/weaviate"
-	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
@@ -34,14 +34,144 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
+// initPostgresSchemaForTests creates the basic tables with pgvector extension for testing.
+func initPostgresSchemaForTests(db *sql.DB, logger *log.Logger) error {
+	logger.Debug("Initializing PostgreSQL schema for tests with pgvector support")
+
+	// First, enable pgvector extension if available
+	_, err := db.Exec("CREATE EXTENSION IF NOT EXISTS vector")
+	if err != nil {
+		logger.Warn("pgvector extension not available, creating tables without vector columns", "error", err)
+		// Fall back to simple schema for environments without pgvector
+		return initSimplePostgresSchemaForTests(db, logger)
+	}
+
+	// Create tables with vector columns for full testing
+	schema := `
+		-- Memory facts table with vector support
+		CREATE TABLE IF NOT EXISTS memory_facts (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			content TEXT NOT NULL,
+			content_vector VECTOR(1536),
+			timestamp TIMESTAMPTZ NOT NULL,
+			source TEXT NOT NULL,
+			tags TEXT[] DEFAULT '{}',
+			document_references TEXT[] DEFAULT '{}',
+			metadata_json JSONB DEFAULT '{}',
+			fact_category TEXT,
+			fact_subject TEXT, 
+			fact_attribute TEXT,
+			fact_value TEXT,
+			fact_temporal_context TEXT,
+			fact_sensitivity TEXT,
+			fact_importance INTEGER,
+			fact_file_path TEXT,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+
+		-- Documents table
+		CREATE TABLE IF NOT EXISTS source_documents (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			content TEXT NOT NULL,
+			content_hash TEXT NOT NULL UNIQUE,
+			document_type TEXT NOT NULL,
+			original_id TEXT NOT NULL,
+			metadata_json JSONB DEFAULT '{}',
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+
+		-- Document chunks table with vector support  
+		CREATE TABLE IF NOT EXISTS document_chunks (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			content TEXT NOT NULL,
+			content_vector VECTOR(1536),
+			chunk_index INTEGER NOT NULL,
+			original_document_id TEXT NOT NULL,
+			source TEXT NOT NULL,
+			file_path TEXT,
+			tags TEXT[] DEFAULT '{}',
+			metadata_json JSONB DEFAULT '{}',
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+	`
+
+	_, err = db.Exec(schema)
+	if err != nil {
+		return fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	logger.Debug("PostgreSQL schema initialized successfully for tests")
+	return nil
+}
+
+// initSimplePostgresSchemaForTests creates basic tables without pgvector for fallback.
+func initSimplePostgresSchemaForTests(db *sql.DB, logger *log.Logger) error {
+	logger.Debug("Initializing basic PostgreSQL schema for tests (no vector support)")
+
+	// Create tables without vector columns for testing
+	schema := `
+		-- Basic memory facts table for testing (no vector column)
+		CREATE TABLE IF NOT EXISTS memory_facts (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			content TEXT NOT NULL,
+			timestamp TIMESTAMPTZ NOT NULL,
+			source TEXT NOT NULL,
+			tags TEXT[] DEFAULT '{}',
+			document_references TEXT[] DEFAULT '{}',
+			metadata_json JSONB DEFAULT '{}',
+			fact_category TEXT,
+			fact_subject TEXT, 
+			fact_attribute TEXT,
+			fact_value TEXT,
+			fact_temporal_context TEXT,
+			fact_sensitivity TEXT,
+			fact_importance INTEGER,
+			fact_file_path TEXT,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+
+		-- Documents table
+		CREATE TABLE IF NOT EXISTS source_documents (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			content TEXT NOT NULL,
+			content_hash TEXT NOT NULL UNIQUE,
+			document_type TEXT NOT NULL,
+			original_id TEXT NOT NULL,
+			metadata_json JSONB DEFAULT '{}',
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+
+		-- Document chunks table (no vector column for testing)
+		CREATE TABLE IF NOT EXISTS document_chunks (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			content TEXT NOT NULL,
+			chunk_index INTEGER NOT NULL,
+			original_document_id TEXT NOT NULL,
+			source TEXT NOT NULL,
+			file_path TEXT,
+			tags TEXT[] DEFAULT '{}',
+			metadata_json JSONB DEFAULT '{}',
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+	`
+
+	_, err := db.Exec(schema)
+	if err != nil {
+		return fmt.Errorf("failed to create simple schema: %w", err)
+	}
+
+	logger.Debug("Simple PostgreSQL schema initialized successfully for tests")
+	return nil
+}
+
 var (
-	sharedWeaviateContainer *tcweaviate.WeaviateContainer
-	sharedWeaviateClient    *weaviate.Client
-	sharedLogger            *log.Logger
-	sharedTempDir           string
-	setupOnce               sync.Once
-	teardownOnce            sync.Once
-	mockServer              *httptest.Server
+	sharedPostgresServer *bootstrap.PostgresServer
+	sharedPgConn         *pgx.Conn
+	sharedLogger         *log.Logger
+	sharedTempDir        string
+	setupOnce            sync.Once
+	teardownOnce         sync.Once
+	mockServer           *httptest.Server
 )
 
 type testConfig struct {
@@ -285,33 +415,46 @@ func SetupSharedInfrastructure() {
 
 		ctx := context.Background()
 
-		sharedWeaviateContainer, err = tcweaviate.Run(ctx, "semitechnologies/weaviate:1.29.0")
-		if err != nil {
-			panic(fmt.Sprintf("failed to start weaviate container: %v", err))
+		// Setup PostgreSQL server with proper paths
+		postgresPort := "15432" // Use different port for tests
+		postgresPath := filepath.Join(sharedTempDir, "data")
+		runtimePath := filepath.Join(sharedTempDir, "runtime")
+
+		// Create directories with proper permissions
+		if err := os.MkdirAll(postgresPath, 0o777); err != nil {
+			panic(fmt.Sprintf("failed to create postgres data directory: %v", err))
+		}
+		if err := os.MkdirAll(runtimePath, 0o777); err != nil {
+			panic(fmt.Sprintf("failed to create postgres runtime directory: %v", err))
 		}
 
-		scheme, host, err := sharedWeaviateContainer.HttpHostAddress(ctx)
+		// Try to use pgvector-enabled PostgreSQL, fall back to standard if not available
+		sharedPostgresServer, err = bootstrap.BootstrapPostgresServerWithOptions(ctx, sharedLogger, postgresPort, postgresPath, runtimePath, true)
 		if err != nil {
-			panic(fmt.Sprintf("failed to get weaviate host address: %v", err))
+			panic(fmt.Sprintf("failed to start postgres server: %v", err))
 		}
 
-		sharedWeaviateClient, err = weaviate.NewClient(weaviate.Config{
-			Host:   host,
-			Scheme: scheme,
-		})
+		// Initialize schema based on pgvector availability
+		err = initPostgresSchemaForTests(sharedPostgresServer.GetDB(), sharedLogger)
 		if err != nil {
-			panic(fmt.Sprintf("failed to create weaviate client: %v", err))
+			panic(fmt.Sprintf("failed to initialize postgres schema: %v", err))
 		}
 
-		// Use mock AI service for schema initialization to avoid API calls
-		embeddingsModel := "text-embedding-3-small" // Fixed model for deterministic testing
-		mockEmbeddingsService := createMockAIService(sharedLogger)
-		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, mockEmbeddingsService, embeddingsModel)
-		if err != nil {
-			panic(fmt.Sprintf("failed to initialize schema: %v", err))
+		// Log pgvector availability
+		if sharedPostgresServer.HasPgvector() {
+			sharedLogger.Info("PostgreSQL with pgvector extension ready for tests")
+		} else {
+			sharedLogger.Info("PostgreSQL without pgvector ready for tests (vector operations will be skipped)")
 		}
 
-		sharedLogger.Info("Shared Weaviate infrastructure initialized successfully")
+		// Create pgx connection for storage
+		connString := fmt.Sprintf("postgres://postgres:testpassword@localhost:%d/postgres?sslmode=disable", sharedPostgresServer.GetPort())
+		sharedPgConn, err = pgx.Connect(ctx, connString)
+		if err != nil {
+			panic(fmt.Sprintf("failed to connect to postgres: %v", err))
+		}
+
+		sharedLogger.Info("Shared PostgreSQL infrastructure initialized successfully")
 	})
 }
 
@@ -323,13 +466,17 @@ func TeardownSharedInfrastructure() {
 			mockServer = nil
 		}
 
-		if sharedWeaviateContainer != nil {
-			sharedLogger.Info("Terminating shared Weaviate container...")
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+		if sharedPgConn != nil {
+			sharedLogger.Info("Closing PostgreSQL connection...")
+			if err := sharedPgConn.Close(context.Background()); err != nil {
+				sharedLogger.Error("Failed to close PostgreSQL connection", "error", err)
+			}
+		}
 
-			if err := sharedWeaviateContainer.Terminate(ctx); err != nil {
-				sharedLogger.Error("Failed to terminate Weaviate container", "error", err)
+		if sharedPostgresServer != nil {
+			sharedLogger.Info("Stopping shared PostgreSQL server...")
+			if err := sharedPostgresServer.Stop(); err != nil {
+				sharedLogger.Error("Failed to stop PostgreSQL server", "error", err)
 			}
 		}
 
@@ -362,32 +509,19 @@ func TeardownSharedInfrastructure() {
 	})
 }
 
-func ClearWeaviateData(t *testing.T) {
+func ClearPostgresData(t *testing.T) {
 	t.Helper()
 
-	for _, className := range []string{"MemoryFact", "SourceDocument"} {
-		result, err := sharedWeaviateClient.Data().ObjectsGetter().
-			WithClassName(className).
-			WithLimit(1000).
-			Do(context.Background())
-		if err != nil {
-			t.Logf("Warning: Failed to get %s objects: %v", className, err)
-			continue
-		}
+	ctx := context.Background()
+	// Clear all data from PostgreSQL tables
+	tables := []string{"memory_facts", "source_documents", "document_chunks"}
 
-		if len(result) > 0 {
-			for _, obj := range result {
-				if obj.ID != "" {
-					err := sharedWeaviateClient.Data().Deleter().
-						WithClassName(className).
-						WithID(string(obj.ID)).
-						Do(context.Background())
-					if err != nil {
-						t.Logf("Warning: Failed to delete object %s: %v", string(obj.ID), err)
-					}
-				}
-			}
-			t.Logf("Cleared %d objects from %s", len(result), className)
+	for _, table := range tables {
+		_, err := sharedPgConn.Exec(ctx, fmt.Sprintf("DELETE FROM %s", table))
+		if err != nil {
+			t.Logf("Warning: Failed to clear %s table: %v", table, err)
+		} else {
+			t.Logf("Cleared data from %s table", table)
 		}
 	}
 }
@@ -397,7 +531,7 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 
 	SetupSharedInfrastructure()
 
-	ClearWeaviateData(t)
+	ClearPostgresData(t)
 
 	config := getTestConfig(t)
 
@@ -432,10 +566,11 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 		t.Fatalf("Failed to create embedding wrapper: %v", err)
 	}
 
-	storageInterface, err := storage.New(storage.NewStorageInput{
-		Client:            sharedWeaviateClient,
+	storageInterface, err := storage.NewPostgresStorage(storage.NewPostgresStorageInput{
+		DB:                sharedPgConn,
 		Logger:            sharedLogger,
 		EmbeddingsWrapper: embeddingsWrapper,
+		ConnString:        fmt.Sprintf("postgres://postgres:testpassword@localhost:%d/postgres?sslmode=disable", sharedPostgresServer.GetPort()),
 	})
 	if err != nil {
 		t.Fatalf("Failed to create storage interface: %v", err)
