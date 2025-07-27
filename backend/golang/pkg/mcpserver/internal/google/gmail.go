@@ -24,14 +24,16 @@ const (
 	EMAIL_BY_ID_TOOL_NAME         = "email_by_id"
 	LIST_EMAIL_ACCOUNTS_TOOL_NAME = "list_email_accounts"
 	REPLY_EMAIL_TOOL_NAME         = "reply_email"
+	GET_LABELS_TOOL_NAME          = "get_labels"
 )
 
 const (
-	SEARCH_EMAILS_TOOL_DESCRIPTION       = "Search the emails from the user's inbox, returns subject, from, date and id"
+	SEARCH_EMAILS_TOOL_DESCRIPTION       = "Search the emails from the user's inbox in batches (of size `limit`), returns subject, from, date, id, and `page_token` for next page"
 	SEND_EMAIL_TOOL_DESCRIPTION          = "Send an email to recipient email address"
 	EMAIL_BY_ID_TOOL_DESCRIPTION         = "Get the email by id, returns subject, from, date and body"
 	LIST_EMAIL_ACCOUNTS_TOOL_DESCRIPTION = "List the email accounts the user has"
 	REPLY_EMAIL_TOOL_DESCRIPTION         = "Reply to an email by its id"
+	GET_LABELS_TOOL_DESCRIPTION          = "Get Gmail labels and their message counts. If `label_id` is provided, returns detailed info for that specific label (e.g., 'UNREAD', 'INBOX'). If empty, lists all labels with counts."
 )
 
 type EmailQuery struct {
@@ -48,8 +50,8 @@ type EmailQuery struct {
 type SearchEmailsArguments struct {
 	EmailAccount string     `json:"email_account" jsonschema:"required,description=The email account to list emails from"`
 	Query        EmailQuery `json:"query"         jsonschema:"description=The query to list emails, default is 'in:inbox'"`
-	PageToken    string     `json:"page_token"    jsonschema:"description=The page token to list, default is empty"`
-	Limit        int        `json:"limit"         jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
+	PageToken    string     `json:"page_token"    jsonschema:"description=The page token to get the next page of emails obtained from the previous search_emails call, default is empty"`
+	Limit        int        `json:"limit"         jsonschema:"required,description=The number of emails to list in a batch, minimum 10, maximum 50"`
 }
 
 type SendEmailArguments struct {
@@ -69,6 +71,11 @@ type ReplyEmailArguments struct {
 	EmailId      string `json:"email_id" jsonschema:"required,description=The id of the email to reply to"`
 	Body         string `json:"body" jsonschema:"required,description=The body of the reply email"`
 	ReplyAll     bool   `json:"reply_all" jsonschema:"description=Whether to reply to all recipients, default is false"`
+}
+
+type GetLabelsArguments struct {
+	EmailAccount string `json:"email_account" jsonschema:"required,description=The email account to get labels from"`
+	LabelId      string `json:"label_id" jsonschema:"description=Specific label ID to get detailed info for (e.g., 'UNREAD', 'INBOX', 'SENT', 'DRAFT'). If empty, lists all labels with basic counts."`
 }
 
 func (q *EmailQuery) ToQuery() (string, error) {
@@ -165,6 +172,14 @@ func processSearchEmails(
 	}
 
 	contents := make([]mcp_golang.Content, 0)
+
+	// Add NextPageToken/page_token to the response, if it exists.
+	if response.NextPageToken != "" {
+		paginationText := fmt.Sprintf("NextPageToken: %s\n(Use this token in page_token parameter for your next search_emails call to get more emails or mention explicitly that you can get more emails)\n",
+			response.NextPageToken)
+		paginationContent := mcp_golang.NewTextContent(paginationText)
+		contents = append(contents, paginationContent)
+	}
 
 	for _, message := range response.Messages {
 		// Get the message details
@@ -417,6 +432,70 @@ func processListEmailAccounts(
 	return []mcp_golang.Content{textContent}, nil
 }
 
+func processGetLabels(
+	ctx context.Context,
+	store *db.Store,
+	arguments GetLabelsArguments,
+) ([]mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
+	token := &oauth2.Token{
+		AccessToken: accessToken,
+	}
+
+	config := oauth2.Config{}
+	client := config.Client(ctx, token)
+
+	gmailService, err := gmail.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		fmt.Println("Error initializing Gmail service:", err)
+		return nil, err
+	}
+
+	contents := make([]mcp_golang.Content, 0)
+
+	if arguments.LabelId != "" {
+		// Get specific label details
+		label, err := gmailService.Users.Labels.Get("me", arguments.LabelId).Do()
+		if err != nil {
+			fmt.Println("Error getting label details:", err)
+			return nil, err
+		}
+
+		formattedText := fmt.Sprintf("Label: %s\nLabel ID: %s\nTotal Messages: %d\nUnread Messages: %d\nTotal Threads: %d\nUnread Threads: %d\nType: %s",
+			label.Name, label.Id, label.MessagesTotal, label.MessagesUnread, label.ThreadsTotal, label.ThreadsUnread, label.Type)
+
+		textContent := mcp_golang.NewTextContent(formattedText)
+		contents = append(contents, textContent)
+	} else {
+		// List all labels
+		response, err := gmailService.Users.Labels.List("me").Do()
+		if err != nil {
+			fmt.Println("Error listing labels:", err)
+			return nil, err
+		}
+
+		for _, label := range response.Labels {
+			var formattedText string
+			if label.MessagesTotal > 0 || label.MessagesUnread > 0 {
+				formattedText = fmt.Sprintf("Label: %s (ID: %s)\nType: %s\nTotal Messages: %d\nUnread Messages: %d",
+					label.Name, label.Id, label.Type, label.MessagesTotal, label.MessagesUnread)
+			} else {
+				formattedText = fmt.Sprintf("Label: %s (ID: %s)\nType: %s\nNo messages",
+					label.Name, label.Id, label.Type)
+			}
+
+			textContent := mcp_golang.NewTextContent(formattedText)
+			contents = append(contents, textContent)
+		}
+	}
+
+	return contents, nil
+}
+
 func createMessage(from, to, subject, bodyContent string) *gmail.Message {
 	// Compose email
 	header := make(map[string]string)
@@ -564,6 +643,18 @@ func GenerateGmailTools() ([]mcp_golang.Tool, error) {
 		RawInputSchema: replyEmailSchema,
 	}
 	tools = append(tools, replyEmailTool)
+
+	getLabelsSchema, err := utils.ConverToInputSchema(GetLabelsArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for get_labels: %w", err)
+	}
+	desc = GET_LABELS_TOOL_DESCRIPTION
+	getlabelsTool := mcp_golang.Tool{
+		Name:           GET_LABELS_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: getLabelsSchema,
+	}
+	tools = append(tools, getlabelsTool)
 
 	return tools, nil
 }
