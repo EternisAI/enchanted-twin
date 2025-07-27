@@ -287,6 +287,7 @@ type ComplexityRoot struct {
 	}
 
 	ToolCall struct {
+		Error       func(childComplexity int) int
 		ID          func(childComplexity int) int
 		IsCompleted func(childComplexity int) int
 		MessageID   func(childComplexity int) int
@@ -1702,6 +1703,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Tool.Name(childComplexity), true
+
+	case "ToolCall.error":
+		if e.complexity.ToolCall.Error == nil {
+			break
+		}
+
+		return e.complexity.ToolCall.Error(childComplexity), true
 
 	case "ToolCall.id":
 		if e.complexity.ToolCall.ID == nil {
@@ -6221,6 +6229,8 @@ func (ec *executionContext) fieldContext_Message_toolCalls(_ context.Context, fi
 				return ec.fieldContext_ToolCall_messageId(ctx, field)
 			case "result":
 				return ec.fieldContext_ToolCall_result(ctx, field)
+			case "error":
+				return ec.fieldContext_ToolCall_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ToolCall", field.Name)
 		},
@@ -9986,6 +9996,8 @@ func (ec *executionContext) fieldContext_Subscription_toolCallUpdated(ctx contex
 				return ec.fieldContext_ToolCall_messageId(ctx, field)
 			case "result":
 				return ec.fieldContext_ToolCall_result(ctx, field)
+			case "error":
+				return ec.fieldContext_ToolCall_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ToolCall", field.Name)
 		},
@@ -11570,6 +11582,47 @@ func (ec *executionContext) fieldContext_ToolCall_result(_ context.Context, fiel
 				return ec.fieldContext_ToolCallResult_imageUrls(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ToolCallResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolCall_error(ctx context.Context, field graphql.CollectedField, obj *model.ToolCall) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolCall_error(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Error, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolCall_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolCall",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -16794,6 +16847,8 @@ func (ec *executionContext) _ToolCall(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "result":
 			out.Values[i] = ec._ToolCall_result(ctx, field, obj)
+		case "error":
+			out.Values[i] = ec._ToolCall_error(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

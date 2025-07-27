@@ -166,7 +166,10 @@ func TestExecuteStreamWithPrivacy_MultipleToolResults(t *testing.T) {
 	// Execute tools and collect results
 	var toolResults []types.ToolResult
 	for _, toolCall := range toolCalls {
-		tool := toolMap[toolCall.Function.Name]
+		tool, exists := toolMap[toolCall.Function.Name]
+		if !exists {
+			t.Fatalf("Tool not found in map: %s", toolCall.Function.Name)
+		}
 
 		var args map[string]interface{}
 		err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)

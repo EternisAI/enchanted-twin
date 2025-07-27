@@ -86,8 +86,8 @@ function EmptyTasksState() {
   }
 
   const examples = [
-    'Summarize the daily AI news every Monday morning',
-    'Check BTC price every minute and send me a message if it breaks $123,000',
+    'Summarize the weekly AI news every Monday morning',
+    'Notify me about BTC price every day',
     'Remind me to move the bins to the street every Wednesday at 8pm'
   ]
 

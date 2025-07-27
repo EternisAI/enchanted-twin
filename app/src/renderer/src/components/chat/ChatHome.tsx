@@ -194,7 +194,7 @@ export function Home() {
     try {
       const { data: createData } = await createChat({
         variables: {
-          name: 'New Chat',
+          name: suggestion.name,
           category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
           initialMessage: suggestion.name
         }
