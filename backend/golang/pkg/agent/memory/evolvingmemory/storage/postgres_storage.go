@@ -1048,9 +1048,12 @@ func (s *PostgresStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
+	committed := false
 	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
-			s.logger.Error("Failed to rollback transaction", "error", err)
+		if !committed {
+			if err := tx.Rollback(ctx); err != nil {
+				s.logger.Error("Failed to rollback transaction", "error", err)
+			}
 		}
 	}()
 
@@ -1105,6 +1108,7 @@ func (s *PostgresStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("committing transaction: %w", err)
 	}
+	committed = true
 
 	s.logger.Debug("Successfully stored document chunks batch", "count", len(chunks))
 	return nil

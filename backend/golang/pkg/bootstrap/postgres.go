@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
+	"github.com/EternisAI/enchanted-twin/migrations"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap/pgvector"
@@ -194,17 +195,14 @@ func (s *PostgresServer) enablePgvectorExtension(ctx context.Context) error {
 func (s *PostgresServer) runMigrations(ctx context.Context) error {
 	s.logger.Debug("Running database migrations")
 
-	// Set up goose
+	// Set up goose with embedded filesystem
+	goose.SetBaseFS(migrations.EmbedPostgresMigrations)
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("failed to set goose dialect: %w", err)
 	}
 
-	// Run migrations from the migrations directory
-	migrationsDir := os.Getenv("MIGRATIONS_DIR")
-	if migrationsDir == "" {
-		migrationsDir = "./migrations" // Default path
-	}
-	if err := goose.UpContext(ctx, s.db, migrationsDir); err != nil {
+	// Run migrations from embedded filesystem
+	if err := goose.UpContext(ctx, s.db, "."); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
