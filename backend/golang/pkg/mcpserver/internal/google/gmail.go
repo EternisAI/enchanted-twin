@@ -25,6 +25,7 @@ const (
 	LIST_EMAIL_ACCOUNTS_TOOL_NAME = "list_email_accounts"
 	REPLY_EMAIL_TOOL_NAME         = "reply_email"
 	GET_LABELS_TOOL_NAME          = "get_labels"
+	MODIFY_EMAIL_LABELS_TOOL_NAME = "modify_email_labels"
 )
 
 const (
@@ -34,6 +35,7 @@ const (
 	LIST_EMAIL_ACCOUNTS_TOOL_DESCRIPTION = "List the email accounts the user has"
 	REPLY_EMAIL_TOOL_DESCRIPTION         = "Reply to an email by its id"
 	GET_LABELS_TOOL_DESCRIPTION          = "Get Gmail labels and their message counts. If `label_id` is provided, returns detailed info for that specific label (e.g., 'UNREAD', 'INBOX'). If empty, lists all labels with counts."
+	MODIFY_EMAIL_LABELS_TOOL_DESCRIPTION = "Modify labels on an email. Add labels with `add_labels` (e.g., ['IMPORTANT']) and remove with `remove_labels` (e.g., ['UNREAD']). Common uses: mark as read/unread, archive, mark important."
 )
 
 type EmailQuery struct {
@@ -76,6 +78,13 @@ type ReplyEmailArguments struct {
 type GetLabelsArguments struct {
 	EmailAccount string `json:"email_account" jsonschema:"required,description=The email account to get labels from"`
 	LabelId      string `json:"label_id" jsonschema:"description=Specific label ID to get detailed info for (e.g., 'UNREAD', 'INBOX', 'SENT', 'DRAFT'). If empty, lists all labels with basic counts."`
+}
+
+type ModifyEmailLabelsArguments struct {
+	EmailAccount string   `json:"email_account" jsonschema:"required,description=The email account to modify"`
+	MessageId    string   `json:"message_id" jsonschema:"required,description=The ID of the email to modify labels for"`
+	AddLabels    []string `json:"add_labels" jsonschema:"description=List of label IDs to add to the email (e.g., ['UNREAD', 'IMPORTANT', 'STARRED'])"`
+	RemoveLabels []string `json:"remove_labels" jsonschema:"description=List of label IDs to remove from the email (e.g., ['UNREAD', 'INBOX'])"`
 }
 
 func (q *EmailQuery) ToQuery() (string, error) {
@@ -496,6 +505,59 @@ func processGetLabels(
 	return contents, nil
 }
 
+func processModifyEmailLabels(
+	ctx context.Context,
+	store *db.Store,
+	arguments ModifyEmailLabelsArguments,
+) ([]mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
+	token := &oauth2.Token{
+		AccessToken: accessToken,
+	}
+
+	config := oauth2.Config{}
+	client := config.Client(ctx, token)
+
+	gmailService, err := gmail.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		fmt.Println("Error initializing Gmail service:", err)
+		return nil, err
+	}
+
+	if arguments.MessageId == "" {
+		return nil, errors.New("message_id is required")
+	}
+
+	modifyRequest := &gmail.ModifyMessageRequest{
+		AddLabelIds:    arguments.AddLabels,
+		RemoveLabelIds: arguments.RemoveLabels,
+	}
+
+	_, err = gmailService.Users.Messages.Modify("me", arguments.MessageId, modifyRequest).Do()
+	if err != nil {
+		fmt.Printf("Error modifying email labels: %s\n", err)
+		return nil, err
+	}
+
+	var responseText string
+	responseText += "Successfully modified email labels\n"
+
+	if len(arguments.AddLabels) > 0 {
+		responseText += fmt.Sprintf("Added labels: %s\n", strings.Join(arguments.AddLabels, ", "))
+	}
+
+	if len(arguments.RemoveLabels) > 0 {
+		responseText += fmt.Sprintf("Removed labels: %s\n", strings.Join(arguments.RemoveLabels, ", "))
+	}
+
+	textContent := mcp_golang.NewTextContent(responseText)
+	return []mcp_golang.Content{textContent}, nil
+}
+
 func createMessage(from, to, subject, bodyContent string) *gmail.Message {
 	// Compose email
 	header := make(map[string]string)
@@ -655,6 +717,18 @@ func GenerateGmailTools() ([]mcp_golang.Tool, error) {
 		RawInputSchema: getLabelsSchema,
 	}
 	tools = append(tools, getlabelsTool)
+
+	modifyEmailLabelsSchema, err := utils.ConverToInputSchema(ModifyEmailLabelsArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for modify_email_labels: %w", err)
+	}
+	desc = MODIFY_EMAIL_LABELS_TOOL_DESCRIPTION
+	modifyEmailLabelsTool := mcp_golang.Tool{
+		Name:           MODIFY_EMAIL_LABELS_TOOL_NAME,
+		Description:    desc,
+		RawInputSchema: modifyEmailLabelsSchema,
+	}
+	tools = append(tools, modifyEmailLabelsTool)
 
 	return tools, nil
 }
