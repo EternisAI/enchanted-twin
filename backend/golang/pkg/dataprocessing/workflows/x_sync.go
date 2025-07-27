@@ -140,7 +140,7 @@ func (w *DataProcessingWorkflows) XFetchActivity(
 		w.Logger.Debug("Refreshing expired Twitter token in X fetch activity")
 		_, err = auth.RefreshOAuthToken(ctx, w.Logger, w.Store, "twitter")
 		if err != nil {
-			return XFetchActivityResponse{}, fmt.Errorf("failed to refresh OAuth tokens: %w", err)
+			return XFetchActivityResponse{}, fmt.Errorf("twitter token refresh failed. Please reconnect Twitter to resume data sync: %w", err)
 		}
 		tokens, err = w.Store.GetOAuthTokensByUsername(ctx, "twitter", input.Username)
 		if err != nil {
