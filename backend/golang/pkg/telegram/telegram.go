@@ -805,6 +805,9 @@ func PostMessage(
 	if err != nil {
 		return nil, fmt.Errorf("failed to send GraphQL mutation request: %v", err)
 	}
+	if resp == nil {
+		return nil, fmt.Errorf("received nil response from GraphQL request")
+	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()

@@ -526,7 +526,12 @@ func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, log
 	peopleMap := make(map[string]bool)
 
 	for _, messageInfo := range conversation.Messages {
-		userReceipts := messageInfo.GetMessage().UserReceipt
+		message := messageInfo.GetMessage()
+		if message == nil || message.Key == nil || message.Key.FromMe == nil {
+			continue
+		}
+
+		userReceipts := message.UserReceipt
 		contacts := []string{}
 
 		for _, userReceipt := range userReceipts {
@@ -542,11 +547,6 @@ func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, log
 			} else {
 				contacts = append(contacts, normalizeJID(userJID))
 			}
-		}
-
-		message := messageInfo.GetMessage()
-		if message == nil || message.Key == nil || message.Key.FromMe == nil {
-			continue
 		}
 
 		var content string

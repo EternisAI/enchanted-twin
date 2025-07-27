@@ -27,6 +27,7 @@ query GetChats($first: Int!, $offset: Int!) {
           content
           imageUrls
         }
+        error
       }
       toolResults
     }
@@ -56,6 +57,7 @@ query GetChat($id: ID!) {
           content
           imageUrls
         }
+        error
       }
       toolResults
     }
@@ -205,6 +207,7 @@ mutation SendMessage($chatId: ID!, $text: String!, $reasoning: Boolean!, $voice:
         content
         imageUrls
       }
+      error
     }
   }
 }
@@ -241,6 +244,7 @@ subscription MessageAdded($chatId: ID!) {
         content
         imageUrls
       }
+      error
     }
   }
 }
@@ -255,6 +259,7 @@ subscription ToolCallUpdated($chatId: ID!) {
       content
       imageUrls
     }
+    error
   }
 }
 

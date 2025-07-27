@@ -79,9 +79,10 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 		dbMessage.ImageURLsStr = helpers.Ptr(string(imageURLsJSON))
 	}
 
+	// Note: This is from the send_to_chat tool, not regular chat flow
 	id, err := e.chatStorage.AddMessageToChat(ctx, dbMessage)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("❌ Failed to store send_to_chat message to database: %w", err)
 	}
 
 	natsMessage := model.Message{

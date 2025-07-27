@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -31,8 +32,13 @@ func CreateOrUpdateSchedule(
 ) error {
 	ctx := context.Background()
 
-	// Try to get handle to check if schedule exists
-	scheduleHandle := temporalClient.ScheduleClient().GetHandle(ctx, scheduleID)
+	scheduleClient := temporalClient.ScheduleClient()
+	if scheduleClient == nil {
+		logger.Error("Schedule client is not available")
+		return errors.New("schedule client is not available")
+	}
+
+	scheduleHandle := scheduleClient.GetHandle(ctx, scheduleID)
 
 	// Check if schedule exists by attempting to describe it
 	desc, err := scheduleHandle.Describe(ctx)
@@ -71,7 +77,7 @@ func CreateOrUpdateSchedule(
 	}
 
 	// Schedule doesn't exist or was deleted, create it
-	_, err = temporalClient.ScheduleClient().Create(ctx, client.ScheduleOptions{
+	_, err = scheduleClient.Create(ctx, client.ScheduleOptions{
 		ID: scheduleID,
 		Spec: client.ScheduleSpec{
 			Intervals: []client.ScheduleIntervalSpec{
@@ -109,7 +115,14 @@ func DeleteScheduleIfExists(
 ) error {
 	ctx := context.Background()
 
-	scheduleHandle := temporalClient.ScheduleClient().GetHandle(ctx, scheduleID)
+	// Check if schedule client is available
+	scheduleClient := temporalClient.ScheduleClient()
+	if scheduleClient == nil {
+		logger.Error("Schedule client is not available")
+		return errors.New("schedule client is not available")
+	}
+
+	scheduleHandle := scheduleClient.GetHandle(ctx, scheduleID)
 
 	_, err := scheduleHandle.Describe(ctx)
 	if err != nil {

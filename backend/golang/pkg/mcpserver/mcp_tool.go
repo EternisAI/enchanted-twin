@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go"
@@ -66,6 +67,16 @@ func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (agenttype
 		}
 	}
 
+	// Check if the response content indicates an API error
+	// This handles cases where the MCP server returns error content instead of MCP errors
+	if isAPIError(resultText) {
+		return &agenttypes.StructuredToolResult{
+			ToolName:   t.Tool.Name,
+			ToolParams: inputs,
+			ToolError:  resultText,
+		}, fmt.Errorf("API error: %s", resultText)
+	}
+
 	return &agenttypes.StructuredToolResult{
 		ToolName:   t.Tool.Name,
 		ToolParams: inputs,
@@ -118,4 +129,38 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 			Parameters:  params,
 		},
 	}
+}
+
+// isAPIError checks if the response content indicates an API error
+// This detects common error patterns from external APIs.
+func isAPIError(content string) bool {
+	if content == "" {
+		return false
+	}
+
+	// Common error indicators
+	errorIndicators := []string{
+		"API error:",
+		"error\":",
+		"\"error\"",
+		"HTTP error",
+		"400 Bad Request",
+		"401 Unauthorized",
+		"403 Forbidden",
+		"404 Not Found",
+		"429 Too Many Requests",
+		"500 Internal Server Error",
+		"502 Bad Gateway",
+		"503 Service Unavailable",
+		"504 Gateway Timeout",
+	}
+
+	contentLower := strings.ToLower(content)
+	for _, indicator := range errorIndicators {
+		if strings.Contains(contentLower, strings.ToLower(indicator)) {
+			return true
+		}
+	}
+
+	return false
 }

@@ -14,6 +14,19 @@ import (
 
 type StreamDelta = ai.StreamDelta
 
+type ErrorToolResult struct {
+	errorMsg string
+	toolName string
+	params   map[string]any
+}
+
+func (e *ErrorToolResult) Tool() string           { return e.toolName }
+func (e *ErrorToolResult) Content() string        { return e.errorMsg }
+func (e *ErrorToolResult) Data() any              { return nil }
+func (e *ErrorToolResult) ImageURLs() []string    { return []string{} }
+func (e *ErrorToolResult) Error() string          { return e.errorMsg }
+func (e *ErrorToolResult) Params() map[string]any { return e.params }
+
 func (a *Agent) ExecuteStreamWithPrivacy(
 	ctx context.Context,
 	conversationID string,
@@ -22,7 +35,6 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 	onDelta func(StreamDelta),
 	reasoning bool,
 ) (AgentResponse, error) {
-	// Build lookup + OpenAI tool defs once.
 	toolDefs := make([]openai.ChatCompletionToolParam, 0, len(currentTools))
 	toolMap := map[string]tools.Tool{}
 	for _, t := range currentTools {
@@ -94,9 +106,18 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 
 			tool, exists := toolMap[toolCall.Function.Name]
 			if !exists {
-				err := fmt.Sprintf("Tool not found: %s", toolCall.Function.Name)
+				errMsg := fmt.Sprintf("Tool not found: %s", toolCall.Function.Name)
 				a.logger.Error("Tool not found", "tool_name", toolCall.Function.Name)
-				toolErrors = append(toolErrors, err)
+				toolErrors = append(toolErrors, errMsg)
+
+				if a.PostToolCallback != nil {
+					errorResult := &ErrorToolResult{
+						errorMsg: errMsg,
+						toolName: toolCall.Function.Name,
+						params:   map[string]any{},
+					}
+					a.PostToolCallback(toolCall, errorResult)
+				}
 				continue
 			}
 
@@ -105,6 +126,15 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 				errorMsg := fmt.Sprintf("Failed to parse arguments for tool %s: %v", toolCall.Function.Name, err)
 				a.logger.Error("Failed to parse tool arguments", "error", err)
 				toolErrors = append(toolErrors, errorMsg)
+
+				if a.PostToolCallback != nil {
+					errorResult := &ErrorToolResult{
+						errorMsg: errorMsg,
+						toolName: toolCall.Function.Name,
+						params:   map[string]any{},
+					}
+					a.PostToolCallback(toolCall, errorResult)
+				}
 				continue
 			}
 
@@ -127,6 +157,15 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 				a.logger.Error("Tool execution failed", "tool_name", toolCall.Function.Name, "error", err, "args", toolCall.Function.Arguments)
 				toolErrors = append(toolErrors, errorMsg)
 				messages = append(messages, openai.ToolMessage(errorMsg, toolCall.ID))
+
+				if a.PostToolCallback != nil {
+					errorResult := &ErrorToolResult{
+						errorMsg: errorMsg,
+						toolName: toolCall.Function.Name,
+						params:   deAnonymizedArgs,
+					}
+					a.PostToolCallback(toolCall, errorResult)
+				}
 				continue
 			}
 

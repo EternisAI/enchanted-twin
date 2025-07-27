@@ -39,10 +39,31 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		e.Logger.Warn("ToolsRegistry is nil - no tools available for validation")
 	}
 
+	isPossible, ok := inputs["is_possible"].(bool)
+	if !ok {
+		return &types.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: inputs,
+			ToolError:  "is_possible is required",
+		}, errors.New("is_possible is required")
+	}
+	if !isPossible {
+		reasoning, reasoningOk := inputs["is_possible_reasoning"].(string)
+		if !reasoningOk || reasoning == "" {
+			reasoning = "No reasoning provided"
+		}
+		return &types.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: inputs,
+			ToolError:  fmt.Sprintf("Task is not possible to be executed: %s", reasoning),
+		}, errors.New("task is not possible to be executed")
+	}
+
 	task, ok := inputs["task"].(string)
 	if !ok {
 		return nil, errors.New("task is required")
 	}
+
 	delay := 0.0
 	delayValue, ok := inputs["delay"].(float64)
 	if ok {
@@ -65,25 +86,35 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		return nil, errors.New("chat_id is required")
 	}
 
+	e.Logger.Info("🟡 Required tools", "required_tools", inputs["required_tools"])
+	e.Logger.Info("🟡 Is possible", "is_possible", inputs["is_possible"])
+	e.Logger.Info("🟡 Is possible reasoning", "is_possible_reasoning", inputs["is_possible_reasoning"])
+
 	var requiredTools []string
 	if reqToolsInput, ok := inputs["required_tools"]; ok {
 		if reqToolsArray, ok := reqToolsInput.([]interface{}); ok {
-			for _, tool := range reqToolsArray {
+			for i, tool := range reqToolsArray {
 				if toolStr, ok := tool.(string); ok {
 					requiredTools = append(requiredTools, toolStr)
+				} else {
+					e.Logger.Warn("Invalid tool type in required_tools array", "index", i, "type", fmt.Sprintf("%T", tool), "value", tool)
+					return &types.StructuredToolResult{
+						ToolName:   "schedule_task",
+						ToolParams: inputs,
+						ToolError:  fmt.Sprintf("Invalid tool type at index %d in required_tools: expected string, got %T", i, tool),
+					}, fmt.Errorf("invalid tool type at index %d in required_tools: expected string, got %T", i, tool)
 				}
 			}
+		} else {
+			e.Logger.Warn("Invalid required_tools format", "type", fmt.Sprintf("%T", reqToolsInput), "value", reqToolsInput)
+			return &types.StructuredToolResult{
+				ToolName:   "schedule_task",
+				ToolParams: inputs,
+				ToolError:  fmt.Sprintf("Invalid required_tools format: expected array, got %T", reqToolsInput),
+			}, fmt.Errorf("invalid required_tools format: expected array, got %T", reqToolsInput)
 		}
 	}
 
-	detectedTools := e.detectRequiredTools(task)
-	for _, tool := range detectedTools {
-		if !contains(requiredTools, tool) {
-			requiredTools = append(requiredTools, tool)
-		}
-	}
-
-	// Validate that required tools are available
 	if len(requiredTools) > 0 {
 		unavailableTools := e.validateRequiredTools(requiredTools)
 		if len(unavailableTools) > 0 {
@@ -138,35 +169,6 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 	}, nil
 }
 
-// detectRequiredTools analyzes the task content to automatically detect tool dependencies.
-func (e *ScheduleTask) detectRequiredTools(task string) []string {
-	var detectedTools []string
-	taskLower := strings.ToLower(task)
-
-	toolPatterns := map[string][]string{
-		"telegram_send_message": {"telegram", "send telegram", "telegram message", "message telegram"},
-		"twitter":               {"twitter", "tweet", "x.com", "post tweet", "twitter post"},
-		"whatsapp":              {"whatsapp", "whatsapp message", "send whatsapp"},
-		"gmail":                 {"gmail", "email", "send email", "compose email"},
-		"slack":                 {"slack", "slack message", "send slack"},
-		"screenpipe":            {"screenpipe", "screen capture", "screenshot"},
-		"perplexity_ask":        {"perplexity", "search", "search the web", "search the internet", "search the web for", "search the internet for"},
-	}
-
-	for toolName, patterns := range toolPatterns {
-		for _, pattern := range patterns {
-			if strings.Contains(taskLower, pattern) {
-				if !contains(detectedTools, toolName) {
-					detectedTools = append(detectedTools, toolName)
-				}
-				break
-			}
-		}
-	}
-
-	return detectedTools
-}
-
 // validateRequiredTools checks if the required tools are available in the registry.
 func (e *ScheduleTask) validateRequiredTools(requiredTools []string) []string {
 	var unavailableTools []string
@@ -183,16 +185,6 @@ func (e *ScheduleTask) validateRequiredTools(requiredTools []string) []string {
 	}
 
 	return unavailableTools
-}
-
-// contains checks if a string slice contains a specific string.
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
 
 func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
@@ -231,8 +223,16 @@ func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
 						},
 						"description": "Optional list of tools required for this task. If not specified, the system will auto-detect from task content. Common tools: telegram_send_message, twitter, whatsapp, gmail, slack, screenpipe.",
 					},
+					"is_possible": map[string]string{
+						"type":        "boolean",
+						"description": "Whether the task is possible to be executed",
+					},
+					"is_possible_reasoning": map[string]string{
+						"type":        "string",
+						"description": "Reasoning about why the task is possible to be executed given available tools",
+					},
 				},
-				"required": []string{"task", "delay", "name", "chat_id"},
+				"required": []string{"task", "delay", "name", "chat_id", "required_tools", "is_possible", "is_possible_reasoning"},
 			},
 		},
 	}

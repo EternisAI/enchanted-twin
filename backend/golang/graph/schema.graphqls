@@ -48,6 +48,7 @@ type ToolCall {
   isCompleted: Boolean!
   messageId: String!
   result: ToolCallResult
+  error: String
 }
 
 type ToolCallResult {

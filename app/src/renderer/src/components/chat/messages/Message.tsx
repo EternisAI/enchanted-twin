@@ -1,9 +1,10 @@
 import { Message, ToolCall as ToolCallType } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
-import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon } from 'lucide-react'
+import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, XCircle } from 'lucide-react'
 import { extractReasoningAndReply, getToolConfig } from '@renderer/components/chat/config'
 import { Badge } from '@renderer/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import ImagePreview from './ImagePreview'
 import Markdown from '@renderer/components/chat/messages/Markdown'
 import { FeedbackPopover } from './actions/FeedbackPopover'
@@ -211,22 +212,40 @@ function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
     customComponent: CustomComponent
   } = getToolConfig(toolCall.name)
 
-  if (toolCall.isCompleted && CustomComponent) {
+  if (toolCall.isCompleted && CustomComponent && !toolCall.error) {
     return <CustomComponent toolCall={toolCall} />
   }
 
   return (
     <div
       className={cn(
-        'flex items-center gap-2 pt-2',
-        toolCall.isCompleted ? 'text-green-600' : 'text-muted-foreground'
+        'flex flex-col gap-2 pt-2',
+        toolCall.isCompleted
+          ? toolCall.error
+            ? 'text-red-600'
+            : 'text-green-600'
+          : 'text-muted-foreground'
       )}
     >
       {toolCall.isCompleted ? (
-        <Badge className="text-green-600 border-green-500" variant="outline">
-          <CheckCircle className="h-4 w-4" />
-          <span>{toolNameCompleted}</span>
-        </Badge>
+        toolCall.error ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge className="text-red-600 border-red-500 cursor-pointer" variant="outline">
+                <XCircle className="h-4 w-4" />
+                <span>Failed: {toolNameCompleted}</span>
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs">
+              <span className="font-medium">Error:</span> {toolCall.error}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Badge className="text-green-600 border-green-500" variant="outline">
+            <CheckCircle className="h-4 w-4" />
+            <span>{toolNameCompleted}</span>
+          </Badge>
+        )
       ) : (
         <Badge variant="outline" className="border-border">
           <LoaderIcon className="h-4 w-4 animate-spin" />
