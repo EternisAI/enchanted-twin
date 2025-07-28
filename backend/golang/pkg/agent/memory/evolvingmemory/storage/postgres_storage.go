@@ -700,10 +700,21 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 		Limit:         limit,
 	}
 
+	s.logger.Debug("Vector query parameters",
+		"source", sourceParam,
+		"category", categoryParam,
+		"subject", subjectParam,
+		"importance", importanceParam,
+		"min_importance", minImportanceParam,
+		"max_importance", maxImportanceParam,
+		"limit", limit)
+
 	rows, err := s.queries.QueryMemoryFactsByVector(ctx, params)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("executing vector query: %w", err)
 	}
+
+	s.logger.Debug("Vector query raw results", "row_count", len(rows))
 
 	// Convert results to memory facts
 	facts := make([]memory.MemoryFact, 0, len(rows))
@@ -714,13 +725,34 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 			s.logger.Warn("Failed to convert row to memory fact", "error", err)
 			continue
 		}
+
+		// Apply distance filtering if specified
+		if filter != nil && filter.Distance > 0 {
+			// Extract distance from row (it's the last column in the SELECT)
+			if distance, ok := row.Distance.(float64); ok {
+				// PostgreSQL returns cosine distance, Weaviate uses distance-based filtering
+				// filter.Distance is maximum distance threshold (lower distance = more similar)
+				// So we keep results where distance <= threshold
+				s.logger.Debug("Distance filtering check",
+					"cosine_distance", distance,
+					"threshold", filter.Distance,
+					"passes", distance <= float64(filter.Distance))
+				if distance > float64(filter.Distance) {
+					continue // Skip this result as it exceeds the distance threshold
+				}
+			} else {
+				s.logger.Warn("Could not extract distance from row", "distance_value", row.Distance, "type", fmt.Sprintf("%T", row.Distance))
+			}
+		}
+
 		facts = append(facts, *fact)
 	}
 
 	s.logger.Debug("Vector query completed",
 		"query", queryText,
 		"results", len(facts),
-		"limit", limit)
+		"limit", limit,
+		"distance_filter", filter != nil && filter.Distance > 0)
 
 	return memory.QueryResult{
 		Facts: facts,

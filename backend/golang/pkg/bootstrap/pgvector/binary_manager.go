@@ -44,8 +44,8 @@ func NewBinaryManager(logger *log.Logger, cacheDir string) *BinaryManager {
 	return &BinaryManager{
 		logger:   logger,
 		cacheDir: cacheDir,
-		version:  "16.4-pgvector0.7.4", // PostgreSQL 16.4 with pgvector 0.7.4
-		baseURL:  "https://github.com/EternisAI/pgvector-binaries/releases/download",
+		version:  "16.4-pgvector0.7.4",                                     // PostgreSQL 16.4 with pgvector 0.7.4
+		baseURL:  "https://github.com/pgvector/pgvector/releases/download", // Use official pgvector repo
 	}
 }
 

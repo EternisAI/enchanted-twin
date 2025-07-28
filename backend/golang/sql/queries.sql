@@ -39,15 +39,15 @@ DELETE FROM memory_facts WHERE id = $1;
 -- name: QueryMemoryFactsByVector :many
 SELECT *, content_vector <=> $1 AS distance
 FROM memory_facts
-WHERE ($2::text IS NULL OR source = $2)
-  AND ($3::text IS NULL OR fact_category = $3)
-  AND ($4::text IS NULL OR fact_subject ILIKE '%' || $4 || '%')
-  AND ($5::int IS NULL OR fact_importance = $5)
-  AND ($6::int IS NULL OR fact_importance >= $6)
-  AND ($7::int IS NULL OR fact_importance <= $7)
+WHERE ($2::text = '' OR source = $2)
+  AND ($3::text = '' OR fact_category = $3)
+  AND ($4::text = '' OR fact_subject ILIKE '%' || $4 || '%')
+  AND ($5::int = 0 OR fact_importance = $5)
+  AND ($6::int = 0 OR fact_importance >= $6)
+  AND ($7::int = 0 OR fact_importance <= $7)
   AND ($8::timestamptz IS NULL OR timestamp >= $8)
   AND ($9::timestamptz IS NULL OR timestamp <= $9)
-  AND ($10::text IS NULL OR fact_file_path = $10)
+  AND ($10::text = '' OR fact_file_path = $10)
   AND ($11::text[] IS NULL OR tags && $11)
   AND ($12::text[] IS NULL OR document_references && $12)
 ORDER BY content_vector <=> $1
