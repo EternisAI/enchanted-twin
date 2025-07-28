@@ -75,6 +75,7 @@ const api = {
     ipcRenderer.on('toggle-sidebar', listener)
     return () => ipcRenderer.removeListener('toggle-sidebar', listener)
   },
+  getEnvVar: (key: string) => ipcRenderer.invoke('get-env-var', key),
   screenpipe: {
     getStatus: () => ipcRenderer.invoke('screenpipe:get-status'),
     install: () => ipcRenderer.invoke('screenpipe:install'),

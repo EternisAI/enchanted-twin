@@ -57,6 +57,7 @@ interface IApi {
   onOpenSettings: (callback: () => void) => () => void
   onNewChat: (callback: () => void) => () => void
   onToggleSidebar: (callback: () => void) => () => void
+  getEnvVar: (key: string) => Promise<string | null>
   screenpipe: {
     getStatus: () => Promise<ScreenpipeStatus>
     install: () => Promise<ScreenpipeResult>
