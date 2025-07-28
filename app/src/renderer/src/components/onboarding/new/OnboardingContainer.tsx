@@ -18,29 +18,17 @@ export default function OnboardingContainer() {
   const { stopVoiceMode } = useVoiceStore()
   const { microphoneStatus } = useMicrophonePermission()
   const [onboardingType, setOnboardingType] = useState<OnboardingType>('VOICE')
-  const [isOnboardingDisabled, setIsOnboardingDisabled] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+
+  const isOnboardingDisabled = checkVoiceDisabled()
 
   useEffect(() => {
-    const checkVoice = async () => {
-      const disabled = await checkVoiceDisabled()
-      setIsOnboardingDisabled(disabled)
-      setOnboardingType(disabled ? 'TEXT' : 'VOICE')
-      setIsLoading(false)
-    }
-    checkVoice()
-  }, [])
-
-  useEffect(() => {
-    if (isLoading) return
-
     if (isCompleted || isOnboardingDisabled) {
       console.log('isCompleted and pushing', isCompleted, isOnboardingDisabled)
       completeOnboarding()
       stopVoiceMode()
       navigate({ to: '/' })
     }
-  }, [isCompleted, navigate, isLoading, isOnboardingDisabled])
+  }, [isCompleted, navigate, isOnboardingDisabled])
 
   useEffect(() => {
     return () => {
@@ -52,7 +40,7 @@ export default function OnboardingContainer() {
     setOnboardingType('TEXT')
   }
 
-  if (isLoading || isOnboardingDisabled) {
+  if (isOnboardingDisabled) {
     return <></>
   }
 
