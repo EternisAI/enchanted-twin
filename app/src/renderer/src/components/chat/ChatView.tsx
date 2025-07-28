@@ -14,6 +14,7 @@ import { Fade } from '../ui/blur-fade'
 import Error from './Error'
 import { AnonToggleButton } from './AnonToggleButton'
 import { usePrevious } from '@renderer/lib/hooks/usePrevious'
+import { checkVoiceDisabled } from '@renderer/lib/utils'
 
 interface ChatViewProps {
   chat: Chat
@@ -27,6 +28,8 @@ export default function ChatView({ chat }: ChatViewProps) {
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const [isAnonymized, setIsAnonymized] = useState(false)
+
+  const isVoiceDisabled = checkVoiceDisabled()
 
   const {
     privacyDict,
@@ -74,7 +77,7 @@ export default function ChatView({ chat }: ChatViewProps) {
     }
   }
 
-  if (isVoiceMode) {
+  if (isVoiceMode && !isVoiceDisabled) {
     return (
       <VoiceModeChatView
         chat={chat}
