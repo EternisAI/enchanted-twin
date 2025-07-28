@@ -194,6 +194,28 @@ func (c *GoogleClient) CallTool(
 			return nil, err
 		}
 		content = result
+	case UPDATE_CALENDAR_EVENT_TOOL_NAME:
+		var argumentsTyped UpdateEventArgs
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		result, err := processUpdateEvent(ctx, c.Store, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
+	case DELETE_CALENDAR_EVENT_TOOL_NAME:
+		var argumentsTyped DeleteEventArgs
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		result, err := processDeleteEvent(ctx, c.Store, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
 	default:
 		return nil, fmt.Errorf("tool not found")
 	}
