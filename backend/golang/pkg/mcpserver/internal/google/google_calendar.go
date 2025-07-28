@@ -30,7 +30,7 @@ type ListEventsArguments struct {
 	TimeMin      string `json:"time_min,omitempty"    jsonschema:"description=Start time (RFC3339 format) for the query. Example: '2024-01-01T00:00:00Z'"`
 	TimeMax      string `json:"time_max,omitempty"    jsonschema:"description=End time (RFC3339 format) for the query. Example: '2024-01-02T00:00:00Z'"`
 	MaxResults   int    `json:"max_results,omitempty" jsonschema:"description=Maximum number of events returned on one result page. Default is 10, minimum 10, maximum 50."`
-	PageToken    string `json:"page_token,omitempty"  jsonschema:"description=Token specifying which result page to return."`
+	PageToken    string `json:"page_token,omitempty"  jsonschema:"description=The page token to get the next page of events obtained from the previous list_calendar_events call."`
 	Query        string `json:"q,omitempty"           jsonschema:"description=Free text search query terms to find events that match these terms in any field, except for extended properties."`
 }
 
@@ -104,6 +104,13 @@ func processListEvents(
 	}
 
 	contents := []mcp_golang.Content{}
+
+	if events.NextPageToken != "" {
+		paginationText := fmt.Sprintf("NextPageToken: %s\n(Use this token in page_token parameter for your next list_calendar_events call to get more events or mention explicitly that you can get more events)\n",
+			events.NextPageToken)
+		paginationContent := mcp_golang.NewTextContent(paginationText)
+		contents = append(contents, paginationContent)
+	}
 
 	for _, event := range events.Items {
 		sourceTitle := "Unknown"
