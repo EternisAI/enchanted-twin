@@ -95,7 +95,6 @@ async function startGoServer(
         EMBEDDINGS_API_URL: process.env.EMBEDDINGS_API_URL,
         EMBEDDINGS_API_KEY: process.env.EMBEDDINGS_API_KEY,
         EMBEDDINGS_MODEL: process.env.EMBEDDINGS_MODEL,
-        TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
         TELEGRAM_CHAT_SERVER: process.env.TELEGRAM_CHAT_SERVER,
         ENCHANTED_MCP_URL: process.env.ENCHANTED_MCP_URL,
         PROXY_TEE_URL: process.env.PROXY_TEE_URL,
