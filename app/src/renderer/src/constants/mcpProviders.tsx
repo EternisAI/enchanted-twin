@@ -37,8 +37,8 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     scope: 'like.read tweet.read users.read offline.access tweet.write bookmark.read',
     description: '',
     icon: (
-      <IconContainer className="bg-foreground size-8">
-        <XformerlyTwitter className="size-5 text-primary-foreground" />
+      <IconContainer className="bg-foreground dark:bg-black size-8">
+        <XformerlyTwitter className="size-5 text-primary-foreground dark:text-white" />
       </IconContainer>
     ),
     supportsMultipleConnections: false
@@ -99,8 +99,8 @@ export const SMALL_PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
   [McpServerType.Google]: <Google className="size-4" />,
   [McpServerType.Slack]: <Slack className="size-4" />,
   [McpServerType.Twitter]: (
-    <IconContainer className="bg-foreground size-4 rounded-[3px]">
-      <XformerlyTwitter className="size-[10px] text-primary-foreground" />
+    <IconContainer className="bg-foreground dark:bg-black size-4 rounded-[3px]">
+      <XformerlyTwitter className="size-[10px] text-primary-foreground dark:text-white" />
     </IconContainer>
   ),
   [McpServerType.Screenpipe]: <img src={screenpipeIcon} alt="Screenpipe" className="size-5" />,
