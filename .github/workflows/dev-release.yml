@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version number (e.g. v1.2.3)"
+        description: 'Version number (e.g. v1.2.3)'
         required: true
-        default: "v0.0.0"
+        default: 'v0.0.0'
   release:
     types: [prereleased]
 
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -38,7 +38,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.24.2"
+          go-version: '1.24.2'
 
       - name: Check secrets are injected
         env:
@@ -78,22 +78,22 @@ jobs:
 
       - name: Build & notarize macOS dev app
         env:
-          COMPLETIONS_API_URL: "https://openrouter.ai/api/v1"
-          COMPLETIONS_MODEL: "openai/gpt-4.1"
-          REASONING_MODEL: "openai/o3"
-          EMBEDDINGS_API_URL: "https://api.openai.com/v1"
-          EMBEDDINGS_MODEL: "text-embedding-3-small"
-          IS_PROD_BUILD: "true"
+          COMPLETIONS_API_URL: 'https://openrouter.ai/api/v1'
+          COMPLETIONS_MODEL: 'openai/gpt-4.1'
+          REASONING_MODEL: 'openai/o3'
+          EMBEDDINGS_API_URL: 'https://api.openai.com/v1'
+          EMBEDDINGS_MODEL: 'text-embedding-3-small'
+          IS_PROD_BUILD: 'true'
           NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
           NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
-          OLLAMA_BASE_URL: "https://enchanted.ngrok.pro"
+          OLLAMA_BASE_URL: 'https://enchanted.ngrok.pro'
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_SERVER: "https://enchanted-proxy-telegram-dev.up.railway.app/query"
+          TELEGRAM_CHAT_SERVER: 'https://enchanted-proxy-telegram-dev.up.railway.app/query'
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ENCHANTED_MCP_URL: https://proxy-api-dev.ep-use1.ghostagent.org/mcp
-          POSTHOG_API_KEY: ""
+          POSTHOG_API_KEY: ''
           TTS_MODEL: kokoro
           TTS_URL: https://inference.tinfoil.sh/v1/
           STT_MODEL: whisper-large-v3-turbo
@@ -103,14 +103,14 @@ jobs:
           VITE_FIREBASE_AUTH_DOMAIN: freysa-prod.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: freysa-prod
           HOLON_API_URL: http://23.22.67.228:8123
-          ANONYMIZER_TYPE: "local"
-          USE_LOCAL_EMBEDDINGS: "true"
-          TTS_ENDPOINT: "https://inference.tinfoil.sh/v1/audio/speech"
-          BUILD_CHANNEL: "dev"
-          DISABLE_ONBOARDING: "true"
-          DISABLE_HOLONS: "true"
-          DISABLE_TASKS: "true"
-          DISABLE_CONNECTORS: "true"
+          ANONYMIZER_TYPE: 'local'
+          USE_LOCAL_EMBEDDINGS: 'true'
+          TTS_ENDPOINT: 'https://inference.tinfoil.sh/v1/audio/speech'
+          BUILD_CHANNEL: 'dev'
+          DISABLE_ONBOARDING: 'true'
+          DISABLE_HOLONS: 'true'
+          DISABLE_TASKS: 'true'
+          DISABLE_CONNECTORS: 'true'
 
         run: make build-dev-mac-silicon
 
@@ -118,7 +118,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.version }}
-          name: "Dev Release"
+          name: 'Dev Release'
           body: |
             ## Dev Release
             Triggered by: `${{ github.event_name }}`
