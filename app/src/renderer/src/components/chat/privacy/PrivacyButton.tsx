@@ -3,9 +3,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui
 import { cn } from '@renderer/lib/utils'
 import { Button } from '@renderer/components/ui/button'
 
-const PRIVACY_URL =
-  'https://eternis.notion.site/User-facing-Privacy-preserving-AI-interface-22228664e9b180bb879ed89fbe4ea5be?pvs=74'
-
 export function PrivacyButton({
   className,
   label = 'Privacy Enabled'
@@ -14,8 +11,13 @@ export function PrivacyButton({
   label?: string | boolean
 }) {
   const handleClick = () => {
-    window.open(PRIVACY_URL, '_blank')
+    window.location.href = '#/privacy'
   }
+
+  const handleLearnMoreClick = () => {
+    window.location.href = '#/privacy'
+  }
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -36,15 +38,13 @@ export function PrivacyButton({
         <p className="text-xs max-w-[180px]">
           Your messages are routed through our privacy network
         </p>
-        <a
-          href={PRIVACY_URL}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={handleLearnMoreClick}
           className="my-0.5 inline-flex items-center gap-1 relative font-semibold hover:underline text-xs text-primary-foreground/50 before:content-[''] before:absolute before:-inset-2"
         >
           Learn more
           <ExternalLink strokeWidth={2.5} className="w-3 h-3" />
-        </a>
+        </button>
       </TooltipContent>
     </Tooltip>
   )
