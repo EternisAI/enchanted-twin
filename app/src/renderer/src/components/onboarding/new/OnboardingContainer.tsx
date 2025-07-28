@@ -5,7 +5,7 @@ import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import useMicrophonePermission from '@renderer/hooks/useMicrophonePermission'
 import EnableMicrophone from './EnableMicrophone'
-import { checkVoiceDisabled } from '@renderer/lib/utils'
+import { checkOnboardingDisabled } from '@renderer/lib/utils'
 
 import VoiceOnboarding from './VoiceOnboarding'
 import TTSOnboarding from './TTSOnboarding'
@@ -19,7 +19,7 @@ export default function OnboardingContainer() {
   const { microphoneStatus } = useMicrophonePermission()
   const [onboardingType, setOnboardingType] = useState<OnboardingType>('VOICE')
 
-  const isOnboardingDisabled = checkVoiceDisabled()
+  const isOnboardingDisabled = checkOnboardingDisabled()
 
   useEffect(() => {
     if (isCompleted || isOnboardingDisabled) {

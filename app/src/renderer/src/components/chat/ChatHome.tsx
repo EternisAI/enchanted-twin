@@ -17,6 +17,7 @@ import { ChatHomeHeader } from './ChatHomeHeader'
 import { ChatHomeSuggestions } from './ChatHomeSuggestions'
 import { Suggestion } from './ChatHomeSuggestions'
 import { ConnectSourcesButton } from '../data-sources/ConnectButton'
+import { checkConnectorsDisabled } from '@renderer/lib/utils'
 
 interface IndexRouteSearch {
   focusInput?: string
@@ -28,6 +29,7 @@ export function Home() {
   })
   const { isVoiceMode, startVoiceMode } = useVoiceStore()
   const { isVoiceReady } = useDependencyStatus()
+  const isConnectorsDisabled = checkConnectorsDisabled()
 
   const navigate = useNavigate()
   const router = useRouter()
@@ -276,14 +278,16 @@ export function Home() {
           handleSuggestionClick={handleSuggestionClick}
         />
       </div>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: showSuggestions ? 1 : 0, y: showSuggestions ? 0 : 10 }}
-        transition={{ type: 'spring', stiffness: 150, damping: 15, delay: 0.5 }}
-        className="flex justify-center absolute bottom-0 left-0 right-0 p-4"
-      >
-        <ConnectSourcesButton />
-      </motion.div>
+      {!isConnectorsDisabled && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: showSuggestions ? 1 : 0, y: showSuggestions ? 0 : 10 }}
+          transition={{ type: 'spring', stiffness: 150, damping: 15, delay: 0.5 }}
+          className="flex justify-center absolute bottom-0 left-0 right-0 p-4"
+        >
+          <ConnectSourcesButton />
+        </motion.div>
+      )}
     </motion.div>
   )
 }

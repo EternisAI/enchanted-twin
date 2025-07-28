@@ -5,7 +5,7 @@ import { Tooltip } from '../ui/tooltip'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button } from '../ui/button'
 import { AudioLinesIcon, Brain, CheckIcon, X } from 'lucide-react'
-import { cn } from '@renderer/lib/utils'
+import { checkVoiceDisabled, cn } from '@renderer/lib/utils'
 import { SendButton } from './MessageInput'
 import { toast } from 'sonner'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
@@ -37,6 +37,8 @@ export default function ChatInputBox({
   onVoiceModeChange,
   onLayoutAnimationComplete
 }: ChatInputBoxProps) {
+  const isVoiceDisabled = checkVoiceDisabled()
+
   // Auto-resize textarea fallback for browsers without field-sizing support
   useEffect(() => {
     if (!textareaRef.current) return
@@ -139,7 +141,7 @@ export default function ChatInputBox({
                 />
               </motion.div>
             )}
-            {!isVoiceMode && query.length === 0 ? (
+            {!isVoiceMode && query.length === 0 && !isVoiceDisabled ? (
               <motion.div
                 key="talk"
                 layout="position"

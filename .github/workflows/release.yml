@@ -110,6 +110,7 @@ jobs:
           VITE_DISABLE_HOLONS: 'true'
           VITE_DISABLE_TASKS: 'true'
           VITE_DISABLE_CONNECTORS: 'true'
+          VITE_DISABLE_VOICE: 'true'
 
         run: make build-mac-silicon
 
