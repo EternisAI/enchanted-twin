@@ -85,8 +85,8 @@ jobs:
           NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
           NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
-          OLLAMA_BASE_URL: "https://enchanted.ngrok.pro"
-          TELEGRAM_CHAT_SERVER: "https://enchanted-proxy-telegram-dev.up.railway.app/query"
+          OLLAMA_BASE_URL: 'https://enchanted.ngrok.pro'
+          TELEGRAM_CHAT_SERVER: 'https://enchanted-proxy-telegram-dev.up.railway.app/query'
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ENCHANTED_MCP_URL: https://proxy-api-dev.ep-use1.ghostagent.org/mcp
@@ -104,10 +104,10 @@ jobs:
           USE_LOCAL_EMBEDDINGS: 'true'
           TTS_ENDPOINT: 'https://inference.tinfoil.sh/v1/audio/speech'
           BUILD_CHANNEL: 'dev'
-          DISABLE_ONBOARDING: 'true'
-          DISABLE_HOLONS: 'true'
-          DISABLE_TASKS: 'true'
-          DISABLE_CONNECTORS: 'true'
+          VITE_DISABLE_ONBOARDING: 'true'
+          VITE_DISABLE_HOLONS: 'true'
+          VITE_DISABLE_TASKS: 'true'
+          VITE_DISABLE_CONNECTORS: 'true'
 
         run: make build-dev-mac-silicon
 

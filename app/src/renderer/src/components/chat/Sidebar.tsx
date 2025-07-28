@@ -83,24 +83,8 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
   const { openOmnibar } = useOmnibarStore()
   const { isVoiceMode, stopVoiceMode } = useVoiceStore()
   const [showAllChats, setShowAllChats] = useState(false)
-  const [isHolonsDisabled, setIsHolonsDisabled] = useState(false)
-  const [isTasksDisabled, setIsTasksDisabled] = useState(false)
-
-  useEffect(() => {
-    const checkFlags = async () => {
-      try {
-        const [holonsDisabled, tasksDisabled] = await Promise.all([
-          checkHolonsDisabled(),
-          checkTasksDisabled()
-        ])
-        setIsHolonsDisabled(holonsDisabled)
-        setIsTasksDisabled(tasksDisabled)
-      } catch (error) {
-        console.error('Error checking flags:', error)
-      }
-    }
-    checkFlags()
-  }, [])
+  const isHolonsDisabled = checkHolonsDisabled()
+  const isTasksDisabled = checkTasksDisabled()
 
   const handleNewChat = () => {
     if (isVoiceMode) {
