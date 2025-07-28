@@ -45,11 +45,9 @@ jobs:
         env:
           COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
           EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: |
           echo "COMPLETIONS_API_KEY length: ${#COMPLETIONS_API_KEY}"
           echo "EMBEDDINGS_API_KEY length: ${#EMBEDDINGS_API_KEY}"
-          echo "TELEGRAM_TOKEN length: ${#TELEGRAM_TOKEN}"
 
       - name: Install dependencies
         working-directory: app
@@ -108,10 +106,10 @@ jobs:
           ANONYMIZER_TYPE: 'no-op'
           USE_LOCAL_EMBEDDINGS: 'true'
           TTS_ENDPOINT: 'https://inference.tinfoil.sh/v1/audio/speech'
-          DISABLE_ONBOARDING: 'true'
-          DISABLE_HOLONS: 'true'
-          DISABLE_TASKS: 'true'
-          DISABLE_CONNECTORS: 'true'
+          VITE_DISABLE_ONBOARDING: 'true'
+          VITE_DISABLE_HOLONS: 'true'
+          VITE_DISABLE_TASKS: 'true'
+          VITE_DISABLE_CONNECTORS: 'true'
 
         run: make build-mac-silicon
 

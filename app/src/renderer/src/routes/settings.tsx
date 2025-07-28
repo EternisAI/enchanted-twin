@@ -12,7 +12,6 @@ import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { ErrorBoundary } from '@renderer/components/ui/error-boundary'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Info, Settings2, Shield, PlugIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { checkConnectorsDisabled } from '@renderer/lib/utils'
 import { Link } from '@tanstack/react-router'
 
@@ -23,19 +22,7 @@ export const Route = createFileRoute('/settings')({
 function SettingsLayout() {
   const { location } = useRouterState()
   const router = useRouter()
-  const [isConnectorsDisabled, setIsConnectorsDisabled] = useState(false)
-
-  useEffect(() => {
-    const checkFlags = async () => {
-      try {
-        const connectorsDisabled = await checkConnectorsDisabled()
-        setIsConnectorsDisabled(connectorsDisabled)
-      } catch (error) {
-        console.error('Error checking connectors flag:', error)
-      }
-    }
-    checkFlags()
-  }, [])
+  const isConnectorsDisabled = checkConnectorsDisabled()
 
   const settingsTabs = [
     ...(!isConnectorsDisabled
