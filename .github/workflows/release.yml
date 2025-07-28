@@ -45,11 +45,9 @@ jobs:
         env:
           COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
           EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: |
           echo "COMPLETIONS_API_KEY length: ${#COMPLETIONS_API_KEY}"
           echo "EMBEDDINGS_API_KEY length: ${#EMBEDDINGS_API_KEY}"
-          echo "TELEGRAM_TOKEN length: ${#TELEGRAM_TOKEN}"
 
       - name: Install dependencies
         working-directory: app
@@ -90,7 +88,6 @@ jobs:
           NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
           OLLAMA_BASE_URL: "https://enchanted.ngrok.pro"
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_SERVER: "https://enchanted-proxy-telegram-dev.up.railway.app/query"
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
