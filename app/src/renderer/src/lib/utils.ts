@@ -31,3 +31,38 @@ export function getMockFrequencyData(): Uint8Array {
 
   return freqData
 }
+
+const envVarCache = new Map<string, boolean>()
+
+const checkEnvVar = async (key: string): Promise<boolean> => {
+  if (envVarCache.has(key)) {
+    return envVarCache.get(key)!
+  }
+
+  try {
+    const value = await window.api.getEnvVar(key)
+    const result = value === 'true'
+    envVarCache.set(key, result)
+    console.log(`${key}`, value)
+    return result
+  } catch {
+    envVarCache.set(key, false)
+    return false
+  }
+}
+
+export const checkVoiceDisabled = (): Promise<boolean> => {
+  return checkEnvVar('DISABLE_ONBOARDING')
+}
+
+export const checkHolonsDisabled = (): Promise<boolean> => {
+  return checkEnvVar('DISABLE_HOLONS')
+}
+
+export const checkTasksDisabled = (): Promise<boolean> => {
+  return checkEnvVar('DISABLE_TASKS')
+}
+
+export const checkConnectorsDisabled = (): Promise<boolean> => {
+  return checkEnvVar('DISABLE_CONNECTORS')
+}

@@ -817,6 +817,10 @@ export function registerIpcHandlers() {
       }
     }
   })
+
+  ipcMain.handle('get-env-var', async (_, key: string) => {
+    return process.env[key] || null
+  })
 }
 
 // Helper function to register shortcuts
