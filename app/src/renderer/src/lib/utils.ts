@@ -66,3 +66,12 @@ export const checkTasksDisabled = (): Promise<boolean> => {
 export const checkConnectorsDisabled = (): Promise<boolean> => {
   return checkEnvVar('DISABLE_CONNECTORS')
 }
+
+export const checkAnonymizerDisabled = async (): Promise<boolean> => {
+  try {
+    const value = await window.api.getEnvVar('ANONYMIZER_TYPE')
+    return value === 'no-op'
+  } catch {
+    return false
+  }
+}

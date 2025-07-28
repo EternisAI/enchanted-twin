@@ -107,10 +107,10 @@ jobs:
           USE_LOCAL_EMBEDDINGS: "true"
           TTS_ENDPOINT: "https://inference.tinfoil.sh/v1/audio/speech"
           BUILD_CHANNEL: "dev"
-          DISABLE_ONBOARDING: "false"
-          DISABLE_HOLONS: "false"
-          DISABLE_TASKS: "false"
-          DISABLE_CONNECTORS: "false"
+          DISABLE_ONBOARDING: "true"
+          DISABLE_HOLONS: "true"
+          DISABLE_TASKS: "true"
+          DISABLE_CONNECTORS: "true"
 
         run: make build-dev-mac-silicon
 
