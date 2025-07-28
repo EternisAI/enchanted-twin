@@ -24,12 +24,16 @@ Enchanted is a personal AI assistant focused on privacy.
 - Global omnibar
 - Scheduled tasks and periodic tasks
 - Permissions management
+- Light & Dark mode
 
-## Run
+## Install
 
 You can download signed binary from [Github releases](https://github.com/EternisAI/enchanted-twin/releases).
 
 ## Development
+
+Backen stack: Go, temporal, gqlgen, sqlc, nats, weaviate
+Frontend stack: Electron, React, Tanstack Router, Tailwind, shadcn
 
 Requirements
 
@@ -41,13 +45,14 @@ Requirements
 ### Frontend
 
 1. Navigate to the `app` directory
+1. Rename `.env.sample` to `.env` and update the variables
 1. Install packages `pnpm install`
 1. Run the app `cd app && pnpm dev`
 
 ### Backend
 
 1. Navigate to `backend/golang`
-1. Copy `.env.sample` to `.env` and update env variables
+1. Rename `.env.sample` to `.env` and update env variables
 1. Run the server `make run`
 
 Common development commands:
@@ -57,6 +62,7 @@ Common development commands:
 - `make lint` - Auto-fix formatting and run linters
 - `make deadcode` - Check for unused code
 - `make gqlgen` - Generate GraphQL resolvers
+- `make sqlc` - Generate database bindings
 
 ### GraphQL
 
