@@ -108,6 +108,10 @@ jobs:
           ANONYMIZER_TYPE: "no-op"
           USE_LOCAL_EMBEDDINGS: "true"
           TTS_ENDPOINT: "https://inference.tinfoil.sh/v1/audio/speech"
+          DISABLE_ONBOARDING: "false"
+          DISABLE_HOLONS: "false"
+          DISABLE_TASKS: "false"
+          DISABLE_CONNECTORS: "false"
 
         run: make build-mac-silicon
 
