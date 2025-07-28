@@ -1,6 +1,29 @@
-# Enchanted
+![Release](https://img.shields.io/github/v/release/eternisai/enchanted-twin)
+![Stars](https://img.shields.io/github/stars/eternisai/enchanted-twin.svg)
+[<img src="https://img.shields.io/twitter/url?url=https%3A%2F%2Ftwitter.com%freysa_ai">](https://twitter.com/freysa_ai)
+![macOS](https://img.shields.io/badge/macOS-000000?style=?&logo=os&logoColor=white)
 
-Enchanted is a personal AI assistant.
+# Enchanted-Twin
+
+Enchanted is a personal AI assistant focused on privacy.
+
+> The production release of the Enchanted app includes a subset of the features listed in this GitHub repository, as new functionalities undergo testing. Beta features are available in the development release.
+
+## Features
+
+- Fully local support (Ollama)
+- Support for for requests proxy in a trusted enclave
+- Support for Open source and Closed source LLMs
+- Default MCP server support (Gmail, Google Drive, Calendar, X, Slack, Screenpipe) `beta`
+- Add custom MCP servers (stdio, remote) `beta`
+- Advance memory (fact extraction, memory consolidation, embedding search)
+- Support for local embeddings (JinaAI)
+- Support for local anonymiser model `pre-release`
+- Data Imports (WhatsApp, ChatGPT, Telegram, Slack, Google-Gmail, X, Local Files) `beta`
+- Voice mode and Voice onboarding `beta`
+- Global omnibar
+- Scheduled tasks and periodic tasks
+- Permissions management
 
 ## Run
 
@@ -65,7 +88,6 @@ NOTARY_API_ISSUER=899fdbc2-cee9-4aea-b78b-850333a61f19 \
 NOTARY_TEAM_ID=JDDZ55DT74 \
 TELEGRAM_CHAT_SERVER=https://enchanted-proxy-telegram-dev.up.railway.app/query \
 ENCHANTED_MCP_URL=https://enchanted-proxy-dev.up.railway.app/mcp \
-POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
 TTS_API_KEY=tinfoil-api-key \
 TTS_MODEL=kokoro \
 TTS_URL=https://audio-processing.model.tinfoil.sh/v1/ \
@@ -88,7 +110,6 @@ NOTARY_API_ISSUER=899fdbc2-cee9-4aea-b78b-850333a61f19 \
 NOTARY_TEAM_ID=JDDZ55DT74 \
 TELEGRAM_CHAT_SERVER=https://enchanted-proxy-telegram-dev.up.railway.app/query \
 ENCHANTED_MCP_URL=https://enchanted-proxy-dev.up.railway.app/mcp \
-POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
 TTS_API_KEY=tinfoil-api-key \
 TTS_MODEL=kokoro \
 TTS_URL=https://audio-processing.model.tinfoil.sh/v1/ \
