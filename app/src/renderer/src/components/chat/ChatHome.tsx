@@ -104,7 +104,8 @@ export function Home() {
           variables: {
             name: chatTitle || reducedMessage,
             category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
-            initialMessage: message
+            initialMessage: message,
+            isReasoning: isReasonSelected
           }
         })
         const newChatId = createData?.createChat?.id
@@ -198,7 +199,8 @@ export function Home() {
         variables: {
           name: suggestion.name,
           category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
-          initialMessage: suggestion.name
+          initialMessage: suggestion.name,
+          isReasoning: isReasonSelected
         }
       })
       const newChatId = createData?.createChat?.id
