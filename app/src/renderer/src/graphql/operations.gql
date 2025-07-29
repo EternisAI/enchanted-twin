@@ -175,12 +175,14 @@ mutation CreateChat(
   $category: ChatCategory! = TEXT
   $holonThreadId: String
   $initialMessage: String
+  $isReasoning: Boolean! = false
 ) {
   createChat(
     name: $name
     category: $category
     holonThreadId: $holonThreadId
     initialMessage: $initialMessage
+    isReasoning: $isReasoning
   ) {
     id
     name
