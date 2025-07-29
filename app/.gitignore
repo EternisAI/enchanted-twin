@@ -11,3 +11,7 @@ input_data/
 resources/enchanted-twin
 resources/enchanted-twin.exe
 whatsapp_store.db
+
+# Test artifacts
+test-results/
+playwright-report/

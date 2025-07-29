@@ -14,6 +14,8 @@ let goServerProcess: ChildProcess | null = null
 let isInitializing = false
 
 export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND_PORT: number) {
+  console.log('IS_PRODUCTION', IS_PRODUCTION)
+
   if (goServerProcess && !goServerProcess.killed) {
     log.info('[GO] Go server is already running, skipping initialization')
     return true
@@ -53,8 +55,9 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
       const success = await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
       return success
     } else {
-      log.info('Running in development mode - packaged Go server not started')
-      return true
+      //TODO: Remove this once we have a production build
+      const success = await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
+      return success
     }
   } finally {
     isInitializing = false
