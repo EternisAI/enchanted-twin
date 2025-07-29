@@ -42,15 +42,11 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 
 	chatId, ok := inputs["chat_id"].(string)
 	if !ok {
-		return nil, errors.New("chat_id is not a string")
+		return nil, errors.New("chat_id is required")
 	}
 
 	if chatId == "" {
-		chat, err := e.chatStorage.CreateChat(ctx, "Network message", model.ChatCategoryText, nil)
-		if err != nil {
-			return nil, err
-		}
-		chatId = chat.ID
+		return nil, errors.New("chat_id cannot be empty")
 	}
 
 	dbMessage := repository.Message{
@@ -103,8 +99,7 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 			"chat_id": chatId,
 		},
 		Output: map[string]any{
-			"message": "Message sent successfully",
-			"chat_id": chatId,
+			"content": "Message sent successfully",
 		},
 	}, nil
 }
