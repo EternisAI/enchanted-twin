@@ -65,7 +65,7 @@ Enchanted comes with built-in support for popular services:
 - **Slack**: Team communication and workflow
 - **Screenpipe**: Screen and audio capture analysis
 
-Users can also add custom MCP servers folowing stdin or remote protocol.
+Users can also add custom MCP servers following stdin or remote protocol.
 
 ![Data Sources Screenshot 1](https://i.ibb.co/ycKSB4tL/Xnapper-2025-07-28-19-29-43.jpg)
 
@@ -80,14 +80,13 @@ Users can also add custom MCP servers folowing stdin or remote protocol.
 
 ## Voice Capabilities `beta`
 
-<CardGroup cols={2}>
-  <Card title="Voice Mode" icon="microphone">
-    Natural voice conversations with your AI assistant
-  </Card>
-  <Card title="Voice Onboarding" icon="user-plus">
-    Audio-guided setup process for hands-free configuration
-  </Card>
-</CardGroup>
+### Voice Mode
+
+Natural voice conversations with your AI assistant
+
+### Voice Onboarding
+
+Audio-guided setup process for hands-free configuration
 
 ## Interface & Accessibility
 
@@ -111,31 +110,19 @@ Set custom keyboard shortcuts for your most used actions.
 
 ### Agentic tool use
 
-<video
-  src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/agentictools.webm"
-  controls
-  className="my-6 rounded"
-/>
+<video src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/agentictools.webm" controls></video>
 
 ### Tasks
 
-<video src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/tasksTwo.webm" controls className="my-6 rounded" />
+<video src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/tasksTwo.webm" controls></video>
 
 ### Gmail MCP
 
-<video
-  src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/googleMCP_Email.webm"
-  controls
-  className="my-6 rounded"
-/>
+<video src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/googleMCP_Email.webm" controls></video>
 
 ### Google Calendar MCP
 
-<video
-  src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/googleDrive_filesSummarize.webm"
-  controls
-  className="my-6 rounded"
-/>
+<video src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/googleDrive_filesSummarize.webm" controls></video>
 
 ## Install
 
@@ -143,7 +130,7 @@ You can download signed binary from [Github releases](https://github.com/Eternis
 
 ## Development
 
-Backen stack: Go, temporal, gqlgen, sqlc, nats, weaviate
+Backend stack: Go, temporal, gqlgen, sqlc, nats, weaviate
 Frontend stack: Electron, React, Tanstack Router, Tailwind, shadcn
 
 Requirements
@@ -250,7 +237,6 @@ NOTARY_API_ISSUER=899fdbc2-cee9-4aea-b78b-850333a61f19 \
 NOTARY_TEAM_ID=JDDZ55DT74 \
 TELEGRAM_CHAT_SERVER=https://enchanted-proxy-telegram-dev.up.railway.app/query \
 ENCHANTED_MCP_URL=https://enchanted-proxy-dev.up.railway.app/mcp \
-POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
 TTS_API_KEY=tinfoil-api-key \
 TTS_MODEL=kokoro \
 TTS_URL=https://audio-processing.model.tinfoil.sh/v1/ \
@@ -274,7 +260,6 @@ NOTARY_API_ISSUER=899fdbc2-cee9-4aea-b78b-850333a61f19 \
 NOTARY_TEAM_ID=JDDZ55DT74 \
 TELEGRAM_CHAT_SERVER=https://enchanted-proxy-telegram-dev.up.railway.app/query \
 ENCHANTED_MCP_URL=https://enchanted-proxy-dev.up.railway.app/mcp \
-POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
 TTS_API_KEY=tinfoil-api-key \
 TTS_MODEL=kokoro \
 TTS_URL=https://audio-processing.model.tinfoil.sh/v1/ \
