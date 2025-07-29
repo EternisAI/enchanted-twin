@@ -10,8 +10,11 @@ interface IndexRouteSearch {
   focusInput?: string // boolean as string e.g. "true"
 }
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 function IndexComponent() {
-  const { error, success } = Route.useLoaderData()
+  const loaderData = Route.useLoaderData()
+  const { error, success } = loaderData || { error: null, success: false }
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6">
@@ -50,19 +53,30 @@ export const Route = createFileRoute('/')({
     }
   },
   loader: async () => {
-    try {
-      const { data, loading, error } = await client.query({
-        query: GetChatsDocument,
-        variables: { first: 20, offset: 0 }
-      })
-      return { data, loading, error, success: true }
-    } catch (error) {
-      console.error('Error loading chats:', error)
-      return {
-        data: null,
-        loading: false,
-        error: error instanceof Error ? error : new Error('An unexpected error occurred'),
-        success: false
+    const maxRetries = 3
+    const retryDelay = 400
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log('Loading chats', attempt)
+        const { data, loading, error } = await client.query({
+          query: GetChatsDocument,
+          variables: { first: 20, offset: 0 }
+        })
+        return { data, loading, error, success: true }
+      } catch (error) {
+        console.error(`Error loading chats (attempt ${attempt}/${maxRetries}):`, error)
+
+        if (attempt === maxRetries) {
+          return {
+            data: null,
+            loading: false,
+            error: error instanceof Error ? error : new Error('An unexpected error occurred'),
+            success: false
+          }
+        }
+
+        await delay(retryDelay)
       }
     }
   },
