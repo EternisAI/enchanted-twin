@@ -49,6 +49,27 @@ const (
 
 var ErrSubscriptionNilTextMessage = errors.New("subscription stopped due to nil text message")
 
+type rateLimiter struct {
+	mutex    sync.Mutex
+	lastLog  time.Time
+	interval time.Duration
+}
+
+func newRateLimiter(interval time.Duration) *rateLimiter {
+	return &rateLimiter{interval: interval}
+}
+
+func (r *rateLimiter) shouldLog() bool {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	now := time.Now()
+	if now.Sub(r.lastLog) >= r.interval {
+		r.lastLog = now
+		return true
+	}
+	return false
+}
+
 type Update struct {
 	UpdateID int `json:"update_id"`
 	Message  struct {
@@ -90,17 +111,19 @@ type GetUpdatesResponse struct {
 }
 
 type TelegramService struct {
-	Logger           *log.Logger
-	Client           *http.Client
-	Store            *db.Store
-	AiService        *ai.Service
-	CompletionsModel string
-	Memory           memory.Storage
-	AuthStorage      *db.Store
-	LastMessages     []Message
-	NatsClient       *nats.Conn
-	ChatServerUrl    string
-	ToolsRegistry    *tools.ToolMapRegistry
+	Logger              *log.Logger
+	Client              *http.Client
+	Store               *db.Store
+	AiService           *ai.Service
+	CompletionsModel    string
+	Memory              memory.Storage
+	AuthStorage         *db.Store
+	LastMessages        []Message
+	NatsClient          *nats.Conn
+	ChatServerUrl       string
+	ToolsRegistry       *tools.ToolMapRegistry
+	panicLogLimiter     *rateLimiter
+	unhandledLogLimiter *rateLimiter
 }
 
 type safeWebSocketConn struct {
@@ -122,7 +145,7 @@ func (s *safeWebSocketConn) setConn(newConn *websocket.Conn) *websocket.Conn {
 	return oldConn
 }
 
-func (s *safeWebSocketConn) safeReadJSON(v interface{}, logger *log.Logger) error {
+func (s *safeWebSocketConn) safeReadJSON(v interface{}, logger *log.Logger, rateLimiter *rateLimiter) error {
 	conn := s.getConn()
 	if conn == nil {
 		return fmt.Errorf("connection is nil")
@@ -130,7 +153,7 @@ func (s *safeWebSocketConn) safeReadJSON(v interface{}, logger *log.Logger) erro
 
 	defer func() {
 		if r := recover(); r != nil {
-			if logger != nil {
+			if logger != nil && rateLimiter != nil && rateLimiter.shouldLog() {
 				logger.Error("Recovered from panic in safeReadJSON", "panic", r)
 			}
 		}
@@ -222,17 +245,19 @@ type TelegramServiceInput struct {
 
 func NewTelegramService(input TelegramServiceInput) *TelegramService {
 	return &TelegramService{
-		Logger:           input.Logger,
-		Store:            input.Store,
-		Client:           &http.Client{Timeout: time.Second * 30},
-		AiService:        input.AiService,
-		CompletionsModel: input.CompletionsModel,
-		Memory:           input.Memory,
-		AuthStorage:      input.AuthStorage,
-		LastMessages:     []Message{},
-		NatsClient:       input.NatsClient,
-		ChatServerUrl:    input.ChatServerUrl,
-		ToolsRegistry:    input.ToolsRegistry,
+		Logger:              input.Logger,
+		Store:               input.Store,
+		Client:              &http.Client{Timeout: time.Second * 30},
+		AiService:           input.AiService,
+		CompletionsModel:    input.CompletionsModel,
+		Memory:              input.Memory,
+		AuthStorage:         input.AuthStorage,
+		LastMessages:        []Message{},
+		NatsClient:          input.NatsClient,
+		ChatServerUrl:       input.ChatServerUrl,
+		ToolsRegistry:       input.ToolsRegistry,
+		panicLogLimiter:     newRateLimiter(30 * time.Second),
+		unhandledLogLimiter: newRateLimiter(30 * time.Second),
 	}
 }
 
@@ -424,7 +449,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 	var ackResponse struct {
 		Type string `json:"type"`
 	}
-	if err := safeConn.safeReadJSON(&ackResponse, s.Logger); err != nil {
+	if err := safeConn.safeReadJSON(&ackResponse, s.Logger, s.panicLogLimiter); err != nil {
 		s.Logger.Error("Failed to read connection acknowledgment", "error", err)
 		return fmt.Errorf("failed to read connection acknowledgment: %w", err)
 	}
@@ -516,7 +541,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					} `json:"payload"`
 				}
 
-				if err := safeConn.safeReadJSON(&response, s.Logger); err != nil {
+				if err := safeConn.safeReadJSON(&response, s.Logger, s.panicLogLimiter); err != nil {
 					s.Logger.Error("Failed to read WebSocket message", "error", err)
 
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
@@ -594,7 +619,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							}
 
 							s.Logger.Debug("Reading connection acknowledgment on reconnect")
-							if err := tempSafeConn.safeReadJSON(&ackResponse, s.Logger); err != nil {
+							if err := tempSafeConn.safeReadJSON(&ackResponse, s.Logger, s.panicLogLimiter); err != nil {
 								s.Logger.Error("Failed to read connection acknowledgment on reconnect", "error", err)
 								if closeErr := tempSafeConn.safeClose(s.Logger); closeErr != nil {
 									s.Logger.Warn("Failed to close new connection after ack read error", "error", closeErr)
@@ -743,7 +768,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 						return
 					}
 				} else {
-					s.Logger.Info("Received message of unhandled type", "type", response.Type, "response", response)
+					if s.unhandledLogLimiter.shouldLog() {
+						s.Logger.Info("Received message of unhandled type", "type", response.Type, "response", response)
+					}
 				}
 			}
 		}
