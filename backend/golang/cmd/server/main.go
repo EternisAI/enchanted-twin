@@ -598,7 +598,7 @@ func bootstrapTemporalWorker(
 
 	// Register the planned agent v2 workflow
 	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, input.envs.ReasoningModel, nil, nil)
-	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications)
+	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications, input.twinchatService)
 	schedulerActivities.RegisterWorkflowsAndActivities(w)
 
 	// Register identity activities
