@@ -50,6 +50,7 @@ WHERE ($2::text = '' OR source = $2)
   AND ($10::text = '' OR fact_file_path = $10)
   AND ($11::text[] IS NULL OR tags && $11)
   AND ($12::text[] IS NULL OR document_references && $12)
+  AND ($14::float = 0 OR content_vector <=> $1 <= $14)
 ORDER BY content_vector <=> $1
 LIMIT $13;
 
@@ -117,6 +118,7 @@ FROM document_chunks
 WHERE ($2::text IS NULL OR source = $2)
   AND ($3::text IS NULL OR file_path = $3)
   AND ($4::text[] IS NULL OR tags && $4)
+  AND ($6::float = 0 OR content_vector <=> $1 <= $6)
 ORDER BY content_vector <=> $1
 LIMIT $5;
 

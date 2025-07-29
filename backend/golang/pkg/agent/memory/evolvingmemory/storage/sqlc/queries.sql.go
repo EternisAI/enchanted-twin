@@ -402,6 +402,7 @@ FROM document_chunks
 WHERE ($2::text IS NULL OR source = $2)
   AND ($3::text IS NULL OR file_path = $3)
   AND ($4::text[] IS NULL OR tags && $4)
+  AND ($6::float = 0 OR content_vector <=> $1 <= $6)
 ORDER BY content_vector <=> $1
 LIMIT $5
 `
@@ -412,6 +413,7 @@ type QueryDocumentChunksByVectorParams struct {
 	Column3       string              `json:"column3"`
 	Column4       []string            `json:"column4"`
 	Limit         int32               `json:"limit"`
+	Column6       float64             `json:"column6"`
 }
 
 type QueryDocumentChunksByVectorRow struct {
@@ -435,6 +437,7 @@ func (q *Queries) QueryDocumentChunksByVector(ctx context.Context, arg QueryDocu
 		arg.Column3,
 		arg.Column4,
 		arg.Limit,
+		arg.Column6,
 	)
 	if err != nil {
 		return nil, err
@@ -480,6 +483,7 @@ WHERE ($2::text = '' OR source = $2)
   AND ($10::text = '' OR fact_file_path = $10)
   AND ($11::text[] IS NULL OR tags && $11)
   AND ($12::text[] IS NULL OR document_references && $12)
+  AND ($14::float = 0 OR content_vector <=> $1 <= $14)
 ORDER BY content_vector <=> $1
 LIMIT $13
 `
@@ -498,6 +502,7 @@ type QueryMemoryFactsByVectorParams struct {
 	Column11      []string            `json:"column11"`
 	Column12      []string            `json:"column12"`
 	Limit         int32               `json:"limit"`
+	Column14      float64             `json:"column14"`
 }
 
 type QueryMemoryFactsByVectorRow struct {
@@ -536,6 +541,7 @@ func (q *Queries) QueryMemoryFactsByVector(ctx context.Context, arg QueryMemoryF
 		arg.Column11,
 		arg.Column12,
 		arg.Limit,
+		arg.Column14,
 	)
 	if err != nil {
 		return nil, err

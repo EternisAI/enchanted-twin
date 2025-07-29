@@ -560,10 +560,19 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 
 	pgVector := pgvector.NewVector(embedding)
 
-	// Set default limit if not specified
-	limit := int32(10)
+	// Set default limit if not specified (matches Weaviate's default)
+	limit := int32(100)
 	if filter != nil && filter.Limit != nil && *filter.Limit > 0 {
 		limit = int32(*filter.Limit)
+	}
+
+	// When distance filtering is applied, increase limit significantly to match Weaviate behavior
+	// Weaviate returns ALL results that pass distance threshold, not limited by the original limit
+	actualLimit := limit
+	if filter != nil && filter.Distance > 0 {
+		// Use a much higher limit to get enough candidates for distance filtering
+		// This matches Weaviate's behavior where distance filtering determines result count
+		actualLimit = 1000 // Get up to 1000 candidates, then distance filter determines final count
 	}
 
 	// Build query parameters based on filter
@@ -683,6 +692,12 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 		maxImportanceParam = pgMaxImportance.Int32
 	}
 
+	// Set distance parameter
+	var distanceParam float64
+	if filter != nil && filter.Distance > 0 {
+		distanceParam = float64(filter.Distance)
+	}
+
 	// Execute vector similarity query
 	params := sqlc.QueryMemoryFactsByVectorParams{
 		ContentVector: &pgVector,
@@ -697,7 +712,8 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 		Column10:      filePathParam,      // fact_file_path
 		Column11:      pgTags,             // tags
 		Column12:      pgDocumentRefs,     // document_references
-		Limit:         limit,
+		Limit:         actualLimit,
+		Column14:      distanceParam, // distance threshold
 	}
 
 	s.logger.Debug("Vector query parameters",
@@ -707,7 +723,9 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 		"importance", importanceParam,
 		"min_importance", minImportanceParam,
 		"max_importance", maxImportanceParam,
-		"limit", limit)
+		"distance_threshold", distanceParam,
+		"requested_limit", limit,
+		"actual_limit", actualLimit)
 
 	rows, err := s.queries.QueryMemoryFactsByVector(ctx, params)
 	if err != nil {
@@ -726,33 +744,15 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 			continue
 		}
 
-		// Apply distance filtering if specified
-		if filter != nil && filter.Distance > 0 {
-			// Extract distance from row (it's the last column in the SELECT)
-			if distance, ok := row.Distance.(float64); ok {
-				// PostgreSQL returns cosine distance, Weaviate uses distance-based filtering
-				// filter.Distance is maximum distance threshold (lower distance = more similar)
-				// So we keep results where distance <= threshold
-				s.logger.Debug("Distance filtering check",
-					"cosine_distance", distance,
-					"threshold", filter.Distance,
-					"passes", distance <= float64(filter.Distance))
-				if distance > float64(filter.Distance) {
-					continue // Skip this result as it exceeds the distance threshold
-				}
-			} else {
-				s.logger.Warn("Could not extract distance from row", "distance_value", row.Distance, "type", fmt.Sprintf("%T", row.Distance))
-			}
-		}
-
 		facts = append(facts, *fact)
 	}
 
 	s.logger.Debug("Vector query completed",
 		"query", queryText,
 		"results", len(facts),
-		"limit", limit,
-		"distance_filter", filter != nil && filter.Distance > 0)
+		"requested_limit", limit,
+		"actual_limit", actualLimit,
+		"distance_threshold", distanceParam)
 
 	return memory.QueryResult{
 		Facts: facts,
@@ -1159,10 +1159,16 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 
 	pgVector := pgvector.NewVector(embedding)
 
-	// Set default limit if not specified
-	limit := int32(10)
+	// Set default limit if not specified (matches Weaviate's default)
+	limit := int32(100)
 	if filter != nil && filter.Limit != nil && *filter.Limit > 0 {
 		limit = int32(*filter.Limit)
+	}
+
+	// When distance filtering is applied, increase limit significantly to match Weaviate behavior
+	actualLimit := limit
+	if filter != nil && filter.Distance > 0 {
+		actualLimit = 1000 // Get up to 1000 candidates, then distance filter determines final count
 	}
 
 	// Build query parameters based on filter
@@ -1205,12 +1211,19 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 		filePathParam = pgFilePath.String
 	}
 
+	// Set distance parameter
+	var distanceParam float64
+	if filter != nil && filter.Distance > 0 {
+		distanceParam = float64(filter.Distance)
+	}
+
 	params := sqlc.QueryDocumentChunksByVectorParams{
 		ContentVector: &pgVector,
 		Column2:       sourceParam,   // source parameter
 		Column3:       filePathParam, // file_path parameter
 		Column4:       pgTags,        // tags parameter
-		Limit:         limit,
+		Limit:         actualLimit,
+		Column6:       distanceParam, // distance threshold
 	}
 
 	rows, err := s.queries.QueryDocumentChunksByVector(ctx, params)
@@ -1256,7 +1269,8 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 	s.logger.Debug("Document chunk vector query completed",
 		"query", queryText,
 		"results", len(chunks),
-		"limit", limit)
+		"requested_limit", limit,
+		"actual_limit", actualLimit)
 
 	return chunks, nil
 }

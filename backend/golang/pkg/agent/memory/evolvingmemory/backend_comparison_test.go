@@ -59,12 +59,14 @@ func setupBackendComparisonSuite(t *testing.T) *BackendComparisonSuite {
 	logger := log.New(os.Stdout)
 	logger.SetLevel(log.DebugLevel) // Enable debug output for troubleshooting
 
-	// Load environment variables
+	// Load environment variables (try .env.test first, then .env)
+	testEnvPath := filepath.Join("..", "..", "..", "..", ".env.test")
+	_ = godotenv.Load(testEnvPath)
 	envPath := filepath.Join("..", "..", "..", "..", ".env")
 	_ = godotenv.Load(envPath)
 
-	// Create AI services (with local model support)
-	aiEmbeddingService, aiCompletionService, err := createAIServices(logger)
+	// Create AI services with testcontainers as primary approach
+	aiEmbeddingService, aiCompletionService, err := createAIServicesWithContainers(ctx, logger)
 	if err != nil {
 		t.Skip("Skipping backend comparison tests: " + err.Error())
 		return nil
@@ -214,7 +216,7 @@ func (s *BackendComparisonSuite) createPgvectorSchema(conn *pgx.Conn) error {
 		CREATE TABLE IF NOT EXISTS memory_facts (
 		    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		    content TEXT NOT NULL,
-		    content_vector VECTOR(1536) NOT NULL, -- OpenAI embedding dimensions
+		    content_vector VECTOR(768) NOT NULL, -- JinaAI v2-base-en embedding dimensions
 		    timestamp TIMESTAMPTZ NOT NULL,
 		    source TEXT NOT NULL,
 		    tags TEXT[] DEFAULT '{}',
@@ -247,7 +249,7 @@ func (s *BackendComparisonSuite) createPgvectorSchema(conn *pgx.Conn) error {
 		CREATE TABLE IF NOT EXISTS document_chunks (
 		    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		    content TEXT NOT NULL,
-		    content_vector VECTOR(1536), -- OpenAI embedding dimensions
+		    content_vector VECTOR(768), -- JinaAI v2-base-en embedding dimensions
 		    chunk_index INTEGER NOT NULL,
 		    original_document_id TEXT NOT NULL,
 		    source TEXT NOT NULL,
@@ -1166,12 +1168,37 @@ func (s *BackendComparisonSuite) verifyDistanceThreshold(t *testing.T, facts []m
 	}
 }
 
-// getEnvOrDefault returns environment variable value or default.
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+// createAIServicesWithContainers creates AI services with testcontainers as primary approach.
+func createAIServicesWithContainers(ctx context.Context, logger *log.Logger) (ai.Embedding, *ai.Service, error) {
+	// Try testcontainers first if enabled and Docker is available
+	if shouldUseTestContainers() && isDockerAvailable(ctx) {
+		logger.Info("Attempting to use testcontainers for AI services")
+
+		containers, err := SetupTestContainers(ctx, logger)
+		if err != nil {
+			logger.Warn("Failed to setup testcontainers, falling back to other methods", "error", err)
+		} else {
+			// Create container-based AI service
+			containerAIService := NewContainerAIService(containers, logger)
+
+			// Test the service to make sure it works
+			if err := containerAIService.HealthCheck(ctx); err != nil {
+				logger.Warn("Container services failed health check, falling back", "error", err)
+				_ = containers.Cleanup(ctx)
+			} else {
+				logger.Info("Successfully initialized testcontainer-based AI services")
+
+				// For now, return the container service for embeddings and use existing mock for completion
+				// The main focus is getting the real JinaAI embeddings working
+				mockService := NewMockAIService(logger)
+				return containerAIService, mockService.Service, nil
+			}
+		}
 	}
-	return defaultValue
+
+	// Fall back to existing methods
+	logger.Info("Using traditional AI service setup (local models or API)")
+	return createAIServices(logger)
 }
 
 // createAIServices creates AI services with support for local models.
