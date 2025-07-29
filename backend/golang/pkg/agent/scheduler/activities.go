@@ -24,6 +24,11 @@ type userProfile interface {
 	GetOAuthTokensArray(ctx context.Context, provider string) ([]db.OAuthTokens, error)
 }
 
+type chatStorage interface {
+	GetChat(ctx context.Context, id string) (model.Chat, error)
+	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (model.Chat, error)
+}
+
 type TaskSchedulerActivities struct {
 	AIService        *ai.Service
 	Agent            *agent.Agent
@@ -32,9 +37,10 @@ type TaskSchedulerActivities struct {
 	logger           *log.Logger
 	userStorage      userProfile
 	notifications    *notifications.Service
+	chatStorage      chatStorage
 }
 
-func NewTaskSchedulerActivities(logger *log.Logger, AIService *ai.Service, Agent *agent.Agent, Tools tools.ToolRegistry, completionsModel string, userStorage userProfile, notifications *notifications.Service) *TaskSchedulerActivities {
+func NewTaskSchedulerActivities(logger *log.Logger, AIService *ai.Service, Agent *agent.Agent, Tools tools.ToolRegistry, completionsModel string, userStorage userProfile, notifications *notifications.Service, chatStorage chatStorage) *TaskSchedulerActivities {
 	return &TaskSchedulerActivities{
 		AIService:        AIService,
 		Agent:            Agent,
@@ -43,6 +49,7 @@ func NewTaskSchedulerActivities(logger *log.Logger, AIService *ai.Service, Agent
 		logger:           logger,
 		userStorage:      userStorage,
 		notifications:    notifications,
+		chatStorage:      chatStorage,
 	}
 }
 
@@ -59,10 +66,41 @@ type ExecuteTaskActivityInput struct {
 	Name           string
 }
 
-func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input ExecuteTaskActivityInput) (string, error) {
-	systemPrompt, err := s.buildSystemPrompt(ctx, input.ChatID, input.PreviousResult)
+func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input ExecuteTaskActivityInput) (ExecuteTaskActivityOutput, error) {
+	currentChatID := input.ChatID
+
+	if currentChatID != "" {
+		_, err := s.chatStorage.GetChat(ctx, currentChatID)
+		if err != nil {
+			s.logger.Warn("Scheduled task chat not found, creating new chat",
+				"original_chat_id", currentChatID,
+				"error", err)
+
+			chat, createErr := s.chatStorage.CreateChat(ctx, "Scheduled Task Chat", model.ChatCategoryText, nil)
+			if createErr != nil {
+				s.logger.Error("failed to create replacement chat for scheduled task", "error", createErr)
+				return ExecuteTaskActivityOutput{}, createErr
+			}
+
+			s.logger.Info("Created new chat for scheduled task",
+				"original_chat_id", currentChatID,
+				"new_chat_id", chat.ID)
+			currentChatID = chat.ID
+		}
+	} else {
+		// If no chat specified, create one
+		chat, err := s.chatStorage.CreateChat(ctx, "Scheduled Task Chat", model.ChatCategoryText, nil)
+		if err != nil {
+			s.logger.Error("failed to create chat for scheduled task", "error", err)
+			return ExecuteTaskActivityOutput{}, err
+		}
+		s.logger.Info("Created new chat for scheduled task", "chat_id", chat.ID)
+		currentChatID = chat.ID
+	}
+
+	systemPrompt, err := s.buildSystemPrompt(ctx, currentChatID, input.PreviousResult)
 	if err != nil {
-		return "", err
+		return ExecuteTaskActivityOutput{}, err
 	}
 
 	tools := s.ToolsRegistry.Excluding("schedule_task").GetAll()
@@ -76,7 +114,7 @@ func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input Exe
 	}
 	response, err := s.Agent.Execute(ctx, map[string]any{}, messages, tools)
 	if err != nil {
-		return "", err
+		return ExecuteTaskActivityOutput{}, err
 	}
 
 	if input.Notify {
@@ -85,7 +123,7 @@ func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input Exe
 			Title:     input.Name,
 			Message:   response.Content,
 			CreatedAt: time.Now().Format(time.RFC3339),
-			Link:      helpers.Ptr("twin://chat/" + input.ChatID),
+			Link:      helpers.Ptr("twin://chat/" + currentChatID),
 		}
 		if len(response.ImageURLs) > 0 {
 			notification.Image = &response.ImageURLs[0]
@@ -93,11 +131,14 @@ func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input Exe
 		}
 		err = s.notifications.SendNotification(ctx, notification)
 		if err != nil {
-			return "", err
+			return ExecuteTaskActivityOutput{}, err
 		}
 	}
 
-	return response.String(), nil
+	return ExecuteTaskActivityOutput{
+		Completion: response.String(),
+		ChatID:     currentChatID,
+	}, nil
 }
 
 func (s *TaskSchedulerActivities) buildSystemPrompt(ctx context.Context, chatID string, previousResult *string) (string, error) {

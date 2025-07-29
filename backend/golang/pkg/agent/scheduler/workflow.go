@@ -19,6 +19,12 @@ type TaskScheduleWorkflowInput struct {
 type TaskScheduleWorkflowOutput struct {
 	Result   string `json:"result"`
 	Progress string `json:"progress"`
+	ChatID   string `json:"chat_id"`
+}
+
+type ExecuteTaskActivityOutput struct {
+	Completion string `json:"completion"`
+	ChatID     string `json:"chat_id"`
 }
 
 func TaskScheduleWorkflow(ctx workflow.Context, input *TaskScheduleWorkflowInput) (TaskScheduleWorkflowOutput, error) {
@@ -42,15 +48,19 @@ func TaskScheduleWorkflow(ctx workflow.Context, input *TaskScheduleWorkflowInput
 	}
 
 	var lastWorkflowResult *string
+	currentChatID := input.ChatID
 	if lastWorkflowOutput != nil {
 		lastWorkflowResult = &lastWorkflowOutput.Result
+		if lastWorkflowOutput.ChatID != "" {
+			currentChatID = lastWorkflowOutput.ChatID
+		}
 	}
 
-	var completion string
+	var result ExecuteTaskActivityOutput
 	executeTaskInput := ExecuteTaskActivityInput{
 		Task:           input.Task,
 		PreviousResult: lastWorkflowResult,
-		ChatID:         input.ChatID,
+		ChatID:         currentChatID,
 		Notify:         input.Notify,
 		Name:           input.Name,
 	}
@@ -58,12 +68,13 @@ func TaskScheduleWorkflow(ctx workflow.Context, input *TaskScheduleWorkflowInput
 		ctx,
 		a.executeActivity,
 		executeTaskInput,
-	).Get(ctx, &completion); err != nil {
+	).Get(ctx, &result); err != nil {
 		return TaskScheduleWorkflowOutput{}, err
 	}
 
 	return TaskScheduleWorkflowOutput{
-		Result:   completion,
+		Result:   result.Completion,
 		Progress: "Completed",
+		ChatID:   result.ChatID,
 	}, nil
 }
