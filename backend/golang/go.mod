@@ -21,7 +21,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/lnquy/cron v1.1.1
-	github.com/mark3labs/mcp-go v0.33.0
+	github.com/mark3labs/mcp-go v0.36.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/mnako/letters v0.2.5
 	github.com/nats-io/nats-server/v2 v2.11.3
@@ -400,4 +400,4 @@ replace google.golang.org/grpc => google.golang.org/grpc v1.71.1
 
 replace github.com/openai/openai-go => github.com/EternisAI/openai-go v0.0.0-20250606184246-5a5e4fffe44c
 
-replace github.com/mark3labs/mcp-go => github.com/pottekkat/mcp-go v0.26.1-0.20250717054748-800e5297e1c6
+// replace github.com/mark3labs/mcp-go => github.com/pottekkat/mcp-go v0.26.1-0.20250717054748-800e5297e1c6
