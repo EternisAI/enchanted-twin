@@ -31,3 +31,23 @@ export function getMockFrequencyData(): Uint8Array {
 
   return freqData
 }
+
+export const checkOnboardingDisabled = (): boolean => {
+  return import.meta.env.VITE_DISABLE_ONBOARDING === 'true'
+}
+
+export const checkHolonsDisabled = (): boolean => {
+  return import.meta.env.VITE_DISABLE_HOLONS === 'true'
+}
+
+export const checkTasksDisabled = (): boolean => {
+  return import.meta.env.VITE_DISABLE_TASKS === 'true'
+}
+
+export const checkConnectorsDisabled = (): boolean => {
+  return import.meta.env.VITE_DISABLE_CONNECTORS === 'true'
+}
+
+export const checkVoiceDisabled = (): boolean => {
+  return import.meta.env.VITE_DISABLE_VOICE === 'true'
+}

@@ -5,6 +5,7 @@ import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import useMicrophonePermission from '@renderer/hooks/useMicrophonePermission'
 import EnableMicrophone from './EnableMicrophone'
+import { checkOnboardingDisabled } from '@renderer/lib/utils'
 
 import VoiceOnboarding from './VoiceOnboarding'
 import TTSOnboarding from './TTSOnboarding'
@@ -13,19 +14,21 @@ type OnboardingType = 'VOICE' | 'TEXT'
 
 export default function OnboardingContainer() {
   const navigate = useNavigate()
-  const { isCompleted } = useOnboardingStore()
+  const { isCompleted, completeOnboarding } = useOnboardingStore()
   const { stopVoiceMode } = useVoiceStore()
   const { microphoneStatus } = useMicrophonePermission()
-
   const [onboardingType, setOnboardingType] = useState<OnboardingType>('VOICE')
 
+  const isOnboardingDisabled = checkOnboardingDisabled()
+
   useEffect(() => {
-    if (isCompleted) {
-      console.log('isCompleted and pushing', isCompleted)
+    if (isCompleted || isOnboardingDisabled) {
+      console.log('isCompleted and pushing', isCompleted, isOnboardingDisabled)
+      completeOnboarding()
       stopVoiceMode()
       navigate({ to: '/' })
     }
-  }, [isCompleted, navigate])
+  }, [isCompleted, navigate, isOnboardingDisabled])
 
   useEffect(() => {
     return () => {
@@ -35,6 +38,10 @@ export default function OnboardingContainer() {
 
   const onSkipMicrophoneAccess = () => {
     setOnboardingType('TEXT')
+  }
+
+  if (isOnboardingDisabled) {
+    return <></>
   }
 
   return (

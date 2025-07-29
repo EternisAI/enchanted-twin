@@ -1,14 +1,19 @@
-import { createFileRoute, Outlet, Navigate } from '@tanstack/react-router'
-import { Button } from '@renderer/components/ui/button'
-import { ArrowLeft, Info, PlugIcon } from 'lucide-react'
-import { Link, useRouterState, useRouter } from '@tanstack/react-router'
-import { Settings2, Shield } from 'lucide-react'
-import { ScrollArea } from '@renderer/components/ui/scroll-area'
-import { cn } from '@renderer/lib/utils'
+import {
+  createFileRoute,
+  Navigate,
+  Outlet,
+  useRouterState,
+  useRouter
+} from '@tanstack/react-router'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
+import { cn } from '@renderer/lib/utils'
+import { Button } from '@renderer/components/ui/button'
+import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { ErrorBoundary } from '@renderer/components/ui/error-boundary'
 import { motion } from 'framer-motion'
-import { useAppName } from '@renderer/hooks/useAppName'
+import { ArrowLeft, Info, Settings2, Shield, PlugIcon } from 'lucide-react'
+import { checkConnectorsDisabled } from '@renderer/lib/utils'
+import { Link } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsLayout
@@ -17,15 +22,19 @@ export const Route = createFileRoute('/settings')({
 function SettingsLayout() {
   const { location } = useRouterState()
   const router = useRouter()
-  const { isDevRelease, loading: loadingAppName } = useAppName()
+  const isConnectorsDisabled = checkConnectorsDisabled()
 
   const settingsTabs = [
-    {
-      value: 'data-sources',
-      label: 'Connections',
-      icon: PlugIcon,
-      path: '/settings/data-sources'
-    },
+    ...(!isConnectorsDisabled
+      ? [
+          {
+            value: 'data-sources',
+            label: 'Connections',
+            icon: PlugIcon,
+            path: '/settings/data-sources'
+          }
+        ]
+      : []),
     {
       value: 'permissions',
       label: 'Permissions',
@@ -56,11 +65,15 @@ function SettingsLayout() {
     // : [])
   ]
 
-  // Default to appearance tab if on base settings route
+  // Default to permissions tab if on base settings route (since data-sources might be disabled)
   const isBaseSettingsRoute = location.pathname === '/settings'
 
   if (isBaseSettingsRoute) {
-    return <Navigate to={DEFAULT_SETTINGS_ROUTE} replace />
+    if (isConnectorsDisabled) {
+      return <Navigate to="/settings/permissions" replace />
+    } else {
+      return <Navigate to={DEFAULT_SETTINGS_ROUTE} replace />
+    }
   }
 
   const handleBackClick = () => {
