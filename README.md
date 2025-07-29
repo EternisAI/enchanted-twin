@@ -14,6 +14,12 @@ Enchanted is a personal AI assistant focused on privacy.
 
 > The production release of the Enchanted app includes a subset of the features listed in this GitHub repository, as new functionalities undergo testing. Beta features are available in the development release.
 
+## Install
+
+[![Download for macOS](https://badgen.net/badge/Download/macOS%20Apple%20Silicon/blue?style=flat&icon=apple)](https://github.com/EternisAI/enchanted-twin/releases/download/v0.0.189/Enchanted-0.0.189-arm64.dmg)
+
+Or browse all versions at [GitHub releases](https://github.com/EternisAI/enchanted-twin/releases).
+
 ## Features
 
 - Fully local support (Ollama)
@@ -123,10 +129,6 @@ Set custom keyboard shortcuts for your most used actions.
 ### Google Calendar MCP
 
 <video src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/googleDrive_filesSummarize.webm" controls></video>
-
-## Install
-
-You can download signed binary from [Github releases](https://github.com/EternisAI/enchanted-twin/releases).
 
 ## Development
 
