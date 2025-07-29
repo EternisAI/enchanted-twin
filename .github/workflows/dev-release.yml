@@ -100,7 +100,7 @@ jobs:
           VITE_FIREBASE_AUTH_DOMAIN: freysa-prod.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: freysa-prod
           HOLON_API_URL: http://23.22.67.228:8123
-          ANONYMIZER_TYPE: 'local'
+          ANONYMIZER_TYPE: 'no-op'
           USE_LOCAL_EMBEDDINGS: 'true'
           TTS_ENDPOINT: 'https://inference.tinfoil.sh/v1/audio/speech'
           BUILD_CHANNEL: 'dev'
