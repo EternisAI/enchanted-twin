@@ -116,6 +116,9 @@ Set custom keyboard shortcuts for your most used actions.
 
 ### Agentic tool use
 
+<video src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/agentictools.webm"></video>
+
+
 <video src="https://d1vu5azmz7om3b.cloudfront.net/videos/external/agentictools.webm" controls></video>
 
 ### Tasks
