@@ -175,7 +175,7 @@ type ComplexityRoot struct {
 		AddTrackedFolder          func(childComplexity int, input model.AddTrackedFolderInput) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
 		ConnectMCPServer          func(childComplexity int, input model.ConnectMCPServerInput) int
-		CreateChat                func(childComplexity int, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) int
+		CreateChat                func(childComplexity int, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string, isReasoning bool) int
 		DeleteAgentTask           func(childComplexity int, id string) int
 		DeleteChat                func(childComplexity int, chatID string) int
 		DeleteDataSource          func(childComplexity int, id string) int
@@ -346,7 +346,7 @@ type MutationResolver interface {
 	CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error)
 	RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
-	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) (*model.Chat, error)
+	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string, isReasoning bool) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
@@ -1041,7 +1041,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateChat(childComplexity, args["name"].(string), args["category"].(model.ChatCategory), args["holonThreadId"].(*string), args["initialMessage"].(*string)), true
+		return e.complexity.Mutation.CreateChat(childComplexity, args["name"].(string), args["category"].(model.ChatCategory), args["holonThreadId"].(*string), args["initialMessage"].(*string), args["isReasoning"].(bool)), true
 
 	case "Mutation.deleteAgentTask":
 		if e.complexity.Mutation.DeleteAgentTask == nil {
@@ -2236,6 +2236,11 @@ func (ec *executionContext) field_Mutation_createChat_args(ctx context.Context, 
 		return nil, err
 	}
 	args["initialMessage"] = arg3
+	arg4, err := ec.field_Mutation_createChat_argsIsReasoning(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["isReasoning"] = arg4
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_createChat_argsName(
@@ -2287,6 +2292,19 @@ func (ec *executionContext) field_Mutation_createChat_argsInitialMessage(
 	}
 
 	var zeroVal *string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_createChat_argsIsReasoning(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (bool, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("isReasoning"))
+	if tmp, ok := rawArgs["isReasoning"]; ok {
+		return ec.unmarshalNBoolean2bool(ctx, tmp)
+	}
+
+	var zeroVal bool
 	return zeroVal, nil
 }
 
@@ -6916,7 +6934,7 @@ func (ec *executionContext) _Mutation_createChat(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateChat(rctx, fc.Args["name"].(string), fc.Args["category"].(model.ChatCategory), fc.Args["holonThreadId"].(*string), fc.Args["initialMessage"].(*string))
+		return ec.resolvers.Mutation().CreateChat(rctx, fc.Args["name"].(string), fc.Args["category"].(model.ChatCategory), fc.Args["holonThreadId"].(*string), fc.Args["initialMessage"].(*string), fc.Args["isReasoning"].(bool))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
