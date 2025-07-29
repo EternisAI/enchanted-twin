@@ -110,7 +110,7 @@ Instantly open the Omnibar from any application with <kbd>⌘</kbd> + <kbd>⌥</
 
 Set custom keyboard shortcuts for your most used actions.
 
-![Keyboard Shortcuts Screenshot](https://i.ibb.co/t6zzQgF/Xnapper-2025-07-28-20-19-37.jpg)
+![Keyboard Shortcuts Screenshot](https://i.ibb.co/t6zzQgF/Xnapper-2025-07-28-20-19-37.jpg?cb=2)
 
 ## Demos
 
