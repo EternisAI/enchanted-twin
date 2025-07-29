@@ -142,6 +142,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload all artifacts to 'stable'
-        run: gh release upload stable app/dist/* --clobber
+        run: |
+          # Upload all files in dist, excluding directories
+          find app/dist -type f -exec gh release upload stable {} --clobber \;
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
