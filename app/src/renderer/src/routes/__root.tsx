@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { createRootRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { useQuery } from '@apollo/client'
 
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 import { Omnibar } from '@renderer/components/Omnibar'
@@ -8,7 +7,7 @@ import { GlobalIndexingStatus } from '@renderer/components/GlobalIndexingStatus'
 import { NotificationsProvider } from '@renderer/hooks/NotificationsContextProvider'
 import { LayoutGroup, motion, AnimatePresence } from 'framer-motion'
 import { Sidebar } from '@renderer/components/chat/Sidebar'
-import { GetChatsDocument, Chat } from '@renderer/graphql/generated/graphql'
+import { useChatListPolling } from '@renderer/hooks/useChatListPolling'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import { useSidebarStore } from '@renderer/lib/stores/sidebar'
@@ -22,10 +21,11 @@ function RootComponent() {
   const { location } = useRouterState()
 
   const { isCompleted } = useOnboardingStore()
-  const { data: chatsData } = useQuery(GetChatsDocument, {
-    variables: { first: 20, offset: 0 }
+  const { chats } = useChatListPolling({
+    first: 20,
+    offset: 0,
+    pollInterval: 30000 // Poll every 30 seconds
   })
-  const chats: Chat[] = chatsData?.getChats || []
 
   // Get keyboard shortcuts from store
   const [shortcuts, setShortcuts] = useState<
