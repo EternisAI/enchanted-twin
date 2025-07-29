@@ -168,6 +168,9 @@
         "NSUserNotificationUsageDescription": "This app needs notification permissions to send you important updates and alerts."
       }
     },
+    "dmg": {
+      "artifactName": "${productName}.${ext}"
+    },
     "afterSign": "./build/notarize.js"
   }
 }
