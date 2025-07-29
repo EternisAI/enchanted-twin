@@ -11,7 +11,7 @@ function PrivacyPage() {
         <h1 className="text-4xl font-bold mb-8 text-center">Privacy-preserving AI interface</h1>
 
         <div className="flex flex-col gap-4 prose prose-gray dark:prose-invert max-w-none pb-20">
-          <p className="text-lg leading-relaxed">
+          <p className="text-base leading-relaxed">
             You want to use the best LLMs available today: Opus 4, o3 pro, and others. However,
             sharing personal information with these services creates real privacy risks. Your
             queries might contain sensitive details about your work, health, finances, or personal
@@ -139,7 +139,9 @@ function PrivacyPage() {
           </p>
           <h2 className="text-2xl font-semibold mt-2">The privacy guarantees</h2>
           <h3 className="text-xl font-semibold">Content-level protection</h3>
-          <p>Our deterministic anonymization follows these principles:</p>
+          <p className="text-base leading-relaxed">
+            Our deterministic anonymization follows these principles:
+          </p>
           <ul className="list-disc list-inside space-y-3">
             <li className="text-base">
               <strong>Personal names</strong> are replaced with culturally and contextually similar
@@ -309,14 +311,6 @@ function PrivacyPage() {
           <p className="text-base leading-relaxed mb-2">
             We believe privacy shouldn&apos;t require blind trust. Our approach is designed to be
             understandable, verifiable, and aligned with your privacy expectations.
-          </p>
-
-          <hr />
-
-          <p className="text-base leading-relaxed mb-2 italic">
-            Would you feel comfortable sharing your private files using this privacy methodology?
-            We&apos;d love to hear your thoughts and concerns as we refine this system to better
-            serve privacy-conscious users like you.
           </p>
         </div>
       </div>
