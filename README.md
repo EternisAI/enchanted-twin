@@ -1,7 +1,10 @@
-![Release](https://img.shields.io/github/v/release/eternisai/enchanted-twin)
-![Stars](https://img.shields.io/github/stars/eternisai/enchanted-twin.svg)
-[<img src="https://img.shields.io/twitter/url?url=https%3A%2F%2Ftwitter.com%freysa_ai">](https://twitter.com/freysa_ai)
-![macOS](https://img.shields.io/badge/macOS-000000?style=?&logo=os&logoColor=white)
+![Release](https://badgen.net/github/release/eternisai/enchanted-twin?color=green&style=flat)
+![Beta](https://badgen.net/github/release/eternisai/enchanted-twin/pre?color=blue&label=beta&style=flat)
+![Stars](https://badgen.net/github/stars/eternisai/enchanted-twin?style=flat)
+![Go](https://badgen.net/badge/go/1.24.2/blue?style=flat)
+![Build Status](https://badgen.net/github/checks/eternisai/enchanted-twin?style=flat)
+[![Twitter](https://badgen.net/badge/twitter/@freysa_ai/blue?style=flat)](https://twitter.com/freysa_ai)
+![macOS](https://badgen.net/badge/platform/macOS%20Apple%20Silicon/gray?style=flat)
 
 # Enchanted-Twin
 
