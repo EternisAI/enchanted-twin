@@ -139,7 +139,9 @@ function PrivacyPage() {
           </p>
           <h2 className="text-2xl font-semibold mt-2">The privacy guarantees</h2>
           <h3 className="text-xl font-semibold">Content-level protection</h3>
-          <p>Our deterministic anonymization follows these principles:</p>
+          <p className="text-base leading-relaxed">
+            Our deterministic anonymization follows these principles:
+          </p>
           <ul className="list-disc list-inside space-y-3">
             <li className="text-base">
               <strong>Personal names</strong> are replaced with culturally and contextually similar
