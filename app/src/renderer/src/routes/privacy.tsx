@@ -87,7 +87,7 @@ function PrivacyPage() {
             </div>
 
             <div className="bg-muted/30 rounded-lg p-4 border-l-4 border-primary">
-              <p className="text-sm font-medium text-muted-foreground mb-2">Query 1:</p>
+              <p className="text-sm font-medium text-muted-foreground mb-2">Query 2:</p>
               <p className="text-base">
                 &quot;I&apos;m considering becoming a whistleblower to the SEC about financial fraud
                 at my tech company - could this affect my H1-B visa status?&quot;
@@ -95,7 +95,7 @@ function PrivacyPage() {
             </div>
 
             <div className="bg-muted/30 rounded-lg p-4 border-l-4 border-primary">
-              <p className="text-sm font-medium text-muted-foreground mb-2">Query 1:</p>
+              <p className="text-sm font-medium text-muted-foreground mb-2">Query 3:</p>
               <p className="text-base">
                 &quot;My skip-level is Jennifer who reports directly to Marc - should I talk to her
                 first or go straight to the authorities?&quot;
