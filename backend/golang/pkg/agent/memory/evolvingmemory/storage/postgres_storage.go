@@ -349,7 +349,10 @@ func (s *PostgresStorage) storeMemoryFact(ctx context.Context, txQueries *sqlc.Q
 	if val, ok := props["factFilePath"].(string); ok && val != "" {
 		factFilePath = pgtype.Text{String: val, Valid: true}
 	}
-	if val, ok := props["factImportance"].(float64); ok && val > 0 {
+	// Handle factImportance - can be int or float64 from JSON conversion
+	if val, ok := props["factImportance"].(int); ok {
+		factImportance = pgtype.Int4{Int32: int32(val), Valid: true}
+	} else if val, ok := props["factImportance"].(float64); ok {
 		factImportance = pgtype.Int4{Int32: int32(val), Valid: true}
 	}
 
