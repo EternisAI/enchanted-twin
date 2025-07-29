@@ -58,7 +58,7 @@ Enchanted supports many predefined data sources to ingest data from. These data 
 can be used to build the memory for your agent about you. All imported data is stored
 locally on the user's device.
 
-![Data Sources Screenshot 2](https://i.ibb.co/99Q9M385/Xnapper-2025-07-28-19-22-12.jpg)
+![Data Sources Screenshot 2](https://i.ibb.co/99Q9M385/Xnapper-2025-07-28-19-22-12.jpg?cb=1)
 
 ### MCP Servers `beta`
 
@@ -73,7 +73,7 @@ Enchanted comes with built-in support for popular services:
 
 Users can also add custom MCP servers following stdin or remote protocol.
 
-![Data Sources Screenshot 1](https://i.ibb.co/ycKSB4tL/Xnapper-2025-07-28-19-29-43.jpg)
+![Data Sources Screenshot 1](https://i.ibb.co/ycKSB4tL/Xnapper-2025-07-28-19-29-43.jpg?cb=1)
 
 ## Memory & Knowledge Management
 
@@ -100,11 +100,11 @@ Audio-guided setup process for hands-free configuration
 
 Instantly open the Omnibar from any application with <kbd>⌘</kbd> + <kbd>⌥</kbd> + <kbd>O</kbd>
 
-![Global Omnibar Screenshot](https://i.ibb.co/nqxjzHpG/Xnapper-2025-07-28-19-44-01.jpg)
+![Global Omnibar Screenshot](https://i.ibb.co/nqxjzHpG/Xnapper-2025-07-28-19-44-01.jpg?cb=1)
 
 ### Light & Dark Mode
 
-![Light & Dark Mode Screenshot](https://i.ibb.co/RGKwvpBy/Xnapper-2025-07-28-20-16-43.jpg)
+![Light & Dark Mode Screenshot](https://i.ibb.co/RGKwvpBy/Xnapper-2025-07-28-20-16-43.jpg?cb=1)
 
 ### Keyboard Shortcuts
 
