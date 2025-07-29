@@ -6,6 +6,10 @@ on:
   push:
     branches: [main, master]
 
+permissions:
+  contents: read
+  pull-requests: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -17,8 +21,6 @@ jobs:
       backend: ${{ steps.changes.outputs.backend }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Determine if backend/golang changed
         id: changes
@@ -43,13 +45,15 @@ jobs:
         with:
           go-version-file: backend/golang/go.mod
           cache-dependency-path: backend/golang/go.sum
+          cache: true
 
       - name: Lint only the diff
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v8
         with:
           version: v2.1
           working-directory: backend/golang
-          args: --timeout=10m --new-from-rev=origin/${{ github.event.pull_request.base.ref }}
+          args: --timeout=10m
+          only-new-issues: true
 
       - name: Build
         run: make build
