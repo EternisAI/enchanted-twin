@@ -46,7 +46,11 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 	}
 
 	if chatId == "" {
-		return nil, errors.New("chat_id cannot be empty")
+		chat, err := e.chatStorage.CreateChat(ctx, "Network message", model.ChatCategoryText, nil)
+		if err != nil {
+			return nil, err
+		}
+		chatId = chat.ID
 	}
 
 	dbMessage := repository.Message{
