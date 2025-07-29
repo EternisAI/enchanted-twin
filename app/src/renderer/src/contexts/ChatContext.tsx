@@ -192,16 +192,10 @@ export function ChatProvider({
 
     if (message.role !== Role.User) {
       upsertMessage(message)
-      window.api.analytics.capture('message_received', {
-        tools: message.toolCalls.map((tool) => tool.name)
-      })
     }
 
     if (message.role === Role.User) {
       upsertMessage(message)
-      window.api.analytics.capture('voice_message_sent', {
-        tools: message.toolCalls.map((tool) => tool.name)
-      })
     }
   })
 
@@ -244,6 +238,10 @@ export function ChatProvider({
 
     setIsWaitingTwinResponse(false)
     setIsStreamingResponse(!data.isComplete)
+
+    if (data.isComplete) {
+      window.api.analytics.capture('message_received', {})
+    }
   })
 
   useToolCallUpdate(chat.id, (toolCall) => {
