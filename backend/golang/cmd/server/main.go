@@ -61,7 +61,7 @@ import (
 func main() {
 	logger := bootstrap.NewLogger()
 
-	envs, _ := config.LoadConfig(true)
+	envs, _ := config.LoadConfig(true, logger)
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
 

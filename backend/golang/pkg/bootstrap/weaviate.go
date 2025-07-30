@@ -32,7 +32,7 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	_ = os.Setenv("AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED", "true")
 	_ = os.Setenv("AUTHORIZATION_ADMIN_LIST_ENABLED", "false")
 
-	_ = os.Setenv("LOG_LEVEL", "debug")
+	_ = os.Setenv("LOG_LEVEL", "info")
 
 	startTime := time.Now()
 	logger.Info("Starting Weaviate server bootstrap", "port", port, "dataPath", dataPath)
