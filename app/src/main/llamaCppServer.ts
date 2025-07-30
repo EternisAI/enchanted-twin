@@ -143,6 +143,11 @@ let setupCompleted = false
 let setupInProgress = false
 
 export async function startLlamaCppSetup(): Promise<void> {
+  if (process.env.ANONYMIZER_TYPE === 'no-op') {
+    log.info('[LlamaCpp] Skipping LlamaCpp setup - ANONYMIZER_TYPE is no-op')
+    return
+  }
+
   if (llamaCppInstance && setupCompleted && llamaCppInstance.isRunning()) {
     log.info('[LlamaCpp] Llama server already set up and running, skipping setup')
     return
