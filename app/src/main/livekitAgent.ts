@@ -193,8 +193,31 @@ export class LiveKitAgentBootstrap {
       const dependencies = PYTHON_REQUIREMENTS.split('\n').filter((dep) => dep.trim())
       await this.pythonEnv.installDependencies(this.projectName, dependencies)
 
+      log.info('[LiveKit] Ensuring clean slate before fake agent initialization')
+      await this.stopAgent()
+
       this.updateProgress(LIVEKIT_PROGRESS_STEPS.INITIALIZATION, 'Initializing agent')
       await this.startAgent('FAKE_CHAT_ID', false, true, undefined)
+
+      log.info('[LiveKit] Waiting for fake agent to complete initialization...')
+      await new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (!this.childProcess) {
+            log.info('[LiveKit] Fake agent completed initialization and exited')
+            clearInterval(checkInterval)
+            resolve(undefined)
+          }
+        }, 500)
+
+        setTimeout(() => {
+          if (this.childProcess) {
+            log.warn('[LiveKit] Fake agent did not exit after 10s, force stopping')
+            this.stopAgent()
+          }
+          clearInterval(checkInterval)
+          resolve(undefined)
+        }, 10000)
+      })
 
       this.updateProgress(LIVEKIT_PROGRESS_STEPS.COMPLETE, 'Ready')
       log.info('[LiveKit] LiveKit Agent setup completed successfully')
@@ -217,8 +240,8 @@ export class LiveKitAgentBootstrap {
     jwtToken?: string
   ): Promise<void> {
     if (this.childProcess) {
-      log.warn('[LiveKit] Agent is already running')
-      return
+      log.warn('[LiveKit] Agent is already running, stopping it first...')
+      await this.stopAgent()
     }
 
     log.info('[LiveKit] Starting LiveKit agent', isOnboarding)
@@ -288,19 +311,35 @@ export class LiveKitAgentBootstrap {
       return
     }
 
-    log.info('[LiveKit] Stopping child process')
+    const pid = this.childProcess.pid
+    log.info(`[LiveKit] Stopping child process with PID: ${pid}`)
+
     this.childProcess.kill('SIGTERM')
 
-    // Give it a moment to exit gracefully
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    const processExited = await new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => resolve(false), 2000) // 2 second timeout
 
-    if (this.childProcess) {
-      log.info('[LiveKit] Force killing child process')
+      this.childProcess?.on('exit', () => {
+        clearTimeout(timeout)
+        resolve(true)
+      })
+    })
+
+    if (!processExited && this.childProcess) {
+      log.info(`[LiveKit] Process ${pid} didn't exit gracefully, force killing`)
       this.childProcess.kill('SIGKILL')
+
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(resolve, 1000)
+        this.childProcess?.on('exit', () => {
+          clearTimeout(timeout)
+          resolve()
+        })
+      })
     }
 
     this.childProcess = null
-    log.info('[LiveKit] Child process stopped')
+    log.info(`[LiveKit] Child process ${pid} cleanup completed`)
   }
 
   isAgentRunning(): boolean {

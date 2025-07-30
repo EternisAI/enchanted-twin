@@ -1,12 +1,47 @@
 import log from 'electron-log/main'
 import { AgentState, DependencyProgress } from './types/pythonManager.types'
 import { LiveKitAgentBootstrap } from './livekitAgent'
+import { exec } from 'child_process'
 
 let livekitAgent: LiveKitAgentBootstrap | null = null
 let sessionReady = false
 let setupCompleted = false
 
+function cleanupOrphanedAgents(): Promise<void> {
+  return new Promise((resolve) => {
+    log.info('[LiveKit] Cleaning up any orphaned agents from previous sessions...')
+
+    const commands =
+      process.platform === 'win32'
+        ? [
+            'taskkill /F /FI "COMMANDLINE eq *livekit-agent*"',
+            'taskkill /F /FI "COMMANDLINE eq *agent.py console*"'
+          ]
+        : ['pkill -f "python.*agent.py console"', 'pkill -f "livekit-agent"']
+
+    let completed = 0
+    const totalCommands = commands.length
+
+    commands.forEach((command) => {
+      exec(command, (error) => {
+        completed++
+
+        if (error && error.code !== 1) {
+          log.debug(`[LiveKit] Cleanup command "${command}" result:`, error.message)
+        }
+
+        if (completed === totalCommands) {
+          log.info('[LiveKit] Orphaned agent cleanup completed')
+          setTimeout(resolve, 500)
+        }
+      })
+    })
+  })
+}
+
 export async function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
+  await cleanupOrphanedAgents()
+
   // Check if LiveKit is already set up
   if (livekitAgent && setupCompleted) {
     log.info('LiveKit agent already set up, skipping initialization')
