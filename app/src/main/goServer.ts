@@ -95,13 +95,17 @@ async function startGoServer(
         EMBEDDINGS_API_URL: process.env.EMBEDDINGS_API_URL,
         EMBEDDINGS_API_KEY: process.env.EMBEDDINGS_API_KEY,
         EMBEDDINGS_MODEL: process.env.EMBEDDINGS_MODEL,
-        TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
         TELEGRAM_CHAT_SERVER: process.env.TELEGRAM_CHAT_SERVER,
         ENCHANTED_MCP_URL: process.env.ENCHANTED_MCP_URL,
         PROXY_TEE_URL: process.env.PROXY_TEE_URL,
         HOLON_API_URL: process.env.HOLON_API_URL,
         ANONYMIZER_TYPE: process.env.ANONYMIZER_TYPE,
-        USE_LOCAL_EMBEDDINGS: process.env.USE_LOCAL_EMBEDDINGS
+        USE_LOCAL_EMBEDDINGS: process.env.USE_LOCAL_EMBEDDINGS,
+        DISABLE_ONBOARDING: process.env.VITE_DISABLE_ONBOARDING,
+        DISABLE_HOLONS: process.env.VITE_DISABLE_HOLONS,
+        DISABLE_TASKS: process.env.VITE_DISABLE_TASKS,
+        DISABLE_CONNECTORS: process.env.VITE_DISABLE_CONNECTORS,
+        DISABLE_VOICE: process.env.VITE_DISABLE_VOICE
       }
     })
 

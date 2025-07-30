@@ -24,8 +24,7 @@ export const DEPENDENCY_CONFIG: Record<
   },
   anonymizer: {
     name: 'Anonymizer model',
-    description: 'Enchanted keeps your data private',
-    disabled: true // @TODO: remove this when anonymizer is released
+    description: 'Enchanted keeps your data private'
   },
   onnx: {
     name: 'Inference engine',

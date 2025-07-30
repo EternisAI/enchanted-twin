@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { GraduationCap, Telescope, VideoIcon, AlarmCheckIcon } from 'lucide-react'
+import { GraduationCap, Telescope, VideoIcon, AlarmCheckIcon, Book } from 'lucide-react'
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation } from '@apollo/client'
 import {
@@ -17,6 +17,7 @@ import { ChatHomeHeader } from './ChatHomeHeader'
 import { ChatHomeSuggestions } from './ChatHomeSuggestions'
 import { Suggestion } from './ChatHomeSuggestions'
 import { ConnectSourcesButton } from '../data-sources/ConnectButton'
+import { checkConnectorsDisabled } from '@renderer/lib/utils'
 
 interface IndexRouteSearch {
   focusInput?: string
@@ -28,6 +29,7 @@ export function Home() {
   })
   const { isVoiceMode, startVoiceMode } = useVoiceStore()
   const { isVoiceReady } = useDependencyStatus()
+  const isConnectorsDisabled = checkConnectorsDisabled()
 
   const navigate = useNavigate()
   const router = useRouter()
@@ -49,7 +51,7 @@ export function Home() {
   // Ensure dummySuggestions match Suggestion type
   const dummySuggestions: Suggestion[] = [
     { id: 'reminder', name: 'Create a reminder', icon: AlarmCheckIcon },
-    { id: 'create-video', name: 'Create a video', icon: VideoIcon },
+    { id: 'create-video', name: 'Interesting historic fact from the 18th century', icon: Book },
     { id: 'personalize', name: "Let's get to know each other", icon: Telescope },
     { id: 'learn', name: 'Help me learn a new skill or concept', icon: GraduationCap }
   ]
@@ -102,7 +104,8 @@ export function Home() {
           variables: {
             name: chatTitle || reducedMessage,
             category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
-            initialMessage: message
+            initialMessage: message,
+            isReasoning: isReasonSelected
           }
         })
         const newChatId = createData?.createChat?.id
@@ -196,7 +199,8 @@ export function Home() {
         variables: {
           name: suggestion.name,
           category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
-          initialMessage: suggestion.name
+          initialMessage: suggestion.name,
+          isReasoning: isReasonSelected
         }
       })
       const newChatId = createData?.createChat?.id
@@ -276,14 +280,16 @@ export function Home() {
           handleSuggestionClick={handleSuggestionClick}
         />
       </div>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: showSuggestions ? 1 : 0, y: showSuggestions ? 0 : 10 }}
-        transition={{ type: 'spring', stiffness: 150, damping: 15, delay: 0.5 }}
-        className="flex justify-center absolute bottom-0 left-0 right-0 p-4"
-      >
-        <ConnectSourcesButton />
-      </motion.div>
+      {!isConnectorsDisabled && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: showSuggestions ? 1 : 0, y: showSuggestions ? 0 : 10 }}
+          transition={{ type: 'spring', stiffness: 150, damping: 15, delay: 0.5 }}
+          className="flex justify-center absolute bottom-0 left-0 right-0 p-4"
+        >
+          <ConnectSourcesButton />
+        </motion.div>
+      )}
     </motion.div>
   )
 }

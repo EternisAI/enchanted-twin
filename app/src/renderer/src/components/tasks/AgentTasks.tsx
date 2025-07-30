@@ -86,9 +86,9 @@ function EmptyTasksState() {
   }
 
   const examples = [
-    'Summarize the weekly AI news every Monday morning',
-    'Notify me about BTC price every day',
-    'Remind me to move the bins to the street every Wednesday at 8pm'
+    'Send me the top headlines from CNN, Wall Street Journal and Fox News every weekday morning',
+    'Send an interesting historic fact from the 18th century every 18 hours',
+    'Set a reminder for me to give you a summary of my most important priorities every morning, and for you to check in with me on whether I accomplished them every evening'
   ]
 
   return (

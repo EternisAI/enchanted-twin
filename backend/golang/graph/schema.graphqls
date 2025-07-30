@@ -162,6 +162,7 @@ type Mutation {
     category: ChatCategory! = TEXT
     holonThreadId: String
     initialMessage: String
+    isReasoning: Boolean! = false
   ): Chat!
   sendMessage(
     chatId: ID!
