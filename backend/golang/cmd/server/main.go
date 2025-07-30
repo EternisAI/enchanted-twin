@@ -713,8 +713,13 @@ func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client
 func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *config.Config, aiEmbeddingsService ai.Embedding, embeddingsWrapper *storage.EmbeddingWrapper) (storage.Interface, error) {
 	logger.Info("Setting up PostgreSQL memory backend")
 
-	postgresPath := envs.PostgresDataPath
-	logger.Info("Starting PostgreSQL bootstrap process", "path", postgresPath, "port", envs.PostgresPort)
+	// Always use AppData path for PostgreSQL data to ensure persistence
+	postgresPath := filepath.Join(envs.AppDataPath, "postgres-data")
+	logger.Info("Starting PostgreSQL bootstrap process", 
+		"path", postgresPath, 
+		"port", envs.PostgresPort, 
+		"app_data_path", envs.AppDataPath,
+		"forced_appdata_path", true)
 	postgresBootstrapStart := time.Now()
 
 	postgresServer, err := bootstrap.BootstrapPostgresServer(ctx, logger, envs.PostgresPort, postgresPath)

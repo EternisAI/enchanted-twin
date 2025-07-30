@@ -47,13 +47,15 @@ func NewPostgresStorage(input NewPostgresStorageInput) (Interface, error) {
 		return nil, fmt.Errorf("embeddingsWrapper cannot be nil")
 	}
 
-	return &PostgresStorage{
+	storage := &PostgresStorage{
 		db:                input.DB,
 		queries:           sqlc.New(input.DB),
 		logger:            input.Logger,
 		embeddingsWrapper: input.EmbeddingsWrapper,
 		connString:        input.ConnString,
-	}, nil
+	}
+
+	return storage, nil
 }
 
 // ValidateSchema validates that the database schema is properly set up.
@@ -805,13 +807,14 @@ func (s *PostgresStorage) DeleteAll(ctx context.Context) error {
 		return fmt.Errorf("committing transaction: %w", err)
 	}
 
-	s.logger.Info("Successfully deleted all data from PostgreSQL storage")
+	s.logger.Debug("All memory facts deleted from PostgreSQL storage")
 	return nil
 }
 
 func (s *PostgresStorage) EnsureSchemaExists(ctx context.Context) error {
 	return s.ValidateSchema(ctx)
 }
+
 
 func (s *PostgresStorage) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
 	// Get the memory fact to retrieve its document references

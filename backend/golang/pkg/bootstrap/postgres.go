@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -22,6 +23,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap/pgvector"
 )
 
+// Custom PostgreSQL version to match our 17.5 binaries
+const PostgreSQL17_5 embeddedpostgres.PostgresVersion = "17.5"
+
 type PostgresServer struct {
 	postgres      *embeddedpostgres.EmbeddedPostgres
 	db            *sql.DB
@@ -33,9 +37,32 @@ type PostgresServer struct {
 }
 
 func BootstrapPostgresServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*PostgresServer, error) {
-	// Use a separate runtime path to avoid permission issues
-	homeDir, _ := os.UserHomeDir()
-	runtimePath := filepath.Join(homeDir, ".enchanted-postgres-runtime")
+	// Get APP_DATA_PATH from environment
+	appDataPath := os.Getenv("APP_DATA_PATH")
+	if appDataPath == "" {
+		appDataPath = "./output" // fallback to default
+	}
+	
+	// Use separate runtime and data paths within APP_DATA_PATH
+	runtimePath := filepath.Join(appDataPath, "postgres-runtime")
+	
+	// Safety check: ensure dataPath is NOT inside runtimePath (would cause data loss)
+	absDataPath, err := filepath.Abs(dataPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve dataPath: %w", err)
+	}
+	absRuntimePath, err := filepath.Abs(runtimePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve runtimePath: %w", err)
+	}
+	
+	// Check if dataPath is inside runtimePath (dangerous!)
+	relPath, err := filepath.Rel(absRuntimePath, absDataPath)
+	if err == nil && !strings.HasPrefix(relPath, "..") {
+		return nil, fmt.Errorf("CRITICAL: dataPath (%s) is inside runtimePath (%s) - this would cause data loss as runtime is recreated on each start", absDataPath, absRuntimePath)
+	}
+	
+	logger.Info("PostgreSQL path validation passed", "dataPath", absDataPath, "runtimePath", absRuntimePath)
 	return BootstrapPostgresServerWithPaths(ctx, logger, port, dataPath, runtimePath)
 }
 
@@ -113,6 +140,7 @@ func BootstrapPostgresServerWithOptions(ctx context.Context, logger *log.Logger,
 		Username("postgres").
 		Password(password).
 		Database("postgres").
+		Version(PostgreSQL17_5). // Use custom version matching our 17.5 binaries
 		StartTimeout(60 * time.Second)
 
 	// Use binaries if available
@@ -122,6 +150,14 @@ func BootstrapPostgresServerWithOptions(ctx context.Context, logger *log.Logger,
 	}
 
 	postgres := embeddedpostgres.NewDatabase(config)
+
+	// Check if PostgreSQL cluster already exists in data directory
+	pgVersionFile := filepath.Join(dataPath, "PG_VERSION")
+	if _, err := os.Stat(pgVersionFile); err == nil {
+		logger.Debug("Found existing PostgreSQL cluster", "dataPath", dataPath)
+	} else {
+		logger.Debug("No existing PostgreSQL cluster found, will initialize new cluster", "dataPath", dataPath)
+	}
 
 	logger.Info("Starting embedded PostgreSQL server", "port", actualPort, "dataPath", dataPath)
 
@@ -257,6 +293,7 @@ func (s *PostgresServer) Stop() error {
 	s.logger.Info("PostgreSQL server stopped successfully")
 	return nil
 }
+
 
 func findAvailablePostgresPort(preferredPort uint32, logger *log.Logger) uint32 {
 	// Try the preferred port first

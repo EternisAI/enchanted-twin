@@ -25,7 +25,7 @@ type Config struct {
 	TelegramChatServer string
 	ContainerRuntime   string
 	PostgresPort       string
-	PostgresDataPath   string
+	PostgresDataPath   string // Deprecated: PostgreSQL data is now always stored in AppDataPath/postgres-data
 	MemoryBackend      string
 	WeaviatePort       string
 	EnchantedMcpURL    string
