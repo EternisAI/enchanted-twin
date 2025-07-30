@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { GraduationCap, Telescope, VideoIcon, AlarmCheckIcon } from 'lucide-react'
+import { GraduationCap, Telescope, VideoIcon, AlarmCheckIcon, Book } from 'lucide-react'
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation } from '@apollo/client'
 import {
@@ -51,7 +51,7 @@ export function Home() {
   // Ensure dummySuggestions match Suggestion type
   const dummySuggestions: Suggestion[] = [
     { id: 'reminder', name: 'Create a reminder', icon: AlarmCheckIcon },
-    { id: 'create-video', name: 'Create a video', icon: VideoIcon },
+    { id: 'create-video', name: 'Interesting historic fact from the 18th century', icon: Book },
     { id: 'personalize', name: "Let's get to know each other", icon: Telescope },
     { id: 'learn', name: 'Help me learn a new skill or concept', icon: GraduationCap }
   ]
