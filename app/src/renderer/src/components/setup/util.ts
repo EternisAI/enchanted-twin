@@ -38,6 +38,10 @@ export const DEPENDENCY_CONFIG: Record<
   uv: {
     name: 'Voice mode dependencies',
     description: ''
+  },
+  postgres: {
+    name: 'PostgreSQL database',
+    description: 'Vector database for memory storage'
   }
 }
 
