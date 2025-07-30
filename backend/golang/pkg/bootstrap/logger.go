@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"os"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -12,10 +11,7 @@ import (
 type customLogWriter struct{}
 
 func (w *customLogWriter) Write(p []byte) (n int, err error) {
-	logContent := strings.ToLower(string(p))
-	if strings.Contains(logContent, "err") || strings.Contains(logContent, "error") || strings.Contains(logContent, "failed") {
-		return os.Stderr.Write(p)
-	}
+	// Route all logs to stdout - let the log consumer handle filtering
 	return os.Stdout.Write(p)
 }
 
