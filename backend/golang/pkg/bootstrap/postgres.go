@@ -33,7 +33,10 @@ type PostgresServer struct {
 }
 
 func BootstrapPostgresServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*PostgresServer, error) {
-	return BootstrapPostgresServerWithPaths(ctx, logger, port, dataPath, filepath.Join(dataPath, "runtime"))
+	// Use a separate runtime path to avoid permission issues
+	homeDir, _ := os.UserHomeDir()
+	runtimePath := filepath.Join(homeDir, ".enchanted-postgres-runtime")
+	return BootstrapPostgresServerWithPaths(ctx, logger, port, dataPath, runtimePath)
 }
 
 func BootstrapPostgresServerWithPaths(ctx context.Context, logger *log.Logger, port string, dataPath string, runtimePath string) (*PostgresServer, error) {
@@ -53,25 +56,38 @@ func BootstrapPostgresServerWithOptions(ctx context.Context, logger *log.Logger,
 	// Find available port if specified port is in use
 	actualPort := findAvailablePostgresPort(uint32(portInt), logger)
 
-	// Ensure data directory exists
+	// Ensure data directory and runtime directory exist
 	if err := os.MkdirAll(dataPath, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create data directory: %w", err)
 	}
+	if err := os.MkdirAll(runtimePath, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create runtime directory: %w", err)
+	}
 
-	// Initialize pgvector binary manager
-	var binaryManager *pgvector.BinaryManager
+	// Check for local binaries first
+	localBinariesPath := "/Users/innokentii/postgres-binaries"
 	var hasPgvector bool
 	var pgvectorBinariesPath string
-
-	if enablePgvector {
-		binaryManager = pgvector.NewBinaryManager(logger, "")
-
-		// Try to get pgvector-enabled binaries
+	
+	if _, err := os.Stat(filepath.Join(localBinariesPath, "bin", "postgres")); err == nil {
+		// Check if pgvector extension exists in local binaries
+		vectorExtPath := filepath.Join(localBinariesPath, "share", "postgresql", "extension", "vector.control")
+		if _, err := os.Stat(vectorExtPath); err == nil {
+			pgvectorBinariesPath = localBinariesPath
+			hasPgvector = true
+			logger.Info("Using local PostgreSQL binaries with pgvector support", "path", localBinariesPath)
+		} else {
+			logger.Info("Using local PostgreSQL binaries without pgvector support", "path", localBinariesPath)
+			pgvectorBinariesPath = localBinariesPath
+		}
+	} else if enablePgvector {
+		// Fallback to downloading pgvector binaries
+		binaryManager := pgvector.NewBinaryManager(logger, "")
 		binariesPath, hasVector, err := binaryManager.GetBinariesPath(ctx)
 		if err != nil {
 			logger.Warn("Failed to get pgvector binaries, falling back to standard PostgreSQL", "error", err)
 		} else if hasVector {
-			logger.Info("Using pgvector-enabled PostgreSQL binaries", "path", binariesPath)
+			logger.Info("Using downloaded pgvector-enabled PostgreSQL binaries", "path", binariesPath)
 			pgvectorBinariesPath = binariesPath
 			hasPgvector = true
 		} else {
@@ -95,10 +111,10 @@ func BootstrapPostgresServerWithOptions(ctx context.Context, logger *log.Logger,
 		Database("postgres").
 		StartTimeout(60 * time.Second)
 
-	// Use pgvector binaries if available
-	if hasPgvector && pgvectorBinariesPath != "" {
+	// Use binaries if available
+	if pgvectorBinariesPath != "" {
 		config = config.BinariesPath(pgvectorBinariesPath)
-		logger.Debug("Configured embedded PostgreSQL to use pgvector binaries", "path", pgvectorBinariesPath)
+		logger.Debug("Configured embedded PostgreSQL to use binaries", "path", pgvectorBinariesPath)
 	}
 
 	postgres := embeddedpostgres.NewDatabase(config)
@@ -143,7 +159,7 @@ func BootstrapPostgresServerWithOptions(ctx context.Context, logger *log.Logger,
 		port:          actualPort,
 		dataPath:      dataPath,
 		logger:        logger,
-		binaryManager: binaryManager,
+		binaryManager: nil,
 		hasPgvector:   hasPgvector,
 	}
 

@@ -19,7 +19,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
 	"github.com/pkg/errors"
@@ -713,7 +713,7 @@ func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client
 func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *config.Config, aiEmbeddingsService ai.Embedding, embeddingsWrapper *storage.EmbeddingWrapper) (storage.Interface, error) {
 	logger.Info("Setting up PostgreSQL memory backend")
 
-	postgresPath := filepath.Join(envs.AppDataPath, "db", "postgres")
+	postgresPath := envs.PostgresDataPath
 	logger.Info("Starting PostgreSQL bootstrap process", "path", postgresPath, "port", envs.PostgresPort)
 	postgresBootstrapStart := time.Now()
 
@@ -733,26 +733,35 @@ func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *conf
 	}
 	logger.Info("PostgreSQL schema initialization completed", "elapsed", time.Since(schemaInitStart))
 
-	// Create PostgreSQL connection for storage
+	// Create PostgreSQL connection pool for storage
 	connString := fmt.Sprintf("host=localhost port=%d user=postgres password=testpassword dbname=postgres sslmode=disable", postgresServer.GetPort())
-	pgConn, err := pgx.Connect(ctx, connString)
+	
+	// Configure connection pool with proper parameters
+	poolConfig, err := pgxpool.ParseConfig(connString + " pool_max_conns=20 pool_min_conns=5")
 	if err != nil {
 		if stopErr := postgresServer.Stop(); stopErr != nil {
-			logger.Error("Failed to stop PostgreSQL server after connection error", "error", stopErr)
+			logger.Error("Failed to stop PostgreSQL server after pool config error", "error", stopErr)
 		}
-		return nil, fmt.Errorf("failed to connect to PostgreSQL for storage: %w", err)
+		return nil, fmt.Errorf("failed to parse PostgreSQL pool config: %w", err)
+	}
+	
+	pgPool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		if stopErr := postgresServer.Stop(); stopErr != nil {
+			logger.Error("Failed to stop PostgreSQL server after connection pool error", "error", stopErr)
+		}
+		return nil, fmt.Errorf("failed to create PostgreSQL connection pool for storage: %w", err)
 	}
 
 	storageInterface, err := storage.NewPostgresStorage(storage.NewPostgresStorageInput{
-		DB:                pgConn,
+		DB:                pgPool,
 		Logger:            logger,
 		EmbeddingsWrapper: embeddingsWrapper,
 		ConnString:        connString,
 	})
 	if err != nil {
-		if closeErr := pgConn.Close(ctx); closeErr != nil {
-			logger.Error("Failed to close PostgreSQL connection after storage creation error", "error", closeErr)
-		}
+		pgPool.Close()
+		logger.Error("Failed to close PostgreSQL connection pool after storage creation error")
 		if stopErr := postgresServer.Stop(); stopErr != nil {
 			logger.Error("Failed to stop PostgreSQL server after storage creation error", "error", stopErr)
 		}
