@@ -64,11 +64,15 @@ func BootstrapPostgresServerWithOptions(ctx context.Context, logger *log.Logger,
 		return nil, fmt.Errorf("failed to create runtime directory: %w", err)
 	}
 
-	// Check for local binaries first
-	localBinariesPath := "/Users/innokentii/postgres-binaries"
+	// Check for local binaries in APP_DATA_PATH/postgres first
+	appDataPath := os.Getenv("APP_DATA_PATH")
+	if appDataPath == "" {
+		appDataPath = "./output" // fallback to default
+	}
+	localBinariesPath := filepath.Join(appDataPath, "postgres")
 	var hasPgvector bool
 	var pgvectorBinariesPath string
-	
+
 	if _, err := os.Stat(filepath.Join(localBinariesPath, "bin", "postgres")); err == nil {
 		// Check if pgvector extension exists in local binaries
 		vectorExtPath := filepath.Join(localBinariesPath, "share", "postgresql", "extension", "vector.control")

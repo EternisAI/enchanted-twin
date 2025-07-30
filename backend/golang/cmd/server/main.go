@@ -735,7 +735,7 @@ func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *conf
 
 	// Create PostgreSQL connection pool for storage
 	connString := fmt.Sprintf("host=localhost port=%d user=postgres password=testpassword dbname=postgres sslmode=disable", postgresServer.GetPort())
-	
+
 	// Configure connection pool with proper parameters
 	poolConfig, err := pgxpool.ParseConfig(connString + " pool_max_conns=20 pool_min_conns=5")
 	if err != nil {
@@ -744,7 +744,7 @@ func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *conf
 		}
 		return nil, fmt.Errorf("failed to parse PostgreSQL pool config: %w", err)
 	}
-	
+
 	pgPool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		if stopErr := postgresServer.Stop(); stopErr != nil {

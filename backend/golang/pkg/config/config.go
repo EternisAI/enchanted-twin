@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
@@ -72,7 +73,6 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 		PostgresPort:       getEnv("POSTGRES_PORT", "5432", printEnv),
-		PostgresDataPath:   getEnv("POSTGRES_DATA_PATH", "./output/postgres", printEnv),
 		MemoryBackend:      getEnv("MEMORY_BACKEND", "postgresql", printEnv),
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
@@ -82,5 +82,9 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		TelegramBotName:    getEnv("TELEGRAM_BOT_NAME", "TalkEnchantedBot", printEnv),
 		TTSEndpoint:        getEnv("TTS_ENDPOINT", "https://inference.tinfoil.sh/v1/audio/speech", printEnv),
 	}
+
+	// Set PostgresDataPath using AppDataPath as base
+	conf.PostgresDataPath = getEnv("POSTGRES_DATA_PATH", filepath.Join(conf.AppDataPath, "postgres-data"), printEnv)
+
 	return conf, nil
 }
