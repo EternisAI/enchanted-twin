@@ -41,13 +41,17 @@ export function TTSProvider({
 
   const getFreqData = useCallback(() => {
     if (!analyserRef.current) return freqBufRef.current
-    analyserRef.current.getByteFrequencyData(freqBufRef.current)
+    analyserRef.current.getByteFrequencyData(
+      freqBufRef.current as unknown as Uint8Array<ArrayBuffer>
+    )
     return freqBufRef.current
   }, [])
 
   const getTimeData = useCallback(() => {
     if (!analyserRef.current) return timeBufRef.current
-    analyserRef.current.getByteTimeDomainData(timeBufRef.current)
+    analyserRef.current.getByteTimeDomainData(
+      timeBufRef.current as unknown as Uint8Array<ArrayBuffer>
+    )
     return timeBufRef.current
   }, [])
 
@@ -150,7 +154,7 @@ export function TTSProvider({
       return
     }
     try {
-      sb.appendBuffer(audioQueueRef.current.shift()!)
+      sb.appendBuffer(audioQueueRef.current.shift()! as unknown as BufferSource)
     } catch {
       stop()
     }
