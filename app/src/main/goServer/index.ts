@@ -3,12 +3,12 @@ import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import { BrowserWindow } from 'electron'
 import split2 from 'split2'
 
-import { createErrorWindow, waitForBackend } from './helpers'
-import { capture } from './analytics'
-import { startLlamaCppSetup, cleanupLlamaCpp } from './llamaCppServer'
+import { createErrorWindow, waitForBackend } from '../helpers'
+import { capture } from '../analytics'
+import { startLlamaCppSetup, cleanupLlamaCpp } from '../llamaCppServer'
+import { addLogToBatch, cleanupLogBatching } from './logs'
 
 let goServerProcess: ChildProcess | null = null
 let isInitializing = false
@@ -43,7 +43,7 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
     log.info(`Database path: ${dbPath}`)
 
     const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
-    const goBinaryPath = !IS_PRODUCTION
+    const goBinaryPath = IS_PRODUCTION
       ? join(__dirname, '..', '..', 'resources', executable)
       : join(process.resourcesPath, 'resources', executable)
 
@@ -191,6 +191,9 @@ export function cleanupGoServer() {
     goServerProcess = null
   }
 
+  // Cleanup log batching
+  cleanupLogBatching()
+
   cleanupLlamaCpp()
 }
 
@@ -208,11 +211,8 @@ export function getGoServerState() {
 function forward(stream: NodeJS.ReadableStream, source: 'stdout' | 'stderr') {
   stream.pipe(split2()).on('data', (line: string) => {
     if (!line) return
-    // const clean = stripAnsi(line)   // zap ANSI color ESCs
     log[source === 'stdout' ? 'info' : 'error'](`Go ${source}: ${line}`)
 
-    BrowserWindow.getAllWindows().forEach((win) =>
-      win.webContents.send('go-log', { source, line: line })
-    )
+    addLogToBatch(source, line)
   })
 }

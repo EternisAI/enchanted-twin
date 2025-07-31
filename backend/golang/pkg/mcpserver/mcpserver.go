@@ -43,6 +43,7 @@ type service struct {
 	repo             repository.Repository
 	connectedServers []*ConnectedMCPServer
 	registry         tools.ToolRegistry
+	logger           *log.Logger
 }
 
 // NewService creates a new MCPServerService.
@@ -50,7 +51,7 @@ func NewService(ctx context.Context, logger *log.Logger, store *db.Store, regist
 	repo := repository.NewRepository(logger, store.DB())
 	config, err := config.LoadConfig(false)
 	if err != nil {
-		log.Error("Error loading config", "error", err)
+		logger.Error("Error loading config", "error", err)
 	}
 	service := &service{
 		config:           config,
@@ -58,11 +59,12 @@ func NewService(ctx context.Context, logger *log.Logger, store *db.Store, regist
 		connectedServers: []*ConnectedMCPServer{},
 		store:            store,
 		registry:         registry,
+		logger:           logger,
 	}
 
 	err = service.LoadMCP(ctx)
 	if err != nil {
-		log.Error("Error loading MCP servers", "error", err)
+		logger.Error("Error loading MCP servers", "error", err)
 	}
 
 	return service
@@ -97,7 +99,7 @@ func (s *service) ConnectMCPServer(
 
 		// Server exists in database but not connected.
 		// Remove it first, then continue with fresh connection.
-		log.Info("Found existing disconnected MCP server, removing it for fresh connection", "server", name, "id", mcpServer.ID)
+		s.logger.Info("Found existing disconnected MCP server, removing it for fresh connection", "server", name, "id", mcpServer.ID)
 		err = s.repo.DeleteMCPServer(ctx, mcpServer.ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to remove existing disconnected server %s: %w", name, err)
@@ -133,14 +135,14 @@ func (s *service) ConnectMCPServer(
 				return nil, fmt.Errorf("ENCHANTED_MCP_URL is not configured")
 			}
 
-			client = enchanted.NewClient(s.store, log.Default(), s.config.EnchantedMcpURL)
+			client = enchanted.NewClient(s.store, s.logger, s.config.EnchantedMcpURL)
 		default:
 			return nil, fmt.Errorf("unsupported server type")
 		}
 		input.Name = name
 		// Register tools with the registry first
 		if err := s.registerMCPTools(ctx, client, name); err != nil {
-			log.Error("Failed to register MCP tools", "server", name, "error", err)
+			s.logger.Error("Failed to register MCP tools", "server", name, "error", err)
 			return nil, fmt.Errorf("MCP server tool registration failed: %w", err)
 		}
 
@@ -216,7 +218,7 @@ func (s *service) ConnectMCPServer(
 		if err != nil {
 			// If requires authorization, handle it.
 			if mcpclient.IsOAuthAuthorizationRequiredError(err) {
-				log.Warn("OAuth authorization required for MCP server. Server will continue running, but this MCP server will be unavailable until authorization is completed.", "server", input.Name)
+				s.logger.Warn("OAuth authorization required for MCP server. Server will continue running, but this MCP server will be unavailable until authorization is completed.", "server", input.Name)
 				newMCPServer, err := s.repo.AddMCPServer(ctx, &input, &enabled)
 				if err != nil {
 					return nil, err
@@ -224,11 +226,11 @@ func (s *service) ConnectMCPServer(
 				go func() {
 					authErr := s.handleOAuthAuthorization(ctx, err, input.Args[0])
 					if authErr != nil {
-						log.Error("Failed to complete OAuth authorization", "server", input.Name, "error", authErr)
+						s.logger.Error("Failed to complete OAuth authorization", "server", input.Name, "error", authErr)
 						return
 					}
 					if startErr := mcpClient.Start(ctx); startErr != nil {
-						log.Error("Failed to start HTTP MCP client after OAuth", "server", input.Name, "error", startErr)
+						s.logger.Error("Failed to start HTTP MCP client after OAuth", "server", input.Name, "error", startErr)
 						return
 					}
 					initRequest := mcp.InitializeRequest{}
@@ -238,18 +240,18 @@ func (s *service) ConnectMCPServer(
 						Version: "1.0.0",
 					}
 					if _, initErr := mcpClient.Initialize(ctx, initRequest); initErr != nil {
-						log.Error("Failed to initialize HTTP MCP client after OAuth", "server", input.Name, "error", initErr)
+						s.logger.Error("Failed to initialize HTTP MCP client after OAuth", "server", input.Name, "error", initErr)
 						return
 					}
 					if err := s.registerMCPTools(ctx, mcpClient, input.Name); err != nil {
-						log.Error("Failed to register MCP tools after OAuth", "server", input.Name, "error", err)
+						s.logger.Error("Failed to register MCP tools after OAuth", "server", input.Name, "error", err)
 						return
 					}
 					s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 						ID:     newMCPServer.ID,
 						Client: mcpClient,
 					})
-					log.Info("OAuth MCP server successfully connected", "server", input.Name)
+					s.logger.Info("OAuth MCP server successfully connected", "server", input.Name)
 				}()
 				return newMCPServer, nil
 			} else {
@@ -312,7 +314,7 @@ func (s *service) ConnectMCPServer(
 
 	// Register tools with the registry first
 	if err := s.registerMCPTools(ctx, clientInterface, input.Name); err != nil {
-		log.Error("Failed to register MCP tools", "server", input.Name, "error", err)
+		s.logger.Error("Failed to register MCP tools", "server", input.Name, "error", err)
 		return nil, fmt.Errorf("MCP server tool registration failed: %w", err)
 	}
 
@@ -434,15 +436,15 @@ func (s *service) LoadMCP(ctx context.Context) error {
 				client = screenpipe.NewClient()
 			case model.MCPServerTypeEnchanted:
 				if s.config == nil {
-					log.Error("Config is nil, cannot connect to Enchanted MCP server", "server", server.Name)
+					s.logger.Error("Config is nil, cannot connect to Enchanted MCP server", "server", server.Name)
 					continue
 				}
 				if s.config.EnchantedMcpURL == "" {
-					log.Error("ENCHANTED_MCP_URL is not configured", "server", server.Name)
+					s.logger.Error("ENCHANTED_MCP_URL is not configured", "server", server.Name)
 					continue
 				}
 
-				client = enchanted.NewClient(s.store, log.Default(), s.config.EnchantedMcpURL)
+				client = enchanted.NewClient(s.store, s.logger, s.config.EnchantedMcpURL)
 			default:
 				// nothing to do
 				continue
@@ -453,7 +455,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			// During restart, if this token is expired, the MCP server will not be able to authenticate.
 			// So we defer tool registration until we have a valid token.
 			if server.Type == model.MCPServerTypeEnchanted {
-				log.Info("Deferring Enchanted MCP tool registration until valid Firebase token is available", "server", server.Name)
+				s.logger.Info("Deferring Enchanted MCP tool registration until valid Firebase token is available", "server", server.Name)
 				// The token will always be refreshed. So we can add the client to the connected servers.
 				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 					ID:     server.ID,
@@ -463,7 +465,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 				go s.retryRegistration(ctx, client, server.Name)
 			} else {
 				if err := s.registerMCPTools(ctx, client, server.Name); err != nil {
-					log.Error("Failed to register MCP tools during startup", "server", server.Name, "error", err)
+					s.logger.Error("Failed to register MCP tools during startup", "server", server.Name, "error", err)
 					// Don't add to connectedServers.
 					continue
 				}
@@ -511,7 +513,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 
 			mcpClient, err = mcpclient.NewOAuthStreamableHttpClient(server.Args[0], oauthConfig)
 			if err != nil {
-				log.Error("Error creating OAuth HTTP MCP client", "server", server.Name, "error", err)
+				s.logger.Error("Error creating OAuth HTTP MCP client", "server", server.Name, "error", err)
 				continue
 			}
 
@@ -519,15 +521,15 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			err = mcpClient.Start(ctx)
 			if err != nil {
 				if mcpclient.IsOAuthAuthorizationRequiredError(err) {
-					log.Warn("OAuth authorization required for MCP server during startup. Server will continue running, but this MCP server will be unavailable until authorization is completed.", "server", server.Name)
+					s.logger.Warn("OAuth authorization required for MCP server during startup. Server will continue running, but this MCP server will be unavailable until authorization is completed.", "server", server.Name)
 					go func() {
 						authErr := s.handleOAuthAuthorization(ctx, err, server.Args[0])
 						if authErr != nil {
-							log.Error("Failed to complete OAuth authorization during startup", "server", server.Name, "error", authErr)
+							s.logger.Error("Failed to complete OAuth authorization during startup", "server", server.Name, "error", authErr)
 							return
 						}
 						if startErr := mcpClient.Start(ctx); startErr != nil {
-							log.Error("Error starting HTTP MCP client after OAuth during startup", "server", server.Name, "error", startErr)
+							s.logger.Error("Error starting HTTP MCP client after OAuth during startup", "server", server.Name, "error", startErr)
 							return
 						}
 						initRequest := mcp.InitializeRequest{}
@@ -537,23 +539,23 @@ func (s *service) LoadMCP(ctx context.Context) error {
 							Version: "1.0.0",
 						}
 						if _, initErr := mcpClient.Initialize(ctx, initRequest); initErr != nil {
-							log.Error("Error initializing HTTP MCP client after OAuth during startup", "server", server.Name, "error", initErr)
+							s.logger.Error("Error initializing HTTP MCP client after OAuth during startup", "server", server.Name, "error", initErr)
 							return
 						}
 						// Register tools with the registry first
 						if err := s.registerMCPTools(ctx, mcpClient, server.Name); err != nil {
-							log.Error("Failed to register MCP tools after OAuth during startup", "server", server.Name, "error", err)
+							s.logger.Error("Failed to register MCP tools after OAuth during startup", "server", server.Name, "error", err)
 							return
 						}
 						s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 							ID:     server.ID,
 							Client: mcpClient,
 						})
-						log.Info("OAuth MCP server successfully connected during startup", "server", server.Name)
+						s.logger.Info("OAuth MCP server successfully connected during startup", "server", server.Name)
 					}()
 					continue
 				} else {
-					log.Error("Error starting HTTP MCP client", "server", server.Name, "error", err)
+					s.logger.Error("Error starting HTTP MCP client", "server", server.Name, "error", err)
 					continue
 				}
 			}
@@ -567,7 +569,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			}
 			_, err = mcpClient.Initialize(ctx, initRequest)
 			if err != nil {
-				log.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
+				s.logger.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
 				continue
 			}
 		} else {
@@ -578,7 +580,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			}
 			mcpClient, err = mcpclient.NewStdioMCPClient(command, envStrings, server.Args...)
 			if err != nil {
-				log.Error("Error creating stdio MCP client", "server", server.Name, "error", err)
+				s.logger.Error("Error creating stdio MCP client", "server", server.Name, "error", err)
 				continue
 			}
 			// Initialize the client
@@ -590,7 +592,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			}
 			_, err = mcpClient.Initialize(ctx, initRequest)
 			if err != nil {
-				log.Error("Error initializing MCP client", "server", server.Name, "error", err)
+				s.logger.Error("Error initializing MCP client", "server", server.Name, "error", err)
 				continue
 			}
 		}
@@ -600,7 +602,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 
 		// For Enchanted MCP, defer tool registration until we have a valid token.
 		if server.Type == model.MCPServerTypeEnchanted {
-			log.Info("Deferring Enchanted MCP tool registration until valid Firebase token is available", "server", server.Name)
+			s.logger.Info("Deferring Enchanted MCP tool registration until valid Firebase token is available", "server", server.Name)
 			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 				ID:     server.ID,
 				Client: client,
@@ -610,7 +612,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		} else {
 			// Register tools with the registry first for non-Enchanted servers.
 			if err := s.registerMCPTools(ctx, client, server.Name); err != nil {
-				log.Error("Failed to register MCP tools during startup", "server", server.Name, "error", err)
+				s.logger.Error("Failed to register MCP tools during startup", "server", server.Name, "error", err)
 				// Don't add to connectedServers if tool registration fails.
 				continue
 			}
@@ -633,7 +635,7 @@ func (s *service) GetTools(ctx context.Context) ([]mcp.Tool, error) {
 		// TODO: Handle pagination if needed
 		client_tools, err := connectedServer.Client.ListTools(ctx, request)
 		if err != nil {
-			log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
+			s.logger.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
 			continue
 		}
 
@@ -653,7 +655,7 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 		request := mcp.ListToolsRequest{}
 		client_tools, err := connectedServer.Client.ListTools(ctx, request)
 		if err != nil {
-			log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
+			s.logger.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
 			continue
 		}
 
@@ -722,7 +724,7 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient, server
 	}
 
 	if tools == nil || len(tools.Tools) == 0 {
-		log.Warn("No tools available from MCP server", "server", serverName)
+		s.logger.Warn("No tools available from MCP server", "server", serverName)
 		return nil
 	}
 
@@ -737,7 +739,7 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient, server
 		}
 		if err := s.registry.Register(mcpTool); err != nil {
 			registrationErrors = append(registrationErrors, fmt.Sprintf("%s: %v", tool.GetName(), err))
-			log.Warn("Error registering MCP tool", "tool", tool.GetName(), "server", serverName, "error", err)
+			s.logger.Warn("Error registering MCP tool", "tool", tool.GetName(), "server", serverName, "error", err)
 		} else {
 			registeredCount++
 		}
@@ -748,7 +750,7 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient, server
 			serverName, len(tools.Tools), registrationErrors)
 	}
 
-	log.Info("MCP tools registered successfully",
+	s.logger.Info("MCP tools registered successfully",
 		"server", serverName,
 		"registered", registeredCount,
 		"total", len(tools.Tools),
@@ -768,7 +770,7 @@ func (s *service) retryRegistration(ctx context.Context, client MCPClient, serve
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debug("Context canceled, stopping Enchanted MCP retry", "server", serverName)
+			s.logger.Debug("Context canceled, stopping Enchanted MCP retry", "server", serverName)
 			return
 		case <-ticker.C:
 			retryCount++
@@ -778,7 +780,7 @@ func (s *service) retryRegistration(ctx context.Context, client MCPClient, serve
 			if err == nil {
 				for _, tool := range tools {
 					if mcpTool, ok := tool.(*MCPTool); ok && mcpTool.ServerName == serverName {
-						log.Info("Enchanted MCP tools already registered, stopping retry", "server", serverName)
+						s.logger.Info("Enchanted MCP tools already registered, stopping retry", "server", serverName)
 						return
 					}
 				}
@@ -786,14 +788,14 @@ func (s *service) retryRegistration(ctx context.Context, client MCPClient, serve
 
 			err = s.registerMCPTools(ctx, client, serverName)
 			if err == nil {
-				log.Info("Successfully registered Enchanted MCP tools after retry", "server", serverName, "attempts", retryCount)
+				s.logger.Info("Successfully registered Enchanted MCP tools after retry", "server", serverName, "attempts", retryCount)
 				return
 			}
 
-			log.Debug("Enchanted MCP tool registration retry failed", "server", serverName, "attempt", retryCount, "error", err)
+			s.logger.Debug("Enchanted MCP tool registration retry failed", "server", serverName, "attempt", retryCount, "error", err)
 
 			if retryCount >= maxRetries {
-				log.Warn("Gave up retrying Enchanted MCP tool registration", "server", serverName, "maxRetries", maxRetries)
+				s.logger.Warn("Gave up retrying Enchanted MCP tool registration", "server", serverName, "maxRetries", maxRetries)
 				return
 			}
 		}
@@ -809,7 +811,7 @@ func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
 	request := mcp.ListToolsRequest{}
 	tools, err := client.ListTools(ctx, request)
 	if err != nil {
-		log.Warn("Error getting tools from MCP client", "error", err)
+		s.logger.Warn("Error getting tools from MCP client", "error", err)
 		return
 	}
 
@@ -817,7 +819,7 @@ func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
 	for _, tool := range tools.Tools {
 		toolNames = append(toolNames, tool.GetName())
 	}
-	log.Debug("Deregistering MCP tools", "toolNames", toolNames)
+	s.logger.Debug("Deregistering MCP tools", "toolNames", toolNames)
 	s.registry.Unregister(toolNames...)
 }
 
@@ -960,7 +962,7 @@ func CapitalizeFirst(s string) string {
 
 // handleOAuthAuthorization handles the OAuth authorization flow.
 func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error, serverURL string) error {
-	log.Info("OAuth authorization required. Starting authorization flow...")
+	s.logger.Info("OAuth authorization required. Starting authorization flow...")
 
 	oauthHandler := mcpclient.GetOAuthHandler(authErr)
 
@@ -989,10 +991,10 @@ func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error, s
 		return fmt.Errorf("failed to get authorization URL: %w", err)
 	}
 
-	log.Info("Opening browser to authorization URL", "url", authURL)
+	s.logger.Info("Opening browser to authorization URL", "url", authURL)
 	s.openBrowser(authURL)
 
-	log.Info("Waiting for authorization callback...")
+	s.logger.Info("Waiting for authorization callback...")
 	select {
 	case params := <-callbackChan:
 		if params["state"] != state {
@@ -1004,19 +1006,19 @@ func (s *service) handleOAuthAuthorization(ctx context.Context, authErr error, s
 			return fmt.Errorf("no authorization code received")
 		}
 
-		log.Info("Exchanging authorization code for token...")
+		s.logger.Info("Exchanging authorization code for token...")
 		err = oauthHandler.ProcessAuthorizationResponse(ctx, code, state, codeVerifier)
 		if err != nil {
 			return fmt.Errorf("failed to process authorization response: %w", err)
 		}
 
-		log.Info("Authorization successful!")
+		s.logger.Info("Authorization successful!")
 
 		if err := s.saveClientCredentialsFromHandler(ctx, oauthHandler, serverURL); err != nil {
-			log.Warn("Failed to save client credentials after OAuth completion", "error", err)
+			s.logger.Warn("Failed to save client credentials after OAuth completion", "error", err)
 		}
 
-		log.Info("Validating stored token for automatic refresh capability...")
+		s.logger.Info("Validating stored token for automatic refresh capability...")
 
 		return nil
 
@@ -1051,7 +1053,7 @@ func (s *service) startCallbackServer(callbackChan chan<- map[string]string) *ht
 	}
 
 	mux.HandleFunc("/oauth/callback", func(w http.ResponseWriter, r *http.Request) {
-		log.Info("Received OAuth callback", "url", r.URL.String())
+		s.logger.Info("Received OAuth callback", "url", r.URL.String())
 
 		params := make(map[string]string)
 		for key, values := range r.URL.Query() {
@@ -1062,9 +1064,9 @@ func (s *service) startCallbackServer(callbackChan chan<- map[string]string) *ht
 
 		select {
 		case callbackChan <- params:
-			log.Info("Sent OAuth parameters to channel")
+			s.logger.Info("Sent OAuth parameters to channel")
 		default:
-			log.Warn("Channel full, dropping OAuth callback parameters")
+			s.logger.Warn("Channel full, dropping OAuth callback parameters")
 		}
 
 		// User-facing response
@@ -1091,18 +1093,18 @@ func (s *service) startCallbackServer(callbackChan chan<- map[string]string) *ht
 			</html>
         `))
 		if err != nil {
-			log.Error("Error writing OAuth callback response", "error", err)
+			s.logger.Error("Error writing OAuth callback response", "error", err)
 		}
 	})
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("OAuth callback server error", "error", err)
+			s.logger.Error("OAuth callback server error", "error", err)
 		}
 	}()
 
 	time.Sleep(100 * time.Millisecond)
-	log.Info("OAuth callback server started on :8085")
+	s.logger.Info("OAuth callback server started on :8085")
 	return server
 }
 
@@ -1122,7 +1124,7 @@ func (s *service) openBrowser(url string) {
 	}
 
 	if err != nil {
-		log.Error("Failed to open browser", "error", err)
-		log.Info("Please open the following URL in your browser", "url", url)
+		s.logger.Error("Failed to open browser", "error", err)
+		s.logger.Info("Please open the following URL in your browser", "url", url)
 	}
 }

@@ -155,10 +155,18 @@ const api = {
     }
   },
   onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => {
-    const listener = (_: unknown, data: { source: 'stdout' | 'stderr'; line: string }) =>
-      callback(data)
-    ipcRenderer.on('go-log', listener)
-    return () => ipcRenderer.removeListener('go-log', listener)
+    const batchLogListener = (
+      _: unknown,
+      logs: Array<{ source: 'stdout' | 'stderr'; line: string; timestamp: number }>
+    ) => {
+      logs.forEach((log) => callback({ source: log.source, line: log.line }))
+    }
+
+    ipcRenderer.on('go-logs-batch', batchLogListener)
+
+    return () => {
+      ipcRenderer.removeListener('go-logs-batch', batchLogListener)
+    }
   },
   openMainWindowWithChat: (chatId?: string, initialMessage?: string, reasoning?: boolean) =>
     ipcRenderer.invoke('open-main-window-with-chat', chatId, initialMessage, reasoning),
