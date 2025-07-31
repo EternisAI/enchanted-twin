@@ -44,12 +44,11 @@ function cleanupOrphanedAgents(): Promise<void> {
 }
 
 export async function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
+  await cleanupOrphanedAgents()
   if (isVoiceDisabled()) {
     log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping LiveKit setup')
     return null
   }
-
-  await cleanupOrphanedAgents()
 
   // Check if LiveKit is already set up
   if (livekitAgent && setupCompleted) {
