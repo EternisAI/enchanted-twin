@@ -52,7 +52,7 @@ type Service struct {
 	identityService  *identity.IdentityService
 	anonymizerType   string
 	activeStreams    map[string]context.CancelFunc
-	streamsMutex     sync.RWMutex
+	streamsMutex     sync.Mutex
 }
 
 func NewService(
@@ -81,7 +81,7 @@ func NewService(
 		identityService:  identityService,
 		anonymizerType:   anonymizerType,
 		activeStreams:    make(map[string]context.CancelFunc),
-		streamsMutex:     sync.RWMutex{},
+		streamsMutex:     sync.Mutex{},
 	}
 }
 
