@@ -1,12 +1,55 @@
 import log from 'electron-log/main'
 import { AgentState, DependencyProgress } from './types/pythonManager.types'
 import { LiveKitAgentBootstrap } from './livekitAgent'
+import { exec } from 'child_process'
 
 let livekitAgent: LiveKitAgentBootstrap | null = null
 let sessionReady = false
 let setupCompleted = false
 
+function isVoiceDisabled(): boolean {
+  return process.env.VITE_DISABLE_VOICE === 'true'
+}
+
+function cleanupOrphanedAgents(): Promise<void> {
+  return new Promise((resolve) => {
+    log.info('[LiveKit] Cleaning up any orphaned agents from previous sessions...')
+
+    const commands =
+      process.platform === 'win32'
+        ? [
+            'taskkill /F /FI "COMMANDLINE eq *livekit-agent*"',
+            'taskkill /F /FI "COMMANDLINE eq *agent.py console*"'
+          ]
+        : ['pkill -f "python.*agent.py console"', 'pkill -f "livekit-agent"']
+
+    let completed = 0
+    const totalCommands = commands.length
+
+    commands.forEach((command) => {
+      exec(command, (error) => {
+        completed++
+
+        if (error && error.code !== 1) {
+          log.debug(`[LiveKit] Cleanup command "${command}" result:`, error.message)
+        }
+
+        if (completed === totalCommands) {
+          log.info('[LiveKit] Orphaned agent cleanup completed')
+          setTimeout(resolve, 500)
+        }
+      })
+    })
+  })
+}
+
 export async function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
+  await cleanupOrphanedAgents()
+  if (isVoiceDisabled()) {
+    log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping LiveKit setup')
+    return null
+  }
+
   // Check if LiveKit is already set up
   if (livekitAgent && setupCompleted) {
     log.info('LiveKit agent already set up, skipping initialization')
@@ -64,6 +107,11 @@ export async function startLiveKitAgent(
   isInitialising = false,
   jwtToken?: string
 ): Promise<void> {
+  if (isVoiceDisabled()) {
+    log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping agent start')
+    return
+  }
+
   log.info('Starting LiveKit agent. Is initialising: ' + isInitialising)
 
   if (!livekitAgent) {
@@ -81,6 +129,11 @@ export async function startLiveKitAgent(
 }
 
 export async function stopLiveKitAgent(): Promise<void> {
+  if (isVoiceDisabled()) {
+    log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping agent stop')
+    return
+  }
+
   if (!livekitAgent) {
     log.warn('LiveKit agent not initialized')
     return
@@ -97,14 +150,28 @@ export async function stopLiveKitAgent(): Promise<void> {
 }
 
 export function isLiveKitAgentRunning(): boolean {
+  if (isVoiceDisabled()) {
+    return false
+  }
   return livekitAgent?.isAgentRunning() ?? false
 }
 
 export function isLiveKitSessionReady(): boolean {
+  if (isVoiceDisabled()) {
+    return false
+  }
   return sessionReady && isLiveKitAgentRunning()
 }
 
 export async function getLiveKitAgentState(): Promise<DependencyProgress> {
+  if (isVoiceDisabled()) {
+    return {
+      dependency: 'LiveKit Agent',
+      progress: 100,
+      status: 'Voice disabled'
+    }
+  }
+
   if (!livekitAgent) {
     return {
       dependency: 'LiveKit Agent',
@@ -116,6 +183,11 @@ export async function getLiveKitAgentState(): Promise<DependencyProgress> {
 }
 
 export async function cleanupLiveKitAgent() {
+  if (isVoiceDisabled()) {
+    log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping cleanup')
+    return
+  }
+
   if (livekitAgent) {
     log.info('Cleaning up LiveKit agent...')
     await livekitAgent.cleanup()
@@ -126,6 +198,11 @@ export async function cleanupLiveKitAgent() {
 }
 
 export function muteLiveKitAgent(): boolean {
+  if (isVoiceDisabled()) {
+    log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping mute')
+    return false
+  }
+
   if (!livekitAgent) {
     log.warn('LiveKit agent not initialized')
     return false
@@ -134,6 +211,11 @@ export function muteLiveKitAgent(): boolean {
 }
 
 export function unmuteLiveKitAgent(): boolean {
+  if (isVoiceDisabled()) {
+    log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping unmute')
+    return false
+  }
+
   if (!livekitAgent) {
     log.warn('LiveKit agent not initialized')
     return false
@@ -142,6 +224,10 @@ export function unmuteLiveKitAgent(): boolean {
 }
 
 export function getCurrentAgentState(): AgentState {
+  if (isVoiceDisabled()) {
+    return 'idle'
+  }
+
   if (!livekitAgent) {
     return 'idle'
   }
