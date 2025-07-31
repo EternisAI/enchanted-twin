@@ -46,7 +46,7 @@ interface ChatActions {
   setHistoricToolCalls: (toolCalls: ToolCall[] | ((prev: ToolCall[]) => ToolCall[])) => void
   setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void
   updatePrivacyDict: (privacyDict: string) => void
-  cancelMessageStreaming: (chatId: string, messageId: string) => void
+  cancelMessageStreaming: (chatId: string) => void
 }
 
 const ChatStateContext = createContext<ChatState | null>(null)
@@ -353,9 +353,9 @@ export function ChatProvider({
   })
 
   const cancelMessageStreaming = useCallback(
-    (chatId: string, messageId: string) => {
+    (chatId: string) => {
       cancelMessageStreamingMutation({
-        variables: { chatId, messageId }
+        variables: { chatId }
       })
     },
     [cancelMessageStreamingMutation]

@@ -244,8 +244,9 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 	return r.TwinChatService.SendMessage(context.WithoutCancel(ctx), chatID, text, reasoning, voice)
 }
 
-func (r *mutationResolver) CancelMessage(ctx context.Context, chatID string, messageID string) (bool, error) {
-	return r.TwinChatService.CancelMessage(ctx, chatID, messageID)
+// CancelMessage is the resolver for the cancelMessage field.
+func (r *mutationResolver) CancelMessage(ctx context.Context, chatID string) (bool, error) {
+	return r.TwinChatService.CancelMessage(ctx, chatID)
 }
 
 // DeleteChat is the resolver for the deleteChat field.

@@ -173,7 +173,7 @@ type ComplexityRoot struct {
 		Activate                  func(childComplexity int, inviteCode string) int
 		AddDataSource             func(childComplexity int, name string, path string) int
 		AddTrackedFolder          func(childComplexity int, input model.AddTrackedFolderInput) int
-		CancelMessage             func(childComplexity int, chatID string, messageID string) int
+		CancelMessage             func(childComplexity int, chatID string) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
 		ConnectMCPServer          func(childComplexity int, input model.ConnectMCPServerInput) int
 		CreateChat                func(childComplexity int, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string, isReasoning bool) int
@@ -349,7 +349,7 @@ type MutationResolver interface {
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string, isReasoning bool) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
-	CancelMessage(ctx context.Context, chatID string, messageID string) (bool, error)
+	CancelMessage(ctx context.Context, chatID string) (bool, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
@@ -1019,7 +1019,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CancelMessage(childComplexity, args["chatId"].(string), args["messageId"].(string)), true
+		return e.complexity.Mutation.CancelMessage(childComplexity, args["chatId"].(string)), true
 
 	case "Mutation.completeOAuthFlow":
 		if e.complexity.Mutation.CompleteOAuthFlow == nil {
@@ -2171,11 +2171,6 @@ func (ec *executionContext) field_Mutation_cancelMessage_args(ctx context.Contex
 		return nil, err
 	}
 	args["chatId"] = arg0
-	arg1, err := ec.field_Mutation_cancelMessage_argsMessageID(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["messageId"] = arg1
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_cancelMessage_argsChatID(
@@ -2184,19 +2179,6 @@ func (ec *executionContext) field_Mutation_cancelMessage_argsChatID(
 ) (string, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
 	if tmp, ok := rawArgs["chatId"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
-	}
-
-	var zeroVal string
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_cancelMessage_argsMessageID(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("messageId"))
-	if tmp, ok := rawArgs["messageId"]; ok {
 		return ec.unmarshalNID2string(ctx, tmp)
 	}
 
@@ -7133,7 +7115,7 @@ func (ec *executionContext) _Mutation_cancelMessage(ctx context.Context, field g
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelMessage(rctx, fc.Args["chatId"].(string), fc.Args["messageId"].(string))
+		return ec.resolvers.Mutation().CancelMessage(rctx, fc.Args["chatId"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)

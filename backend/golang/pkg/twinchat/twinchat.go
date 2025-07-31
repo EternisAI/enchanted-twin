@@ -278,9 +278,9 @@ func (s *Service) SendMessage(
 	s.logger.Info("Message history prepared", "duration", messageHistoryTime, "historyLength", len(messageHistory))
 
 	assistantMessageId := uuid.New().String()
-	
+
 	var accumulatedContent string
-	
+
 	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:          toolCall.ID,
@@ -336,7 +336,7 @@ func (s *Service) SendMessage(
 
 	// user message - add to db and publish to NATS channel
 	userMsgID := uuid.New().String()
-		createdAt := time.Now().Format(time.RFC3339)
+	createdAt := time.Now().Format(time.RFC3339)
 
 	onDelta := func(delta agent.StreamDelta) {
 		select {
@@ -412,9 +412,9 @@ func (s *Service) SendMessage(
 			s.logger.Info("Agent execution canceled", "duration", agentExecutionTime, "chatID", chatID)
 			text := accumulatedContent
 			if text == "" {
-				text = "Message was cancelled."
+				text = "Message was canceled."
 			}
-			
+
 			assistantMessageDb := repository.Message{
 				ID:           assistantMessageId,
 				ChatID:       chatID,
@@ -422,12 +422,12 @@ func (s *Service) SendMessage(
 				Role:         model.RoleAssistant.String(),
 				CreatedAtStr: time.Now().Format(time.RFC3339Nano),
 			}
-			
+
 			idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
 			if err != nil {
-				s.logger.Error("Failed to store cancelled message in database", "messageID", assistantMessageId, "chatID", chatID, "error", err)
+				s.logger.Error("Failed to store canceled message in database", "messageID", assistantMessageId, "chatID", chatID, "error", err)
 			}
-			
+
 			return &model.Message{
 				ID:          idAssistant,
 				Text:        helpers.Ptr(text),
@@ -654,14 +654,13 @@ func (s *Service) SendMessage(
 	}, nil
 }
 
-func (s *Service) CancelMessage(ctx context.Context, chatID string, messageID string) (bool, error) {
+func (s *Service) CancelMessage(ctx context.Context, chatID string) (bool, error) {
 	s.streamsMutex.Lock()
 	defer s.streamsMutex.Unlock()
 
 	if cancel, exists := s.activeStreams[chatID]; exists {
 		cancel()
 		delete(s.activeStreams, chatID)
-		s.logger.Info("Message stream canceled", "chatID", chatID, "messageID", messageID)
 		return true, nil
 	}
 
