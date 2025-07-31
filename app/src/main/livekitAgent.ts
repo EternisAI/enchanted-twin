@@ -209,32 +209,11 @@ export class LiveKitAgentBootstrap {
       await this.pythonEnv.installDependencies(this.projectName, dependencies)
 
       log.info('[LiveKit] Ensuring clean slate before fake agent initialization')
+      this.updateProgress(LIVEKIT_PROGRESS_STEPS.INITIALIZATION, 'Setup validation')
       await this.stopAgent()
 
-      this.updateProgress(LIVEKIT_PROGRESS_STEPS.INITIALIZATION, 'Initializing agent')
-      await this.startAgent('SETUP_VALIDATION', false, true, undefined)
-
-      log.info('[LiveKit] Waiting for first initialization test to complete...')
-      await new Promise((resolve) => {
-        const checkInterval = setInterval(() => {
-          if (!this.childProcess) {
-            log.info('[LiveKit] First initialization test completed and exited')
-            clearInterval(checkInterval)
-            resolve(undefined)
-          }
-        }, 500)
-
-        setTimeout(() => {
-          if (this.childProcess) {
-            log.warn('[LiveKit] First initialization test did not exit after 10s, force stopping')
-            this.stopAgent()
-          }
-          clearInterval(checkInterval)
-          resolve(undefined)
-        }, 10000)
-      })
-
       this.updateProgress(LIVEKIT_PROGRESS_STEPS.COMPLETE, 'Ready')
+
       log.info('[LiveKit] LiveKit Agent setup completed successfully')
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Unknown error occurred'
