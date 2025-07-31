@@ -11,7 +11,6 @@ import (
 type customLogWriter struct{}
 
 func (w *customLogWriter) Write(p []byte) (n int, err error) {
-	// Route all logs to stdout - let the log consumer handle filtering
 	return os.Stdout.Write(p)
 }
 
