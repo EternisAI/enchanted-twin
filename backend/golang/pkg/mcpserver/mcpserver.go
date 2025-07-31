@@ -49,7 +49,7 @@ type service struct {
 // NewService creates a new MCPServerService.
 func NewService(ctx context.Context, logger *log.Logger, store *db.Store, registry tools.ToolRegistry) MCPService {
 	repo := repository.NewRepository(logger, store.DB())
-	config, err := config.LoadConfig(false, nil)
+	config, err := config.LoadConfig(false)
 	if err != nil {
 		logger.Error("Error loading config", "error", err)
 	}

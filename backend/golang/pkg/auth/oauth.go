@@ -204,7 +204,7 @@ func StoreToken(ctx context.Context, logger *log.Logger, store *db.Store, token 
 
 // ExchangeToken handles the HTTP request to exchange an authorization code for tokens.
 func ExchangeToken(ctx context.Context, logger *log.Logger, store *db.Store, provider string, oauthConfig db.OAuthConfig, tokenReq TokenRequest) (*TokenResponse, error) {
-	conf, err := config.LoadConfig(false, nil)
+	conf, err := config.LoadConfig(false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -272,7 +272,7 @@ func ExchangeToken(ctx context.Context, logger *log.Logger, store *db.Store, pro
 
 // RefreshTokens handles the refresh token flow using the new API endpoint.
 func RefreshTokenCall(ctx context.Context, logger *log.Logger, store *db.Store, provider string, refreshToken string) (*TokenResponse, error) {
-	conf, err := config.LoadConfig(false, nil)
+	conf, err := config.LoadConfig(false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -618,7 +618,7 @@ func Activate(ctx context.Context, logger *log.Logger, store *db.Store, inviteCo
 		return false, fmt.Errorf("failed to marshal redeem request: %w", err)
 	}
 
-	conf, err := config.LoadConfig(false, nil)
+	conf, err := config.LoadConfig(false)
 	if err != nil {
 		return false, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -664,7 +664,7 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 		return false, nil
 	}
 
-	conf, err := config.LoadConfig(false, nil)
+	conf, err := config.LoadConfig(false)
 	if err != nil {
 		return false, fmt.Errorf("failed to load config: %w", err)
 	}
