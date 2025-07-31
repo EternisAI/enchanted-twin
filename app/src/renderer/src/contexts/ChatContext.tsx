@@ -7,7 +7,15 @@ import {
   useState,
   useEffect
 } from 'react'
-import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
+import { useMutation } from '@apollo/client'
+
+import {
+  CancelMessageDocument,
+  Chat,
+  Message,
+  Role,
+  ToolCall
+} from '@renderer/graphql/generated/graphql'
 import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
@@ -38,6 +46,7 @@ interface ChatActions {
   setHistoricToolCalls: (toolCalls: ToolCall[] | ((prev: ToolCall[]) => ToolCall[])) => void
   setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void
   updatePrivacyDict: (privacyDict: string) => void
+  cancelMessageStreaming: (chatId: string, messageId: string) => void
 }
 
 const ChatStateContext = createContext<ChatState | null>(null)
@@ -335,6 +344,23 @@ export function ChatProvider({
     setIsWaitingTwinResponse(false)
   })
 
+  const [cancelMessageStreamingMutation] = useMutation(CancelMessageDocument, {
+    onCompleted: () => {
+      console.log('cancelMessageStreamingMutation completed')
+      setIsWaitingTwinResponse(false)
+      setIsStreamingResponse(false)
+    }
+  })
+
+  const cancelMessageStreaming = useCallback(
+    (chatId: string, messageId: string) => {
+      cancelMessageStreamingMutation({
+        variables: { chatId, messageId }
+      })
+    },
+    [cancelMessageStreamingMutation]
+  )
+
   const actions = useMemo<ChatActions>(
     () => ({
       sendMessage: sendMessageHook,
@@ -347,7 +373,8 @@ export function ChatProvider({
       setActiveToolCalls,
       setHistoricToolCalls,
       setMessages,
-      updatePrivacyDict
+      updatePrivacyDict,
+      cancelMessageStreaming
     }),
     [
       sendMessageHook,
@@ -360,7 +387,8 @@ export function ChatProvider({
       setActiveToolCalls,
       setHistoricToolCalls,
       setMessages,
-      updatePrivacyDict
+      updatePrivacyDict,
+      cancelMessageStreaming
     ]
   )
 

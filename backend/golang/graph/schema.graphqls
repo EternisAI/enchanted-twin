@@ -170,6 +170,7 @@ type Mutation {
     reasoning: Boolean! = False
     voice: Boolean! = False
   ): Message!
+  cancelMessage(chatId: ID!, messageId: ID!): Boolean!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
