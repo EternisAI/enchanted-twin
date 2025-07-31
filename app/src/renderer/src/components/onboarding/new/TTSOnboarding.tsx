@@ -93,7 +93,7 @@ export default function TTSOnboarding() {
         return
       }
 
-      const audioBlob = new Blob([ttsResult.audioBuffer], { type: 'audio/mpeg' })
+      const audioBlob = new Blob([ttsResult.audioBuffer as ArrayBuffer], { type: 'audio/mpeg' })
 
       if (audioBlob) {
         console.log('[TTS] Successfully generated audio, size:', audioBlob.size)

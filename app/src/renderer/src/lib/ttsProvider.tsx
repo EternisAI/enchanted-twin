@@ -41,13 +41,13 @@ export function TTSProvider({
 
   const getFreqData = useCallback(() => {
     if (!analyserRef.current) return freqBufRef.current
-    analyserRef.current.getByteFrequencyData(freqBufRef.current)
+    analyserRef.current.getByteFrequencyData(freqBufRef.current as unknown as Uint8Array)
     return freqBufRef.current
   }, [])
 
   const getTimeData = useCallback(() => {
     if (!analyserRef.current) return timeBufRef.current
-    analyserRef.current.getByteTimeDomainData(timeBufRef.current)
+    analyserRef.current.getByteTimeDomainData(timeBufRef.current as unknown as Uint8Array)
     return timeBufRef.current
   }, [])
 
@@ -100,8 +100,8 @@ export function TTSProvider({
       ctxRef.current = new AudioContext()
       analyserRef.current = ctxRef.current.createAnalyser()
       analyserRef.current.fftSize = 2048
-      freqBufRef.current = new Uint8Array(analyserRef.current.frequencyBinCount)
-      timeBufRef.current = new Uint8Array(analyserRef.current.fftSize)
+      freqBufRef.current = new Uint8Array(analyserRef.current.frequencyBinCount) as Uint8Array
+      timeBufRef.current = new Uint8Array(analyserRef.current.fftSize) as Uint8Array
     }
 
     srcNodeRef.current?.disconnect()
@@ -150,7 +150,7 @@ export function TTSProvider({
       return
     }
     try {
-      sb.appendBuffer(audioQueueRef.current.shift()!)
+      sb.appendBuffer(audioQueueRef.current.shift()! as unknown as BufferSource)
     } catch {
       stop()
     }
