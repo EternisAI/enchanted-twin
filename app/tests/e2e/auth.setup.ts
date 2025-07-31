@@ -1,7 +1,7 @@
 import { test as setup, expect } from '@playwright/test'
 import { _electron as electron } from '@playwright/test'
 import path from 'path'
-import { signInWithGoogle, clearAuthState } from './auth.helpers'
+import { signInWithGoogle, clearAuthState, createCleanElectronConfig } from './auth.helpers'
 import { E2E_CONFIG, AUTH_CONFIG, FIREBASE_TEST_CONFIG } from './config'
 
 // Path where we'll store the authentication state
@@ -48,9 +48,9 @@ setup('authenticate with Google and save session', async () => {
       ...process.env,
       NODE_ENV: 'test',
       // Pass Firebase config with correct VITE_ prefix for Electron renderer
-      VITE_FIREBASE_API_KEY: process.env.VITE_FIREBASE_API_KEY,
-      VITE_FIREBASE_AUTH_DOMAIN: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-      VITE_FIREBASE_PROJECT_ID: process.env.VITE_FIREBASE_PROJECT_ID
+      VITE_FIREBASE_API_KEY: FIREBASE_TEST_CONFIG.FIREBASE_API_KEY,
+      VITE_FIREBASE_AUTH_DOMAIN: FIREBASE_TEST_CONFIG.FIREBASE_AUTH_DOMAIN,
+      VITE_FIREBASE_PROJECT_ID: FIREBASE_TEST_CONFIG.FIREBASE_PROJECT_ID
     }
   })
 
@@ -63,7 +63,7 @@ setup('authenticate with Google and save session', async () => {
 
     // Perform Google authentication
     console.log('🔐 Starting Google authentication flow...')
-    await signInWithGoogle(page)
+    await signInWithGoogle(page, electronApp)
 
     // Verify authentication was successful
     const userDataExists = await page.evaluate(() => {

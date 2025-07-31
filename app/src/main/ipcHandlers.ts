@@ -1,4 +1,13 @@
-import { app, dialog, ipcMain, nativeTheme, shell, globalShortcut, clipboard } from 'electron'
+import {
+  app,
+  dialog,
+  ipcMain,
+  nativeTheme,
+  shell,
+  globalShortcut,
+  clipboard,
+  BrowserWindow
+} from 'electron'
 import log from 'electron-log/main'
 import path from 'path'
 import fs from 'fs'
@@ -73,7 +82,28 @@ export function registerIpcHandlers() {
 
       const loginUrl = await startFirebaseOAuth(firebaseConfig)
       log.info(`[Main] Firebase OAuth server started at: ${loginUrl}`)
-      await shell.openExternal(loginUrl)
+
+      // Open in Electron window instead of external browser
+      const authWindow = new BrowserWindow({
+        width: 500,
+        height: 700,
+        show: true,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          webSecurity: true
+        },
+        title: 'Sign in to Enchanted'
+      })
+
+      authWindow.on('closed', () => {
+        log.info('[OAuth] Firebase OAuth window closed')
+      })
+
+      authWindow.loadURL(loginUrl).catch((err) => {
+        log.error('[OAuth] Error loading Firebase OAuth URL:', err)
+      })
+
       return { success: true, loginUrl }
     } catch (error) {
       log.error('[Main] Failed to start Firebase OAuth server:', error)
