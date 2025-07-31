@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -161,6 +162,11 @@ func BootstrapPostgresServerWithOptions(ctx context.Context, logger *log.Logger,
 
 	logger.Info("Starting embedded PostgreSQL server", "port", actualPort, "dataPath", dataPath)
 
+	// Kill any existing PostgreSQL processes to prevent lock file conflicts
+	if err := killExistingPostgresProcesses(logger, dataPath); err != nil {
+		logger.Warn("Failed to kill existing PostgreSQL processes", "error", err)
+	}
+
 	if err := postgres.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start PostgreSQL: %w", err)
 	}
@@ -294,6 +300,91 @@ func (s *PostgresServer) Stop() error {
 	return nil
 }
 
+func killExistingPostgresProcesses(logger *log.Logger, dataPath string) error {
+	pidFilePath := filepath.Join(dataPath, "postmaster.pid")
+	
+	// Check if postmaster.pid file exists
+	if _, err := os.Stat(pidFilePath); os.IsNotExist(err) {
+		logger.Debug("No postmaster.pid file found", "path", pidFilePath)
+		return nil
+	}
+
+	logger.Info("Found existing postmaster.pid file, attempting to clean up", "path", pidFilePath)
+
+	// Read the PID from the file
+	pidData, err := os.ReadFile(pidFilePath)
+	if err != nil {
+		logger.Warn("Failed to read postmaster.pid file", "error", err)
+		// Still try to remove the file
+		if removeErr := os.Remove(pidFilePath); removeErr != nil {
+			logger.Warn("Failed to remove stale postmaster.pid file", "error", removeErr)
+		} else {
+			logger.Info("Removed stale postmaster.pid file")
+		}
+		return nil
+	}
+
+	// Parse PID (first line of the file)
+	lines := strings.Split(strings.TrimSpace(string(pidData)), "\n")
+	if len(lines) == 0 {
+		logger.Warn("Empty postmaster.pid file")
+		if err := os.Remove(pidFilePath); err != nil {
+			logger.Warn("Failed to remove empty postmaster.pid file", "error", err)
+		}
+		return nil
+	}
+
+	pid := strings.TrimSpace(lines[0])
+	if pid == "" {
+		logger.Warn("Invalid PID in postmaster.pid file")
+		if err := os.Remove(pidFilePath); err != nil {
+			logger.Warn("Failed to remove invalid postmaster.pid file", "error", err)
+		}
+		return nil
+	}
+
+	logger.Info("Found PostgreSQL process", "pid", pid)
+
+	// Check if process is still running
+	if err := exec.Command("kill", "-0", pid).Run(); err != nil {
+		// Process is not running, remove stale pid file
+		logger.Info("PostgreSQL process is not running, removing stale pid file", "pid", pid)
+		if err := os.Remove(pidFilePath); err != nil {
+			logger.Warn("Failed to remove stale postmaster.pid file", "error", err)
+		} else {
+			logger.Info("Removed stale postmaster.pid file")
+		}
+		return nil
+	}
+
+	// Process is running, try to terminate it gracefully
+	logger.Info("PostgreSQL process is running, attempting graceful shutdown", "pid", pid)
+	if err := exec.Command("kill", "-TERM", pid).Run(); err != nil {
+		logger.Warn("Failed to send SIGTERM to PostgreSQL process", "pid", pid, "error", err)
+		// Try SIGKILL as last resort
+		if err := exec.Command("kill", "-KILL", pid).Run(); err != nil {
+			logger.Warn("Failed to send SIGKILL to PostgreSQL process", "pid", pid, "error", err)
+		} else {
+			logger.Info("Killed PostgreSQL process with SIGKILL", "pid", pid)
+		}
+	} else {
+		logger.Info("Sent SIGTERM to PostgreSQL process", "pid", pid)
+	}
+
+	// Wait a bit for process to terminate
+	time.Sleep(1 * time.Second)
+
+	// Remove the pid file if it still exists
+	if _, err := os.Stat(pidFilePath); err == nil {
+		if err := os.Remove(pidFilePath); err != nil {
+			logger.Warn("Failed to remove postmaster.pid file after process termination", "error", err)
+		} else {
+			logger.Info("Removed postmaster.pid file after process termination")
+		}
+	}
+
+	return nil
+}
 
 func findAvailablePostgresPort(preferredPort uint32, logger *log.Logger) uint32 {
 	// Try the preferred port first
