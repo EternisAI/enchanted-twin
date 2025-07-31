@@ -32,7 +32,7 @@ export function SoundWave({ audioSource, size = 1, color = '#4f46e5' }: SoundWav
   useFrame(() => {
     if (!meshRef.current || !analyserRef.current) return
 
-    analyserRef.current.getFloatTimeDomainData(audioData as unknown as Float32Array)
+    analyserRef.current.getFloatTimeDomainData(audioData as unknown as Float32Array<ArrayBuffer>)
 
     const geometry = meshRef.current.geometry as THREE.BufferGeometry
     const positions = geometry.attributes.position.array as Float32Array
