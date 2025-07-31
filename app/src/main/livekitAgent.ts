@@ -53,6 +53,10 @@ export class LiveKitAgentBootstrap {
     }
   }
 
+  private isVoiceDisabled(): boolean {
+    return process.env.VITE_DISABLE_VOICE === 'true'
+  }
+
   getLatestProgress(): DependencyProgress {
     return this.latestProgress
   }
@@ -74,6 +78,11 @@ export class LiveKitAgentBootstrap {
   }
 
   sendCommand(command: AgentCommand): boolean {
+    if (this.isVoiceDisabled()) {
+      log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping command send')
+      return false
+    }
+
     if (!this.childProcess || !this.childProcess.stdin) {
       log.warn('[LiveKit] Cannot send command: agent process not running or stdin not available')
       return false
@@ -178,6 +187,12 @@ export class LiveKitAgentBootstrap {
   }
 
   async setup(): Promise<void> {
+    if (this.isVoiceDisabled()) {
+      log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping LiveKit Agent setup')
+      this.updateProgress(100, 'Voice disabled - skipped setup')
+      return
+    }
+
     log.info('[LiveKit] Starting LiveKit Agent setup process')
     try {
       this.updateProgress(LIVEKIT_PROGRESS_STEPS.UV_SETUP, 'Setting up Python environment')
@@ -197,13 +212,13 @@ export class LiveKitAgentBootstrap {
       await this.stopAgent()
 
       this.updateProgress(LIVEKIT_PROGRESS_STEPS.INITIALIZATION, 'Initializing agent')
-      await this.startAgent('FAKE_CHAT_ID', false, true, undefined)
+      await this.startAgent('SETUP_VALIDATION', false, true, undefined)
 
-      log.info('[LiveKit] Waiting for fake agent to complete initialization...')
+      log.info('[LiveKit] Waiting for first initialization test to complete...')
       await new Promise((resolve) => {
         const checkInterval = setInterval(() => {
           if (!this.childProcess) {
-            log.info('[LiveKit] Fake agent completed initialization and exited')
+            log.info('[LiveKit] First initialization test completed and exited')
             clearInterval(checkInterval)
             resolve(undefined)
           }
@@ -211,7 +226,7 @@ export class LiveKitAgentBootstrap {
 
         setTimeout(() => {
           if (this.childProcess) {
-            log.warn('[LiveKit] Fake agent did not exit after 10s, force stopping')
+            log.warn('[LiveKit] First initialization test did not exit after 10s, force stopping')
             this.stopAgent()
           }
           clearInterval(checkInterval)
@@ -239,6 +254,11 @@ export class LiveKitAgentBootstrap {
     isInitialising: boolean = false,
     jwtToken?: string
   ): Promise<void> {
+    if (this.isVoiceDisabled()) {
+      log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping agent start')
+      return
+    }
+
     if (this.childProcess) {
       log.warn('[LiveKit] Agent is already running, stopping it first...')
       await this.stopAgent()
@@ -269,7 +289,7 @@ export class LiveKitAgentBootstrap {
           ...this.pythonEnv.getUvEnv(this.projectName),
           ...this.getAdditionalEnvironmentVariables(),
           CHAT_ID: chatId,
-          FAKE_INIT: initialising,
+          FIRST_INITIALIZE: initialising,
           FIREBASE_JWT_TOKEN: jwtToken || '' // Pass JWT token as environment variable
         },
         stdio: 'pipe' // Use pipe for logging
@@ -297,6 +317,11 @@ export class LiveKitAgentBootstrap {
   }
 
   async stopAgent(): Promise<void> {
+    if (this.isVoiceDisabled()) {
+      log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping agent stop')
+      return
+    }
+
     await this.stopChildProcess()
     this.onSessionReady?.(false)
 
@@ -343,15 +368,30 @@ export class LiveKitAgentBootstrap {
   }
 
   isAgentRunning(): boolean {
+    if (this.isVoiceDisabled()) {
+      return false
+    }
     return this.childProcess !== null
   }
 
   async updateOnboardingState(isOnboarding: boolean): Promise<void> {
+    if (this.isVoiceDisabled()) {
+      log.info(
+        '[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping onboarding state update'
+      )
+      return
+    }
+
     await fs.promises.writeFile(this.onboardingStateFile, isOnboarding.toString())
     log.info(`[LiveKit] Updated onboarding state to: ${isOnboarding}`)
   }
 
   async cleanup(): Promise<void> {
+    if (this.isVoiceDisabled()) {
+      log.info('[LiveKit] Voice is disabled via VITE_DISABLE_VOICE, skipping cleanup')
+      return
+    }
+
     await this.stopAgent()
   }
 }

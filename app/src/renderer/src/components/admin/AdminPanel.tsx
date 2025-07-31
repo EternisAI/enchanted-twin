@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { ContinueSetupButton } from '../ContinueSetupButton'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
+import { checkVoiceDisabled } from '@renderer/lib/utils'
 
 export default function AdminPanel() {
   const { signOut } = useAuth()
@@ -127,7 +128,7 @@ export default function AdminPanel() {
         <UsersRoundIcon className="mr-2" />
         Sign Out
       </Button>
-      {process.env.NODE_ENV === 'development' && <ContinueSetupButton />}
+      {process.env.NODE_ENV === 'development' && !checkVoiceDisabled() && <ContinueSetupButton />}
 
       <div className="mt-6 p-4 border rounded-lg">
         <h3 className="text-sm font-medium mb-3 flex items-center">
