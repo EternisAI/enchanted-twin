@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -345,7 +346,24 @@ func killExistingPostgresProcesses(logger *log.Logger, dataPath string) error {
 
 	logger.Info("Found PostgreSQL process", "pid", pid)
 
-	// Check if process is still running
+	// Check if process is still running (Unix-like systems only)
+	if runtime.GOOS == "windows" {
+		logger.Debug("Skipping process check on Windows, removing pid file")
+		if err := os.Remove(pidFilePath); err != nil {
+			logger.Warn("Failed to remove postmaster.pid file", "error", err)
+		}
+		return nil
+	}
+
+	// Check if kill command is available
+	if _, err := exec.LookPath("kill"); err != nil {
+		logger.Warn("kill command not found, removing pid file without process check", "error", err)
+		if err := os.Remove(pidFilePath); err != nil {
+			logger.Warn("Failed to remove postmaster.pid file", "error", err)
+		}
+		return nil
+	}
+
 	if err := exec.Command("kill", "-0", pid).Run(); err != nil {
 		// Process is not running, remove stale pid file
 		logger.Info("PostgreSQL process is not running, removing stale pid file", "pid", pid)
@@ -357,22 +375,47 @@ func killExistingPostgresProcesses(logger *log.Logger, dataPath string) error {
 		return nil
 	}
 
-	// Process is running, try to terminate it gracefully
+	// Process is running, try to use pg_ctl for graceful shutdown first
 	logger.Info("PostgreSQL process is running, attempting graceful shutdown", "pid", pid)
-	if err := exec.Command("kill", "-TERM", pid).Run(); err != nil {
-		logger.Warn("Failed to send SIGTERM to PostgreSQL process", "pid", pid, "error", err)
-		// Try SIGKILL as last resort
-		if err := exec.Command("kill", "-KILL", pid).Run(); err != nil {
-			logger.Warn("Failed to send SIGKILL to PostgreSQL process", "pid", pid, "error", err)
+	
+	// Try to find pg_ctl and use it for proper shutdown
+	gracefulShutdown := false
+	pgCtlPath := findPgCtlPath(logger)
+	if pgCtlPath != "" {
+		logger.Info("Attempting graceful shutdown using pg_ctl", "pg_ctl_path", pgCtlPath)
+		if err := exec.Command(pgCtlPath, "-D", dataPath, "stop", "-m", "fast").Run(); err != nil {
+			logger.Warn("pg_ctl stop failed, falling back to signal-based shutdown", "error", err)
 		} else {
-			logger.Info("Killed PostgreSQL process with SIGKILL", "pid", pid)
+			logger.Info("Successfully stopped PostgreSQL using pg_ctl")
+			gracefulShutdown = true
 		}
 	} else {
-		logger.Info("Sent SIGTERM to PostgreSQL process", "pid", pid)
+		logger.Debug("pg_ctl not found, using signal-based shutdown")
+	}
+	
+	// If pg_ctl didn't work, fall back to signal-based shutdown
+	if !gracefulShutdown {
+		if err := exec.Command("kill", "-TERM", pid).Run(); err != nil {
+			logger.Warn("Failed to send SIGTERM to PostgreSQL process", "pid", pid, "error", err)
+			// Try SIGKILL as last resort (PostgreSQL docs warn against this)
+			logger.Warn("Using SIGKILL as last resort - this may leave shared memory segments")
+			if err := exec.Command("kill", "-KILL", pid).Run(); err != nil {
+				logger.Warn("Failed to send SIGKILL to PostgreSQL process", "pid", pid, "error", err)
+			} else {
+				logger.Info("Killed PostgreSQL process with SIGKILL", "pid", pid)
+			}
+		} else {
+			logger.Info("Sent SIGTERM to PostgreSQL process", "pid", pid)
+		}
 	}
 
 	// Wait a bit for process to terminate
 	time.Sleep(1 * time.Second)
+
+	// Clean up shared memory segments
+	if err := cleanupPostgresSharedMemory(logger, dataPath); err != nil {
+		logger.Warn("Failed to cleanup shared memory segments", "error", err)
+	}
 
 	// Remove the pid file if it still exists
 	if _, err := os.Stat(pidFilePath); err == nil {
@@ -384,6 +427,124 @@ func killExistingPostgresProcesses(logger *log.Logger, dataPath string) error {
 	}
 
 	return nil
+}
+
+func cleanupPostgresSharedMemory(logger *log.Logger, dataPath string) error {
+	// Only attempt cleanup on Unix-like systems (macOS, Linux)
+	if runtime.GOOS == "windows" {
+		logger.Debug("Skipping shared memory cleanup on Windows")
+		return nil
+	}
+
+	// Check if required commands are available
+	if _, err := exec.LookPath("ipcs"); err != nil {
+		logger.Warn("ipcs command not found, skipping shared memory cleanup", "error", err)
+		return nil
+	}
+	if _, err := exec.LookPath("ipcrm"); err != nil {
+		logger.Warn("ipcrm command not found, skipping shared memory cleanup", "error", err)
+		return nil
+	}
+
+	// Look for postgresql.conf to get the port number for shared memory key calculation
+	// PostgreSQL uses port number as part of the shared memory key
+	postgresqlConfPath := filepath.Join(dataPath, "postgresql.conf")
+	
+	// Read port from postgresql.conf if it exists
+	var port uint32 = 5432 // default port
+	if confData, err := os.ReadFile(postgresqlConfPath); err == nil {
+		lines := strings.Split(string(confData), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "port") && strings.Contains(line, "=") {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					portStr := strings.TrimSpace(parts[1])
+					portStr = strings.Trim(portStr, "'\"")
+					// Handle comments in the line
+					if commentIdx := strings.Index(portStr, "#"); commentIdx >= 0 {
+						portStr = strings.TrimSpace(portStr[:commentIdx])
+					}
+					if portInt, err := strconv.ParseUint(portStr, 10, 32); err == nil {
+						port = uint32(portInt)
+						break
+					}
+				}
+			}
+		}
+	}
+
+	logger.Debug("Cleaning up PostgreSQL shared memory segments", "port", port, "dataPath", dataPath, "os", runtime.GOOS)
+
+	// PostgreSQL calculates shared memory key as: 0x2000000 + port * 0x10000
+	// This is based on PostgreSQL's source code in src/backend/port/sysv_shmem.c
+	shmKey := 0x2000000 + int(port)*0x10000
+	
+	// Find shared memory segments using ipcs
+	cmd := exec.Command("ipcs", "-m")
+	output, err := cmd.Output()
+	if err != nil {
+		// On some systems, ipcs might require different flags or might not be available
+		logger.Debug("Failed to list shared memory segments, this is usually not critical", "error", err)
+		return nil // Don't treat this as a fatal error
+	}
+
+	lines := strings.Split(string(output), "\n")
+	segmentsFound := 0
+	
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			// Check if this line contains a shared memory key that matches PostgreSQL pattern
+			if keyStr := fields[1]; strings.HasPrefix(keyStr, "0x") {
+				if key, err := strconv.ParseInt(keyStr, 0, 64); err == nil {
+					// Check if this key matches PostgreSQL's pattern (within reasonable range)
+					if key >= int64(shmKey) && key < int64(shmKey+0x10000) {
+						shmid := fields[0]
+						segmentsFound++
+						logger.Info("Removing PostgreSQL shared memory segment", "key", keyStr, "shmid", shmid)
+						
+						if err := exec.Command("ipcrm", "-m", shmid).Run(); err != nil {
+							logger.Warn("Failed to remove shared memory segment", "shmid", shmid, "error", err)
+						} else {
+							logger.Info("Successfully removed shared memory segment", "shmid", shmid)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if segmentsFound == 0 {
+		logger.Debug("No PostgreSQL shared memory segments found to clean up")
+	}
+
+	return nil
+}
+
+func findPgCtlPath(logger *log.Logger) string {
+	// First, try to find pg_ctl in the same binary directory as the PostgreSQL binaries
+	// Check if we're using bundled binaries by looking for a bin directory near dataPath
+	appDataPath := os.Getenv("APP_DATA_PATH")
+	if appDataPath == "" {
+		appDataPath = "./output"
+	}
+	
+	// Check local binaries path first
+	localBinariesPath := filepath.Join(appDataPath, "postgres", "bin", "pg_ctl")
+	if _, err := os.Stat(localBinariesPath); err == nil {
+		logger.Debug("Found pg_ctl in local binaries", "path", localBinariesPath)
+		return localBinariesPath
+	}
+	
+	// Fall back to system PATH
+	if pgCtlPath, err := exec.LookPath("pg_ctl"); err == nil {
+		logger.Debug("Found pg_ctl in system PATH", "path", pgCtlPath)
+		return pgCtlPath
+	}
+	
+	logger.Debug("pg_ctl not found in local binaries or system PATH")
+	return ""
 }
 
 func findAvailablePostgresPort(preferredPort uint32, logger *log.Logger) uint32 {
