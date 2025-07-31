@@ -204,7 +204,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
           startLlamaCpp()
         }
       }
-    }, 15000)
+    }, 60000)
 
     return () => clearInterval(interval)
   }, [startLlamaCpp, hasModelsDownloaded.LLAMACCP, hasModelsDownloaded.anonymizer])

@@ -56,7 +56,7 @@ export function ChatProvider({
   initialMessage,
   initialReasoningState
 }: ChatProviderProps) {
-  const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
+  const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(!!initialMessage)
   const [isReasonSelected, setIsReasonSelected] = useState(initialReasoningState || false)
   const [error, setError] = useState<string>('')
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]) // current message
