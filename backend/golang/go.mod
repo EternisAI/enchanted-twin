@@ -6,6 +6,7 @@ require (
 	github.com/99designs/gqlgen v0.17.78
 	github.com/KSpaceer/goppt v0.1.1
 	github.com/charmbracelet/log v0.4.2
+	github.com/fergusstrange/embedded-postgres v1.31.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/g8rswimmer/go-twitter/v2 v2.1.5
 	github.com/gen2brain/go-fitz v1.24.15
@@ -27,6 +28,7 @@ require (
 	github.com/nats-io/nats-server/v2 v2.11.3
 	github.com/nats-io/nats.go v1.42.0
 	github.com/openai/openai-go v1.11.0
+	github.com/pgvector/pgvector-go v0.3.0
 	github.com/pion/webrtc/v4 v4.1.3
 	github.com/pkg/errors v0.9.1
 	github.com/pressly/goose/v3 v3.24.3
@@ -35,7 +37,7 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/slack-go/slack v0.16.0
 	github.com/temporalio/ui-server/v2 v2.37.2
-	github.com/testcontainers/testcontainers-go/modules/weaviate v0.37.0
+	github.com/testcontainers/testcontainers-go v0.38.0
 	github.com/vektah/gqlparser/v2 v2.5.30
 	github.com/weaviate/weaviate v1.30.3
 	github.com/weaviate/weaviate-go-client/v5 v5.1.0
@@ -86,6 +88,8 @@ require (
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cheggaaa/pb/v3 v3.1.4 // indirect
+	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
@@ -93,7 +97,7 @@ require (
 	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
-	github.com/docker/docker v28.0.1+incompatible // indirect
+	github.com/docker/docker v28.2.2+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
@@ -156,9 +160,10 @@ require (
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/minio/minio-go/v7 v7.0.84 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/go-archive v0.1.0 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
-	github.com/moby/sys/user v0.3.0 // indirect
+	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
@@ -193,13 +198,12 @@ require (
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.1 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.5 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/tailor-inc/graphql v0.5.7 // indirect
 	github.com/termie/go-shutil v0.0.0-20140729215957-bcacb06fecae // indirect
-	github.com/testcontainers/testcontainers-go v0.37.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/vcaesar/cedar v0.20.2 // indirect
@@ -211,6 +215,7 @@ require (
 	github.com/weaviate/sroar v0.0.9 // indirect
 	github.com/weaviate/tiktoken-go v0.0.2 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
@@ -220,7 +225,6 @@ require (
 	go.mongodb.org/mongo-driver v1.17.3 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gotest.tools/v3 v3.5.2 // indirect
 )
 
 require (
@@ -293,7 +297,7 @@ require (
 	github.com/invopop/jsonschema v0.13.0
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.7.4 // indirect
+	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

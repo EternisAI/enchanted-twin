@@ -10,6 +10,72 @@ import { LiveKitAgentBootstrap } from './livekitAgent'
 
 const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
+// PostgreSQL files to download
+const POSTGRES_FILES = {
+  binaries: [
+    'bin/postgres',
+    'bin/initdb', 
+    'bin/pg_ctl'
+  ],
+  libraries: [
+    'lib/libpq.5.dylib',
+    'lib/libpq.dylib',
+    'lib/postgresql/vector.dylib',
+    'lib/postgresql/dict_snowball.dylib',
+    'lib/postgresql/plpgsql.dylib',
+    // Essential system libraries that PostgreSQL binaries depend on
+    'lib/libicuuc.75.dylib',
+    'lib/libicui18n.75.dylib',
+    'lib/libicudata.75.dylib',
+    'lib/libssl.3.dylib',
+    'lib/libcrypto.3.dylib',
+    'lib/libxml2.2.dylib',
+    'lib/libzstd.1.dylib',
+    'lib/liblz4.1.dylib'
+  ],
+  dataFiles: [
+    'share/postgresql/postgres.bki',
+    'share/postgresql/errcodes.txt',
+    'share/postgresql/information_schema.sql',
+    // Configuration sample files required by initdb
+    'share/postgresql/pg_hba.conf.sample',
+    'share/postgresql/pg_ident.conf.sample',
+    'share/postgresql/postgresql.conf.sample',
+    'share/postgresql/pg_service.conf.sample',
+    'share/postgresql/psqlrc.sample',
+    // System catalog and function definitions
+    'share/postgresql/system_constraints.sql',
+    'share/postgresql/system_functions.sql', 
+    'share/postgresql/system_views.sql',
+    'share/postgresql/sql_features.txt',
+    'share/postgresql/snowball_create.sql',
+    // Core PostgreSQL extension (required by initdb)
+    'share/postgresql/extension/plpgsql.control',
+    'share/postgresql/extension/plpgsql--1.0.sql',
+    // pgvector extension files
+    'share/postgresql/extension/vector.control',
+    'share/postgresql/extension/vector--0.8.0.sql',
+    // Essential timezone files - just UTC
+    'share/postgresql/timezone/UTC',
+    // Timezone sets - required directory structure for PostgreSQL
+    'share/postgresql/timezonesets/Africa.txt',
+    'share/postgresql/timezonesets/America.txt',
+    'share/postgresql/timezonesets/Antarctica.txt',
+    'share/postgresql/timezonesets/Asia.txt',
+    'share/postgresql/timezonesets/Atlantic.txt',
+    'share/postgresql/timezonesets/Australia',
+    'share/postgresql/timezonesets/Australia.txt',
+    'share/postgresql/timezonesets/Default',
+    'share/postgresql/timezonesets/Etc.txt',
+    'share/postgresql/timezonesets/Europe.txt',
+    'share/postgresql/timezonesets/India',
+    'share/postgresql/timezonesets/Indian.txt',
+    'share/postgresql/timezonesets/Pacific.txt',
+    // Text search data - just English
+    'share/postgresql/tsearch_data/english.stop'
+  ]
+}
+
 const DEPENDENCIES_CONFIGS: Record<
   DependencyName,
   {
@@ -179,6 +245,88 @@ const DEPENDENCIES_CONFIGS: Record<
           : path.join(this.dir, 'onnxruntime-linux-x64-1.22.0')
       return isExtractedDirValid(onnxDir)
     }
+  },
+  postgres: {
+    url: 'https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres',
+    name: 'postgres',
+    dir: path.join(DEPENDENCIES_DIR, 'postgres'),
+    install: async function () {
+      const baseUrl = this.url
+      const allFiles = [...POSTGRES_FILES.binaries, ...POSTGRES_FILES.libraries, ...POSTGRES_FILES.dataFiles]
+      let downloadedFiles = 0
+      const totalFiles = allFiles.length
+      const failedDownloads: string[] = []
+
+      for (const filePath of allFiles) {
+        const fileUrl = `${baseUrl}/${filePath}`
+        const destPath = path.join(this.dir, filePath)
+        const destDir = path.dirname(destPath)
+
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(destDir)) {
+          fs.mkdirSync(destDir, { recursive: true })
+        }
+
+        try {
+          await downloadSingleFile(fileUrl, destPath)
+          downloadedFiles++
+
+          // Report progress
+          const pct = Math.round((downloadedFiles / totalFiles) * 100)
+          windowManager.mainWindow?.webContents.send('models:progress', {
+            modelName: this.name,
+            pct,
+            totalBytes: totalFiles,
+            downloadedBytes: downloadedFiles
+          })
+        } catch (error) {
+          console.error(`Failed to download ${filePath}:`, error)
+          failedDownloads.push(filePath)
+          // Continue with other files even if one fails
+        }
+      }
+
+      // Report failed downloads
+      if (failedDownloads.length > 0) {
+        console.warn(`Download completed with ${failedDownloads.length} failed files:`)
+        failedDownloads.forEach(file => console.warn(`  - ${file}`))
+      } else {
+        console.log('All PostgreSQL files downloaded successfully')
+      }
+      
+      // Set executable permissions for binaries on Unix-like systems
+      if (process.platform !== 'win32') {
+        for (const binaryPath of POSTGRES_FILES.binaries) {
+          const fullPath = path.join(this.dir, binaryPath)
+          if (fs.existsSync(fullPath)) {
+            fs.chmodSync(fullPath, 0o755)
+          }
+        }
+      }
+    },
+    isDownloaded: function () {
+      // Check for essential PostgreSQL files including required libraries and config files
+      const essentialFiles = [
+        'bin/postgres',
+        'bin/initdb',
+        'bin/pg_ctl',
+        'lib/libpq.5.dylib',
+        'lib/postgresql/vector.dylib',
+        'lib/libicuuc.75.dylib',
+        'lib/libssl.3.dylib',
+        'lib/libcrypto.3.dylib',
+        'share/postgresql/postgres.bki',
+        'share/postgresql/pg_hba.conf.sample',
+        'share/postgresql/postgresql.conf.sample',
+        'share/postgresql/extension/vector.control',
+        'share/postgresql/extension/plpgsql.control'
+      ]
+      
+      return essentialFiles.every(filePath => {
+        const fullPath = path.join(this.dir, filePath)
+        return fs.existsSync(fullPath)
+      })
+    }
   }
 }
 
@@ -214,8 +362,19 @@ export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
     anonymizer: DEPENDENCIES_CONFIGS.anonymizer.isDownloaded(),
     onnx: DEPENDENCIES_CONFIGS.onnx.isDownloaded(),
     LLAMACCP: DEPENDENCIES_CONFIGS.LLAMACCP.isDownloaded(),
-    uv: DEPENDENCIES_CONFIGS.uv.isDownloaded()
+    uv: DEPENDENCIES_CONFIGS.uv.isDownloaded(),
+    postgres: DEPENDENCIES_CONFIGS.postgres.isDownloaded()
   }
+}
+
+async function downloadSingleFile(url: string, destPath: string): Promise<void> {
+  const resp = await axios.get(url, { responseType: 'stream' })
+  return new Promise<void>((resolve, reject) => {
+    const ws = fs.createWriteStream(destPath)
+    resp.data.pipe(ws)
+    ws.on('finish', resolve)
+    ws.on('error', reject)
+  })
 }
 
 async function downloadFile(
