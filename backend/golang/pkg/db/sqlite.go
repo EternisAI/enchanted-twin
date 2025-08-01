@@ -7,25 +7,59 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
 
-// Wrapper around a SQLite database connection that provides
-// functionality specific to Twins.
-//
-// 1. The creation method creates the tables if they do not exist.
-// 2. Convenience methods for querying data.
-// 3. Convenience method for inserting and updating data.
-type Store struct {
-	db *sqlx.DB
+// Register a custom SQLite driver with connection hooks for safety.
+func init() {
+	sql.Register("sqlite3_safe", &sqlite3.SQLiteDriver{
+		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+			var errs []error
+
+			// Execute all PRAGMA commands, collecting any errors
+			if _, err := conn.Exec("PRAGMA foreign_keys = ON", nil); err != nil {
+				errs = append(errs, fmt.Errorf("failed to enable foreign keys: %w", err))
+			}
+
+			if _, err := conn.Exec("PRAGMA busy_timeout = 5000", nil); err != nil {
+				errs = append(errs, fmt.Errorf("failed to set busy timeout: %w", err))
+			}
+
+			if _, err := conn.Exec("PRAGMA journal_mode = WAL", nil); err != nil {
+				errs = append(errs, fmt.Errorf("failed to set WAL mode: %w", err))
+			}
+
+			// Return combined error if any occurred
+			if len(errs) > 0 {
+				var errStrings []string
+				for _, err := range errs {
+					errStrings = append(errStrings, err.Error())
+				}
+				return fmt.Errorf("PRAGMA errors: %s", strings.Join(errStrings, "; "))
+			}
+
+			return nil
+		},
+	})
 }
 
-// NewStore creates a new SQLite-backed store.
-func NewStore(ctx context.Context, dbPath string) (*Store, error) {
-	// Create the parent directory if it doesn't exist
+// Wrapper around a SQLite database connection that provides
+// functionality specific to Twins with enhanced recovery system.
+type Store struct {
+	db          *sqlx.DB
+	backupMgr   *DailyBackupManager
+	recoveryMgr *StartupRecoveryManager
+	logger      *log.Logger
+}
+
+// NewStoreWithLogger creates a new SQLite-backed store with the provided logger.
+func NewStoreWithLogger(ctx context.Context, dbPath string, logger *log.Logger) (*Store, error) {
 	dir := filepath.Dir(dbPath)
 	if dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -33,35 +67,27 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		}
 	}
 
-	db, err := sqlx.ConnectContext(ctx, "sqlite3", dbPath)
+	loggerAdapter := NewLoggerAdapter(logger)
+
+	backupMgr := NewDailyBackupManager(dbPath, loggerAdapter)
+	recoveryMgr := NewStartupRecoveryManager(dbPath, backupMgr, loggerAdapter)
+
+	dbManager := NewDatabaseManagerWithStartupRecovery(dbPath, backupMgr, loggerAdapter)
+	sqlDB, err := dbManager.OpenWithRecovery(ctx, dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to SQLite: %w", err)
+		return nil, fmt.Errorf("failed to open database with recovery: %w", err)
 	}
 
-	// Enable WAL mode for better concurrency and performance
-	_, err = db.ExecContext(ctx, "PRAGMA journal_mode=WAL;")
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
-	}
+	db := sqlx.NewDb(sqlDB, "sqlite3")
 
-	// Enable enforcement of foreign key constraints
-	_, err = db.ExecContext(ctx, "PRAGMA foreign_keys=ON;")
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable foreign key constraints: %w", err)
-	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
-	// Set busy timeout to handle database locks.
-	_, err = db.ExecContext(ctx, "PRAGMA busy_timeout=5000;")
-	if err != nil {
-		return nil, fmt.Errorf("failed to set busy timeout: %w", err)
-	}
-
-	// Run migrations to ensure all tables exist
 	if err := RunMigrations(db.DB); err != nil {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	// Generate UUID for telegram integration if not exists
 	uuid := uuid.New().String()
 	_, err = db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO config (key, value) 
@@ -71,18 +97,64 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, err
 	}
 
-	store := &Store{db: db}
+	// Set database on backup manager before any other operations to prevent race conditions
+	backupMgr.SetDatabase(db.DB)
+
+	store := &Store{
+		db:          db,
+		backupMgr:   backupMgr,
+		recoveryMgr: recoveryMgr,
+		logger:      logger,
+	}
+
+	// Start backup manager after store is fully initialized
+	backupMgr.Start(ctx)
 
 	if err = store.InitOAuth(ctx); err != nil {
 		return nil, err
 	}
 
+	logger.Info("Store initialized with enhanced recovery and daily backup system")
 	return store, nil
+}
+
+// NewStore creates a new SQLite-backed store with a default logger for backward compatibility.
+func NewStore(ctx context.Context, dbPath string) (*Store, error) {
+	logger := log.New(os.Stdout)
+	logger.SetLevel(log.InfoLevel)
+	return NewStoreWithLogger(ctx, dbPath, logger)
 }
 
 // Close closes the database connection.
 func (s *Store) Close() error {
+	if s.backupMgr != nil {
+		s.backupMgr.Stop()
+	}
 	return s.db.Close()
+}
+
+// GetBackupStatus returns the current status of the backup system.
+func (s *Store) GetBackupStatus() string {
+	if s.backupMgr == nil {
+		return "Backup system not initialized"
+	}
+	return s.backupMgr.GetStatus()
+}
+
+// CreateManualBackup creates a manual backup of the database.
+func (s *Store) CreateManualBackup(ctx context.Context) error {
+	if s.backupMgr == nil {
+		return fmt.Errorf("backup manager not initialized")
+	}
+	return s.backupMgr.CreateBackup(ctx)
+}
+
+// RestoreFromBackup restores the database from the latest backup.
+func (s *Store) RestoreFromBackup(ctx context.Context) error {
+	if s.recoveryMgr == nil {
+		return fmt.Errorf("recovery manager not initialized")
+	}
+	return s.recoveryMgr.RestoreFromBackup(ctx)
 }
 
 // DB returns the underlying sqlx.DB instance.
@@ -99,7 +171,7 @@ func (s *Store) GetValue(ctx context.Context, key string) (string, error) {
 		return "", err
 	}
 	if !value.Valid {
-		return "", nil // Return empty string for NULL values
+		return "", nil
 	}
 
 	return value.String, nil

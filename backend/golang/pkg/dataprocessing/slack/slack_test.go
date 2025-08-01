@@ -16,7 +16,7 @@ import (
 
 func TestProcessFile(t *testing.T) {
 	logger := log.New(os.Stdout)
-	store, err := db.NewStore(context.Background(), "test")
+	store, err := db.NewStoreWithLogger(context.Background(), "test", logger)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}

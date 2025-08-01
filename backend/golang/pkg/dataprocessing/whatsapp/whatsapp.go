@@ -414,7 +414,7 @@ func (s *WhatsappProcessor) loadContactNames(ctx context.Context, db *sql.DB) (m
 }
 
 func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) {
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite3_safe", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
