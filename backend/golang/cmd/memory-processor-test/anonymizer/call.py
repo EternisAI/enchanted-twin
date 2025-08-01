@@ -148,6 +148,6 @@ if __name__ == "__main__":
     run_on_dataset(
         model_id="eternis/qwen1.7b-anonymizer-merged",
         dataset_path="datasets/pii_test.jsonl",
-        output_path="results/test_data_og.jsonl",
+        output_path="results/test.jsonl",
         sample_size=100,
     )

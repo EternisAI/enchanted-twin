@@ -349,6 +349,6 @@ def evaluate_from_json(input_file, output_file):
 
 if __name__ == "__main__":
     evaluate_from_json(
-        input_file="results/test_data_og.jsonl",
-        output_file="results/test_data_og_judged.jsonl",
+        input_file="results/test.jsonl",
+        output_file="results/test_judged.jsonl",
     )
