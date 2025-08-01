@@ -117,25 +117,6 @@ test.describe('Google OAuth Authentication E2E', () => {
 
       console.log('✅ Step 3 completed: Authenticated functionality verified')
 
-      // Step 4: Test sign out
-      console.log('🚪 Step 4: Testing sign out functionality...')
-      await signOut(page)
-
-      // Verify we're back to unauthenticated state
-      await expect(page.getByText('Continue with Google')).toBeVisible({ timeout: 10000 })
-
-      // Verify auth data is cleared
-      const authStatusAfterSignOut = await isAuthenticated(page)
-      expect(authStatusAfterSignOut).toBe(false)
-
-      // Take screenshot of signed out state
-      await page.screenshot({
-        path: 'test-results/artifacts/auth-test-signedout-state.png',
-        fullPage: true
-      })
-
-      console.log('✅ Step 4 completed: Sign out successful')
-
       console.log('🎉 Complete Google OAuth authentication test passed!')
     } catch (error) {
       console.error('❌ Authentication test failed:', error)

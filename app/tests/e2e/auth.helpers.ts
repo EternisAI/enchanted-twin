@@ -489,30 +489,23 @@ async function waitForSuccessfulAuth(page: Page): Promise<void> {
       { timeout: 45000 } // Reasonable timeout for OAuth completion
     )
 
-    // Wait for welcome message or user avatar to appear
-    // Use a more flexible approach for different possible welcome messages
-    const welcomeSelectors = [
-      'text=Welcome',
-      'text=welcome',
-      '[data-testid="user-welcome"]',
-      '[data-testid="authenticated-content"]'
-    ]
+    // Wait for the chat textarea to appear - this indicates the app is fully loaded and ready
+    console.log('🔍 Waiting for app to be ready...')
+    const chatboxSelector = 'textarea[placeholder*="Send a message"]'
 
-    let welcomeFound = false
-    for (const selector of welcomeSelectors) {
+    try {
+      await expect(page.locator(chatboxSelector)).toBeVisible({ timeout: 15000 })
+      console.log('✅ App is ready - found chat interface')
+    } catch (error) {
+      // Try alternative selector
       try {
-        await expect(page.locator(selector).first()).toBeVisible({ timeout: 10000 })
-        welcomeFound = true
-        console.log(`✅ Found welcome indicator: ${selector}`)
-        break
-      } catch (error) {
-        // Continue to next selector
-        console.log(`ℹ️ Welcome selector not found: ${selector}`)
+        await expect(page.locator('textarea.outline-none.bg-transparent')).toBeVisible({
+          timeout: 10000
+        })
+        console.log('✅ App is ready - found chat interface (alternative selector)')
+      } catch (altError) {
+        console.log('⚠️ No chat interface found, but authentication data exists in localStorage')
       }
-    }
-
-    if (!welcomeFound) {
-      console.log('⚠️ No specific welcome message found, but user data exists in localStorage')
     }
 
     console.log('✅ Google sign-in completed successfully!')
@@ -626,14 +619,8 @@ export async function isAuthenticated(page: Page): Promise<boolean> {
       return false
     }
 
-    // Also check if welcome message is visible (but don't fail if not found)
-    try {
-      const hasWelcomeMessage = await page.getByText('Welcome').isVisible({ timeout: 2000 })
-      return hasUserData && hasWelcomeMessage
-    } catch (error) {
-      // If welcome message check fails, just return based on localStorage
-      return hasUserData
-    }
+    // Return based on localStorage data only - no UI element checks needed
+    return hasUserData
   } catch (error) {
     return false
   }

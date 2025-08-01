@@ -57,16 +57,15 @@ export default defineConfig({
       }
     },
 
-    // Tests that require authentication (use cached session)
+    // Tests that require authentication (use clean cache with mock auth)
     {
       name: 'authenticated',
       testMatch: ['**/*.auth.e2e.ts'],
       use: {
-        ...devices['Desktop Chrome'],
-        // Use saved authentication state
-        storageState: AUTH_CONFIG.AUTH_STATE_PATH
-      },
-      dependencies: ['setup']
+        ...devices['Desktop Chrome']
+        // Removed storageState to ensure clean cache on each run
+      }
+      // Removed dependencies to avoid relying on setup project
     },
 
     // Smoke tests (can run independently)

@@ -1,7 +1,7 @@
 import { FullConfig } from '@playwright/test'
 import { spawn, ChildProcess } from 'child_process'
 import path from 'path'
-import { promises as fs } from 'fs'
+import { promises as fs, mkdirSync, openSync, closeSync } from 'fs'
 import { E2E_CONFIG, BACKEND_ENV } from './config'
 
 let backendProcess: ChildProcess | null = null
@@ -69,7 +69,20 @@ async function buildBackendServer(): Promise<void> {
 async function startBackendServer(): Promise<void> {
   return new Promise((resolve, reject) => {
     const backendPath = path.join(__dirname, '../../../backend/golang')
+    const logsPath = path.join(__dirname, '../../../backend/golang/output')
+
     console.log('🖥️  Starting backend server for E2E tests...')
+
+    // Ensure logs directory exists
+    try {
+      mkdirSync(logsPath, { recursive: true })
+    } catch (error) {
+      // Directory might already exist
+    }
+
+    // Create log file descriptors
+    const stdoutFd = openSync(path.join(logsPath, 'e2e-backend-stdout.log'), 'w')
+    const stderrFd = openSync(path.join(logsPath, 'e2e-backend-stderr.log'), 'w')
 
     backendProcess = spawn('./bin/enchanted-twin', [], {
       cwd: backendPath,
@@ -77,38 +90,40 @@ async function startBackendServer(): Promise<void> {
         ...process.env,
         ...BACKEND_ENV
       },
-      stdio: 'pipe'
+      stdio: ['ignore', stdoutFd, stderrFd]
     })
 
     let hasStarted = false
 
-    if (backendProcess.stdout) {
-      backendProcess.stdout.on('data', (data) => {
-        const output = data.toString()
-        console.log(`Backend: ${output.trim()}`)
+    // Monitor the log files for startup messages
+    const startupChecker = setInterval(async () => {
+      try {
+        const stdoutContent = await fs.readFile(
+          path.join(logsPath, 'e2e-backend-stdout.log'),
+          'utf8'
+        )
+        const stderrContent = await fs.readFile(
+          path.join(logsPath, 'e2e-backend-stderr.log'),
+          'utf8'
+        )
 
-        // Look for GraphQL server startup message
-        if (output.includes('Starting GraphQL HTTP server') && !hasStarted) {
+        const combinedOutput = stdoutContent + stderrContent
+
+        if (combinedOutput.includes('Starting GraphQL HTTP server') && !hasStarted) {
           hasStarted = true
-          setTimeout(() => resolve(), 2000) // Give it a moment to fully start
-        }
-      })
-    }
-
-    if (backendProcess.stderr) {
-      backendProcess.stderr.on('data', (data) => {
-        const error = data.toString()
-        console.log(`Backend Log: ${error.trim()}`)
-
-        // Don't treat warnings as errors, but still log them
-        if (error.includes('Starting GraphQL HTTP server') && !hasStarted) {
-          hasStarted = true
+          clearInterval(startupChecker)
+          console.log('✅ Backend server started (logs written to files)')
           setTimeout(() => resolve(), 2000)
         }
-      })
-    }
+      } catch (error) {
+        // File might not exist yet, continue checking
+      }
+    }, 500)
 
     backendProcess.on('error', (error) => {
+      clearInterval(startupChecker)
+      closeSync(stdoutFd)
+      closeSync(stderrFd)
       console.error('❌ Failed to start backend server:', error)
       reject(error)
     })
@@ -116,6 +131,9 @@ async function startBackendServer(): Promise<void> {
     // Timeout after configured time
     setTimeout(() => {
       if (!hasStarted) {
+        clearInterval(startupChecker)
+        closeSync(stdoutFd)
+        closeSync(stderrFd)
         reject(
           new Error(
             `Backend server failed to start within ${E2E_CONFIG.BACKEND_STARTUP_TIMEOUT / 1000} seconds`
@@ -123,6 +141,13 @@ async function startBackendServer(): Promise<void> {
         )
       }
     }, E2E_CONFIG.BACKEND_STARTUP_TIMEOUT)
+
+    // Clean up file descriptors when process exits
+    backendProcess.on('exit', () => {
+      clearInterval(startupChecker)
+      closeSync(stdoutFd)
+      closeSync(stderrFd)
+    })
   })
 }
 

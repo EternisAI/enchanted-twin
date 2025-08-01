@@ -65,13 +65,13 @@ pnpm test:e2e:auth:setup
 
 #### 4. Authenticated Feature Tests
 ```bash
-# Test features that require authentication (uses cached session)
+# Test features that require authentication (uses clean cache with mock auth)
 pnpm test:e2e:auth:authenticated
 ```
 - ✅ Chat functionality testing
-- ✅ MCP server access testing
+- ✅ MCP server access testing  
 - ✅ Settings and user profile testing
-- ✅ Authentication state persistence
+- ✅ Clean cache ensures consistent test environment
 
 ### Authentication Credentials
 
@@ -83,30 +83,30 @@ Test credentials are configured in `config.ts`:
 
 ### How Authentication Testing Works
 
-1. **Authentication Setup** (`auth.setup.ts`):
-   - Runs once before authenticated tests
-   - Performs Google OAuth flow
-   - Saves authentication state to disk
-   - Provides session for subsequent tests
+1. **Authentication Flow Tests** (`auth.e2e.ts`):
+   - Tests the actual Google OAuth login/logout process
+   - Uses clean cache with fresh temporary directories
+   - Performs real OAuth flow with test credentials
+   - Ensures OAuth functionality works correctly
 
-2. **Session Caching**:
-   - Authenticated tests reuse saved session
-   - No need to re-authenticate for each test
-   - Faster test execution
-   - More reliable than repeated OAuth flows
+2. **Clean Cache Approach**:
+   - Both auth and authenticated tests start with fresh cache
+   - No dependency on cached sessions between test runs
+   - More reliable and consistent test execution
+   - Prevents interference between test runs
 
 3. **Test Isolation**:
    - Basic tests run independently
-   - Auth flow tests test the login process itself
-   - Authenticated tests assume login is already done
+   - Auth flow tests test the login process itself with clean cache
+   - Authenticated tests use mock authentication with clean cache
 
 ## Test Projects
 
 The Playwright configuration defines several test projects:
 
 ### `setup`
-- Runs authentication setup
-- Creates cached session state
+- Authentication setup (now optional for authenticated tests)
+- Creates cached session state for legacy compatibility
 - **Files**: `auth.setup.ts`
 
 ### `basic`
@@ -114,14 +114,14 @@ The Playwright configuration defines several test projects:
 - **Files**: `app.e2e.ts`
 
 ### `auth-flow`
-- Tests the Google OAuth flow directly
+- Tests the Google OAuth flow directly with clean cache
 - **Files**: `auth.e2e.ts`
 
 ### `authenticated`
 - Tests that require a logged-in user
-- Uses cached authentication state
+- Uses clean cache with mock authentication
 - **Files**: `*.auth.e2e.ts`
-- **Dependencies**: Requires `setup` project
+- **No dependencies**: Runs independently with clean cache
 
 ### `smoke`
 - Quick smoke tests
@@ -133,11 +133,11 @@ The Playwright configuration defines several test projects:
 # Complete test suite
 pnpm test:e2e:all           # Run setup + basic + auth + authenticated tests
 
-# Individual test types
+# Individual test types  
 pnpm test:e2e:basic         # Basic app functionality (no auth)
-pnpm test:e2e:auth          # OAuth flow testing
-pnpm test:e2e:auth:setup    # Authentication setup only
-pnpm test:e2e:authenticated # Authenticated features (requires setup)
+pnpm test:e2e:auth          # OAuth flow testing (clean cache)
+pnpm test:e2e:auth:setup    # Authentication setup only (optional)
+pnpm test:e2e:authenticated # Authenticated features (clean cache + mock auth)
 pnpm test:e2e:smoke         # Smoke tests
 
 # Development and debugging
@@ -151,8 +151,9 @@ pnpm test:e2e:report        # View HTML test report
 
 - **Screenshots**: `test-results/artifacts/`
 - **HTML reports**: `test-results/html/`
-- **Authentication state**: `test-results/.auth/user.json`
+- **Authentication state**: `test-results/.auth/user.json` (legacy)
 - **Videos**: Saved automatically on failures
+- **Temporary directories**: `temp/electron-test-*` (cleaned up automatically)
 
 ## Current Test Results
 
@@ -173,16 +174,18 @@ pnpm test:e2e:report        # View HTML test report
 
 ```mermaid
 graph TD
-    A[Setup Project] --> B[Google OAuth Flow]
-    B --> C[Save Session State]
-    C --> D[Authenticated Tests Start]
-    D --> E[Load Cached Session]
-    E --> F[Test Authenticated Features]
-    F --> G[Tests Complete]
+    A[Auth Flow Tests] --> B[Clean Cache Setup]
+    B --> C[Fresh OAuth Login]
+    C --> D[Test Login/Logout Process]
+    D --> E[Cleanup Temp Directories]
     
-    H[Auth Flow Tests] --> I[Fresh OAuth Login]
-    I --> J[Test Login Process]
-    J --> K[Test Logout Process]
+    F[Authenticated Tests] --> G[Clean Cache Setup]
+    G --> H[Mock Authentication]
+    H --> I[Test Authenticated Features] 
+    I --> J[Cleanup Temp Directories]
+    
+    K[Optional: Setup Project] --> L[Legacy Session Cache]
+    L --> M[Save to user.json]
 ```
 
 ## Troubleshooting
@@ -190,19 +193,19 @@ graph TD
 ### Authentication Issues
 
 1. **Google blocks login attempts**:
-   - Use session caching (`pnpm test:e2e:auth:setup` once)
-   - Avoid running auth flow tests repeatedly
-   - Check for CAPTCHA or 2FA requirements
+   - Auth flow tests now use clean cache each run
+   - Mock authentication used for authenticated tests
+   - Reduced OAuth calls prevent Google rate limiting
 
-2. **Session cache not working**:
-   - Ensure `test-results/.auth/user.json` exists
-   - Re-run setup: `pnpm test:e2e:auth:setup`
-   - Check file permissions
+2. **Clean cache not working**:
+   - Check temp directory permissions: `temp/electron-test-*`
+   - Ensure cleanup runs properly after tests
+   - Manually delete temp directories if needed
 
-3. **Tests timeout**:
-   - Google OAuth can be slow
-   - Increase timeouts in config if needed
-   - Check network connectivity
+3. **Mock authentication fails**:
+   - Verify localStorage is accessible in test environment
+   - Check that mock user data is properly formatted
+   - Ensure page reload happens after setting mock data
 
 ### General Issues
 
@@ -216,13 +219,18 @@ graph TD
    - Check for TypeScript errors
    - Ensure all dependencies are installed
 
+3. **Temp directory cleanup issues**:
+   - Check file permissions in `temp/` directory
+   - Manually clean with: `rm -rf temp/electron-test-*`
+   - Ensure tests have write permissions
+
 ## Best Practices
 
-1. **Use Session Caching**: Run setup once, reuse for feature tests
-2. **Minimal Auth Testing**: Only test OAuth flow when needed
+1. **Clean Cache Benefits**: Every test starts fresh, preventing state pollution
+2. **Mock for Speed**: Use mock auth for feature testing, real OAuth only when needed
 3. **Environment Variables**: Move credentials to `.env` in production
 4. **Dedicated Test Account**: Never use personal Google accounts
-5. **CI/CD Considerations**: Auth tests may need special handling in CI
+5. **Temp Directory Management**: Let tests handle cleanup automatically
 
 ## Requirements
 

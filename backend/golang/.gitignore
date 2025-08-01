@@ -17,4 +17,7 @@ weaviate-test-memory/*
 # Personality testing framework reports
 pkg/testing/personalities/testdata/reports/
 
+# Backend server logs
+logs/
+
 launch.json
