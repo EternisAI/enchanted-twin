@@ -173,6 +173,8 @@ func main() {
 		runGmail()
 	case "chunks":
 		runChunks()
+	case "shards":
+		runShards()
 	case "prompts":
 		runPrompts()
 	case "facts":
@@ -524,6 +526,127 @@ func runChunks() {
 	logger.Info("Chunking done", "original", len(documents), "chunks", len(chunkedDocs), "output", outputFile)
 }
 
+func runShards() {
+	// Find X_1 file with optional type filtering
+	typeFilter := parseTypeFlag()
+	inputFile := findFileByType("pipeline_output/X_1_*.jsonl", typeFilter)
+	if inputFile == "" {
+		if typeFilter != "" {
+			logger.Error("No X_1 file found matching type", "type", typeFilter)
+		} else {
+			logger.Error("No X_1 chunks file found")
+		}
+		os.Exit(1)
+	}
+
+	logger.Info("Creating shards from chunks", "input", inputFile, "type_filter", typeFilter)
+
+	// Load chunks
+	documents, err := memory.LoadConversationDocumentsFromJSON(inputFile)
+	if err != nil {
+		logger.Error("Load failed", "error", err)
+		os.Exit(1)
+	}
+
+	var shardDocs []memory.ConversationDocument
+	for _, doc := range documents {
+		// Split each chunk into smaller shards (≤500 chars each)
+		shards := createShardsFromDocument(doc, 500)
+		shardDocs = append(shardDocs, shards...)
+	}
+
+	// Generate output filename based on input file type
+	baseName := strings.TrimSuffix(filepath.Base(inputFile), ".jsonl")
+	typeSuffix := strings.TrimPrefix(baseName, "X_1_")
+	typeSuffix = strings.TrimSuffix(typeSuffix, "_chunks")
+	if typeSuffix == baseName || typeSuffix == "" {
+		// Fallback if naming doesn't match expected pattern
+		typeSuffix = "shards"
+	} else {
+		typeSuffix += "_shards"
+	}
+	outputFile := fmt.Sprintf("pipeline_output/X_2_%s.jsonl", typeSuffix)
+
+	// Save shards as JSONL using memory package helper
+	if err := memory.ExportConversationDocumentsJSON(shardDocs, outputFile); err != nil {
+		logger.Error("Save failed", "error", err, "output", outputFile)
+		os.Exit(1)
+	}
+
+	logger.Info("Sharding done", "original_chunks", len(documents), "shards", len(shardDocs), "output", outputFile)
+}
+
+// createShardsFromDocument splits a ConversationDocument into smaller shards
+// Each shard contains messages up to maxChars total characters
+func createShardsFromDocument(doc memory.ConversationDocument, maxChars int) []memory.ConversationDocument {
+	// Access the conversation messages directly from the document
+	allMessages := doc.Conversation
+	
+	if len(allMessages) == 0 {
+		return []memory.ConversationDocument{}
+	}
+	
+	var shards []memory.ConversationDocument
+	var currentShardMessages []memory.ConversationMessage
+	var currentCharCount int
+	shardIndex := 0
+
+	for _, msg := range allMessages {
+		msgCharCount := len(msg.Content)
+		
+		// If adding this message would exceed the limit, create a new shard
+		if currentCharCount > 0 && currentCharCount + msgCharCount > maxChars {
+			// Create shard from current messages
+			if len(currentShardMessages) > 0 {
+				shard := createShardDocument(doc, currentShardMessages, shardIndex)
+				shards = append(shards, shard)
+				shardIndex++
+			}
+			
+			// Start new shard with this message
+			currentShardMessages = []memory.ConversationMessage{msg}
+			currentCharCount = msgCharCount
+		} else {
+			// Add message to current shard
+			currentShardMessages = append(currentShardMessages, msg)
+			currentCharCount += msgCharCount
+		}
+	}
+	
+	// Don't forget the last shard
+	if len(currentShardMessages) > 0 {
+		shard := createShardDocument(doc, currentShardMessages, shardIndex)
+		shards = append(shards, shard)
+	}
+	
+	return shards
+}
+
+// createShardDocument creates a new ConversationDocument shard from an original document
+func createShardDocument(originalDoc memory.ConversationDocument, messages []memory.ConversationMessage, shardIndex int) memory.ConversationDocument {
+	// Create a new document with the shard messages and preserve original metadata
+	shardID := fmt.Sprintf("%s_shard_%d", originalDoc.ID(), shardIndex)
+	
+	// Copy metadata and add shard-specific info
+	shardMetadata := make(map[string]string)
+	for k, v := range originalDoc.Metadata() {
+		shardMetadata[k] = v
+	}
+	shardMetadata["_enchanted_shard_number"] = fmt.Sprintf("%d", shardIndex)
+	shardMetadata["_enchanted_original_document_id"] = originalDoc.ID()
+	shardMetadata["_enchanted_shard_type"] = "conversation_shard"
+	
+	return memory.ConversationDocument{
+		FieldID:       shardID,
+		FieldSource:   originalDoc.Source(),
+		People:        originalDoc.People,
+		User:          originalDoc.User,
+		Conversation:  messages,
+		FieldTags:     originalDoc.Tags(),
+		FieldMetadata: shardMetadata,
+	}
+}
+
 // 🔥 PARALLEL FACT EXTRACTION WORKER POOL.
 func extractFactsParallel(documents []memory.Document, numWorkers int) []*memory.MemoryFact {
 	aiService := ai.NewOpenAIService(
@@ -623,21 +746,21 @@ func extractFactsParallel(documents []memory.Document, numWorkers int) []*memory
 }
 
 func runPrompts() {
-	logger.Info("Converting chunked documents to formatted prompts")
+	logger.Info("Converting shards documents to formatted prompts")
 
-	// Find X_1 file with optional type filtering
+	// Find X_2 file with optional type filtering
 	typeFilter := parseTypeFlag()
-	inputFile := findFileByType("pipeline_output/X_1_*.jsonl", typeFilter)
+	inputFile := findFileByType("pipeline_output/X_2_*.jsonl", typeFilter)
 	if inputFile == "" {
 		if typeFilter != "" {
-			logger.Error("No X_1 file found matching type", "type", typeFilter)
+			logger.Error("No X_2 file found matching type", "type", typeFilter)
 		} else {
-			logger.Error("No X_1 file found")
+			logger.Error("No X_2 file found")
 		}
 		os.Exit(1)
 	}
 
-	logger.Info("Using X_1 file", "file", inputFile, "type_filter", typeFilter)
+	logger.Info("Using X_2 file", "file", inputFile, "type_filter", typeFilter)
 
 	// Load chunked documents from the selected file
 	conversationDocs, err := memory.LoadConversationDocumentsFromJSON(inputFile)
@@ -666,13 +789,13 @@ func runPrompts() {
 
 	// Generate output filename based on input file type
 	baseName := strings.TrimSuffix(filepath.Base(inputFile), ".jsonl")
-	typeSuffix := strings.TrimPrefix(baseName, "X_1_")
-	typeSuffix = strings.TrimSuffix(typeSuffix, "_chunks") // Remove _chunks suffix
+	typeSuffix := strings.TrimPrefix(baseName, "X_2_")
+	typeSuffix = strings.TrimSuffix(typeSuffix, "_shards") // Remove _shards suffix
 	if typeSuffix == baseName || typeSuffix == "" {
 		// Fallback if naming doesn't match expected pattern
-		typeSuffix = "chunked_documents"
+		typeSuffix = "shards"
 	}
-	outputFile := fmt.Sprintf("pipeline_output/X_2_%s_prompts.jsonl", typeSuffix)
+	outputFile := fmt.Sprintf("pipeline_output/X_3_%s_prompts.jsonl", typeSuffix)
 	file, err := os.Create(outputFile)
 	if err != nil {
 		logger.Error("Failed to create output file", "error", err)
@@ -715,19 +838,19 @@ func runFacts() {
 
 	logger.Info("Extracting facts from formatted prompts")
 
-	// Find X_2 file with optional type filtering
+	// Find X_3 file with optional type filtering
 	typeFilter := parseTypeFlag()
-	inputFile := findFileByType("pipeline_output/X_2_*.jsonl", typeFilter)
+	inputFile := findFileByType("pipeline_output/X_3_*.jsonl", typeFilter)
 	if inputFile == "" {
 		if typeFilter != "" {
-			logger.Error("No X_2 file found matching type", "type", typeFilter)
+			logger.Error("No X_3 file found matching type", "type", typeFilter)
 		} else {
-			logger.Error("No X_2 file found")
+			logger.Error("No X_3 file found")
 		}
 		os.Exit(1)
 	}
 
-	logger.Info("Using X_2 file", "file", inputFile, "type_filter", typeFilter)
+	logger.Info("Using X_3 file", "file", inputFile, "type_filter", typeFilter)
 
 	// Load formatted prompts from the selected file
 	type FormattedPrompt struct {
@@ -778,13 +901,13 @@ func runFacts() {
 
 	// Generate output filename based on input file type
 	baseName := strings.TrimSuffix(filepath.Base(inputFile), ".jsonl")
-	typeSuffix := strings.TrimPrefix(baseName, "X_2_")
+	typeSuffix := strings.TrimPrefix(baseName, "X_3_")
 	typeSuffix = strings.TrimSuffix(typeSuffix, "_prompts")
 	if typeSuffix == baseName || typeSuffix == "" {
 		// Fallback if naming doesn't match expected pattern
 		typeSuffix = "formatted_prompts"
 	}
-	outputFile := fmt.Sprintf("pipeline_output/X_3_%s_facts.jsonl", typeSuffix)
+	outputFile := fmt.Sprintf("pipeline_output/X_4_%s_facts.jsonl", typeSuffix)
 
 	// Save facts as JSONL using memory package helper
 	if err := memory.ExportMemoryFactsJSON(facts, outputFile); err != nil {
@@ -798,10 +921,10 @@ func runFacts() {
 func runStore() {
 	logger.Info("Storing facts using production storage module")
 
-	// Find X_2 facts file
-	inputFile := findInputFile("pipeline_output/X_2_*.jsonl")
+	// Find X_4 facts file
+	inputFile := findInputFile("pipeline_output/X_4_*.jsonl")
 	if inputFile == "" {
-		logger.Error("No X_2 facts JSONL file found")
+		logger.Error("No X_4 facts JSONL file found")
 		os.Exit(1)
 	}
 
@@ -1056,8 +1179,8 @@ func runConsolidation() {
 	numWorkers := 20 // One worker per subject for maximum parallelism
 	allReports := consolidateSubjectsParallel(ctx, evolvingmemory.ConsolidationSubjects[:], consolidationDeps, numWorkers)
 
-	// Export consolidation reports as JSONL (consistent with X_0, X_1, X_2 format)
-	outputFile := "pipeline_output/X_4_consolidation_reports.jsonl"
+	// Export consolidation reports as JSONL (consistent with X_0, X_1, X_2, X_3, X_4 format)
+	outputFile := "pipeline_output/X_5_consolidation_reports.jsonl"
 	if err := exportConsolidationReportsJSONL(allReports, outputFile); err != nil {
 		logger.Error("Failed to export consolidation reports", "error", err)
 		os.Exit(1)
@@ -1082,7 +1205,7 @@ func runStoreConsolidations() {
 	logger.Info("Storing consolidated facts in Weaviate database")
 
 	// Check if consolidation reports exist (new JSONL format)
-	consolidationFile := "pipeline_output/X_4_consolidation_reports.jsonl"
+	consolidationFile := "pipeline_output/X_5_consolidation_reports.jsonl"
 	if _, err := os.Stat(consolidationFile); os.IsNotExist(err) {
 		logger.Error("Consolidation reports not found. Run 'make consolidation' first.", "file", consolidationFile)
 		os.Exit(1)
@@ -1196,7 +1319,7 @@ func runQueryConsolidations() {
 	}
 
 	// Export query results
-	outputFile := fmt.Sprintf("pipeline_output/X_4_query_results_%d.json", time.Now().Unix())
+	outputFile := fmt.Sprintf("pipeline_output/X_5_query_results_%d.json", time.Now().Unix())
 	if err := saveJSON(queryResult, outputFile); err != nil {
 		logger.Error("Failed to export query results", "error", err)
 		os.Exit(1)
@@ -1271,6 +1394,7 @@ func printUsage() {
 	fmt.Println("  memory-processor-test gmail")
 	fmt.Println("  memory-processor-test gmail --senders  # Analyze senders only")
 	fmt.Println("  memory-processor-test chunks")
+	fmt.Println("  memory-processor-test shards")
 	fmt.Println("  memory-processor-test prompts")
 	fmt.Println("  memory-processor-test facts")
 	fmt.Println("  memory-processor-test store")
@@ -1285,11 +1409,12 @@ func printUsage() {
 	fmt.Println("  make gmail    # Convert Gmail mbox")
 	fmt.Println("  make gmail --senders # Analyze Gmail senders, create senders.json")
 	fmt.Println("  make chunks   # X_0 → X_1")
-	fmt.Println("  make prompts  # X_1 → X_2")
-	fmt.Println("  make facts    # X_2 → X_3")
-	fmt.Println("  make store    # X_3 → Weaviate")
-	fmt.Println("  make consolidation # Weaviate → X_4 (all 20 subjects)")
-	fmt.Println("  make store-consolidations # Weaviate → X_4 (all 20 subjects)")
+	fmt.Println("  make shards   # X_1 → X_2 (≤500 chars each)")
+	fmt.Println("  make prompts  # X_2 → X_3")
+	fmt.Println("  make facts    # X_3 → X_4")
+	fmt.Println("  make store    # X_4 → Weaviate")
+	fmt.Println("  make consolidation # Weaviate → X_5 (all 20 subjects)")
+	fmt.Println("  make store-consolidations # Weaviate → X_5 (all 20 subjects)")
 	fmt.Println("  make query-consolidations # Query consolidation")
 	fmt.Println()
 	fmt.Println("Examples:")
