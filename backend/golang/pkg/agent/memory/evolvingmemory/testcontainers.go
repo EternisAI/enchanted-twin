@@ -1,3 +1,5 @@
+//go:build large
+
 package evolvingmemory
 
 import (

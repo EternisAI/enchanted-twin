@@ -27,15 +27,21 @@ lint:
 	golangci-lint run --fix
 
 test:
+ifeq ($(CI),true)
 	go test -short ./...
+else ifeq ($(GITHUB_ACTIONS),true)
+	go test -short ./...
+else
+	go test -short -tags=large ./...
+endif
 
 test-containers:
 	@echo "Running tests with testcontainers..."
-	USE_TESTCONTAINERS=true go test -v ./pkg/agent/memory/evolvingmemory/... -timeout=10m
+	USE_TESTCONTAINERS=true go test -v -tags=large ./pkg/agent/memory/evolvingmemory/... -timeout=10m
 
 test-backend-comparison:
 	@echo "Running backend comparison tests with containers..."
-	USE_TESTCONTAINERS=true ENABLE_BACKEND_COMPARISON_TESTS=true go test -v ./pkg/agent/memory/evolvingmemory/... -run=".*Comparison.*" -timeout=15m
+	USE_TESTCONTAINERS=true ENABLE_BACKEND_COMPARISON_TESTS=true go test -v -tags=large ./pkg/agent/memory/evolvingmemory/... -run=".*Comparison.*" -timeout=15m
 
 test-integration:
 	go test -v ./pkg/dataprocessing/integration/... -timeout=90m
