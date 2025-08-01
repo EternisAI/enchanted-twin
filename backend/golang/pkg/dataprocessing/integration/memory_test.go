@@ -165,14 +165,13 @@ func initSimplePostgresSchemaForTests(db *sql.DB, logger *log.Logger) error {
 }
 
 var (
-	sharedPostgresServer      *bootstrap.PostgresServer
-	sharedPostgresContainer   *bootstrap.PostgresTestContainer
-	sharedPgConn             *pgx.Conn
-	sharedLogger             *log.Logger
-	sharedTempDir        string
-	setupOnce            sync.Once
-	teardownOnce         sync.Once
-	mockServer           *httptest.Server
+	sharedPostgresContainer *bootstrap.PostgresTestContainer
+	sharedPgConn            *pgx.Conn
+	sharedLogger            *log.Logger
+	sharedTempDir           string
+	setupOnce               sync.Once
+	teardownOnce            sync.Once
+	mockServer              *httptest.Server
 )
 
 type testConfig struct {

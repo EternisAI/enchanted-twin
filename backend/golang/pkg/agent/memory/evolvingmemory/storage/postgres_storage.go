@@ -34,28 +34,27 @@ func normalizeVector(vector []float32) []float32 {
 	if len(vector) == 0 {
 		return vector
 	}
-	
+
 	// Calculate magnitude (L2 norm)
 	var magnitude float64
 	for _, v := range vector {
 		magnitude += float64(v * v)
 	}
 	magnitude = math.Sqrt(magnitude)
-	
+
 	// Avoid division by zero
 	if magnitude == 0 {
 		return vector
 	}
-	
+
 	// Normalize each component
 	normalized := make([]float32, len(vector))
 	for i, v := range vector {
 		normalized[i] = float32(float64(v) / magnitude)
 	}
-	
+
 	return normalized
 }
-
 
 // NewPostgresStorageInput contains the dependencies for PostgresStorage.
 type NewPostgresStorageInput struct {
@@ -762,7 +761,7 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 	var distanceParam float64
 	if filter != nil && filter.Distance > 0 {
 		distanceParam = float64(filter.Distance)
-		s.logger.Debug("Using Weaviate-compatible distance threshold", 
+		s.logger.Debug("Using Weaviate-compatible distance threshold",
 			"distance", distanceParam)
 	}
 
@@ -1233,7 +1232,6 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 
 	pgVector := pgvector.NewVector(embedding)
 
-
 	// Set default limit if not specified (matches Weaviate's default)
 	limit := int32(100)
 	if filter != nil && filter.Limit != nil && *filter.Limit > 0 {
@@ -1292,7 +1290,7 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 	var distanceParam float64
 	if filter != nil && filter.Distance > 0 {
 		distanceParam = float64(filter.Distance)
-		s.logger.Debug("Using Weaviate-compatible distance threshold", 
+		s.logger.Debug("Using Weaviate-compatible distance threshold",
 			"distance", distanceParam)
 	}
 
@@ -1307,9 +1305,9 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 
 	params := sqlc.QueryDocumentChunksByVectorParams{
 		ContentVector: &pgVector,
-		Column2:       sourceStr,     // source parameter (empty string = NULL)
-		Column3:       filePathStr,   // file_path parameter (empty string = NULL)
-		Column4:       pgTags,        // tags parameter
+		Column2:       sourceStr,   // source parameter (empty string = NULL)
+		Column3:       filePathStr, // file_path parameter (empty string = NULL)
+		Column4:       pgTags,      // tags parameter
 		Limit:         actualLimit,
 		Column6:       distanceParam, // distance threshold
 	}
@@ -1319,7 +1317,6 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 		s.logger.Error("Failed to execute document chunk vector query", "error", err, "params", params)
 		return nil, fmt.Errorf("executing document chunk vector query: %w", err)
 	}
-
 
 	// Convert results to DocumentChunk format
 	chunks := make([]*DocumentChunk, 0, len(rows))

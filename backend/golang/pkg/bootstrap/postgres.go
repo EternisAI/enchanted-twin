@@ -22,7 +22,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/migrations"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	"github.com/EternisAI/enchanted-twin/pkg/bootstrap/pgvector"
 )
 
 // Custom PostgreSQL version to match our 17.5 binaries.
@@ -32,13 +31,12 @@ const PostgreSQL17_5 embeddedpostgres.PostgresVersion = "17.5"
 const PostgreSQL16_4 embeddedpostgres.PostgresVersion = "16.4"
 
 type PostgresServer struct {
-	postgres      *embeddedpostgres.EmbeddedPostgres
-	db            *sql.DB
-	port          uint32
-	dataPath      string
-	logger        *log.Logger
-	binaryManager *pgvector.BinaryManager
-	hasPgvector   bool
+	postgres    *embeddedpostgres.EmbeddedPostgres
+	db          *sql.DB
+	port        uint32
+	dataPath    string
+	logger      *log.Logger
+	hasPgvector bool
 }
 
 func BootstrapPostgresServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*PostgresServer, error) {
@@ -122,18 +120,7 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 			pgvectorBinariesPath = localBinariesPath
 		}
 	} else if enablePgvector {
-		// Fallback to downloading pgvector binaries
-		binaryManager := pgvector.NewBinaryManager(logger, "")
-		binariesPath, hasVector, err := binaryManager.GetBinariesPath(ctx)
-		if err != nil {
-			logger.Warn("Failed to get pgvector binaries, falling back to standard PostgreSQL", "error", err)
-		} else if hasVector {
-			logger.Info("Using downloaded pgvector-enabled PostgreSQL binaries", "path", binariesPath)
-			pgvectorBinariesPath = binariesPath
-			hasPgvector = true
-		} else {
-			logger.Info("pgvector binaries not available, using standard PostgreSQL")
-		}
+		logger.Warn("pgvector requested but no local binaries found - using standard PostgreSQL without pgvector")
 	}
 
 	// Get password from environment variable or use default for embedded server
@@ -209,13 +196,12 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 	}
 
 	server := &PostgresServer{
-		postgres:      postgres,
-		db:            db,
-		port:          actualPort,
-		dataPath:      dataPath,
-		logger:        logger,
-		binaryManager: nil,
-		hasPgvector:   hasPgvector,
+		postgres:    postgres,
+		db:          db,
+		port:        actualPort,
+		dataPath:    dataPath,
+		logger:      logger,
+		hasPgvector: hasPgvector,
 	}
 
 	// Enable pgvector extension if we have pgvector binaries
@@ -244,11 +230,6 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		"pgvector_enabled", server.hasPgvector)
 
 	return server, nil
-}
-
-// HasPgvector returns true if the server has pgvector extension enabled.
-func (s *PostgresServer) HasPgvector() bool {
-	return s.hasPgvector
 }
 
 func (s *PostgresServer) enablePgvectorExtension(ctx context.Context) error {

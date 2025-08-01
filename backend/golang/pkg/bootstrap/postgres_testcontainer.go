@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 // PostgresTestContainer manages a PostgreSQL testcontainer with pgvector support.
@@ -51,13 +51,13 @@ func SetupPostgresTestContainer(ctx context.Context, logger *log.Logger) (*Postg
 	// Get the mapped port
 	host, err := container.Host(ctx)
 	if err != nil {
-		container.Terminate(ctx)
+		_ = container.Terminate(ctx)
 		return nil, fmt.Errorf("failed to get container host: %w", err)
 	}
 
 	mappedPort, err := container.MappedPort(ctx, "5432")
 	if err != nil {
-		container.Terminate(ctx)
+		_ = container.Terminate(ctx)
 		return nil, fmt.Errorf("failed to get mapped port: %w", err)
 	}
 
@@ -70,13 +70,13 @@ func SetupPostgresTestContainer(ctx context.Context, logger *log.Logger) (*Postg
 	// Create database connection
 	config, err := pgx.ParseConfig(connStr)
 	if err != nil {
-		container.Terminate(ctx)
+		_ = container.Terminate(ctx)
 		return nil, fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
 	db := stdlib.OpenDB(*config)
 	if err := db.Ping(); err != nil {
-		container.Terminate(ctx)
+		_ = container.Terminate(ctx)
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -94,9 +94,9 @@ func SetupPostgresTestContainer(ctx context.Context, logger *log.Logger) (*Postg
 		port:      port,
 	}
 
-	logger.Info("PostgreSQL testcontainer ready", 
-		"host", host, 
-		"port", port, 
+	logger.Info("PostgreSQL testcontainer ready",
+		"host", host,
+		"port", port,
 		"database", "postgres")
 
 	return ptc, nil
@@ -105,11 +105,6 @@ func SetupPostgresTestContainer(ctx context.Context, logger *log.Logger) (*Postg
 // GetDB returns the database connection.
 func (ptc *PostgresTestContainer) GetDB() *sql.DB {
 	return ptc.db
-}
-
-// GetPort returns the mapped port.
-func (ptc *PostgresTestContainer) GetPort() string {
-	return ptc.port
 }
 
 // GetConnectionString returns the full connection string.
@@ -131,39 +126,16 @@ func (ptc *PostgresTestContainer) HasPgvector() bool {
 // Cleanup terminates the container and closes the database connection.
 func (ptc *PostgresTestContainer) Cleanup(ctx context.Context) error {
 	if ptc.db != nil {
-		ptc.db.Close()
+		_ = ptc.db.Close()
 	}
-	
+
 	if ptc.container != nil {
 		ptc.logger.Info("Terminating PostgreSQL container")
 		if err := ptc.container.Terminate(ctx); err != nil {
 			return fmt.Errorf("failed to terminate container: %w", err)
 		}
 	}
-	
+
 	ptc.logger.Info("PostgreSQL testcontainer cleaned up successfully")
-	return nil
-}
-
-// IsHealthy checks if the container and database are healthy.
-func (ptc *PostgresTestContainer) IsHealthy(ctx context.Context) error {
-	if ptc.container == nil || ptc.db == nil {
-		return fmt.Errorf("container or database not initialized")
-	}
-
-	// Check container state
-	state, err := ptc.container.State(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get container state: %w", err)
-	}
-	if !state.Running {
-		return fmt.Errorf("container is not running")
-	}
-
-	// Check database connection
-	if err := ptc.db.Ping(); err != nil {
-		return fmt.Errorf("database ping failed: %w", err)
-	}
-
 	return nil
 }

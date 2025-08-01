@@ -290,41 +290,6 @@ func (tc *TestContainerSuite) Cleanup(ctx context.Context) error {
 	return nil
 }
 
-// IsHealthy checks if all containers are healthy and responsive.
-func (tc *TestContainerSuite) IsHealthy(ctx context.Context) error {
-	if tc.jinaContainer == nil || tc.onnxContainer == nil {
-		return fmt.Errorf("required containers not initialized")
-	}
-
-	// Check if containers are still running
-	jinaState, err := tc.jinaContainer.State(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get jina container state: %w", err)
-	}
-	if !jinaState.Running {
-		return fmt.Errorf("jina container is not running")
-	}
-
-	onnxState, err := tc.onnxContainer.State(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get onnx container state: %w", err)
-	}
-	if !onnxState.Running {
-		return fmt.Errorf("onnx container is not running")
-	}
-
-	completionState, err := tc.completionContainer.State(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get completion container state: %w", err)
-	}
-	if !completionState.Running {
-		return fmt.Errorf("completion container is not running")
-	}
-
-	tc.logger.Debug("All containers are healthy")
-	return nil
-}
-
 // getEnvOrDefault returns environment variable value or default.
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
