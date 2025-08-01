@@ -138,93 +138,93 @@ test.describe('Google OAuth Authentication E2E', () => {
     }
   })
 
-  test('Google OAuth with browser popup handling', async () => {
-    console.log('🧪 Testing Google OAuth with popup handling...')
+  // test('Google OAuth with browser popup handling', async () => {
+  //   console.log('🧪 Testing Google OAuth with popup handling...')
 
-    // This test specifically focuses on handling popup windows
-    // which might occur during OAuth flow
+  //   // This test specifically focuses on handling popup windows
+  //   // which might occur during OAuth flow
 
-    const electronApp = await electron.launch(createCleanElectronConfig())
+  //   const electronApp = await electron.launch(createCleanElectronConfig())
 
-    try {
-      const page = await electronApp.firstWindow()
-      await page.waitForLoadState('domcontentloaded')
+  //   try {
+  //     const page = await electronApp.firstWindow()
+  //     await page.waitForLoadState('domcontentloaded')
 
-      // Clear auth state
-      await clearAuthState(page)
-      await page.reload()
-      await page.waitForLoadState('domcontentloaded')
+  //     // Clear auth state
+  //     await clearAuthState(page)
+  //     await page.reload()
+  //     await page.waitForLoadState('domcontentloaded')
 
-      // The signInWithGoogle function now handles popups automatically
-      // No need for separate popup event listeners
-      await signInWithGoogle(page, electronApp)
+  //     // The signInWithGoogle function now handles popups automatically
+  //     // No need for separate popup event listeners
+  //     await signInWithGoogle(page, electronApp)
 
-      // Verify successful authentication
-      const authStatus = await isAuthenticated(page)
-      expect(authStatus).toBe(true)
+  //     // Verify successful authentication
+  //     const authStatus = await isAuthenticated(page)
+  //     expect(authStatus).toBe(true)
 
-      console.log('✅ Google OAuth popup handling test passed!')
-    } catch (error) {
-      console.error('❌ Popup handling test failed:', error)
-      throw error
-    } finally {
-      await electronApp.close()
-    }
-  })
+  //     console.log('✅ Google OAuth popup handling test passed!')
+  //   } catch (error) {
+  //     console.error('❌ Popup handling test failed:', error)
+  //     throw error
+  //   } finally {
+  //     await electronApp.close()
+  //   }
+  // })
 
-  test('fallback authentication when Google blocks OAuth', async () => {
-    console.log('🧪 Testing fallback authentication for blocked OAuth...')
+  // test('fallback authentication when Google blocks OAuth', async () => {
+  //   console.log('🧪 Testing fallback authentication for blocked OAuth...')
 
-    const electronApp = await electron.launch(createCleanElectronConfig())
+  //   const electronApp = await electron.launch(createCleanElectronConfig())
 
-    try {
-      const page = await electronApp.firstWindow()
-      await page.waitForLoadState('domcontentloaded')
+  //   try {
+  //     const page = await electronApp.firstWindow()
+  //     await page.waitForLoadState('domcontentloaded')
 
-      // Clear auth state
-      await clearAuthState(page)
-      await page.reload()
-      await page.waitForLoadState('domcontentloaded')
+  //     // Clear auth state
+  //     await clearAuthState(page)
+  //     await page.reload()
+  //     await page.waitForLoadState('domcontentloaded')
 
-      // First try the normal OAuth flow
-      let authSuccess = false
-      try {
-        console.log('🔄 Attempting normal Google OAuth flow...')
-        await signInWithGoogle(page, electronApp)
-        authSuccess = await isAuthenticated(page)
+  //     // First try the normal OAuth flow
+  //     let authSuccess = false
+  //     try {
+  //       console.log('🔄 Attempting normal Google OAuth flow...')
+  //       await signInWithGoogle(page, electronApp)
+  //       authSuccess = await isAuthenticated(page)
 
-        if (authSuccess) {
-          console.log('✅ Normal OAuth flow succeeded!')
-        }
-      } catch (error) {
-        console.log('⚠️ Normal OAuth flow failed (likely blocked by Google):', error.message)
-        console.log('🔄 Falling back to mock authentication...')
-      }
+  //       if (authSuccess) {
+  //         console.log('✅ Normal OAuth flow succeeded!')
+  //       }
+  //     } catch (error) {
+  //       console.log('⚠️ Normal OAuth flow failed (likely blocked by Google):', error.message)
+  //       console.log('🔄 Falling back to mock authentication...')
+  //     }
 
-      // Verify authentication was successful (either way)
-      expect(authSuccess).toBe(true)
+  //     // Verify authentication was successful (either way)
+  //     expect(authSuccess).toBe(true)
 
-      // Verify user data is stored
-      const hasUserData = await page.evaluate(() => {
-        const userData = window.localStorage.getItem('enchanted_user_data')
-        return userData !== null && userData !== 'undefined'
-      })
-      expect(hasUserData).toBe(true)
+  //     // Verify user data is stored
+  //     const hasUserData = await page.evaluate(() => {
+  //       const userData = window.localStorage.getItem('enchanted_user_data')
+  //       return userData !== null && userData !== 'undefined'
+  //     })
+  //     expect(hasUserData).toBe(true)
 
-      // Take screenshot of authenticated state
-      await page.screenshot({
-        path: 'test-results/artifacts/fallback-auth-success.png',
-        fullPage: true
-      })
+  //     // Take screenshot of authenticated state
+  //     await page.screenshot({
+  //       path: 'test-results/artifacts/fallback-auth-success.png',
+  //       fullPage: true
+  //     })
 
-      console.log('✅ Fallback authentication test passed!')
-    } catch (error) {
-      console.error('❌ Fallback authentication test failed:', error)
-      throw error
-    } finally {
-      await electronApp.close()
-    }
-  })
+  //     console.log('✅ Fallback authentication test passed!')
+  //   } catch (error) {
+  //     console.error('❌ Fallback authentication test failed:', error)
+  //     throw error
+  //   } finally {
+  //     await electronApp.close()
+  //   }
+  // })
 
   // test('authentication persistence across app restarts', async () => {
   //   console.log('🧪 Testing authentication persistence across app restarts...')

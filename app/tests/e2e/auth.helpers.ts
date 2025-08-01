@@ -489,26 +489,22 @@ async function waitForSuccessfulAuth(page: Page): Promise<void> {
       { timeout: 45000 } // Reasonable timeout for OAuth completion
     )
 
-    // Wait for the chat textarea to appear - this indicates the app is fully loaded and ready
-    console.log('🔍 Waiting for app to be ready...')
-    const chatboxSelector = 'textarea[placeholder*="Send a message"]'
+    console.log('🔍 Looking for Skip button...')
+    const skipButton = page.locator('button[data-slot="button"]:has-text("Skip")')
+    await skipButton.waitFor({ state: 'visible', timeout: 15000 })
+    console.log('✅ Found Skip button!')
 
-    try {
-      await expect(page.locator(chatboxSelector)).toBeVisible({ timeout: 15000 })
-      console.log('✅ App is ready - found chat interface')
-    } catch (error) {
-      // Try alternative selector
-      try {
-        await expect(page.locator('textarea.outline-none.bg-transparent')).toBeVisible({
-          timeout: 10000
-        })
-        console.log('✅ App is ready - found chat interface (alternative selector)')
-      } catch (altError) {
-        console.log('⚠️ No chat interface found, but authentication data exists in localStorage')
-      }
-    }
+    console.log('👆 Clicking Skip button...')
+    await skipButton.click()
+    console.log('✅ Skip button clicked!')
+
+    console.log('🔍 Looking for My Twin...')
+    const myTwin = page.getByText('My Twin')
+    await expect(myTwin).toBeVisible({ timeout: 2000 })
 
     console.log('✅ Google sign-in completed successfully!')
+
+    await page.waitForTimeout(100000)
 
     // Take success screenshot
     await page.screenshot({
