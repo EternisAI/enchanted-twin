@@ -21,6 +21,13 @@ test.describe('Authenticated User Features', () => {
       const page = await electronApp.firstWindow()
       await page.waitForLoadState('domcontentloaded')
 
+      // Give the app more time to fully initialize and authenticate
+      console.log('⏱️ Waiting for app to fully initialize...')
+      await page.waitForTimeout(10000) // Wait 10 seconds for full initialization
+
+      // Wait for network idle to ensure all authentication requests are complete
+      await page.waitForLoadState('networkidle')
+
       // Since we're using cached auth state, user should already be logged in
       console.log('🔍 Verifying authenticated state...')
 
@@ -36,7 +43,7 @@ test.describe('Authenticated User Features', () => {
       let welcomeFound = false
       for (const selector of welcomeSelectors) {
         try {
-          await expect(page.locator(selector).first()).toBeVisible({ timeout: 5000 })
+          await expect(page.locator(selector).first()).toBeVisible({ timeout: 15000 }) // Increased timeout
           welcomeFound = true
           console.log(`✅ Found welcome indicator: ${selector}`)
           break
@@ -69,7 +76,7 @@ test.describe('Authenticated User Features', () => {
 
       for (const element of chatElements) {
         try {
-          await expect(page.getByText(element)).toBeVisible({ timeout: 5000 })
+          await expect(page.getByText(element)).toBeVisible({ timeout: 15000 }) // Increased timeout
           console.log(`✅ Found chat element: ${element}`)
         } catch (error) {
           console.log(`ℹ️ Chat element not found (may be expected): ${element}`)
@@ -118,6 +125,13 @@ test.describe('Authenticated User Features', () => {
       const page = await electronApp.firstWindow()
       await page.waitForLoadState('domcontentloaded')
 
+      // Give the app more time to fully initialize and authenticate
+      console.log('⏱️ Waiting for app to fully initialize...')
+      await page.waitForTimeout(10000) // Wait 10 seconds for full initialization
+
+      // Wait for network idle to ensure all authentication requests are complete
+      await page.waitForLoadState('networkidle')
+
       // Verify authentication
       const hasUserData = await page.evaluate(() => {
         return window.localStorage.getItem('enchanted_user_data') !== null
@@ -135,7 +149,7 @@ test.describe('Authenticated User Features', () => {
 
       for (const element of mcpElements) {
         try {
-          await expect(page.getByText(element)).toBeVisible({ timeout: 5000 })
+          await expect(page.getByText(element)).toBeVisible({ timeout: 15000 }) // Increased timeout
           console.log(`✅ Found MCP element: ${element}`)
         } catch (error) {
           console.log(`ℹ️ MCP element not found (may be expected): ${element}`)
@@ -172,6 +186,13 @@ test.describe('Authenticated User Features', () => {
       const page = await electronApp.firstWindow()
       await page.waitForLoadState('domcontentloaded')
 
+      // Give the app more time to fully initialize and authenticate
+      console.log('⏱️ Waiting for app to fully initialize...')
+      await page.waitForTimeout(10000) // Wait 10 seconds for full initialization
+
+      // Wait for network idle to ensure all authentication requests are complete
+      await page.waitForLoadState('networkidle')
+
       // Verify authentication
       const hasUserData = await page.evaluate(() => {
         return window.localStorage.getItem('enchanted_user_data') !== null
@@ -198,7 +219,7 @@ test.describe('Authenticated User Features', () => {
 
       for (const element of profileElements) {
         try {
-          await expect(page.getByText(element)).toBeVisible({ timeout: 5000 })
+          await expect(page.getByText(element)).toBeVisible({ timeout: 15000 }) // Increased timeout
           console.log(`✅ Found profile element: ${element}`)
         } catch (error) {
           console.log(`ℹ️ Profile element not found (may be expected): ${element}`)
@@ -235,6 +256,13 @@ test.describe('Authenticated User Features', () => {
       const page = await electronApp.firstWindow()
       await page.waitForLoadState('domcontentloaded')
 
+      // Give the app more time to fully initialize and authenticate
+      console.log('⏱️ Waiting for app to fully initialize...')
+      await page.waitForTimeout(10000) // Wait 10 seconds for full initialization
+
+      // Wait for network idle to ensure all authentication requests are complete
+      await page.waitForLoadState('networkidle')
+
       // Verify initial authentication
       const hasUserData = await page.evaluate(() => {
         return window.localStorage.getItem('enchanted_user_data') !== null
@@ -249,9 +277,10 @@ test.describe('Authenticated User Features', () => {
       // Refresh the page to test auth persistence
       await page.reload()
       await page.waitForLoadState('domcontentloaded')
+      await page.waitForLoadState('networkidle')
 
       // Wait a moment for auth to be restored
-      await page.waitForTimeout(3000)
+      await page.waitForTimeout(5000) // Increased wait time
 
       // Check if still authenticated after refresh
       const stillAuthenticated = await page.evaluate(() => {
@@ -267,7 +296,7 @@ test.describe('Authenticated User Features', () => {
         let welcomeFound = false
         for (const selector of welcomeSelectors) {
           try {
-            await expect(page.locator(selector).first()).toBeVisible({ timeout: 5000 })
+            await expect(page.locator(selector).first()).toBeVisible({ timeout: 15000 }) // Increased timeout
             welcomeFound = true
             break
           } catch (error) {

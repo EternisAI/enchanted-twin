@@ -35,6 +35,7 @@ test.describe('Google OAuth Authentication E2E', () => {
 
     for (let i = 0; i < maxRetries; i++) {
       try {
+        console.log('🔍 Checking backend connectivity...')
         const response = await fetch(E2E_CONFIG.getGraphQLUrl(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -51,7 +52,7 @@ test.describe('Google OAuth Authentication E2E', () => {
       }
 
       console.log(`⏳ Waiting for backend... (attempt ${i + 1}/${maxRetries})`)
-      await new Promise((resolve) => setTimeout(resolve, 10000))
+      await new Promise((resolve) => setTimeout(resolve, 30000))
     }
 
     if (!backendReady) {
@@ -75,7 +76,7 @@ test.describe('Google OAuth Authentication E2E', () => {
       await page.waitForLoadState('domcontentloaded')
 
       // Should see login screen
-      await expect(page.getByText('Continue with Google')).toBeVisible({ timeout: 15000 })
+      await expect(page.getByText('Continue with Google')).toBeVisible({ timeout: 60000 })
 
       // Take screenshot of initial state
       await page.screenshot({

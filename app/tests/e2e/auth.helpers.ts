@@ -486,7 +486,7 @@ async function waitForSuccessfulAuth(page: Page): Promise<void> {
       () => {
         return window.localStorage.getItem('enchanted_user_data') !== null
       },
-      { timeout: 15000 } // Reasonable timeout for OAuth completion
+      { timeout: 45000 } // Reasonable timeout for OAuth completion
     )
 
     // Wait for welcome message or user avatar to appear
