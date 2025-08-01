@@ -1,11 +1,8 @@
 appId: com.eternis.enchanted.dev
 productName: Enchanted Dev
-
 directories:
   buildResources: build
-
 icon: resources/dev-icons/icon.png
-
 extraResources:
   - from: './resources'
     to: 'resources'
@@ -38,7 +35,6 @@ nsis:
   createDesktopShortcut: always
 
 mac:
-  identity: null
   icon: resources/dev-icons/icon.icns
   target:
     - dmg
@@ -68,6 +64,7 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
+afterSign: './build/notarize.js'
 publish:
   provider: s3
   bucket: enchanted-app-dev
