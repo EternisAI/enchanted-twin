@@ -49,7 +49,9 @@ This is a Go backend for an AI agent system called "Enchanted Twin" that process
 - Utility functions for AI interactions
 
 **Storage Layer**
-- **Weaviate**: Embedded vector database server (starts on `WEAVIATE_PORT`, default 51414)
+- **Memory Backend** (configurable via `MEMORY_BACKEND`):
+  - **PostgreSQL + pgvector** (default): Embedded PostgreSQL with vector search capabilities
+  - **Weaviate**: Embedded vector database server (starts on `WEAVIATE_PORT`, default 51414)
 - **SQLite**: Relational data with multiple schemas (config, holons, whatsapp)
 - **SQLC**: Type-safe SQL code generation from queries
 
@@ -92,6 +94,8 @@ This is a Go backend for an AI agent system called "Enchanted Twin" that process
 
 ### Environment Variables
 
+- `MEMORY_BACKEND` - Memory storage backend: `postgresql` (default) or `weaviate`
+- `POSTGRES_PORT` - Port for embedded PostgreSQL server (default: 5432)
 - `WEAVIATE_PORT` - Port for embedded Weaviate server (default: 51414)
 - Various OAuth and API credentials for external services
 

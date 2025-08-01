@@ -419,6 +419,11 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 		return fmt.Errorf("failed to generate batch embeddings: %w", err)
 	}
 
+	// Validate embedding count matches fact count
+	if len(embeddings) != len(facts) {
+		return fmt.Errorf("embedding count mismatch: got %d embeddings for %d facts", len(embeddings), len(facts))
+	}
+
 	// Create Weaviate objects with pre-generated embeddings
 	for i, fact := range facts {
 		// Build tags
