@@ -58,12 +58,10 @@ type BackendComparisonSuite struct {
 	postgresStorage storage.Interface
 	weaviateStorage storage.Interface
 
-	// Test infrastructure
 	postgresContainer testcontainers.Container
 	postgresServer    *bootstrap.PostgresServer // Keep for fallback
 	weaviateClient    *weaviate.Client
 
-	// Test data
 	testDocuments []memory.Document
 	testFacts     []memory.MemoryFact
 }

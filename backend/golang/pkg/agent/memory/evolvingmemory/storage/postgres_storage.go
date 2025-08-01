@@ -35,19 +35,16 @@ func normalizeVector(vector []float32) []float32 {
 		return vector
 	}
 
-	// Calculate magnitude (L2 norm)
 	var magnitude float64
 	for _, v := range vector {
 		magnitude += float64(v * v)
 	}
 	magnitude = math.Sqrt(magnitude)
 
-	// Avoid division by zero
 	if magnitude == 0 {
 		return vector
 	}
 
-	// Normalize each component
 	normalized := make([]float32, len(vector))
 	for i, v := range vector {
 		normalized[i] = float32(float64(v) / magnitude)
@@ -89,7 +86,6 @@ func NewPostgresStorage(input NewPostgresStorageInput) (Interface, error) {
 
 // ValidateSchema validates that the database schema is properly set up.
 func (s *PostgresStorage) ValidateSchema(ctx context.Context) error {
-	// Check if tables exist by trying to query them
 	allowedTables := map[string]bool{
 		"memory_facts":     true,
 		"source_documents": true,
@@ -98,7 +94,6 @@ func (s *PostgresStorage) ValidateSchema(ctx context.Context) error {
 	tables := []string{"memory_facts", "source_documents", "document_chunks"}
 
 	for _, table := range tables {
-		// Validate table name against whitelist
 		if !allowedTables[table] {
 			return fmt.Errorf("invalid table name: %s", table)
 		}
@@ -111,7 +106,6 @@ func (s *PostgresStorage) ValidateSchema(ctx context.Context) error {
 		}
 	}
 
-	// Check if pgvector extension is available
 	var extensionExists bool
 	row := s.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')")
 	if err := row.Scan(&extensionExists); err != nil {
@@ -157,11 +151,9 @@ func (s *PostgresStorage) Update(ctx context.Context, id string, fact *memory.Me
 		return fmt.Errorf("failed to convert UUID: %w", err)
 	}
 
-	// Convert vector to pgvector format
 	pgVector := pgvector.NewVector(vector)
 	pgVectorPtr := &pgVector
 
-	// Convert strings to pgtype.Text for nullable fields
 	var factCategory, factAttribute, factValue, factTemporalContext, factSensitivity, factFilePath pgtype.Text
 	var factSubject types.NullableSanitizedString
 	var factImportance pgtype.Int4
@@ -194,7 +186,6 @@ func (s *PostgresStorage) Update(ctx context.Context, id string, fact *memory.Me
 		factImportance = pgtype.Int4{Int32: int32(fact.Importance), Valid: true}
 	}
 
-	// Convert metadata to JSON
 	metadataJSON, err := json.Marshal(fact.Metadata)
 	if err != nil {
 		return fmt.Errorf("marshaling metadata: %w", err)
@@ -255,7 +246,6 @@ func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*models.Obje
 		return nil
 	}
 
-	// Create a new connection for the transaction
 	conn, err := pgx.Connect(ctx, s.connString)
 	if err != nil {
 		return fmt.Errorf("connecting to database: %w", err)
@@ -299,7 +289,6 @@ func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*models.Obje
 
 // Helper method to store a single object within a transaction.
 func (s *PostgresStorage) storeSingleObject(ctx context.Context, txQueries *sqlc.Queries, obj *models.Object) error {
-	// Convert object ID to UUID
 	var objectID uuid.UUID
 	var err error
 
@@ -317,7 +306,6 @@ func (s *PostgresStorage) storeSingleObject(ctx context.Context, txQueries *sqlc
 		return fmt.Errorf("failed to convert UUID: %w", err)
 	}
 
-	// Handle different object classes
 	switch obj.Class {
 	case "MemoryFact":
 		return s.storeMemoryFact(ctx, txQueries, pgObjectID, obj)
@@ -337,7 +325,6 @@ func (s *PostgresStorage) storeMemoryFact(ctx context.Context, txQueries *sqlc.Q
 		return fmt.Errorf("invalid properties type")
 	}
 
-	// Extract required fields
 	content, _ := props["content"].(string)
 	source, _ := props["source"].(string)
 	timestampStr, _ := props["timestamp"].(string)
@@ -347,11 +334,9 @@ func (s *PostgresStorage) storeMemoryFact(ctx context.Context, txQueries *sqlc.Q
 		timestamp = time.Now()
 	}
 
-	// Extract arrays
 	tags := s.extractStringArray(props["tags"])
 	documentReferences := s.extractStringArray(props["documentReferences"])
 
-	// Extract optional string fields and convert to pgtype.Text
 	var factCategory, factAttribute, factValue, factTemporalContext, factSensitivity, factFilePath pgtype.Text
 	var factSubject types.NullableSanitizedString
 	var factImportance pgtype.Int4
@@ -403,10 +388,7 @@ func (s *PostgresStorage) storeMemoryFact(ctx context.Context, txQueries *sqlc.Q
 		}
 	}
 
-	// Normalize vector for Weaviate compatibility
 	vector = normalizeVector(vector)
-
-	// Convert vector
 	pgVector := pgvector.NewVector(vector)
 
 	params := sqlc.CreateMemoryFactParams{
@@ -500,10 +482,7 @@ func (s *PostgresStorage) storeDocumentChunk(ctx context.Context, txQueries *sql
 		}
 	}
 
-	// Normalize vector for Weaviate compatibility
 	vector = normalizeVector(vector)
-
-	// Convert vector
 	pgVector := pgvector.NewVector(vector)
 
 	params := sqlc.CreateDocumentChunkParams{
@@ -538,18 +517,15 @@ func (s *PostgresStorage) extractStringArray(val interface{}) []string {
 
 // Helper method to convert SQLC model to memory.MemoryFact.
 func (s *PostgresStorage) convertSQLCToMemoryFact(fact sqlc.MemoryFact) (*memory.MemoryFact, error) {
-	// Convert UUID from pgtype.UUID
 	if !fact.ID.Valid {
 		return nil, fmt.Errorf("invalid UUID in fact")
 	}
 
-	// Convert pgtype.UUID to uuid.UUID using proper method
 	factUUID, err := uuid.FromBytes(fact.ID.Bytes[:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert UUID from bytes: %w", err)
 	}
 
-	// Convert nullable fields
 	var temporalContext *string
 	if fact.FactTemporalContext.Valid {
 		temporalContext = &fact.FactTemporalContext.String
@@ -580,7 +556,6 @@ func (s *PostgresStorage) convertSQLCToMemoryFact(fact sqlc.MemoryFact) (*memory
 		importance = int(fact.FactImportance.Int32)
 	}
 
-	// Parse metadata
 	metadata := make(map[string]string)
 	if len(fact.MetadataJson) > 0 && string(fact.MetadataJson) != "{}" {
 		if err := json.Unmarshal(fact.MetadataJson, &metadata); err != nil {
@@ -613,7 +588,6 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 		return memory.QueryResult{}, fmt.Errorf("query text cannot be empty")
 	}
 
-	// Generate embedding for the query
 	embedding, err := s.embeddingsWrapper.Embedding(ctx, queryText)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("generating embedding for query: %w", err)
@@ -624,7 +598,6 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 
 	pgVector := pgvector.NewVector(embedding)
 
-	// Set default limit if not specified (matches Weaviate's default)
 	limit := int32(100)
 	if filter != nil && filter.Limit != nil && *filter.Limit > 0 {
 		limit = int32(*filter.Limit)
@@ -639,7 +612,6 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 		actualLimit = 1000 // Get up to 1000 candidates, then distance filter determines final count
 	}
 
-	// Build query parameters based on filter
 	var source, category, subject, filePath *string
 	var importance, minImportance, maxImportance *int32
 	var startTime, endTime *time.Time
@@ -828,7 +800,6 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 
 // DeleteAll removes all memory facts (used for testing).
 func (s *PostgresStorage) DeleteAll(ctx context.Context) error {
-	// Create a new connection for the transaction
 	conn, err := pgx.Connect(ctx, s.connString)
 	if err != nil {
 		return fmt.Errorf("connecting to database: %w", err)
@@ -1137,7 +1108,6 @@ func (s *PostgresStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 		return nil
 	}
 
-	// Create a new connection for the transaction
 	conn, err := pgx.Connect(ctx, s.connString)
 	if err != nil {
 		return fmt.Errorf("connecting to database: %w", err)
@@ -1225,7 +1195,6 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 
 	s.logger.Debug("QueryDocumentChunks called", "query", queryText, "filter", filter)
 
-	// Generate embedding for the query
 	embedding, err := s.embeddingsWrapper.Embedding(ctx, queryText)
 	if err != nil {
 		s.logger.Error("Failed to generate embedding for query", "error", err, "query", queryText)
@@ -1237,7 +1206,6 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 
 	pgVector := pgvector.NewVector(embedding)
 
-	// Set default limit if not specified (matches Weaviate's default)
 	limit := int32(100)
 	if filter != nil && filter.Limit != nil && *filter.Limit > 0 {
 		limit = int32(*filter.Limit)

@@ -38,15 +38,12 @@ import (
 func initPostgresSchemaForTests(db *sql.DB, logger *log.Logger) error {
 	logger.Debug("Initializing PostgreSQL schema for tests with pgvector support")
 
-	// First, enable pgvector extension if available
 	_, err := db.Exec("CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
 		logger.Warn("pgvector extension not available, creating tables without vector columns", "error", err)
-		// Fall back to simple schema for environments without pgvector
 		return initSimplePostgresSchemaForTests(db, logger)
 	}
 
-	// Create tables with vector columns for full testing
 	schema := `
 		-- Memory facts table with vector support
 		CREATE TABLE IF NOT EXISTS memory_facts (

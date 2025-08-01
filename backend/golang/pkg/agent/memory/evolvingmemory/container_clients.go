@@ -27,7 +27,7 @@ func NewContainerJinaClient(baseURL string, logger *log.Logger) *ContainerJinaCl
 			Timeout: 30 * time.Second,
 		},
 		logger: logger,
-		model:  "jina-embeddings-v3", // Default model for container
+		model:  "jina-embeddings-v3",
 	}
 }
 
@@ -37,7 +37,6 @@ func (c *ContainerJinaClient) GetEmbeddings(ctx context.Context, texts []string,
 		return nil, fmt.Errorf("no texts provided for embedding")
 	}
 
-	// Use provided model or fall back to default
 	embeddingModel := model
 	if embeddingModel == "" {
 		embeddingModel = c.model
@@ -49,11 +48,10 @@ func (c *ContainerJinaClient) GetEmbeddings(ctx context.Context, texts []string,
 		"endpoint", c.baseURL,
 	)
 
-	// Prepare request payload compatible with JinaAI API
 	payload := map[string]interface{}{
 		"model": embeddingModel,
 		"input": texts,
-		"task":  "retrieval.query", // Task-specific embedding
+		"task":  "retrieval.query",
 	}
 
 	body, err := json.Marshal(payload)
@@ -61,7 +59,6 @@ func (c *ContainerJinaClient) GetEmbeddings(ctx context.Context, texts []string,
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/embeddings", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -70,7 +67,6 @@ func (c *ContainerJinaClient) GetEmbeddings(ctx context.Context, texts []string,
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	// Execute request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
@@ -252,7 +248,6 @@ func (c *ContainerCompletionClient) CreateChatCompletion(ctx context.Context, me
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	// Execute request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("request failed: %w", err)

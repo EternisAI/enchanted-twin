@@ -150,7 +150,6 @@ func main() {
 
 	case "mock":
 		logger.Info("Using mock anonymizer for development/testing")
-		// Mock anonymizer will be handled directly in twinchat service
 		anonymizerManager = ai.NewLLMAnonymizerManager(aiCompletionsService, envs.CompletionsModel, store.DB().DB, logger)
 
 	case "llm":

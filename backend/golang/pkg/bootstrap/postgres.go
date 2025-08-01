@@ -40,16 +40,13 @@ type PostgresServer struct {
 }
 
 func BootstrapPostgresServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*PostgresServer, error) {
-	// Get APP_DATA_PATH from environment
 	appDataPath := os.Getenv("APP_DATA_PATH")
 	if appDataPath == "" {
-		appDataPath = "./output" // fallback to default
+		appDataPath = "./output"
 	}
 
-	// Use separate runtime and data paths within APP_DATA_PATH
 	runtimePath := filepath.Join(appDataPath, "postgres-runtime")
 
-	// Safety check: ensure dataPath is NOT inside runtimePath (would cause data loss)
 	absDataPath, err := filepath.Abs(dataPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve dataPath: %w", err)
@@ -59,7 +56,6 @@ func BootstrapPostgresServer(ctx context.Context, logger *log.Logger, port strin
 		return nil, fmt.Errorf("failed to resolve runtimePath: %w", err)
 	}
 
-	// Check if dataPath is inside runtimePath (dangerous!)
 	relPath, err := filepath.Rel(absRuntimePath, absDataPath)
 	if err == nil && !strings.HasPrefix(relPath, "..") {
 		return nil, fmt.Errorf("CRITICAL: dataPath (%s) is inside runtimePath (%s) - this would cause data loss as runtime is recreated on each start", absDataPath, absRuntimePath)
@@ -102,7 +98,7 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 	// Check for local binaries in APP_DATA_PATH/postgres first
 	appDataPath := os.Getenv("APP_DATA_PATH")
 	if appDataPath == "" {
-		appDataPath = "./output" // fallback to default
+		appDataPath = "./output"
 	}
 	localBinariesPath := filepath.Join(appDataPath, "postgres")
 	var hasPgvector bool

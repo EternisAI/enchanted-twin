@@ -37,12 +37,11 @@ func SetupTestContainers(ctx context.Context, logger *log.Logger) (*TestContaine
 	// Setup ONNX Runtime container
 	if err := suite.setupONNXContainer(ctx); err != nil {
 		logger.Warn("Failed to setup ONNX container", "error", err)
-		_ = suite.Cleanup(ctx) // Clean up Jina container if ONNX fails
+		_ = suite.Cleanup(ctx)
 		return nil, fmt.Errorf("onnx container setup failed: %w", err)
 	}
 
-	// Skip completion container setup for now to focus on embeddings
-	suite.CompletionEndpoint = "http://localhost:8002" // Placeholder
+	suite.CompletionEndpoint = "http://localhost:8002"
 	logger.Info("Skipping completion container setup - focusing on embeddings")
 
 	logger.Info("Test containers ready",
@@ -58,7 +57,6 @@ func SetupTestContainers(ctx context.Context, logger *log.Logger) (*TestContaine
 func (tc *TestContainerSuite) setupJinaContainer(ctx context.Context) error {
 	tc.logger.Info("Setting up JinaAI embeddings container")
 
-	// Use official JinaAI embedding server with the actual model
 	jinaImage := getEnvOrDefault("TESTCONTAINER_JINA_IMAGE", "python:3.11-slim")
 	startupTimeout := getTimeoutFromEnv("CONTAINER_STARTUP_TIMEOUT", 5*time.Minute)
 
