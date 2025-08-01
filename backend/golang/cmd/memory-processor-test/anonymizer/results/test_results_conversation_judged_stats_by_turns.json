@@ -1,0 +1,53 @@
+{
+  "group_by": "turns",
+  "statistics": {
+    "2": {
+      "sample_count": 50,
+      "original_avg": 7.14,
+      "original_min": 0,
+      "original_max": 10,
+      "semantic_avgs": {
+        "names_orgs": 0.72,
+        "monetary": 1.0,
+        "dates": 0.96,
+        "json_format": 1.0
+      }
+    },
+    "3": {
+      "sample_count": 50,
+      "original_avg": 6.6,
+      "original_min": 4,
+      "original_max": 10,
+      "semantic_avgs": {
+        "names_orgs": 0.72,
+        "monetary": 1.0,
+        "dates": 0.96,
+        "json_format": 1.0
+      }
+    },
+    "4": {
+      "sample_count": 50,
+      "original_avg": 6.56,
+      "original_min": 4,
+      "original_max": 10,
+      "semantic_avgs": {
+        "names_orgs": 0.66,
+        "monetary": 1.0,
+        "dates": 0.96,
+        "json_format": 1.0
+      }
+    },
+    "5": {
+      "sample_count": 50,
+      "original_avg": 6.42,
+      "original_min": 4,
+      "original_max": 10,
+      "semantic_avgs": {
+        "names_orgs": 0.68,
+        "monetary": 1.0,
+        "dates": 0.88,
+        "json_format": 0.98
+      }
+    }
+  }
+}
