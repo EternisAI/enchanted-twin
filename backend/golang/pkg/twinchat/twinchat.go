@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -50,6 +51,8 @@ type Service struct {
 	userStorage      *db.Store
 	identityService  *identity.IdentityService
 	anonymizerType   string
+	activeStreams    map[string]context.CancelFunc
+	streamsMutex     sync.Mutex
 }
 
 func NewService(
@@ -77,6 +80,8 @@ func NewService(
 		userStorage:      userStorage,
 		identityService:  identityService,
 		anonymizerType:   anonymizerType,
+		activeStreams:    make(map[string]context.CancelFunc),
+		streamsMutex:     sync.Mutex{},
 	}
 }
 
@@ -198,6 +203,19 @@ func (s *Service) SendMessage(
 	startTime := time.Now()
 	s.logger.Info("SendMessage started", "chatID", chatID, "messageLength", len(message), "isReasoning", isReasoning, "isVoice", isVoice)
 
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	s.streamsMutex.Lock()
+	s.activeStreams[chatID] = cancel
+	s.streamsMutex.Unlock()
+
+	defer func() {
+		s.streamsMutex.Lock()
+		delete(s.activeStreams, chatID)
+		s.streamsMutex.Unlock()
+	}()
+
 	now := time.Now()
 
 	messages := make([]*model.Message, 0)
@@ -260,6 +278,9 @@ func (s *Service) SendMessage(
 	s.logger.Info("Message history prepared", "duration", messageHistoryTime, "historyLength", len(messageHistory))
 
 	assistantMessageId := uuid.New().String()
+
+	var accumulatedContent string
+
 	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:          toolCall.ID,
@@ -318,6 +339,15 @@ func (s *Service) SendMessage(
 	createdAt := time.Now().Format(time.RFC3339)
 
 	onDelta := func(delta agent.StreamDelta) {
+		select {
+		case <-streamCtx.Done():
+			s.logger.Debug("Context canceled in onDelta, stopping stream", "chatID", chatID, "error", streamCtx.Err())
+			return
+		default:
+		}
+
+		accumulatedContent += delta.ContentDelta
+
 		payload := model.MessageStreamPayload{
 			MessageID:                      assistantMessageId,
 			ImageUrls:                      delta.ImageURLs,
@@ -375,9 +405,40 @@ func (s *Service) SendMessage(
 	s.logger.Info("Agent setup completed", "duration", agentSetupTime, "toolsCount", len(toolsList))
 
 	agentExecutionStart := time.Now()
-	response, err := agent.ExecuteStreamWithPrivacy(ctx, chatID, messageHistory, toolsList, onDelta, isReasoning)
+	response, err := agent.ExecuteStreamWithPrivacy(streamCtx, chatID, messageHistory, toolsList, onDelta, isReasoning)
 	agentExecutionTime := time.Since(agentExecutionStart)
 	if err != nil {
+		if streamCtx.Err() == context.Canceled {
+			s.logger.Info("Agent execution canceled", "duration", agentExecutionTime, "chatID", chatID)
+			text := accumulatedContent
+			if text == "" {
+				text = "Message was canceled."
+			}
+
+			assistantMessageDb := repository.Message{
+				ID:           assistantMessageId,
+				ChatID:       chatID,
+				Text:         text,
+				Role:         model.RoleAssistant.String(),
+				CreatedAtStr: time.Now().Format(time.RFC3339Nano),
+			}
+
+			idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
+			if err != nil {
+				s.logger.Error("Failed to store canceled message in database", "messageID", assistantMessageId, "chatID", chatID, "error", err)
+			}
+
+			return &model.Message{
+				ID:          idAssistant,
+				Text:        helpers.Ptr(text),
+				Role:        model.RoleAssistant,
+				ImageUrls:   []string{},
+				CreatedAt:   time.Now().Format(time.RFC3339),
+				ToolCalls:   []*model.ToolCall{},
+				ToolResults: []string{},
+			}, nil
+		}
+
 		s.logger.Error("Agent execution failed", "duration", agentExecutionTime, "error", err)
 		// send message to stop progress indicator
 		payload := model.MessageStreamPayload{
@@ -591,6 +652,19 @@ func (s *Service) SendMessage(
 		ToolCalls:   assistantMessageDb.ToModel().ToolCalls,
 		ToolResults: assistantMessageDb.ToModel().ToolResults,
 	}, nil
+}
+
+func (s *Service) CancelMessage(ctx context.Context, chatID string) (bool, error) {
+	s.streamsMutex.Lock()
+	defer s.streamsMutex.Unlock()
+
+	if cancel, exists := s.activeStreams[chatID]; exists {
+		cancel()
+		delete(s.activeStreams, chatID)
+		return true, nil
+	}
+
+	return false, fmt.Errorf("no active stream found for chat %s", chatID)
 }
 
 func (s *Service) GetChats(ctx context.Context) ([]*model.Chat, error) {

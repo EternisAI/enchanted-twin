@@ -41,8 +41,8 @@ export default function ChatView({ chat }: ChatViewProps) {
     historicToolCalls,
     isStreamingResponse,
     sendMessage,
-    setIsWaitingTwinResponse,
-    setIsReasonSelected
+    setIsReasonSelected,
+    cancelMessageStreaming
   } = useChat()
 
   const comingFromVoiceMode = usePrevious(isVoiceMode)
@@ -177,7 +177,7 @@ export default function ChatView({ chat }: ChatViewProps) {
             isStreamingResponse={isStreamingResponse}
             onSend={sendMessage}
             onStop={() => {
-              setIsWaitingTwinResponse(false)
+              cancelMessageStreaming(chat.id)
             }}
             voiceMode={isVoiceMode}
             onVoiceModeChange={() => {

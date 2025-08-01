@@ -104,8 +104,8 @@ export function TTSProvider({
       ctxRef.current = new AudioContext()
       analyserRef.current = ctxRef.current.createAnalyser()
       analyserRef.current.fftSize = 2048
-      freqBufRef.current = new Uint8Array(analyserRef.current.frequencyBinCount)
-      timeBufRef.current = new Uint8Array(analyserRef.current.fftSize)
+      freqBufRef.current = new Uint8Array(analyserRef.current.frequencyBinCount) as Uint8Array
+      timeBufRef.current = new Uint8Array(analyserRef.current.fftSize) as Uint8Array
     }
 
     srcNodeRef.current?.disconnect()
