@@ -1,4 +1,10 @@
-import { test, expect, _electron as electron } from '@playwright/test'
+import {
+  test,
+  expect,
+  _electron as electron,
+  type Page,
+  type ElectronApplication
+} from '@playwright/test'
 import path from 'path'
 import fs from 'fs'
 import {
@@ -8,11 +14,62 @@ import {
   createCleanElectronConfig,
   cleanupTempDirectories
 } from './helpers/auth.helpers'
-import { waitForChatInterface, runAllChatTests } from './chat.helpers'
+import { waitForChatInterface, runAllChatTests } from './helpers/chat.helpers'
 import { startCompleteBackend, stopBackendServer } from './helpers/backend.helpers'
 
+// Constants
+const TIMEOUTS = {
+  SHORT: 5000,
+  MEDIUM: 10000,
+  LONG: 60000
+} as const
+
+const SCREENSHOT_PATHS = {
+  INITIAL: 'test-results/artifacts/master-test-initial-state.png',
+  AUTHENTICATED: 'test-results/artifacts/master-test-authenticated-state.png',
+  CHAT_NOT_READY: 'test-results/artifacts/master-test-chat-not-ready.png',
+  FINAL_SUCCESS: 'test-results/artifacts/master-test-final-success.png',
+  ERROR: 'test-results/artifacts/master-test-error.png'
+} as const
+
+// Test logger utility
+class TestLogger {
+  static phase(phase: number, title: string) {
+    console.log(`\n🔧 PHASE ${phase}: ${title}...`)
+  }
+
+  static step(phase: number, step: number, title: string) {
+    console.log(`🔍 Step ${phase}.${step}: ${title}...`)
+  }
+
+  static success(message: string) {
+    console.log(`✅ ${message}`)
+  }
+
+  static warning(message: string) {
+    console.log(`⚠️ ${message}`)
+  }
+
+  static error(message: string) {
+    console.error(`❌ ${message}`)
+  }
+
+  static info(message: string) {
+    console.log(`📋 ${message}`)
+  }
+}
+
+// Screenshot utility
+class ScreenshotHelper {
+  static async capture(page: Page, path: string, description?: string) {
+    await page.screenshot({ path, fullPage: true })
+    if (description) {
+      TestLogger.info(`Screenshot saved: ${description}`)
+    }
+  }
+}
+
 test.describe('Master E2E Test Suite - Auth + Chat', () => {
-  // Setup: Ensure temp directory exists
   test.beforeAll(async () => {
     const tempDir = path.join(__dirname, '../../../temp')
     if (!fs.existsSync(tempDir)) {
@@ -20,195 +77,190 @@ test.describe('Master E2E Test Suite - Auth + Chat', () => {
     }
   })
 
-  // Cleanup temporary directories after all tests
   test.afterAll(async () => {
     await cleanupTempDirectories()
   })
 
   test('complete flow: authentication then chat interaction', async () => {
-    console.log('🎯 Starting MASTER E2E test: Backend → Auth → Chat flow...')
-    console.log('📋 This test will:')
-    console.log('   1. Build and start backend server')
-    console.log('   2. Launch Electron app')
-    console.log('   3. Perform Google OAuth authentication')
-    console.log('   4. Test chat functionality (same instance)')
-    console.log('   5. Clean up backend and Electron')
+    TestLogger.info('🎯 Starting MASTER E2E test: Backend → Auth → Chat flow...')
+    printTestOverview()
 
-    // ========================================
-    // PHASE 1: BACKEND STARTUP
-    // ========================================
-    console.log('\n🔧 PHASE 1: Starting backend server...')
-    console.log('📋 This will:')
-    console.log('   - Build the backend server (make build)')
-    console.log('   - Start the backend process')
-    console.log('   - Wait for GraphQL server to be ready')
-
-    await startCompleteBackend()
-
-    // ========================================
-    // PHASE 2: ELECTRON APP LAUNCH
-    // ========================================
-    console.log('\n🚀 PHASE 2: Launching Electron app...')
-    const electronApp = await electron.launch(createCleanElectronConfig())
+    let electronApp: ElectronApplication | undefined
 
     try {
+      await startBackendPhase()
+      electronApp = await launchElectronPhase()
       const page = await electronApp.firstWindow()
-      await page.waitForLoadState('domcontentloaded')
 
-      // ========================================
-      // PHASE 3: AUTHENTICATION
-      // ========================================
-      console.log('\n🔐 PHASE 3: Performing authentication...')
+      await authenticationPhase(page, electronApp)
+      await chatTestingPhase(page)
+      await finalVerificationPhase(page)
 
-      // Step 3.1: Verify initial unauthenticated state
-      console.log('🔍 Step 3.1: Verifying initial unauthenticated state...')
-      await clearAuthState(page)
-      await page.reload()
-      await page.waitForLoadState('domcontentloaded')
-
-      // Should see login screen
-      await expect(page.getByText('Continue with Google')).toBeVisible({ timeout: 60000 })
-
-      await page.screenshot({
-        path: 'test-results/artifacts/master-test-initial-state.png',
-        fullPage: true
-      })
-
-      console.log('✅ Step 3.1 completed: Confirmed unauthenticated state')
-
-      // Step 3.2: Perform Google sign-in
-      console.log('🔐 Step 3.2: Performing Google OAuth sign-in...')
-      await signInWithGoogle(page, electronApp)
-
-      // Step 3.3: Verify authentication was successful
-      console.log('🔍 Step 3.3: Verifying authentication success...')
-      const authStatus = await isAuthenticated(page)
-      expect(authStatus).toBe(true)
-
-      // Verify user data is stored
-      const hasUserData = await page.evaluate(() => {
-        const userData = window.localStorage.getItem('enchanted_user_data')
-        return userData !== null && userData !== 'undefined'
-      })
-      expect(hasUserData).toBe(true)
-
-      await page.screenshot({
-        path: 'test-results/artifacts/master-test-authenticated-state.png',
-        fullPage: true
-      })
-
-      console.log('✅ PHASE 3 completed: Authentication successful!')
-
-      // ========================================
-      // PHASE 4: CHAT FUNCTIONALITY TESTING
-      // ========================================
-      console.log('\n💬 PHASE 4: Testing chat functionality (same instance)...')
-
-      // Step 4.1: Wait for chat interface to be ready
-      console.log('🔍 Step 4.1: Waiting for chat interface to be ready...')
-
-      // Give the app some time to fully load after authentication
-      await page.waitForTimeout(5000)
-
-      try {
-        await waitForChatInterface(page)
-        console.log('✅ Step 4.1 completed: Chat interface is ready')
-      } catch (chatInterfaceError) {
-        console.log('⚠️ Chat interface not immediately ready, taking debug screenshot...')
-        await page.screenshot({
-          path: 'test-results/artifacts/master-test-chat-not-ready.png',
-          fullPage: true
-        })
-
-        // Try waiting a bit more
-        await page.waitForTimeout(10000)
-        await waitForChatInterface(page)
-        console.log('✅ Step 4.1 completed: Chat interface is ready (after additional wait)')
-      }
-
-      // Step 4.2: Run comprehensive chat test suite
-      console.log('💬 Step 4.2: Running comprehensive chat test suite...')
-      await runAllChatTests(page)
-      console.log('✅ Step 4.2 completed: Comprehensive chat test suite passed')
-
-      console.log('✅ PHASE 4 completed: Chat functionality testing finished!')
-
-      // ========================================
-      // PHASE 5: FINAL VERIFICATION
-      // ========================================
-      console.log('\n🎯 PHASE 5: Final verification...')
-
-      // Verify we're still authenticated
-      const finalAuthStatus = await isAuthenticated(page)
-      expect(finalAuthStatus).toBe(true)
-
-      // Take final success screenshot
-      await page.screenshot({
-        path: 'test-results/artifacts/master-test-final-success.png',
-        fullPage: true
-      })
-
-      console.log('✅ PHASE 5 completed: Final verification passed')
-
-      // ========================================
-      // TEST COMPLETION
-      // ========================================
-      console.log('\n🎉 MASTER E2E TEST COMPLETED SUCCESSFULLY!')
-      console.log('📊 Test Summary:')
-      console.log('   ✅ Backend build and startup')
-      console.log('   ✅ Electron app launch')
-      console.log('   ✅ Google OAuth authentication')
-      console.log('   ✅ Chat interface detection')
-      console.log('   ✅ Comprehensive chat test suite')
-      console.log('   📸 Screenshots saved to test-results/artifacts/')
+      TestLogger.success('🎉 MASTER E2E TEST COMPLETED SUCCESSFULLY!')
     } catch (error) {
-      console.error('\n❌ MASTER E2E TEST FAILED:', error)
-
-      // Take comprehensive error screenshot
-      try {
-        const page = await electronApp.firstWindow()
-        await page.screenshot({
-          path: 'test-results/artifacts/master-test-error.png',
-          fullPage: true
-        })
-
-        // Log current page state for debugging
-        console.log('🔍 Current page URL:', page.url())
-        const bodyText = await page.locator('body').textContent()
-        console.log('📄 Page body text (first 500 chars):', bodyText?.substring(0, 500))
-
-        const userDataExists = await page.evaluate(() => {
-          return window.localStorage.getItem('enchanted_user_data') !== null
-        })
-        console.log('💾 User data in localStorage:', userDataExists)
-      } catch (screenshotError) {
-        console.error('❌ Could not take error screenshot:', screenshotError)
-      }
-
+      await handleTestError(error, electronApp)
       throw error
     } finally {
-      // ========================================
-      // CLEANUP
-      // ========================================
-      console.log('\n🧹 Cleaning up...')
-
-      try {
-        console.log('🖥️ Stopping Electron app...')
-        await electronApp.close()
-        console.log('✅ Electron app closed')
-      } catch (error) {
-        console.error('⚠️ Error closing Electron app:', error)
-      }
-
-      try {
-        console.log('🛑 Stopping backend server...')
-        await stopBackendServer()
-        console.log('✅ Backend server stopped')
-      } catch (error) {
-        console.error('⚠️ Error stopping backend server:', error)
-      }
-
-      console.log('✅ Cleanup completed')
+      await cleanupPhase(electronApp)
     }
   })
 })
+
+// Phase functions
+function printTestOverview() {
+  TestLogger.info('📋 This test will:')
+  TestLogger.info('   1. Build and start backend server')
+  TestLogger.info('   2. Launch Electron app')
+  TestLogger.info('   3. Perform Google OAuth authentication')
+  TestLogger.info('   4. Test chat functionality (same instance)')
+  TestLogger.info('   5. Clean up backend and Electron')
+}
+
+async function startBackendPhase() {
+  TestLogger.phase(1, 'Starting backend server')
+  await startCompleteBackend()
+}
+
+async function launchElectronPhase() {
+  TestLogger.phase(2, 'Launching Electron app')
+  const electronApp = await electron.launch(createCleanElectronConfig())
+  return electronApp
+}
+
+async function authenticationPhase(page: Page, electronApp: ElectronApplication) {
+  TestLogger.phase(3, 'Performing authentication')
+
+  await verifyUnauthenticatedState(page)
+  await performGoogleSignIn(page, electronApp)
+  await verifyAuthenticationSuccess(page)
+
+  TestLogger.success('PHASE 3 completed: Authentication successful!')
+}
+
+async function verifyUnauthenticatedState(page: Page) {
+  TestLogger.step(3, 1, 'Verifying initial unauthenticated state')
+
+  await clearAuthState(page)
+  await page.reload()
+  await page.waitForLoadState('domcontentloaded')
+  await expect(page.getByText('Continue with Google')).toBeVisible({
+    timeout: TIMEOUTS.LONG
+  })
+
+  await ScreenshotHelper.capture(page, SCREENSHOT_PATHS.INITIAL, 'Initial state')
+  TestLogger.success('Step 3.1 completed: Confirmed unauthenticated state')
+}
+
+async function performGoogleSignIn(page: Page, electronApp: ElectronApplication) {
+  TestLogger.step(3, 2, 'Performing Google OAuth sign-in')
+  await signInWithGoogle(page, electronApp)
+}
+
+async function verifyAuthenticationSuccess(page: Page) {
+  TestLogger.step(3, 3, 'Verifying authentication success')
+
+  const authStatus = await isAuthenticated(page)
+  expect(authStatus).toBe(true)
+
+  const hasUserData = await checkUserDataInLocalStorage(page)
+  expect(hasUserData).toBe(true)
+
+  await ScreenshotHelper.capture(page, SCREENSHOT_PATHS.AUTHENTICATED, 'Authenticated state')
+}
+
+async function checkUserDataInLocalStorage(page: Page): Promise<boolean> {
+  return await page.evaluate(() => {
+    const userData = window.localStorage.getItem('enchanted_user_data')
+    return userData !== null && userData !== 'undefined'
+  })
+}
+
+async function chatTestingPhase(page: Page) {
+  TestLogger.phase(4, 'Testing chat functionality (same instance)')
+
+  await waitForChatInterfaceReady(page)
+  await runAllChatTests(page)
+
+  TestLogger.success('PHASE 4 completed: Chat functionality testing finished!')
+}
+
+async function waitForChatInterfaceReady(page: Page) {
+  TestLogger.step(4, 1, 'Waiting for chat interface to be ready')
+
+  await page.waitForTimeout(TIMEOUTS.SHORT)
+
+  try {
+    await waitForChatInterface(page)
+    TestLogger.success('Step 4.1 completed: Chat interface is ready')
+  } catch (chatInterfaceError) {
+    TestLogger.warning('Chat interface not immediately ready, taking debug screenshot...')
+    await ScreenshotHelper.capture(page, SCREENSHOT_PATHS.CHAT_NOT_READY, 'Chat not ready')
+
+    await page.waitForTimeout(TIMEOUTS.MEDIUM)
+    await waitForChatInterface(page)
+    TestLogger.success('Step 4.1 completed: Chat interface is ready (after additional wait)')
+  }
+}
+
+async function finalVerificationPhase(page: Page) {
+  TestLogger.phase(5, 'Final verification')
+
+  const finalAuthStatus = await isAuthenticated(page)
+  expect(finalAuthStatus).toBe(true)
+
+  await ScreenshotHelper.capture(page, SCREENSHOT_PATHS.FINAL_SUCCESS, 'Final success')
+  TestLogger.success('PHASE 5 completed: Final verification passed')
+}
+
+async function handleTestError(error: unknown, electronApp?: ElectronApplication) {
+  TestLogger.error('MASTER E2E TEST FAILED: ' + error)
+
+  if (electronApp) {
+    try {
+      const page = await electronApp.firstWindow()
+      await ScreenshotHelper.capture(page, SCREENSHOT_PATHS.ERROR, 'Error state')
+      await logErrorDetails(page)
+    } catch (screenshotError) {
+      TestLogger.error('Could not take error screenshot: ' + screenshotError)
+    }
+  }
+}
+
+async function logErrorDetails(page: Page) {
+  TestLogger.info('Current page URL: ' + page.url())
+
+  const bodyText = await page.locator('body').textContent()
+  TestLogger.info('Page body text (first 500 chars): ' + bodyText?.substring(0, 500))
+
+  const userDataExists = await checkUserDataInLocalStorage(page)
+  TestLogger.info('User data in localStorage: ' + userDataExists)
+}
+
+async function cleanupPhase(electronApp?: ElectronApplication) {
+  TestLogger.info('\n🧹 Cleaning up...')
+
+  if (electronApp) {
+    await closeElectronApp(electronApp)
+  }
+  await stopBackend()
+
+  TestLogger.success('Cleanup completed')
+}
+
+async function closeElectronApp(electronApp: ElectronApplication) {
+  try {
+    await electronApp.close()
+    TestLogger.success('Electron app closed')
+  } catch (error) {
+    TestLogger.warning('Error closing Electron app: ' + error)
+  }
+}
+
+async function stopBackend() {
+  try {
+    await stopBackendServer()
+    TestLogger.success('Backend server stopped')
+  } catch (error) {
+    TestLogger.warning('Error stopping backend server: ' + error)
+  }
+}

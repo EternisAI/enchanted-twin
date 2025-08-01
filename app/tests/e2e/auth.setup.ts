@@ -1,7 +1,7 @@
 import { test as setup, expect } from '@playwright/test'
 import { _electron as electron } from '@playwright/test'
 import path from 'path'
-import { signInWithGoogle, clearAuthState, createCleanElectronConfig } from './auth.helpers'
+import { signInWithGoogle, clearAuthState, createCleanElectronConfig } from './helpers/auth.helpers'
 import { E2E_CONFIG, AUTH_CONFIG, FIREBASE_TEST_CONFIG } from './config'
 
 // Path where we'll store the authentication state

@@ -2,9 +2,11 @@ import { FullConfig } from '@playwright/test'
 import { spawn, ChildProcess } from 'child_process'
 import path from 'path'
 import { promises as fs, mkdirSync, openSync, closeSync } from 'fs'
-import { E2E_CONFIG, BACKEND_ENV } from './config'
+import { E2E_CONFIG, BACKEND_ENV } from '../config'
 
 let backendProcess: ChildProcess | null = null
+
+const backendPath = path.join(__dirname, '../../../../backend/golang')
 
 async function globalSetup(config: FullConfig) {
   console.log('🚀 Starting E2E test setup...')
@@ -28,7 +30,6 @@ async function globalSetup(config: FullConfig) {
 
 async function buildBackendServer(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const backendPath = path.join(__dirname, '../../../backend/golang')
     console.log('🔨 Building backend server...')
 
     const buildProcess = spawn('make', ['build'], {
@@ -68,8 +69,7 @@ async function buildBackendServer(): Promise<void> {
 
 async function startBackendServer(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const backendPath = path.join(__dirname, '../../../backend/golang')
-    const logsPath = path.join(__dirname, '../../../backend/golang/output')
+    const logsPath = path.join(backendPath, 'output')
 
     console.log('🖥️  Starting backend server for E2E tests...')
 

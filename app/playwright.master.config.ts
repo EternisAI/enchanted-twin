@@ -30,7 +30,7 @@ export default defineConfig({
 
   // NO GLOBAL SETUP - the master test will handle backend setup internally
   // But we still need teardown to clean up any running processes
-  globalTeardown: require.resolve('./tests/e2e/global-teardown.ts'),
+  globalTeardown: require.resolve('./tests/e2e/helpers/global-teardown.ts'),
 
   projects: [
     {

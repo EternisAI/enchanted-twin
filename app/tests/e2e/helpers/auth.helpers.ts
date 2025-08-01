@@ -2,7 +2,12 @@
 import { Page, expect } from '@playwright/test'
 import path from 'path'
 import fs from 'fs'
-import { GOOGLE_TEST_CREDENTIALS, AUTH_CONFIG, FIREBASE_TEST_CONFIG } from '../config'
+import {
+  GOOGLE_TEST_CREDENTIALS,
+  AUTH_CONFIG,
+  FIREBASE_TEST_CONFIG,
+  SCREENSHOT_PATH
+} from '../config'
 
 const tempUserDataDir = path.join(__dirname, '../../../../temp', `electron-test-${Date.now()}`)
 const electronAppPath = path.join(__dirname, '../../../out/main/index.js')
@@ -78,7 +83,7 @@ export async function signInWithGoogle(page: Page, electronApp: any): Promise<vo
 
     // Take screenshot before clicking
     await page.screenshot({
-      path: 'test-results/artifacts/auth-before-google-click.png',
+      path: `${SCREENSHOT_PATH}auth-before-google-click.png`,
       fullPage: true
     })
 
@@ -123,7 +128,7 @@ export async function signInWithGoogle(page: Page, electronApp: any): Promise<vo
     // Take screenshot of OAuth window before clicking
     // @ts-ignore - OAuth window API
     await oauthWindow.screenshot({
-      path: 'test-results/artifacts/oauth-window-before-click.png',
+      path: `${SCREENSHOT_PATH}oauth-window-before-click.png`,
       fullPage: true
     })
 
@@ -140,7 +145,7 @@ export async function signInWithGoogle(page: Page, electronApp: any): Promise<vo
     // Take screenshot showing the button was found
     // @ts-ignore - OAuth window API
     await oauthWindow.screenshot({
-      path: 'test-results/artifacts/oauth-window-button-found.png',
+      path: `${SCREENSHOT_PATH}oauth-window-button-found.png`,
       fullPage: true
     })
 
@@ -199,7 +204,7 @@ export async function signInWithGoogle(page: Page, electronApp: any): Promise<vo
     // Take screenshot of Google window
     // @ts-ignore - Google window API
     await googleWindow.screenshot({
-      path: 'test-results/artifacts/google-accounts-window.png',
+      path: `${SCREENSHOT_PATH}google-accounts-window.png`,
       fullPage: true
     })
 
@@ -220,7 +225,7 @@ export async function signInWithGoogle(page: Page, electronApp: any): Promise<vo
         // Take screenshot of the warning
         // @ts-ignore - Google window API
         await googleWindow.screenshot({
-          path: 'test-results/artifacts/google-security-warning.png',
+          path: `${SCREENSHOT_PATH}google-security-warning.png`,
           fullPage: true
         })
 
@@ -335,7 +340,7 @@ export async function signInWithGoogle(page: Page, electronApp: any): Promise<vo
           // Take screenshot showing the authorization popup
           // @ts-ignore - Google window API
           await googleWindow.screenshot({
-            path: 'test-results/artifacts/google-authorization-popup.png',
+            path: `${SCREENSHOT_PATH}google-authorization-popup.png`,
             fullPage: true
           })
 
@@ -360,7 +365,7 @@ export async function signInWithGoogle(page: Page, electronApp: any): Promise<vo
             // @ts-ignore - Google window API
             if (!googleWindow.isClosed()) {
               await googleWindow.screenshot({
-                path: 'test-results/artifacts/google-authorization-not-found.png',
+                path: `${SCREENSHOT_PATH}google-authorization-not-found.png`,
                 fullPage: true
               })
             }
@@ -394,7 +399,7 @@ export async function signInWithGoogle(page: Page, electronApp: any): Promise<vo
         } else {
           console.log('ℹ️ Google window already closed - taking screenshot of main window instead')
           await page.screenshot({
-            path: 'test-results/artifacts/google-accounts-error-main-window.png',
+            path: `${SCREENSHOT_PATH}google-accounts-error-main-window.png`,
             fullPage: true
           })
         }
@@ -418,7 +423,7 @@ export async function signInWithGoogle(page: Page, electronApp: any): Promise<vo
 
     // Take screenshot of error state
     await page.screenshot({
-      path: 'test-results/artifacts/auth-error-state.png',
+      path: `${SCREENSHOT_PATH}auth-error-state.png`,
       fullPage: true
     })
 
@@ -510,7 +515,7 @@ async function waitForSuccessfulAuth(page: Page): Promise<void> {
 
     // Take success screenshot
     await page.screenshot({
-      path: 'test-results/artifacts/auth-success-state.png',
+      path: `${SCREENSHOT_PATH}auth-success-state.png`,
       fullPage: true
     })
   } catch (error) {
@@ -571,13 +576,13 @@ export async function signOut(page: Page): Promise<void> {
 
     // Take screenshot of signed out state
     await page.screenshot({
-      path: 'test-results/artifacts/auth-signout-success.png',
+      path: `${SCREENSHOT_PATH}auth-signout-success.png`,
       fullPage: true
     })
   } catch (error) {
     console.error('❌ Sign out failed:', error)
     await page.screenshot({
-      path: 'test-results/artifacts/auth-signout-error.png',
+      path: `${SCREENSHOT_PATH}auth-signout-error.png`,
       fullPage: true
     })
     throw error

@@ -60,6 +60,11 @@ export async function startBackendServer(): Promise<void> {
     const stdoutFd = openSync(path.join(logsPath, 'e2e-backend-stdout.log'), 'w')
     const stderrFd = openSync(path.join(logsPath, 'e2e-backend-stderr.log'), 'w')
 
+    console.log('🔍 Starting backend server with env:', {
+      ...BACKEND_ENV,
+      NODE_ENV: 'production'
+    })
+
     backendProcess = spawn('./bin/enchanted-twin', [], {
       cwd: backendPath,
       env: {

@@ -1,4 +1,5 @@
 import { Page, expect, Locator } from '@playwright/test'
+import { SCREENSHOT_PATH } from '../config'
 
 /**
  * Chat interface selectors - ordered by preference
@@ -44,7 +45,7 @@ export async function waitForChatInterface(page: Page): Promise<void> {
 
     // Take debug screenshot
     await page.screenshot({
-      path: 'test-results/artifacts/chat-interface-not-found.png',
+      path: `${SCREENSHOT_PATH}chat-interface-not-found.png`,
       fullPage: true
     })
 
@@ -89,7 +90,7 @@ export async function sendChatMessage(page: Page, message: string): Promise<void
 
     // Take screenshot before sending
     await page.screenshot({
-      path: 'test-results/artifacts/chat-before-send.png',
+      path: `${SCREENSHOT_PATH}chat-before-send.png`,
       fullPage: true
     })
 
@@ -118,7 +119,7 @@ export async function sendChatMessage(page: Page, message: string): Promise<void
 
     // Take screenshot after sending
     await page.screenshot({
-      path: 'test-results/artifacts/chat-after-send.png',
+      path: `${SCREENSHOT_PATH}chat-after-send.png`,
       fullPage: true
     })
 
@@ -128,7 +129,7 @@ export async function sendChatMessage(page: Page, message: string): Promise<void
 
     // Take error screenshot
     await page.screenshot({
-      path: 'test-results/artifacts/chat-send-error.png',
+      path: `${SCREENSHOT_PATH}chat-send-error.png`,
       fullPage: true
     })
 
@@ -166,7 +167,7 @@ export async function waitForChatResponse(page: Page, timeoutMs: number = 30000)
 
         // Take screenshot of response
         await page.screenshot({
-          path: 'test-results/artifacts/chat-response-received.png',
+          path: `${SCREENSHOT_PATH}chat-response-received.png`,
           fullPage: true
         })
 
@@ -200,7 +201,7 @@ export async function isChatReady(page: Page): Promise<boolean> {
 export async function screenshotChatState(page: Page, filename: string): Promise<void> {
   try {
     await page.screenshot({
-      path: `test-results/artifacts/chat-${filename}.png`,
+      path: `${SCREENSHOT_PATH}chat-${filename}.png`,
       fullPage: true
     })
     console.log(`📸 Chat screenshot saved: chat-${filename}.png`)
@@ -383,7 +384,7 @@ export async function runAllChatTests(page: Page): Promise<void> {
     console.log('   ✅ Basic chat functionality (required)')
     console.log('   📝 Multiple messages (optional)')
     console.log('   🧪 Input manipulation (optional)')
-    console.log('   📸 Screenshots saved to test-results/artifacts/')
+    console.log(`   📸 Screenshots saved to ${SCREENSHOT_PATH}`)
   } catch (error) {
     console.error('\n❌ 💬 COMPREHENSIVE CHAT TEST SUITE FAILED:', error)
     await screenshotChatState(page, 'chat-suite-critical-error')
