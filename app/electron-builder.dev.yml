@@ -2,6 +2,7 @@ appId: com.eternis.enchanted.dev
 productName: Enchanted Dev
 directories:
   buildResources: build
+icon: resources/dev-icons/icon.png
 extraResources:
   - from: './resources'
     to: 'resources'
@@ -17,12 +18,14 @@ asarUnpack:
   - resources/**
 win:
   executableName: app
+  icon: resources/dev-icons/icon.ico
 nsis:
   artifactName: ${productName}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  icon: resources/dev-icons/icon.icns
   target:
     - dmg
     - zip
