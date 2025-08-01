@@ -10,6 +10,20 @@ import { LiveKitAgentBootstrap } from './livekitAgent'
 
 const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
+const extractVersionFromUrl = (url: string): string | null => {
+  const match = url.match(/-(\d{4}-\d{2}-\d{2})\.zip$/)
+  return match ? match[1] : null
+}
+
+const hasSpecificVersion = (dir: string, version: string): boolean => {
+  try {
+    const files = fs.readdirSync(dir)
+    return files.some((file) => file.toLowerCase().includes('qwen') && file.includes(version))
+  } catch (error) {
+    return false
+  }
+}
+
 const DEPENDENCIES_CONFIGS: Record<
   DependencyName,
   {
@@ -77,7 +91,8 @@ const DEPENDENCIES_CONFIGS: Record<
     }
   },
   anonymizer: {
-    url: 'https://d3o88a4htgfnky.cloudfront.net/models/qwen3-4b_q4_k_m.zip',
+    // Naming pattern: qwen3-4b_q4_k_m-YYYY-MM-DD.zip - e.g: qwen3-4b_q4_k_m-2025-01-15.zip
+    url: 'https://dgbaewh9qedok.cloudfront.net/models/qwen3-4b_q4_k_m-2025-08-01.zip',
     name: 'anonymizer',
     dir: path.join(DEPENDENCIES_DIR, 'models', 'anonymizer'),
     install: async function () {
@@ -97,33 +112,34 @@ const DEPENDENCIES_CONFIGS: Record<
       await extractZip(file, this.dir)
     },
     isDownloaded: function () {
-      // If ANONYMIZER_TYPE is set to "no-op", consider it downloaded
       if (process.env.ANONYMIZER_TYPE === 'no-op') {
         return true
       }
 
-      // For anonymizer, we need both 4b and 0.6b models
       if (!isExtractedDirValid(this.dir)) {
         return false
       }
 
       try {
+        const version = extractVersionFromUrl(this.url)
+        if (!version) {
+          const files = fs.readdirSync(this.dir)
+          const ggufs = files.filter((file) => file.endsWith('.gguf'))
+
+          const has17bModel = ggufs.some((file) => file.toLowerCase().includes('qwen3-17b'))
+
+          const has06bModel = ggufs.some((file) => file.toLowerCase().includes('qwen3-06b'))
+
+          return has17bModel && has06bModel
+        }
+
         const files = fs.readdirSync(this.dir)
         const ggufs = files.filter((file) => file.endsWith('.gguf'))
 
-        const has4bModel = ggufs.some(
-          (file) =>
-            file.toLowerCase().includes('qwen') &&
-            (file.toLowerCase().includes('4b') || file.toLowerCase().includes('4-b'))
-        )
+        const has17bModel = ggufs.some((file) => file.toLowerCase().includes('qwen3-17b'))
+        const has06bModel = ggufs.some((file) => file.toLowerCase().includes('qwen3-06b'))
 
-        const has06bModel = ggufs.some(
-          (file) =>
-            file.toLowerCase().includes('qwen') &&
-            (file.toLowerCase().includes('0.6b') || file.toLowerCase().includes('0.6-b'))
-        )
-
-        return has4bModel && has06bModel
+        return has17bModel && has06bModel
       } catch (error) {
         return false
       }
