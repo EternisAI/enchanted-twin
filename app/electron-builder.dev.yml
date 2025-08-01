@@ -9,11 +9,25 @@ extraResources:
     filter: ['**/*']
 files:
   - '!**/.vscode/*'
+  - '!**/.cursor/*'
+  - '!**/.github/*'
+  - '!**/.tanstack/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!electron.vite.config.*.mjs'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md,BUILD_GUIDE.md,CLAUDE.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{vite.config.ts,vitest.config.ts}'
+  - '!{components.json,.editorconfig}'
+  - '!node_modules/**/*'
+  - '!dist/**/*'
+  - '!components/**/*'
+  - '!**/*.test.{js,ts,jsx,tsx}'
+  - '!**/*.spec.{js,ts,jsx,tsx}'
+  - '!**/__tests__/**/*'
+  - '!**/.DS_Store'
+  - '!**/*.log'
 asarUnpack:
   - resources/**
 win:
