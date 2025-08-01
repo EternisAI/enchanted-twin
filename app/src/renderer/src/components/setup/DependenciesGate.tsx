@@ -8,7 +8,7 @@ import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
 import { PrivacyButton } from '../chat/privacy/PrivacyButton'
 
-export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLAMACCP' | 'uv'
+export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLAMACCP' | 'uv' | 'postgres'
 
 interface ModelDownloadItemProps {
   name: string
