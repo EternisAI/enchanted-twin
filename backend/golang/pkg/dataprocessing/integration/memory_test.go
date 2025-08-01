@@ -165,9 +165,10 @@ func initSimplePostgresSchemaForTests(db *sql.DB, logger *log.Logger) error {
 }
 
 var (
-	sharedPostgresServer *bootstrap.PostgresServer
-	sharedPgConn         *pgx.Conn
-	sharedLogger         *log.Logger
+	sharedPostgresServer      *bootstrap.PostgresServer
+	sharedPostgresContainer   *bootstrap.PostgresTestContainer
+	sharedPgConn             *pgx.Conn
+	sharedLogger             *log.Logger
 	sharedTempDir        string
 	setupOnce            sync.Once
 	teardownOnce         sync.Once
@@ -415,40 +416,34 @@ func SetupSharedInfrastructure() {
 
 		ctx := context.Background()
 
-		// Setup PostgreSQL server with proper paths
-		postgresPort := "15432" // Use different port for tests
-		postgresPath := filepath.Join(sharedTempDir, "data")
-		runtimePath := filepath.Join(sharedTempDir, "runtime")
-
-		// Create directories with proper permissions
-		if err := os.MkdirAll(postgresPath, 0o777); err != nil {
-			panic(fmt.Sprintf("failed to create postgres data directory: %v", err))
-		}
-		if err := os.MkdirAll(runtimePath, 0o777); err != nil {
-			panic(fmt.Sprintf("failed to create postgres runtime directory: %v", err))
-		}
-
-		// Try to use pgvector-enabled PostgreSQL, fall back to standard if not available
-		sharedPostgresServer, err = bootstrap.BootstrapPostgresServerWithOptions(ctx, sharedLogger, postgresPort, postgresPath, runtimePath, true)
+		// Setup PostgreSQL testcontainer with pgvector support
+		var postgresContainer *bootstrap.PostgresTestContainer
+		postgresContainer, err = bootstrap.SetupPostgresTestContainer(ctx, sharedLogger)
 		if err != nil {
-			panic(fmt.Sprintf("failed to start postgres server: %v", err))
+			panic(fmt.Sprintf("failed to start postgres testcontainer: %v", err))
 		}
+
+		// Store container reference for cleanup
+		sharedPostgresContainer = postgresContainer
 
 		// Initialize schema based on pgvector availability
-		err = initPostgresSchemaForTests(sharedPostgresServer.GetDB(), sharedLogger)
+		err = initPostgresSchemaForTests(sharedPostgresContainer.GetDB(), sharedLogger)
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize postgres schema: %v", err))
 		}
 
 		// Log pgvector availability
-		if sharedPostgresServer.HasPgvector() {
-			sharedLogger.Info("PostgreSQL with pgvector extension ready for tests")
+		if sharedPostgresContainer.HasPgvector() {
+			sharedLogger.Info("PostgreSQL testcontainer with pgvector extension ready for tests")
 		} else {
-			sharedLogger.Info("PostgreSQL without pgvector ready for tests (vector operations will be skipped)")
+			sharedLogger.Info("PostgreSQL testcontainer without pgvector ready for tests (vector operations will be skipped)")
 		}
 
 		// Create pgx connection for storage
-		connString := fmt.Sprintf("postgres://postgres:testpassword@localhost:%d/postgres?sslmode=disable", sharedPostgresServer.GetPort())
+		connString, err := sharedPostgresContainer.GetConnectionString(ctx)
+		if err != nil {
+			panic(fmt.Sprintf("failed to get connection string: %v", err))
+		}
 		sharedPgConn, err = pgx.Connect(ctx, connString)
 		if err != nil {
 			panic(fmt.Sprintf("failed to connect to postgres: %v", err))
@@ -473,10 +468,10 @@ func TeardownSharedInfrastructure() {
 			}
 		}
 
-		if sharedPostgresServer != nil {
-			sharedLogger.Info("Stopping shared PostgreSQL server...")
-			if err := sharedPostgresServer.Stop(); err != nil {
-				sharedLogger.Error("Failed to stop PostgreSQL server", "error", err)
+		if sharedPostgresContainer != nil {
+			sharedLogger.Info("Stopping shared PostgreSQL testcontainer...")
+			if err := sharedPostgresContainer.Cleanup(context.Background()); err != nil {
+				sharedLogger.Error("Failed to stop PostgreSQL testcontainer", "error", err)
 			}
 		}
 
@@ -566,11 +561,20 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 		t.Fatalf("Failed to create embedding wrapper: %v", err)
 	}
 
+	if sharedPostgresContainer == nil {
+		t.Fatalf("Shared PostgreSQL container not initialized - ensure SetupSharedInfrastructure succeeded")
+	}
+
+	connString, err := sharedPostgresContainer.GetConnectionString(context.Background())
+	if err != nil {
+		t.Fatalf("Failed to get connection string: %v", err)
+	}
+
 	storageInterface, err := storage.NewPostgresStorage(storage.NewPostgresStorageInput{
 		DB:                sharedPgConn,
 		Logger:            sharedLogger,
 		EmbeddingsWrapper: embeddingsWrapper,
-		ConnString:        fmt.Sprintf("postgres://postgres:testpassword@localhost:%d/postgres?sslmode=disable", sharedPostgresServer.GetPort()),
+		ConnString:        connString,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create storage interface: %v", err)

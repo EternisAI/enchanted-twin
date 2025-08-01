@@ -44,8 +44,8 @@ func NewBinaryManager(logger *log.Logger, cacheDir string) *BinaryManager {
 	return &BinaryManager{
 		logger:   logger,
 		cacheDir: cacheDir,
-		version:  "16.4-pgvector0.7.4",                                               // PostgreSQL 16.4 with pgvector 0.7.4
-		baseURL:  "https://github.com/EternisAI/pgvector-binaries/releases/download", // Use binary repo
+		version:  "v0.16.105",                                                        // pgvector v0.8.0 for PostgreSQL 16
+		baseURL:  "https://github.com/portalcorp/pgvector_compiled/releases/download", // Use portalcorp precompiled binaries
 	}
 }
 
@@ -412,43 +412,28 @@ func (bm *BinaryManager) getArchitecture() string {
 
 // getBinaryInfo returns download information for the specified platform and architecture.
 func (bm *BinaryManager) getBinaryInfo(platform, arch string) *BinaryInfo {
-	// This would typically be loaded from a manifest file or API
-	// For now, we'll define the available binaries inline
+	// Binary info for portalcorp/pgvector_compiled releases
 	binaries := map[string]*BinaryInfo{
-		"darwin-amd64": {
-			Platform:     "darwin",
-			Architecture: "amd64",
-			URL:          fmt.Sprintf("%s/v%s/postgresql-%s-darwin-amd64.tar.gz", bm.baseURL, bm.version, bm.version),
-			SHA256:       bm.getExpectedChecksum("darwin-amd64"),
-			Size:         45 * 1024 * 1024, // ~45MB
-		},
 		"darwin-arm64": {
 			Platform:     "darwin",
 			Architecture: "arm64",
-			URL:          fmt.Sprintf("%s/v%s/postgresql-%s-darwin-arm64.tar.gz", bm.baseURL, bm.version, bm.version),
+			URL:          fmt.Sprintf("%s/%s/pgvector-aarch64-apple-darwin-pg16.tar.gz", bm.baseURL, bm.version),
 			SHA256:       bm.getExpectedChecksum("darwin-arm64"),
-			Size:         45 * 1024 * 1024, // ~45MB
+			Size:         10 * 1024 * 1024, // ~10MB
 		},
 		"linux-amd64": {
 			Platform:     "linux",
 			Architecture: "amd64",
-			URL:          fmt.Sprintf("%s/v%s/postgresql-%s-linux-amd64.tar.gz", bm.baseURL, bm.version, bm.version),
+			URL:          fmt.Sprintf("%s/%s/pgvector-x86_64-unknown-linux-gnu-pg16.tar.gz", bm.baseURL, bm.version),
 			SHA256:       bm.getExpectedChecksum("linux-amd64"),
-			Size:         50 * 1024 * 1024, // ~50MB
-		},
-		"linux-arm64": {
-			Platform:     "linux",
-			Architecture: "arm64",
-			URL:          fmt.Sprintf("%s/v%s/postgresql-%s-linux-arm64.tar.gz", bm.baseURL, bm.version, bm.version),
-			SHA256:       bm.getExpectedChecksum("linux-arm64"),
-			Size:         50 * 1024 * 1024, // ~50MB
+			Size:         10 * 1024 * 1024, // ~10MB
 		},
 		"windows-amd64": {
 			Platform:     "windows",
 			Architecture: "amd64",
-			URL:          fmt.Sprintf("%s/v%s/postgresql-%s-windows-amd64.tar.gz", bm.baseURL, bm.version, bm.version),
+			URL:          fmt.Sprintf("%s/%s/pgvector-x86_64-pc-windows-msvc-pg16.tar.gz", bm.baseURL, bm.version),
 			SHA256:       bm.getExpectedChecksum("windows-amd64"),
-			Size:         55 * 1024 * 1024, // ~55MB
+			Size:         10 * 1024 * 1024, // ~10MB
 		},
 	}
 

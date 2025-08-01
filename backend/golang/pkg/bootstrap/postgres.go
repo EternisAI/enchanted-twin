@@ -28,6 +28,9 @@ import (
 // Custom PostgreSQL version to match our 17.5 binaries.
 const PostgreSQL17_5 embeddedpostgres.PostgresVersion = "17.5"
 
+// Test-specific PostgreSQL version to match pgvector binaries.
+const PostgreSQL16_4 embeddedpostgres.PostgresVersion = "16.4"
+
 type PostgresServer struct {
 	postgres      *embeddedpostgres.EmbeddedPostgres
 	db            *sql.DB
@@ -73,6 +76,11 @@ func BootstrapPostgresServerWithPaths(ctx context.Context, logger *log.Logger, p
 }
 
 func BootstrapPostgresServerWithOptions(ctx context.Context, logger *log.Logger, port string, dataPath string, runtimePath string, enablePgvector bool) (*PostgresServer, error) {
+	// Use PostgreSQL 16 when pgvector binaries aren't available (fallback to standard embedded-postgres)
+	return BootstrapPostgresServerWithVersion(ctx, logger, port, dataPath, runtimePath, enablePgvector, embeddedpostgres.V16)
+}
+
+func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger, port string, dataPath string, runtimePath string, enablePgvector bool, version embeddedpostgres.PostgresVersion) (*PostgresServer, error) {
 	startTime := time.Now()
 	logger.Info("Starting PostgreSQL server bootstrap", "port", port, "dataPath", dataPath)
 
@@ -142,7 +150,7 @@ func BootstrapPostgresServerWithOptions(ctx context.Context, logger *log.Logger,
 		Username("postgres").
 		Password(password).
 		Database("postgres").
-		Version(PostgreSQL17_5). // Use custom version matching our 17.5 binaries
+		Version(version). // Use specified version
 		StartTimeout(60 * time.Second)
 
 	// Use binaries if available
