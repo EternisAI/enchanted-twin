@@ -483,26 +483,26 @@ WHERE ($2::text = '' OR source = $2)
   AND ($10::text = '' OR fact_file_path = $10)
   AND ($11::text[] IS NULL OR tags && $11)
   AND ($12::text[] IS NULL OR document_references && $12)
-  AND ($14::float = 0 OR content_vector <=> $1 <= $14)
+  AND ($13::float = 0 OR content_vector <=> $1 <= $13)
 ORDER BY content_vector <=> $1
-LIMIT $13
+LIMIT $14
 `
 
 type QueryMemoryFactsByVectorParams struct {
-	ContentVector *pgvector_go.Vector `json:"contentVector"`
-	Column2       string              `json:"column2"`
-	Column3       string              `json:"column3"`
-	Column4       string              `json:"column4"`
-	Column5       int32               `json:"column5"`
-	Column6       int32               `json:"column6"`
-	Column7       int32               `json:"column7"`
-	Column8       pgtype.Timestamptz  `json:"column8"`
-	Column9       pgtype.Timestamptz  `json:"column9"`
-	Column10      string              `json:"column10"`
-	Column11      []string            `json:"column11"`
-	Column12      []string            `json:"column12"`
-	Limit         int32               `json:"limit"`
-	Column14      float64             `json:"column14"`
+	ContentVector      *pgvector_go.Vector `json:"contentVector"`
+	SourceFilter       string              `json:"sourceFilter"`
+	CategoryFilter     string              `json:"categoryFilter"`
+	SubjectFilter      string              `json:"subjectFilter"`
+	ImportanceExact    int32               `json:"importanceExact"`
+	ImportanceMin      int32               `json:"importanceMin"`
+	ImportanceMax      int32               `json:"importanceMax"`
+	TimestampStart     pgtype.Timestamptz  `json:"timestampStart"`
+	TimestampEnd       pgtype.Timestamptz  `json:"timestampEnd"`
+	FilePathFilter     string              `json:"filePathFilter"`
+	TagsFilter         []string            `json:"tagsFilter"`
+	DocumentRefsFilter []string            `json:"documentRefsFilter"`
+	MaxDistance        float64             `json:"maxDistance"`
+	LimitCount         int32               `json:"limitCount"`
 }
 
 type QueryMemoryFactsByVectorRow struct {
@@ -529,19 +529,19 @@ type QueryMemoryFactsByVectorRow struct {
 func (q *Queries) QueryMemoryFactsByVector(ctx context.Context, arg QueryMemoryFactsByVectorParams) ([]QueryMemoryFactsByVectorRow, error) {
 	rows, err := q.db.Query(ctx, queryMemoryFactsByVector,
 		arg.ContentVector,
-		arg.Column2,
-		arg.Column3,
-		arg.Column4,
-		arg.Column5,
-		arg.Column6,
-		arg.Column7,
-		arg.Column8,
-		arg.Column9,
-		arg.Column10,
-		arg.Column11,
-		arg.Column12,
-		arg.Limit,
-		arg.Column14,
+		arg.SourceFilter,
+		arg.CategoryFilter,
+		arg.SubjectFilter,
+		arg.ImportanceExact,
+		arg.ImportanceMin,
+		arg.ImportanceMax,
+		arg.TimestampStart,
+		arg.TimestampEnd,
+		arg.FilePathFilter,
+		arg.TagsFilter,
+		arg.DocumentRefsFilter,
+		arg.MaxDistance,
+		arg.LimitCount,
 	)
 	if err != nil {
 		return nil, err

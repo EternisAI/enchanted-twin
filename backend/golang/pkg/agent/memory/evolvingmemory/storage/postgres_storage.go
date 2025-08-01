@@ -767,20 +767,20 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 
 	// Execute vector similarity query
 	params := sqlc.QueryMemoryFactsByVectorParams{
-		ContentVector: &pgVector,
-		Column2:       sourceParam,        // source
-		Column3:       categoryParam,      // fact_category
-		Column4:       subjectParam,       // fact_subject
-		Column5:       importanceParam,    // fact_importance
-		Column6:       minImportanceParam, // fact_importance >= (min)
-		Column7:       maxImportanceParam, // fact_importance <= (max)
-		Column8:       pgStartTime,        // timestamp >= (after)
-		Column9:       pgEndTime,          // timestamp <= (before)
-		Column10:      filePathParam,      // fact_file_path
-		Column11:      pgTags,             // tags
-		Column12:      pgDocumentRefs,     // document_references
-		Limit:         actualLimit,
-		Column14:      distanceParam, // distance threshold
+		ContentVector:      &pgVector,
+		SourceFilter:       sourceParam,        // source
+		CategoryFilter:     categoryParam,      // fact_category
+		SubjectFilter:      subjectParam,       // fact_subject
+		ImportanceExact:    importanceParam,    // fact_importance
+		ImportanceMin:      minImportanceParam, // fact_importance >= (min)
+		ImportanceMax:      maxImportanceParam, // fact_importance <= (max)
+		TimestampStart:     pgStartTime,        // timestamp >= (after)
+		TimestampEnd:       pgEndTime,          // timestamp <= (before)
+		FilePathFilter:     filePathParam,      // fact_file_path
+		TagsFilter:         pgTags,             // tags
+		DocumentRefsFilter: pgDocumentRefs,     // document_references
+		LimitCount:         actualLimit,
+		MaxDistance:        distanceParam, // distance threshold
 	}
 
 	s.logger.Debug("Vector query parameters",
@@ -843,7 +843,7 @@ func (s *PostgresStorage) DeleteAll(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
-	
+
 	committed := false
 	defer func() {
 		if !committed {

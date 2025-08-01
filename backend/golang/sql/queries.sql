@@ -37,22 +37,22 @@ RETURNING *;
 DELETE FROM memory_facts WHERE id = $1;
 
 -- name: QueryMemoryFactsByVector :many
-SELECT *, content_vector <=> $1 AS distance
+SELECT *, content_vector <=> @content_vector AS distance
 FROM memory_facts
-WHERE ($2::text = '' OR source = $2)
-  AND ($3::text = '' OR fact_category = $3)
-  AND ($4::text = '' OR fact_subject ILIKE '%' || $4 || '%')
-  AND ($5::int = 0 OR fact_importance = $5)
-  AND ($6::int = 0 OR fact_importance >= $6)
-  AND ($7::int = 0 OR fact_importance <= $7)
-  AND ($8::timestamptz IS NULL OR timestamp >= $8)
-  AND ($9::timestamptz IS NULL OR timestamp <= $9)
-  AND ($10::text = '' OR fact_file_path = $10)
-  AND ($11::text[] IS NULL OR tags && $11)
-  AND ($12::text[] IS NULL OR document_references && $12)
-  AND ($14::float = 0 OR content_vector <=> $1 <= $14)
-ORDER BY content_vector <=> $1
-LIMIT $13;
+WHERE (@source_filter::text = '' OR source = @source_filter)
+  AND (@category_filter::text = '' OR fact_category = @category_filter)
+  AND (@subject_filter::text = '' OR fact_subject ILIKE '%' || @subject_filter || '%')
+  AND (@importance_exact::int = 0 OR fact_importance = @importance_exact)
+  AND (@importance_min::int = 0 OR fact_importance >= @importance_min)
+  AND (@importance_max::int = 0 OR fact_importance <= @importance_max)
+  AND (@timestamp_start::timestamptz IS NULL OR timestamp >= @timestamp_start)
+  AND (@timestamp_end::timestamptz IS NULL OR timestamp <= @timestamp_end)
+  AND (@file_path_filter::text = '' OR fact_file_path = @file_path_filter)
+  AND (@tags_filter::text[] IS NULL OR tags && @tags_filter)
+  AND (@document_refs_filter::text[] IS NULL OR document_references && @document_refs_filter)
+  AND (@max_distance::float = 0 OR content_vector <=> @content_vector <= @max_distance)
+ORDER BY content_vector <=> @content_vector
+LIMIT @limit_count;
 
 -- name: QueryMemoryFactsFilterOnly :many
 SELECT *
