@@ -843,9 +843,13 @@ func (s *PostgresStorage) DeleteAll(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
+	
+	committed := false
 	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
-			s.logger.Error("Failed to rollback transaction", "error", err)
+		if !committed {
+			if err := tx.Rollback(ctx); err != nil {
+				s.logger.Error("Failed to rollback transaction", "error", err)
+			}
 		}
 	}()
 
@@ -868,6 +872,7 @@ func (s *PostgresStorage) DeleteAll(ctx context.Context) error {
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("committing transaction: %w", err)
 	}
+	committed = true
 
 	s.logger.Debug("All memory facts deleted from PostgreSQL storage")
 	return nil
