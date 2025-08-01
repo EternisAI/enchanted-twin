@@ -255,21 +255,22 @@ const DEPENDENCIES_CONFIGS: Record<
       const allFiles = [...POSTGRES_FILES.binaries, ...POSTGRES_FILES.libraries, ...POSTGRES_FILES.dataFiles]
       let downloadedFiles = 0
       const totalFiles = allFiles.length
-      
+      const failedDownloads: string[] = []
+
       for (const filePath of allFiles) {
         const fileUrl = `${baseUrl}/${filePath}`
         const destPath = path.join(this.dir, filePath)
         const destDir = path.dirname(destPath)
-        
+
         // Create directory if it doesn't exist
         if (!fs.existsSync(destDir)) {
           fs.mkdirSync(destDir, { recursive: true })
         }
-        
+
         try {
           await downloadSingleFile(fileUrl, destPath)
           downloadedFiles++
-          
+
           // Report progress
           const pct = Math.round((downloadedFiles / totalFiles) * 100)
           windowManager.mainWindow?.webContents.send('models:progress', {
@@ -280,8 +281,17 @@ const DEPENDENCIES_CONFIGS: Record<
           })
         } catch (error) {
           console.error(`Failed to download ${filePath}:`, error)
+          failedDownloads.push(filePath)
           // Continue with other files even if one fails
         }
+      }
+
+      // Report failed downloads
+      if (failedDownloads.length > 0) {
+        console.warn(`Download completed with ${failedDownloads.length} failed files:`)
+        failedDownloads.forEach(file => console.warn(`  - ${file}`))
+      } else {
+        console.log('All PostgreSQL files downloaded successfully')
       }
       
       // Set executable permissions for binaries on Unix-like systems
