@@ -1,16 +1,14 @@
 import { test, expect, _electron as electron } from '@playwright/test'
 import path from 'path'
 import fs from 'fs'
-import { E2E_CONFIG, FIREBASE_TEST_CONFIG } from './config'
+import { E2E_CONFIG } from './config'
 import {
   signInWithGoogle,
-  signOut,
   isAuthenticated,
   clearAuthState,
-  mockGoogleAuth,
   createCleanElectronConfig,
   cleanupTempDirectories
-} from './auth.helpers'
+} from './helpers/auth.helpers'
 
 test.describe('Google OAuth Authentication E2E', () => {
   // Setup: Ensure temp directory exists
@@ -137,162 +135,4 @@ test.describe('Google OAuth Authentication E2E', () => {
       await electronApp.close()
     }
   })
-
-  // test('Google OAuth with browser popup handling', async () => {
-  //   console.log('🧪 Testing Google OAuth with popup handling...')
-
-  //   // This test specifically focuses on handling popup windows
-  //   // which might occur during OAuth flow
-
-  //   const electronApp = await electron.launch(createCleanElectronConfig())
-
-  //   try {
-  //     const page = await electronApp.firstWindow()
-  //     await page.waitForLoadState('domcontentloaded')
-
-  //     // Clear auth state
-  //     await clearAuthState(page)
-  //     await page.reload()
-  //     await page.waitForLoadState('domcontentloaded')
-
-  //     // The signInWithGoogle function now handles popups automatically
-  //     // No need for separate popup event listeners
-  //     await signInWithGoogle(page, electronApp)
-
-  //     // Verify successful authentication
-  //     const authStatus = await isAuthenticated(page)
-  //     expect(authStatus).toBe(true)
-
-  //     console.log('✅ Google OAuth popup handling test passed!')
-  //   } catch (error) {
-  //     console.error('❌ Popup handling test failed:', error)
-  //     throw error
-  //   } finally {
-  //     await electronApp.close()
-  //   }
-  // })
-
-  // test('fallback authentication when Google blocks OAuth', async () => {
-  //   console.log('🧪 Testing fallback authentication for blocked OAuth...')
-
-  //   const electronApp = await electron.launch(createCleanElectronConfig())
-
-  //   try {
-  //     const page = await electronApp.firstWindow()
-  //     await page.waitForLoadState('domcontentloaded')
-
-  //     // Clear auth state
-  //     await clearAuthState(page)
-  //     await page.reload()
-  //     await page.waitForLoadState('domcontentloaded')
-
-  //     // First try the normal OAuth flow
-  //     let authSuccess = false
-  //     try {
-  //       console.log('🔄 Attempting normal Google OAuth flow...')
-  //       await signInWithGoogle(page, electronApp)
-  //       authSuccess = await isAuthenticated(page)
-
-  //       if (authSuccess) {
-  //         console.log('✅ Normal OAuth flow succeeded!')
-  //       }
-  //     } catch (error) {
-  //       console.log('⚠️ Normal OAuth flow failed (likely blocked by Google):', error.message)
-  //       console.log('🔄 Falling back to mock authentication...')
-  //     }
-
-  //     // Verify authentication was successful (either way)
-  //     expect(authSuccess).toBe(true)
-
-  //     // Verify user data is stored
-  //     const hasUserData = await page.evaluate(() => {
-  //       const userData = window.localStorage.getItem('enchanted_user_data')
-  //       return userData !== null && userData !== 'undefined'
-  //     })
-  //     expect(hasUserData).toBe(true)
-
-  //     // Take screenshot of authenticated state
-  //     await page.screenshot({
-  //       path: 'test-results/artifacts/fallback-auth-success.png',
-  //       fullPage: true
-  //     })
-
-  //     console.log('✅ Fallback authentication test passed!')
-  //   } catch (error) {
-  //     console.error('❌ Fallback authentication test failed:', error)
-  //     throw error
-  //   } finally {
-  //     await electronApp.close()
-  //   }
-  // })
-
-  // test('authentication persistence across app restarts', async () => {
-  //   console.log('🧪 Testing authentication persistence across app restarts...')
-
-  //   // First session: authenticate
-  //   console.log('🚀 Starting first app session...')
-  //   let electronApp = await electron.launch({
-  //     args: [path.join(__dirname, '../../out/main/index.js')],
-  //     env: {
-  //       ...process.env,
-  //       NODE_ENV: 'test',
-  //       VITE_FIREBASE_API_KEY: FIREBASE_TEST_CONFIG.FIREBASE_API_KEY,
-  //       VITE_FIREBASE_AUTH_DOMAIN: FIREBASE_TEST_CONFIG.FIREBASE_AUTH_DOMAIN,
-  //       VITE_FIREBASE_PROJECT_ID: FIREBASE_TEST_CONFIG.FIREBASE_PROJECT_ID
-  //     }
-  //   })
-
-  //   try {
-  //     let page = await electronApp.firstWindow()
-  //     await page.waitForLoadState('domcontentloaded')
-
-  //     // Authenticate
-  //     await signInWithGoogle(page)
-
-  //     // Verify authentication
-  //     let authStatus = await isAuthenticated(page)
-  //     expect(authStatus).toBe(true)
-
-  //     console.log('✅ First session: Authentication successful')
-
-  //     // Close the app
-  //     await electronApp.close()
-
-  //     // Second session: check if auth persists
-  //     console.log('🚀 Starting second app session...')
-  //     electronApp = await electron.launch({
-  //       args: [path.join(__dirname, '../../out/main/index.js')],
-  //       env: {
-  //         ...process.env,
-  //         NODE_ENV: 'test',
-  //         VITE_FIREBASE_API_KEY: FIREBASE_TEST_CONFIG.FIREBASE_API_KEY,
-  //         VITE_FIREBASE_AUTH_DOMAIN: FIREBASE_TEST_CONFIG.FIREBASE_AUTH_DOMAIN,
-  //         VITE_FIREBASE_PROJECT_ID: FIREBASE_TEST_CONFIG.FIREBASE_PROJECT_ID
-  //       }
-  //     })
-
-  //     page = await electronApp.firstWindow()
-  //     await page.waitForLoadState('domcontentloaded')
-
-  //     // Wait a moment for any auto-login to happen
-  //     await page.waitForTimeout(3000)
-
-  //     // Check if still authenticated (or auto-logged in)
-  //     authStatus = await isAuthenticated(page)
-
-  //     if (authStatus) {
-  //       console.log('✅ Authentication persisted across app restart')
-  //     } else {
-  //       console.log('ℹ️ Authentication did not persist (this may be expected behavior)')
-  //       // This is not necessarily a failure - it depends on how the app handles auth persistence
-  //     }
-
-  //     console.log('✅ Authentication persistence test completed!')
-  //   } catch (error) {
-  //     console.error('❌ Authentication persistence test failed:', error)
-  //     throw error
-  //   } finally {
-  //     await electronApp.close()
-  //   }
-  // })
 })

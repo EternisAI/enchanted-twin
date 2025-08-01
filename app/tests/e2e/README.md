@@ -1,288 +1,112 @@
 # E2E Testing Setup
 
-This directory contains end-to-end tests for the Enchanted Electron app using Playwright, including comprehensive Google OAuth authentication testing.
+## Master Test Suite
 
-## Setup
+The master test suite (`master.e2e.ts`) runs a complete flow that includes:
 
-1. Install dependencies:
+1. **Authentication Flow** - Google OAuth login
+2. **Chat Functionality** - Message sending and interface interaction
+
+This setup avoids restarting the Electron instance between auth and chat tests, which prevents the need to re-authenticate.
+
+## Files Overview
+
+### Core Files
+- `master.e2e.ts` - Main test file that runs auth → chat flow
+- `auth.helpers.ts` - Authentication helper functions
+- `chat.helpers.ts` - Chat interaction helper functions  
+- `chat.e2e.ts` - Chat test functions (can be used standalone or called from master)
+
+### Helper Functions
+
+#### Auth Helpers (`auth.helpers.ts`)
+- `signInWithGoogle()` - Complete Google OAuth flow
+- `isAuthenticated()` - Check authentication status
+- `clearAuthState()` - Clear authentication data
+- `createCleanElectronConfig()` - Create fresh Electron config
+
+#### Chat Helpers (`chat.helpers.ts`)
+- `waitForChatInterface()` - Wait for chat UI to be ready
+- `sendChatMessage()` - Send a message in chat
+- `waitForChatResponse()` - Wait for chat response
+- `getChatInput()` - Get chat input element
+- `screenshotChatState()` - Take chat screenshots
+
+## Running Tests
+
+### Run the Complete Master Test
 ```bash
-cd app
-pnpm install
-pnpm exec playwright install
+# Run auth + chat flow in single instance
+npm run test:e2e:master
+# OR with pnpm
+pnpm test:e2e:master
 ```
 
-2. Build the app:
+### Run Individual Test Suites
 ```bash
-pnpm build
-```
-
-3. Run the tests:
-```bash
-# Run all e2e tests (including authentication)
-pnpm test:e2e:all
-
-# Run with browser UI
-pnpm test:e2e:ui
-
-# Run in headed mode (see the app window)
-pnpm test:e2e:headed
-
-# Debug mode
-pnpm test:e2e:debug
-```
-
-## Authentication Testing
-
-### Available Test Types
-
-#### 1. Basic Tests (No Authentication)
-```bash
-# Run basic app functionality tests
-pnpm test:e2e:basic
-```
-- ✅ Basic app launch test and screenshot capture
-- ✅ Window properties validation (1200x800 resolution)
-- ✅ Full integration with backend server (GraphQL, Weaviate, etc.)
-
-#### 2. Authentication Flow Tests
-```bash
-# Test the Google OAuth login/logout flow
+# Run only authentication tests
+npm run test:e2e:auth
+# OR
 pnpm test:e2e:auth
-```
-- ✅ Complete Google OAuth sign-in flow with real credentials
-- ✅ Browser popup handling
-- ✅ Authentication persistence across app restarts
-- ✅ Sign-out functionality
 
-#### 3. Authentication Setup (Session Caching)
-```bash
-# Set up authentication session for reuse
-pnpm test:e2e:auth:setup
-```
-- ✅ Authenticates with Google once
-- ✅ Saves session state to `test-results/.auth/user.json`
-- ✅ Enables fast authenticated testing
-
-#### 4. Authenticated Feature Tests
-```bash
-# Test features that require authentication (uses clean cache with mock auth)
-pnpm test:e2e:auth:authenticated
-```
-- ✅ Chat functionality testing
-- ✅ MCP server access testing  
-- ✅ Settings and user profile testing
-- ✅ Clean cache ensures consistent test environment
-
-### Authentication Credentials
-
-Test credentials are configured in `config.ts`:
-- **Email**: golemfzco@gmail.com
-- **Password**: RisitasAhi_808
-
-⚠️ **Security Note**: In production, move these to environment variables.
-
-### How Authentication Testing Works
-
-1. **Authentication Flow Tests** (`auth.e2e.ts`):
-   - Tests the actual Google OAuth login/logout process
-   - Uses clean cache with fresh temporary directories
-   - Performs real OAuth flow with test credentials
-   - Ensures OAuth functionality works correctly
-
-2. **Clean Cache Approach**:
-   - Both auth and authenticated tests start with fresh cache
-   - No dependency on cached sessions between test runs
-   - More reliable and consistent test execution
-   - Prevents interference between test runs
-
-3. **Test Isolation**:
-   - Basic tests run independently
-   - Auth flow tests test the login process itself with clean cache
-   - Authenticated tests use mock authentication with clean cache
-
-## Test Projects
-
-The Playwright configuration defines several test projects:
-
-### `setup`
-- Authentication setup (now optional for authenticated tests)
-- Creates cached session state for legacy compatibility
-- **Files**: `auth.setup.ts`
-
-### `basic`
-- Tests that don't require authentication
-- **Files**: `app.e2e.ts`
-
-### `auth-flow`
-- Tests the Google OAuth flow directly with clean cache
-- **Files**: `auth.e2e.ts`
-
-### `authenticated`
-- Tests that require a logged-in user
-- Uses clean cache with mock authentication
-- **Files**: `*.auth.e2e.ts`
-- **No dependencies**: Runs independently with clean cache
-
-### `smoke`
-- Quick smoke tests
-- **Files**: `smoke.*.ts`
-
-## Test Commands Reference
-
-```bash
-# Complete test suite
-pnpm test:e2e:all           # Run setup + basic + auth + authenticated tests
-
-# Individual test types  
-pnpm test:e2e:basic         # Basic app functionality (no auth)
-pnpm test:e2e:auth          # OAuth flow testing (clean cache)
-pnpm test:e2e:auth:setup    # Authentication setup only (optional)
-pnpm test:e2e:authenticated # Authenticated features (clean cache + mock auth)
-pnpm test:e2e:smoke         # Smoke tests
-
-# Development and debugging
-pnpm test:e2e:ui            # Interactive UI mode
-pnpm test:e2e:headed        # Show browser during tests
-pnpm test:e2e:debug         # Debug mode with breakpoints
-pnpm test:e2e:report        # View HTML test report
+# Run only chat tests (requires prior auth)
+npm run test:e2e:chat
+# OR  
+pnpm test:e2e:chat
 ```
 
-## Test Artifacts
+## Test Flow
 
-- **Screenshots**: `test-results/artifacts/`
-- **HTML reports**: `test-results/html/`
-- **Authentication state**: `test-results/.auth/user.json` (legacy)
-- **Videos**: Saved automatically on failures
-- **Temporary directories**: `temp/electron-test-*` (cleaned up automatically)
+The master test follows this sequence:
 
-## Current Test Results
+1. **Backend Check** - Verify backend is running
+2. **App Launch** - Start fresh Electron instance  
+3. **Authentication** - Complete Google OAuth
+4. **Chat Interface** - Wait for chat to be ready
+5. **Chat Testing** - Send messages and verify functionality
+6. **Cleanup** - Close app and clean temporary files
 
-### Basic Tests (Latest Run)
-- ✅ 2 tests passed in 44.5 seconds
-- ✅ Backend server built and started automatically  
-- ✅ 3 screenshots captured in `test-results/artifacts/`
-- ✅ HTML test report generated
-- ✅ Backend cleanup completed successfully
+## Chat Interface Detection
 
-### Authentication Tests (Latest Run)
-- ✅ Complete OAuth flow test passed
-- ✅ Session caching working properly
-- ✅ Authenticated features accessible
-- ✅ Sign-out functionality verified
+The chat helpers try multiple selectors to find the chat input:
 
-## Authentication Test Flow
+1. **Primary**: `textarea[placeholder*="message"], textarea[placeholder*="chat"], textarea[placeholder*="type"]`
+2. **Alternative**: `textarea.outline-none.bg-transparent` 
+3. **Fallback**: `textarea, input[type="text"][placeholder*="message"]`
 
-```mermaid
-graph TD
-    A[Auth Flow Tests] --> B[Clean Cache Setup]
-    B --> C[Fresh OAuth Login]
-    C --> D[Test Login/Logout Process]
-    D --> E[Cleanup Temp Directories]
-    
-    F[Authenticated Tests] --> G[Clean Cache Setup]
-    G --> H[Mock Authentication]
-    H --> I[Test Authenticated Features] 
-    I --> J[Cleanup Temp Directories]
-    
-    K[Optional: Setup Project] --> L[Legacy Session Cache]
-    L --> M[Save to user.json]
-```
+## Screenshots
 
-## Troubleshooting
+All test runs generate screenshots in `test-results/artifacts/`:
 
-### Authentication Issues
+- `master-test-initial-state.png` - Before authentication
+- `master-test-authenticated-state.png` - After successful auth
+- `chat-interface-ready.png` - Chat interface detected
+- `chat-before-send.png` - Before sending message
+- `chat-after-send.png` - After sending message
+- `master-test-final-success.png` - Complete test success
 
-1. **Google blocks login attempts**:
-   - Auth flow tests now use clean cache each run
-   - Mock authentication used for authenticated tests
-   - Reduced OAuth calls prevent Google rate limiting
+## Error Handling
 
-2. **Clean cache not working**:
-   - Check temp directory permissions: `temp/electron-test-*`
-   - Ensure cleanup runs properly after tests
-   - Manually delete temp directories if needed
+The tests include comprehensive error handling:
 
-3. **Mock authentication fails**:
-   - Verify localStorage is accessible in test environment
-   - Check that mock user data is properly formatted
-   - Ensure page reload happens after setting mock data
+- Screenshots on failures
+- Fallback chat selectors
+- Graceful degradation for optional tests
+- Detailed console logging
 
-### General Issues
+## Configuration
 
-1. **Backend not starting**:
-   - Ensure Go is installed
-   - Check if ports 44999 and 51415 are available
-   - Review backend logs in console
+Make sure your test configuration includes:
 
-2. **App build issues**:
-   - Run `pnpm build` before testing
-   - Check for TypeScript errors
-   - Ensure all dependencies are installed
+- Google test credentials
+- Firebase test config  
+- Backend URL configuration
+- Proper timeouts for OAuth flow
 
-3. **Temp directory cleanup issues**:
-   - Check file permissions in `temp/` directory
-   - Manually clean with: `rm -rf temp/electron-test-*`
-   - Ensure tests have write permissions
+## Tips
 
-## Best Practices
-
-1. **Clean Cache Benefits**: Every test starts fresh, preventing state pollution
-2. **Mock for Speed**: Use mock auth for feature testing, real OAuth only when needed
-3. **Environment Variables**: Move credentials to `.env` in production
-4. **Dedicated Test Account**: Never use personal Google accounts
-5. **Temp Directory Management**: Let tests handle cleanup automatically
-
-## Requirements
-
-- ✅ The app must be built (`pnpm build`) before running e2e tests
-- ✅ Tests expect the built app at `out/main/index.js`
-- ✅ Go must be installed (for building the backend server)
-- ✅ `make` command must be available (for backend build)
-- ✅ Valid Google test account (configured in `config.ts`)
-
-## What Happens During Tests
-
-### Global Setup & Teardown
-1. **Global Setup**: Builds and starts the Go backend server with test environment
-2. **Test Execution**: Runs Electron app tests with backend connectivity
-3. **Global Teardown**: Stops the backend server
-
-### Authentication Setup
-1. **Backend Check**: Ensures backend is ready
-2. **App Launch**: Starts Electron app in test mode
-3. **OAuth Flow**: Performs Google sign-in with test credentials
-4. **Session Save**: Stores authentication state for reuse
-5. **Cleanup**: Closes app, keeps session file
-
-### Authenticated Tests
-1. **Session Load**: Loads cached authentication state
-2. **App Launch**: Starts app with pre-authenticated session
-3. **Feature Testing**: Tests authenticated functionality
-4. **Verification**: Ensures auth state persists throughout test
-
-## Backend Environment
-
-The tests automatically start the backend server with these settings:
-- **Test database**: `./output/sqlite/store_test.db`
-- **GraphQL port**: `44999` (different from dev port 44999)
-- **Weaviate port**: `51415` (different from dev port 51414)
-- **Anonymizer**: `no-op` mode for faster testing
-- **Firebase config**: Loaded from environment or config
-
-## Next Steps
-
-Ready to expand with:
-- ✅ Authentication flow testing (OAuth mocking) - **COMPLETED**
-- ✅ Chat functionality testing - **COMPLETED**
-- ✅ MCP server connection testing - **COMPLETED**
-- ✅ Performance monitoring
-- ✅ Reasoning feature testing
-
-## Security Notes
-
-⚠️ **Important**: 
-- Test credentials are currently in config file for development
-- Move to environment variables for production
-- Use dedicated test accounts only
-- Never commit real credentials to version control
-- Consider using OAuth test mode/sandbox in production 
+1. **Backend must be running** before starting tests
+2. **Google credentials** must be valid test accounts
+3. **Chat interface** timing may vary - tests include wait strategies
+4. **Screenshots** help debug issues when tests fail
+5. **Master test** is recommended over individual tests for full flow verification 

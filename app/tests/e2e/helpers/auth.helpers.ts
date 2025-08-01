@@ -1,18 +1,21 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Page, expect } from '@playwright/test'
 import path from 'path'
 import fs from 'fs'
-import { GOOGLE_TEST_CREDENTIALS, AUTH_CONFIG, FIREBASE_TEST_CONFIG } from './config'
+import { GOOGLE_TEST_CREDENTIALS, AUTH_CONFIG, FIREBASE_TEST_CONFIG } from '../config'
+
+const tempUserDataDir = path.join(__dirname, '../../../../temp', `electron-test-${Date.now()}`)
+const electronAppPath = path.join(__dirname, '../../../out/main/index.js')
+const tempDir = path.join(__dirname, '../../../../temp')
 
 /**
  * Creates Electron launch configuration with fresh cache/user data
  * This ensures consistent OAuth flow without "Choose an account" scenarios
  */
 export function createCleanElectronConfig() {
-  const tempUserDataDir = path.join(__dirname, '../../../temp', `electron-test-${Date.now()}`)
-
   return {
     args: [
-      path.join(__dirname, '../../out/main/index.js'),
+      electronAppPath,
       // Cache clearing arguments - ensures fresh OAuth every time
       `--user-data-dir=${tempUserDataDir}`,
       '--disable-session-crashed-bubble',
@@ -44,7 +47,6 @@ export function createCleanElectronConfig() {
  * Cleanup temporary test directories
  */
 export async function cleanupTempDirectories() {
-  const tempDir = path.join(__dirname, '../../../temp')
   try {
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true })
@@ -504,7 +506,7 @@ async function waitForSuccessfulAuth(page: Page): Promise<void> {
 
     console.log('✅ Google sign-in completed successfully!')
 
-    await page.waitForTimeout(100000)
+    await page.waitForTimeout(1000)
 
     // Take success screenshot
     await page.screenshot({

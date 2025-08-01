@@ -1,34 +1,13 @@
-import { FullConfig } from '@playwright/test'
 import { spawn, ChildProcess } from 'child_process'
 import path from 'path'
 import { promises as fs, mkdirSync, openSync, closeSync } from 'fs'
-import { E2E_CONFIG, BACKEND_ENV } from './config'
+import { E2E_CONFIG, BACKEND_ENV } from '../config'
 
 let backendProcess: ChildProcess | null = null
 
-async function globalSetup(config: FullConfig) {
-  console.log('🚀 Starting E2E test setup...')
-
-  try {
-    // Build the backend server
-    await buildBackendServer()
-
-    // Start the backend server
-    await startBackendServer()
-
-    // Wait for backend to be ready
-    await waitForBackendReady()
-
-    console.log('✅ E2E test setup completed successfully')
-  } catch (error) {
-    console.error('❌ E2E test setup failed:', error)
-    throw error
-  }
-}
-
-async function buildBackendServer(): Promise<void> {
+const backendPath = path.join(__dirname, '../../../../backend/golang')
+export async function buildBackendServer(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const backendPath = path.join(__dirname, '../../../backend/golang')
     console.log('🔨 Building backend server...')
 
     const buildProcess = spawn('make', ['build'], {
@@ -66,21 +45,18 @@ async function buildBackendServer(): Promise<void> {
   })
 }
 
-async function startBackendServer(): Promise<void> {
+export async function startBackendServer(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const backendPath = path.join(__dirname, '../../../backend/golang')
-    const logsPath = path.join(__dirname, '../../../backend/golang/output')
+    const logsPath = path.join(backendPath, 'output')
 
     console.log('🖥️  Starting backend server for E2E tests...')
 
-    // Ensure logs directory exists
     try {
       mkdirSync(logsPath, { recursive: true })
     } catch (error) {
       // Directory might already exist
     }
 
-    // Create log file descriptors
     const stdoutFd = openSync(path.join(logsPath, 'e2e-backend-stdout.log'), 'w')
     const stderrFd = openSync(path.join(logsPath, 'e2e-backend-stderr.log'), 'w')
 
@@ -92,9 +68,6 @@ async function startBackendServer(): Promise<void> {
       },
       stdio: ['ignore', stdoutFd, stderrFd]
     })
-
-    // Store the process globally so teardown can access it
-    global.backendProcess = backendProcess
 
     let hasStarted = false
 
@@ -154,7 +127,7 @@ async function startBackendServer(): Promise<void> {
   })
 }
 
-async function waitForBackendReady(): Promise<void> {
+export async function waitForBackendReady(): Promise<void> {
   const maxAttempts = 30
   const delay = 1000
 
@@ -182,4 +155,56 @@ async function waitForBackendReady(): Promise<void> {
   throw new Error('Backend server did not become ready within expected time')
 }
 
-export default globalSetup
+export async function startCompleteBackend(): Promise<void> {
+  console.log('🚀 Starting complete backend setup...')
+
+  try {
+    // Build the backend server
+    await buildBackendServer()
+
+    // Start the backend server
+    await startBackendServer()
+
+    // Wait for backend to be ready
+    await waitForBackendReady()
+
+    console.log('✅ Complete backend setup completed successfully')
+  } catch (error) {
+    console.error('❌ Complete backend setup failed:', error)
+    await stopBackendServer()
+    throw error
+  }
+}
+
+export async function stopBackendServer(): Promise<void> {
+  if (backendProcess) {
+    console.log('🛑 Stopping backend server...')
+
+    return new Promise((resolve) => {
+      const process = backendProcess!
+
+      process.on('exit', () => {
+        console.log('✅ Backend server stopped')
+        backendProcess = null
+        resolve()
+      })
+
+      // Try graceful shutdown first
+      process.kill('SIGTERM')
+
+      // Force kill after timeout
+      setTimeout(() => {
+        if (backendProcess) {
+          console.log('⚠️ Force stopping backend server...')
+          process.kill('SIGKILL')
+        }
+      }, 5000)
+    })
+  } else {
+    console.log('ℹ️ No backend process to stop')
+  }
+}
+
+export function getBackendProcess(): ChildProcess | null {
+  return backendProcess
+}
