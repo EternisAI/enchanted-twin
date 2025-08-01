@@ -51,6 +51,10 @@ export function GoServerProvider({ children }: GoLogsProviderProps) {
         const updated = [...prev, newLog]
         return updated.length > 1000 ? updated.slice(-1000) : updated
       })
+
+      if (data.source === 'stderr') {
+        setErrorCount((prev) => prev + 1)
+      }
     })
 
     return cleanup

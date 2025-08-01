@@ -115,6 +115,10 @@ const DEPENDENCIES_CONFIGS: Record<
     name: 'uv',
     dir: path.join(DEPENDENCIES_DIR, 'shared', 'bin'),
     install: async function () {
+      if (process.env.VITE_DISABLE_VOICE === 'true') {
+        return
+      }
+
       const livekitAgent = new LiveKitAgentBootstrap({
         onProgress: (data) => {
           windowManager.mainWindow?.webContents.send('models:progress', {
@@ -130,6 +134,10 @@ const DEPENDENCIES_CONFIGS: Record<
       await livekitAgent.setup()
     },
     isDownloaded: function () {
+      if (process.env.VITE_DISABLE_VOICE === 'true') {
+        return true
+      }
+
       const uvBin = process.platform === 'win32' ? 'uv.exe' : 'uv'
       return fs.existsSync(path.join(this.dir, uvBin))
     }

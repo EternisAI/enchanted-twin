@@ -469,3 +469,7 @@ mutation DeleteTrackedFolder($id: ID!) {
 mutation UpdateTrackedFolder($id: ID!, $input: UpdateTrackedFolderInput!) {
   updateTrackedFolder(id: $id, input: $input)
 }
+
+mutation CancelMessage($chatId: ID!) {
+  cancelMessage(chatId: $chatId)
+}

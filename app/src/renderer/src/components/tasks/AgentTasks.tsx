@@ -88,7 +88,7 @@ function EmptyTasksState() {
   const examples = [
     'Send me the top headlines from CNN, Wall Street Journal and Fox News every weekday morning',
     'Send an interesting historic fact from the 18th century every 18 hours',
-    'Set a reminder for me to give you a summary of my most important priorities every morning, and for you to check in with me on whether I accomplished them every evening'
+    'Remind me every Friday evening to check-in what I learned, and what to learn next week'
   ]
 
   return (

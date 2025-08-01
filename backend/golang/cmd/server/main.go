@@ -464,7 +464,7 @@ func main() {
 		logger:           logger,
 		temporalClient:   temporalClient,
 		port:             envs.GraphqlPort,
-		twinChatService:  *twinChatService,
+		twinChatService:  twinChatService,
 		natsClient:       nc,
 		store:            store,
 		aiService:        aiCompletionsService,
@@ -597,7 +597,7 @@ type graphqlServerInput struct {
 	logger                 *log.Logger
 	temporalClient         client.Client
 	port                   string
-	twinChatService        twinchat.Service
+	twinChatService        *twinchat.Service
 	natsClient             *nats.Conn
 	store                  *db.Store
 	aiService              *ai.Service
