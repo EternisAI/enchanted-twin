@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -26,6 +27,35 @@ type PostgresStorage struct {
 	embeddingsWrapper *EmbeddingWrapper
 	connString        string
 }
+
+// normalizeVector normalizes a vector to unit length for Weaviate compatibility.
+// Weaviate automatically normalizes vectors at read time, so we do the same here.
+func normalizeVector(vector []float32) []float32 {
+	if len(vector) == 0 {
+		return vector
+	}
+	
+	// Calculate magnitude (L2 norm)
+	var magnitude float64
+	for _, v := range vector {
+		magnitude += float64(v * v)
+	}
+	magnitude = math.Sqrt(magnitude)
+	
+	// Avoid division by zero
+	if magnitude == 0 {
+		return vector
+	}
+	
+	// Normalize each component
+	normalized := make([]float32, len(vector))
+	for i, v := range vector {
+		normalized[i] = float32(float64(v) / magnitude)
+	}
+	
+	return normalized
+}
+
 
 // NewPostgresStorageInput contains the dependencies for PostgresStorage.
 type NewPostgresStorageInput struct {
@@ -364,8 +394,21 @@ func (s *PostgresStorage) storeMemoryFact(ctx context.Context, txQueries *sqlc.Q
 		metadataJSON = []byte(metadataStr)
 	}
 
+	// Generate embedding if vector is empty
+	vector := obj.Vector
+	if len(vector) == 0 {
+		var err error
+		vector, err = s.embeddingsWrapper.Embedding(ctx, content)
+		if err != nil {
+			return fmt.Errorf("generating embedding for memory fact: %w", err)
+		}
+	}
+
+	// Normalize vector for Weaviate compatibility
+	vector = normalizeVector(vector)
+
 	// Convert vector
-	pgVector := pgvector.NewVector(obj.Vector)
+	pgVector := pgvector.NewVector(vector)
 
 	params := sqlc.CreateMemoryFactParams{
 		ID:                  id,
@@ -448,7 +491,21 @@ func (s *PostgresStorage) storeDocumentChunk(ctx context.Context, txQueries *sql
 		metadataJSON = []byte(metadataStr)
 	}
 
-	pgVector := pgvector.NewVector(obj.Vector)
+	// Generate embedding if vector is empty
+	vector := obj.Vector
+	if len(vector) == 0 {
+		var err error
+		vector, err = s.embeddingsWrapper.Embedding(ctx, content)
+		if err != nil {
+			return fmt.Errorf("generating embedding for document chunk: %w", err)
+		}
+	}
+
+	// Normalize vector for Weaviate compatibility
+	vector = normalizeVector(vector)
+
+	// Convert vector
+	pgVector := pgvector.NewVector(vector)
 
 	params := sqlc.CreateDocumentChunkParams{
 		ID:                 id,
@@ -562,6 +619,9 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("generating embedding for query: %w", err)
 	}
+
+	// Normalize query vector for Weaviate compatibility
+	embedding = normalizeVector(embedding)
 
 	pgVector := pgvector.NewVector(embedding)
 
@@ -697,10 +757,13 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 		maxImportanceParam = pgMaxImportance.Int32
 	}
 
-	// Set distance parameter
+	// Set distance parameter - use same thresholds as Weaviate since we normalize vectors
+	// With normalized vectors, pgvector cosine distance matches Weaviate distance exactly
 	var distanceParam float64
 	if filter != nil && filter.Distance > 0 {
 		distanceParam = float64(filter.Distance)
+		s.logger.Debug("Using Weaviate-compatible distance threshold", 
+			"distance", distanceParam)
 	}
 
 	// Execute vector similarity query
@@ -814,7 +877,6 @@ func (s *PostgresStorage) DeleteAll(ctx context.Context) error {
 func (s *PostgresStorage) EnsureSchemaExists(ctx context.Context) error {
 	return s.ValidateSchema(ctx)
 }
-
 
 func (s *PostgresStorage) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
 	// Get the memory fact to retrieve its document references
@@ -1157,13 +1219,20 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 		return []*DocumentChunk{}, fmt.Errorf("query text cannot be empty")
 	}
 
+	s.logger.Debug("QueryDocumentChunks called", "query", queryText, "filter", filter)
+
 	// Generate embedding for the query
 	embedding, err := s.embeddingsWrapper.Embedding(ctx, queryText)
 	if err != nil {
+		s.logger.Error("Failed to generate embedding for query", "error", err, "query", queryText)
 		return nil, fmt.Errorf("generating embedding for query: %w", err)
 	}
 
+	// Normalize query vector for Weaviate compatibility
+	embedding = normalizeVector(embedding)
+
 	pgVector := pgvector.NewVector(embedding)
+
 
 	// Set default limit if not specified (matches Weaviate's default)
 	limit := int32(100)
@@ -1209,24 +1278,37 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 		pgTags = tags
 	}
 
-	var sourceParam, filePathParam string
+	// Pass NULL for optional parameters when not specified
+	var sourceParam, filePathParam *string
 	if pgSource.Valid {
-		sourceParam = pgSource.String
+		sourceParam = &pgSource.String
 	}
 	if pgFilePath.Valid {
-		filePathParam = pgFilePath.String
+		filePathParam = &pgFilePath.String
 	}
 
-	// Set distance parameter
+	// Set distance parameter - use same thresholds as Weaviate since we normalize vectors
+	// With normalized vectors, pgvector cosine distance matches Weaviate distance exactly
 	var distanceParam float64
 	if filter != nil && filter.Distance > 0 {
 		distanceParam = float64(filter.Distance)
+		s.logger.Debug("Using Weaviate-compatible distance threshold", 
+			"distance", distanceParam)
+	}
+
+	// Convert pointers to actual values for SQLC (empty string means NULL in SQL context)
+	var sourceStr, filePathStr string
+	if sourceParam != nil {
+		sourceStr = *sourceParam
+	}
+	if filePathParam != nil {
+		filePathStr = *filePathParam
 	}
 
 	params := sqlc.QueryDocumentChunksByVectorParams{
 		ContentVector: &pgVector,
-		Column2:       sourceParam,   // source parameter
-		Column3:       filePathParam, // file_path parameter
+		Column2:       sourceStr,     // source parameter (empty string = NULL)
+		Column3:       filePathStr,   // file_path parameter (empty string = NULL)
 		Column4:       pgTags,        // tags parameter
 		Limit:         actualLimit,
 		Column6:       distanceParam, // distance threshold
@@ -1234,8 +1316,10 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 
 	rows, err := s.queries.QueryDocumentChunksByVector(ctx, params)
 	if err != nil {
+		s.logger.Error("Failed to execute document chunk vector query", "error", err, "params", params)
 		return nil, fmt.Errorf("executing document chunk vector query: %w", err)
 	}
+
 
 	// Convert results to DocumentChunk format
 	chunks := make([]*DocumentChunk, 0, len(rows))
@@ -1259,6 +1343,16 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 			filePath = row.FilePath.String
 		}
 
+		// Convert metadata from map[string]interface{} to map[string]string
+		metadataStr := make(map[string]string)
+		for k, v := range metadata {
+			if str, ok := v.(string); ok {
+				metadataStr[k] = str
+			} else {
+				metadataStr[k] = fmt.Sprintf("%v", v)
+			}
+		}
+
 		chunks = append(chunks, &DocumentChunk{
 			ID:                 chunkUUID.String(),
 			Content:            row.Content,
@@ -1267,7 +1361,7 @@ func (s *PostgresStorage) QueryDocumentChunks(ctx context.Context, queryText str
 			Source:             row.Source,
 			FilePath:           filePath,
 			Tags:               row.Tags,
-			Metadata:           make(map[string]string),
+			Metadata:           metadataStr,
 			CreatedAt:          row.CreatedAt,
 		})
 	}

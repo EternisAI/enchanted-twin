@@ -115,8 +115,8 @@ INSERT INTO document_chunks (
 -- name: QueryDocumentChunksByVector :many
 SELECT *, content_vector <=> $1 AS distance
 FROM document_chunks
-WHERE ($2::text IS NULL OR source = $2)
-  AND ($3::text IS NULL OR file_path = $3)
+WHERE ($2::text = '' OR source = $2)
+  AND ($3::text = '' OR file_path = $3)
   AND ($4::text[] IS NULL OR tags && $4)
   AND ($6::float = 0 OR content_vector <=> $1 <= $6)
 ORDER BY content_vector <=> $1

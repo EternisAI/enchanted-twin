@@ -25,7 +25,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap/pgvector"
 )
 
-// Custom PostgreSQL version to match our 17.5 binaries
+// Custom PostgreSQL version to match our 17.5 binaries.
 const PostgreSQL17_5 embeddedpostgres.PostgresVersion = "17.5"
 
 type PostgresServer struct {
@@ -44,10 +44,10 @@ func BootstrapPostgresServer(ctx context.Context, logger *log.Logger, port strin
 	if appDataPath == "" {
 		appDataPath = "./output" // fallback to default
 	}
-	
+
 	// Use separate runtime and data paths within APP_DATA_PATH
 	runtimePath := filepath.Join(appDataPath, "postgres-runtime")
-	
+
 	// Safety check: ensure dataPath is NOT inside runtimePath (would cause data loss)
 	absDataPath, err := filepath.Abs(dataPath)
 	if err != nil {
@@ -57,13 +57,13 @@ func BootstrapPostgresServer(ctx context.Context, logger *log.Logger, port strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve runtimePath: %w", err)
 	}
-	
+
 	// Check if dataPath is inside runtimePath (dangerous!)
 	relPath, err := filepath.Rel(absRuntimePath, absDataPath)
 	if err == nil && !strings.HasPrefix(relPath, "..") {
 		return nil, fmt.Errorf("CRITICAL: dataPath (%s) is inside runtimePath (%s) - this would cause data loss as runtime is recreated on each start", absDataPath, absRuntimePath)
 	}
-	
+
 	logger.Info("PostgreSQL path validation passed", "dataPath", absDataPath, "runtimePath", absRuntimePath)
 	return BootstrapPostgresServerWithPaths(ctx, logger, port, dataPath, runtimePath)
 }
@@ -303,7 +303,7 @@ func (s *PostgresServer) Stop() error {
 
 func killExistingPostgresProcesses(logger *log.Logger, dataPath string) error {
 	pidFilePath := filepath.Join(dataPath, "postmaster.pid")
-	
+
 	// Check if postmaster.pid file exists
 	if _, err := os.Stat(pidFilePath); os.IsNotExist(err) {
 		logger.Debug("No postmaster.pid file found", "path", pidFilePath)
@@ -377,7 +377,7 @@ func killExistingPostgresProcesses(logger *log.Logger, dataPath string) error {
 
 	// Process is running, try to use pg_ctl for graceful shutdown first
 	logger.Info("PostgreSQL process is running, attempting graceful shutdown", "pid", pid)
-	
+
 	// Try to find pg_ctl and use it for proper shutdown
 	gracefulShutdown := false
 	pgCtlPath := findPgCtlPath(logger)
@@ -392,7 +392,7 @@ func killExistingPostgresProcesses(logger *log.Logger, dataPath string) error {
 	} else {
 		logger.Debug("pg_ctl not found, using signal-based shutdown")
 	}
-	
+
 	// If pg_ctl didn't work, fall back to signal-based shutdown
 	if !gracefulShutdown {
 		if err := exec.Command("kill", "-TERM", pid).Run(); err != nil {
@@ -449,7 +449,7 @@ func cleanupPostgresSharedMemory(logger *log.Logger, dataPath string) error {
 	// Look for postgresql.conf to get the port number for shared memory key calculation
 	// PostgreSQL uses port number as part of the shared memory key
 	postgresqlConfPath := filepath.Join(dataPath, "postgresql.conf")
-	
+
 	// Read port from postgresql.conf if it exists
 	var port uint32 = 5432 // default port
 	if confData, err := os.ReadFile(postgresqlConfPath); err == nil {
@@ -479,7 +479,7 @@ func cleanupPostgresSharedMemory(logger *log.Logger, dataPath string) error {
 	// PostgreSQL calculates shared memory key as: 0x2000000 + port * 0x10000
 	// This is based on PostgreSQL's source code in src/backend/port/sysv_shmem.c
 	shmKey := 0x2000000 + int(port)*0x10000
-	
+
 	// Find shared memory segments using ipcs
 	cmd := exec.Command("ipcs", "-m")
 	output, err := cmd.Output()
@@ -491,7 +491,7 @@ func cleanupPostgresSharedMemory(logger *log.Logger, dataPath string) error {
 
 	lines := strings.Split(string(output), "\n")
 	segmentsFound := 0
-	
+
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		if len(fields) >= 2 {
@@ -503,7 +503,7 @@ func cleanupPostgresSharedMemory(logger *log.Logger, dataPath string) error {
 						shmid := fields[0]
 						segmentsFound++
 						logger.Info("Removing PostgreSQL shared memory segment", "key", keyStr, "shmid", shmid)
-						
+
 						if err := exec.Command("ipcrm", "-m", shmid).Run(); err != nil {
 							logger.Warn("Failed to remove shared memory segment", "shmid", shmid, "error", err)
 						} else {
@@ -529,20 +529,20 @@ func findPgCtlPath(logger *log.Logger) string {
 	if appDataPath == "" {
 		appDataPath = "./output"
 	}
-	
+
 	// Check local binaries path first
 	localBinariesPath := filepath.Join(appDataPath, "postgres", "bin", "pg_ctl")
 	if _, err := os.Stat(localBinariesPath); err == nil {
 		logger.Debug("Found pg_ctl in local binaries", "path", localBinariesPath)
 		return localBinariesPath
 	}
-	
+
 	// Fall back to system PATH
 	if pgCtlPath, err := exec.LookPath("pg_ctl"); err == nil {
 		logger.Debug("Found pg_ctl in system PATH", "path", pgCtlPath)
 		return pgCtlPath
 	}
-	
+
 	logger.Debug("pg_ctl not found in local binaries or system PATH")
 	return ""
 }

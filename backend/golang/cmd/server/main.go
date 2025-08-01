@@ -715,9 +715,9 @@ func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *conf
 
 	// Always use AppData path for PostgreSQL data to ensure persistence
 	postgresPath := filepath.Join(envs.AppDataPath, "postgres-data")
-	logger.Info("Starting PostgreSQL bootstrap process", 
-		"path", postgresPath, 
-		"port", envs.PostgresPort, 
+	logger.Info("Starting PostgreSQL bootstrap process",
+		"path", postgresPath,
+		"port", envs.PostgresPort,
 		"app_data_path", envs.AppDataPath,
 		"forced_appdata_path", true)
 	postgresBootstrapStart := time.Now()

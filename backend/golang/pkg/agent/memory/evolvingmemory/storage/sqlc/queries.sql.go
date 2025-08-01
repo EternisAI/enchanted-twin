@@ -399,8 +399,8 @@ func (q *Queries) GetSourceDocumentsBatch(ctx context.Context, dollar_1 []pgtype
 const queryDocumentChunksByVector = `-- name: QueryDocumentChunksByVector :many
 SELECT id, content, content_vector, chunk_index, original_document_id, source, file_path, tags, metadata_json, created_at, content_vector <=> $1 AS distance
 FROM document_chunks
-WHERE ($2::text IS NULL OR source = $2)
-  AND ($3::text IS NULL OR file_path = $3)
+WHERE ($2::text = '' OR source = $2)
+  AND ($3::text = '' OR file_path = $3)
   AND ($4::text[] IS NULL OR tags && $4)
   AND ($6::float = 0 OR content_vector <=> $1 <= $6)
 ORDER BY content_vector <=> $1
