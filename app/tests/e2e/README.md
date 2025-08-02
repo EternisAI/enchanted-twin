@@ -1,6 +1,59 @@
 # E2E Testing Setup
 
-## Master Test Suite
+## Overview
+
+This E2E testing setup provides **two ways** to run comprehensive tests:
+
+1. **🐳 Docker Setup (Recommended)** - Complete isolation with automatic environment setup
+2. **💻 Local Setup** - Traditional local development testing
+
+## 🐳 Docker E2E Testing (Recommended)
+
+The Docker setup provides complete isolation and consistent environment across all machines.
+
+### Quick Start
+
+```bash
+# 1. Copy and configure environment
+cp tests/e2e/env.docker.example tests/e2e/.env
+# Edit tests/e2e/.env with your API keys
+
+# 2. Setup Docker environment
+pnpm run docker:e2e:setup
+
+# 3. Run tests
+pnpm run docker:e2e:test
+```
+
+### Docker Commands
+
+```bash
+pnpm run docker:e2e:setup     # Build Docker image and check prerequisites
+pnpm run docker:e2e:test      # Run complete E2E test suite
+pnpm run docker:e2e:debug     # Start debug mode with VNC access
+pnpm run docker:e2e:build     # Rebuild Docker image
+pnpm run docker:e2e:cleanup   # Clean up containers and volumes
+```
+
+### Docker Features
+
+- **✅ Complete Isolation** - No local dependencies except Docker
+- **✅ Optimized Context** - 53,000x reduction in build context (5.74GB → 108kB)
+- **✅ Electron Support** - Proper X11 forwarding with virtual display
+- **✅ VNC Debugging** - Visual access to running tests on port 5900
+- **✅ Backend Integration** - Automatic Go backend building and startup
+- **✅ Consistent Environment** - Same environment across all machines
+
+### VNC Debugging
+
+```bash
+pnpm run docker:e2e:debug
+# Connect VNC client to localhost:5900 to see Electron app running
+```
+
+## 💻 Local E2E Testing
+
+### Master Test Suite
 
 The master test suite (`master.e2e.ts`) runs a complete flow that includes:
 
@@ -56,9 +109,18 @@ const SCREENSHOT_PATHS = {
 }
 ```
 
-## Files Overview
+## 📁 Files Overview
 
-### Core Files
+### Docker Files
+- `Dockerfile.e2e` - Main E2E testing container with Node.js, Go, Electron dependencies
+- `docker-compose.e2e.yml` - Docker Compose configuration with networking and volumes
+- `docker/entrypoint-e2e.sh` - Container startup script with multiple modes
+- `scripts/docker-e2e.sh` - Helper script for Docker operations
+- `tests/e2e/env.docker.example` - Environment configuration template
+- `scripts/validate-docker-e2e.sh` - Setup validation script
+- `.dockerignore` - Context optimization (reduces build context by 53,000x)
+
+### Core Test Files
 - `master.e2e.ts` - **Refactored modular test suite** with phase-based execution
 
 ### Helper Functions
@@ -76,13 +138,22 @@ const SCREENSHOT_PATHS = {
 - `getChatInput()` - Get chat input element
 - `screenshotChatState()` - Take chat screenshots
 
-## Running Tests
+## 🚀 Running Tests
 
-### Run the Complete Master Test
+### Docker Tests (Recommended)
+```bash
+# Complete setup and test run
+pnpm run docker:e2e:setup && pnpm run docker:e2e:test
+
+# Individual commands
+pnpm run docker:e2e:test      # Run tests
+pnpm run docker:e2e:debug     # Debug with VNC
+pnpm run docker:e2e:cleanup   # Clean up
+```
+
+### Local Tests
 ```bash
 # Run auth + chat flow in single instance
-npm run test:e2e:master
-# OR with pnpm
 pnpm test:e2e:master
 ```
 
@@ -155,9 +226,86 @@ All test runs generate **organized screenshots** in `test-results/artifacts/`:
 - `master-test-final-success.png` - Complete test success
 - `master-test-error.png` - Failure state capture
 
-## Configuration
+## 🐳 Docker Configuration
 
-Make sure your test configuration includes:
+### Environment Setup
+
+1. **Copy environment template:**
+   ```bash
+   cp tests/e2e/env.docker.example tests/e2e/.env
+   ```
+
+2. **Configure required variables:**
+   ```env
+   # Required API Keys
+   COMPLETIONS_API_KEY=your_actual_key
+   OPENROUTER_API_KEY=your_actual_key  
+   OPENAI_API_KEY=your_actual_key
+   EMBEDDINGS_API_KEY=your_actual_key
+   
+   # Firebase Configuration
+   FIREBASE_API_KEY=your_firebase_key
+   FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   FIREBASE_PROJECT_ID=your-project-id
+   
+   # Google OAuth (for E2E testing)
+   GOOGLE_TEST_EMAIL=your_test_email@gmail.com
+   GOOGLE_TEST_PASSWORD=your_test_password
+   ```
+
+### Validation
+
+Run the validation script to check your setup:
+```bash
+./scripts/validate-docker-e2e.sh
+```
+
+### Docker Architecture
+
+- **Container**: Node.js 20 + Go 1.22 + Electron dependencies
+- **Virtual Display**: Xvfb with Fluxbox window manager
+- **Context Optimization**: `.dockerignore` reduces context from 5.74GB to 108kB
+- **Build Process**: Automatic backend compilation and frontend setup
+- **Networking**: Isolated network with port forwarding
+
+## 🛠️ Docker Troubleshooting
+
+### Common Issues
+
+**1. Environment file missing**
+```bash
+Error: Environment file not found
+Solution: cp tests/e2e/env.docker.example tests/e2e/.env
+```
+
+**2. API key errors** 
+```bash
+Error: Invalid API key
+Solution: Edit tests/e2e/.env with valid API keys
+```
+
+**3. Backend build fails**
+```bash
+Error: Backend build failed
+Solution: Check logs with pnpm run docker:e2e:debug
+```
+
+**4. Docker permission errors**
+```bash
+Error: Permission denied  
+Solution: Ensure Docker daemon is running and user has permissions
+```
+
+### Debug Steps
+
+1. **Validation**: `./scripts/validate-docker-e2e.sh`
+2. **Build logs**: `pnpm run docker:e2e:build`
+3. **VNC debugging**: `pnpm run docker:e2e:debug` (connect to `localhost:5900`)
+4. **Interactive shell**: `docker-compose -f docker-compose.e2e.yml run --rm e2e-tests shell`
+
+## 💻 Local Configuration
+
+Make sure your local test configuration includes:
 
 - **Google test credentials** - Valid OAuth test accounts
 - **Firebase test config** - Proper project settings
