@@ -1,0 +1,67 @@
+# Node modules and package manager files
+**/node_modules
+**/.pnpm-store
+**/yarn.lock
+**/package-lock.json
+
+# Build outputs and dist directories
+**/dist
+**/build
+**/out
+app/resources/lima-*
+app/resources/podman-*
+
+# Backend build artifacts and data
+backend/golang/bin
+backend/golang/output
+backend/golang/output_test
+backend/golang/data_input
+backend/golang/input_data
+backend/golang/nats/jetstream
+
+# Development and testing artifacts
+**/.git
+**/.github
+**/.vscode
+**/.cursor
+**/.DS_Store
+**/test-results
+**/coverage
+**/nyc_output
+
+# Logs and temporary files
+**/*.log
+**/tmp
+**/temp
+**/.env.local
+**/.env.development
+**/.env.test
+
+# Database files
+**/*.db
+**/*.db-wal
+**/*.db-shm
+
+# Docker files (we don't need these in the container)
+**/.dockerignore
+
+# IDE and editor files
+**/.idea
+**/.vscode
+**/*.swp
+**/*.swo
+**/.*~
+
+# OS generated files
+**/.DS_Store
+**/Thumbs.db
+**/desktop.ini
+
+# Documentation (we'll copy specific files if needed)
+**/README.md
+**/docs
+**/DOCKER_E2E.md
+
+# Specific large directories we don't need
+data/
+input_data/ 

@@ -1,0 +1,96 @@
+# Multi-stage build for E2E testing with Electron and backend
+FROM node:20-bullseye AS base
+
+# Install system dependencies for Electron, Playwright, and Go
+RUN apt-get update && apt-get install -y \
+    # Electron dependencies
+    libnss3 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libxss1 \
+    libasound2 \
+    # X11 and display dependencies
+    xvfb \
+    x11vnc \
+    fluxbox \
+    wmctrl \
+    # Go installation and build tools
+    wget \
+    curl \
+    git \
+    build-essential \
+    make \
+    gcc \
+    g++ \
+    # Dependencies for ONNX runtime
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go
+RUN wget https://go.dev/dl/go1.22.0.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go1.22.0.linux-amd64.tar.gz && \
+    rm go1.22.0.linux-amd64.tar.gz
+
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/go"
+ENV PATH="${GOPATH}/bin:${PATH}"
+
+# Install ONNX Runtime for Go
+RUN wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz && \
+    tar -xzf onnxruntime-linux-x64-1.22.0.tgz && \
+    mv onnxruntime-linux-x64-1.22.0 /opt/onnxruntime && \
+    rm onnxruntime-linux-x64-1.22.0.tgz
+
+ENV LD_LIBRARY_PATH="/opt/onnxruntime/lib:${LD_LIBRARY_PATH}"
+
+# Install pnpm globally
+RUN npm install -g pnpm
+
+# Create app directory
+WORKDIR /app
+
+# Copy package files for dependency installation
+COPY app/package.json ./
+COPY app/pnpm-lock.yaml ./
+
+# Install Node.js dependencies with pnpm
+RUN pnpm install
+
+# Install Playwright browsers
+RUN pnpm exec playwright install --with-deps
+
+# Copy backend source
+COPY backend/golang /app/backend/golang
+WORKDIR /app/backend/golang
+
+# Build backend without CGO to avoid ONNX runtime issues (E2E tests may not need local models)
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags 'noonnx' -o bin/enchanted-twin cmd/server/main.go || \
+    CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/enchanted-twin cmd/server/main.go
+
+# Switch back to app directory
+WORKDIR /app
+
+# Copy application source
+COPY app/ .
+
+# Create necessary directories
+RUN mkdir -p /app/test-results/artifacts && \
+    mkdir -p /app/temp && \
+    mkdir -p /app/backend/golang/output
+
+# Set display for Electron
+ENV DISPLAY=:99
+
+# Create entrypoint script
+COPY app/docker/entrypoint-e2e.sh /entrypoint-e2e.sh
+RUN chmod +x /entrypoint-e2e.sh
+
+EXPOSE 44999 51415
+
+ENTRYPOINT ["/entrypoint-e2e.sh"]
+CMD ["test"] 

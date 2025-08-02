@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  e2e-tests:
+    build:
+      context: ..
+      dockerfile: app/Dockerfile.e2e
+    container_name: enchanted-e2e-tests
+    environment:
+      # Display settings
+      DISPLAY: ':99'
+      # API Keys (to be provided via .env)
+      COMPLETIONS_API_KEY: ${COMPLETIONS_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      EMBEDDINGS_API_KEY: ${EMBEDDINGS_API_KEY}
+      # Test configuration
+      E2E_TEST_MODE: 'true'
+      NODE_ENV: 'test'
+      # Firebase test config
+      FIREBASE_API_KEY: ${FIREBASE_API_KEY}
+      FIREBASE_AUTH_DOMAIN: ${FIREBASE_AUTH_DOMAIN}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      # Backend configuration
+      GRAPHQL_PORT: '44999'
+      WEAVIATE_PORT: '51415'
+      DB_PATH: './output/sqlite/store_test.db'
+      APP_DATA_PATH: './output_test'
+      CONTAINER_RUNTIME: 'podman'
+      ANONYMIZER_TYPE: 'no-op'
+      # Optional services
+      TELEGRAM_CHAT_SERVER: ${TELEGRAM_CHAT_SERVER:-}
+      HOLON_API_URL: ${HOLON_API_URL:-}
+      ENCHANTED_MCP_URL: ${ENCHANTED_MCP_URL:-}
+      PROXY_TEE_URL: ${PROXY_TEE_URL:-}
+      INVITE_SERVER_URL: ${INVITE_SERVER_URL:-}
+      MCP_CLIENT_ID: ${MCP_CLIENT_ID:-}
+      MCP_CLIENT_SECRET: ${MCP_CLIENT_SECRET:-}
+      TINFOIL_API_KEY: ${TINFOIL_API_KEY:-}
+    volumes:
+      # Mount test results and artifacts
+      - ./test-results:/app/test-results
+      - ./tests/e2e/.env:/app/tests/e2e/.env:ro
+      # Temporary storage
+      - e2e-temp:/app/temp
+      # Backend data persistence
+      - backend-data:/app/backend/golang/output
+    ports:
+      - '44999:44999' # GraphQL port
+      - '51415:51415' # Weaviate port
+      - '5900:5900' # VNC port for debugging
+    cap_add:
+      - SYS_ADMIN # Required for Electron sandboxing
+    security_opt:
+      - seccomp:unconfined # Required for Electron
+    shm_size: 2gb # Shared memory for Electron
+    command: ['test']
+    networks:
+      - e2e-network
+
+  # Optional: Separate backend service for development
+  backend-only:
+    build:
+      context: ..
+      dockerfile: backend/golang/Dockerfile.backend
+    container_name: enchanted-backend
+    environment:
+      GRAPHQL_PORT: '44999'
+      WEAVIATE_PORT: '51415'
+      DB_PATH: './output/sqlite/store_test.db'
+      APP_DATA_PATH: './output_test'
+      E2E_TEST_MODE: 'true'
+      # API keys
+      COMPLETIONS_API_KEY: ${COMPLETIONS_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      EMBEDDINGS_API_KEY: ${EMBEDDINGS_API_KEY}
+    ports:
+      - '44999:44999'
+      - '51415:51415'
+    volumes:
+      - backend-data:/app/output
+    networks:
+      - e2e-network
+    profiles:
+      - backend-only
+
+volumes:
+  e2e-temp:
+  backend-data:
+
+networks:
+  e2e-network:
+    driver: bridge
