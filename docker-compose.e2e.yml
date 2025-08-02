@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend/golang
+      dockerfile: Dockerfile
+    environment:
+      - GRAPHQL_PORT=44999
+      - WEAVIATE_PORT=51415
+      - DB_PATH=./output_test/sqlite/store_test.db
+      - APP_DATA_PATH=./output_test
+      - E2E_TEST_MODE=true
+      - NODE_ENV=production
+      # API Keys (will be overridden by .env file)
+      - COMPLETIONS_API_KEY=${COMPLETIONS_API_KEY}
+      - COMPLETIONS_API_URL=${COMPLETIONS_API_URL:-https://openrouter.ai/api/v1}
+      - COMPLETIONS_MODEL=${COMPLETIONS_MODEL:-openai/gpt-4o-mini}
+      - REASONING_MODEL=${REASONING_MODEL:-openai/gpt-4.1}
+      - EMBEDDINGS_API_KEY=${EMBEDDINGS_API_KEY}
+      - EMBEDDINGS_API_URL=${EMBEDDINGS_API_URL:-https://api.openai.com/v1}
+      - EMBEDDINGS_MODEL=${EMBEDDINGS_MODEL:-text-embedding-3-small}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANONYMIZER_TYPE=${ANONYMIZER_TYPE:-no-op}
+      # Firebase config
+      - FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}
+      - FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}
+      - FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}
+    ports:
+      - "44999:44999"
+      - "51415:51415"
+    volumes:
+      - backend_data:/app/output_test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:44999/query", "-X", "POST", "-H", "Content-Type: application/json", "-d", "{\"query\": \"{ __typename }\"}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - e2e-network
+
+  e2e-tests:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.e2e
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # Backend connection
+      - BACKEND_HOST=backend
+      - BACKEND_PORT=44999
+      # Test credentials
+      - E2E_TEST_EMAIL=${E2E_TEST_EMAIL}
+      - E2E_TEST_PASSWORD=${E2E_TEST_PASSWORD}
+      # Firebase config for frontend
+      - VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}
+      - VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}
+      - VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}
+      # API keys (needed for backend calls during tests)
+      - COMPLETIONS_API_KEY=${COMPLETIONS_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EMBEDDINGS_API_KEY=${EMBEDDINGS_API_KEY}
+      # Test environment
+      - CI=true
+      - NODE_ENV=test
+      - KEEP_CONTAINER_RUNNING=${KEEP_CONTAINER_RUNNING:-false}
+    volumes:
+      - ./test-results:/artifacts
+      - e2e_temp:/tmp
+    networks:
+      - e2e-network
+    stdin_open: true
+    tty: true
+
+volumes:
+  backend_data:
+  e2e_temp:
+
+networks:
+  e2e-network:
+    driver: bridge

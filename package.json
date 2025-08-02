@@ -1,0 +1,30 @@
+{
+  "name": "enchanted-twin",
+  "version": "0.0.1",
+  "description": "Enchanted Twin - Personal AI Assistant",
+  "scripts": {
+    "dev:frontend": "cd app && pnpm dev",
+    "dev:backend": "cd backend/golang && make run",
+    "build:frontend": "cd app && pnpm build",
+    "build:backend": "cd backend/golang && make build",
+    "test:frontend": "cd app && pnpm test",
+    "test:backend": "cd backend/golang && make test",
+    "test:e2e": "cd app && pnpm test:e2e:master",
+    "test:e2e:docker": "./scripts/docker-e2e.sh",
+    "test:e2e:docker:debug": "./scripts/docker-e2e.sh --keep-running --logs",
+    "test:e2e:docker:clean": "./scripts/docker-e2e.sh --clean --build",
+    "test:e2e:validate": "./scripts/validate-docker-e2e.sh",
+    "docker:validate": "./scripts/validate-docker-e2e.sh",
+    "docker:e2e": "./scripts/docker-e2e.sh",
+    "docker:e2e:help": "./scripts/docker-e2e.sh --help",
+    "setup:dev": "cd app && pnpm install && cd ../backend/golang && go mod download",
+    "lint:all": "cd app && pnpm lint && cd ../backend/golang && make lint"
+  },
+  "keywords": ["ai", "assistant", "privacy", "electron", "go"],
+  "author": "EternisAI",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

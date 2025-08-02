@@ -180,6 +180,43 @@ Frontend
 
 Frontend uses `schema.graphqls` as the source of truth to code generate queries/mutations/subscriptions using `pnpm codegen`.
 
+### Testing
+
+#### E2E Testing with Docker
+
+For comprehensive end-to-end testing in isolated environments:
+
+```bash
+# Quick setup validation
+npm run docker:validate
+
+# Run e2e tests in Docker
+npm run test:e2e:docker
+
+# Debug mode (keeps containers running)
+npm run test:e2e:docker:debug
+
+# Clean rebuild and test
+npm run test:e2e:docker:clean
+```
+
+The Docker e2e setup provides:
+- 🐳 **Isolated environment** - Clean, reproducible test conditions
+- 📊 **Comprehensive logging** - Real-time log streaming for debugging
+- 🚀 **CI/CD ready** - Optimized GitHub Actions integration
+- 🔧 **Developer friendly** - Easy local testing with full stack
+
+See [Docker E2E Testing Guide](docs/DOCKER_E2E_TESTING.md) for detailed documentation.
+
+#### Local E2E Testing
+
+For quick local testing without Docker:
+
+```bash
+# Traditional e2e tests
+cd app && pnpm test:e2e:master
+```
+
 ## Troubleshooting
 
 - If you see a database (either SQLite or Weaviate) delete local directory `output` for testing.

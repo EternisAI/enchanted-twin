@@ -1,0 +1,286 @@
+name: E2E Tests (Docker)
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      keep_containers:
+        description: 'Keep containers running for debugging'
+        type: boolean
+        default: false
+      test_command:
+        description: 'Custom test command to run'
+        type: string
+        default: 'pnpm test:e2e:master'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      e2e: ${{ steps.changes.outputs.e2e }}
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine if e2e-related files changed
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          base: main
+          filters: |
+            e2e:
+              - 'app/tests/e2e/**'
+              - 'app/Dockerfile.e2e'
+              - 'app/docker/**'
+              - 'docker-compose.e2e.yml'
+              - 'scripts/docker-e2e.sh'
+              - 'scripts/validate-docker-e2e.sh'
+              - '.github/workflows/e2e-docker.yml'
+            backend:
+              - 'backend/golang/**'
+            frontend:
+              - 'app/**'
+
+  docker-e2e-tests:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+    
+    env:
+      # Test credentials (from secrets)
+      E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+      E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+      
+      # Firebase config (from secrets)
+      VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+      
+      # API Keys (from secrets)
+      COMPLETIONS_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      EMBEDDINGS_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      
+      # Docker/CI specific
+      KEEP_CONTAINER_RUNNING: ${{ github.event.inputs.keep_containers || 'false' }}
+      CI: true
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+
+      - name: Configure Docker for faster builds
+        run: |
+          # Enable BuildKit features
+          echo '{"features": {"buildkit": true}}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+          
+          # Optimize Docker for CI
+          docker system prune -af --volumes || true
+
+      - name: Cache Docker layers (Backend)
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache-backend
+          key: ${{ runner.os }}-buildx-backend-${{ hashFiles('backend/golang/go.mod', 'backend/golang/go.sum', 'backend/golang/Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-backend-
+
+      - name: Cache Docker layers (Frontend E2E)
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache-frontend
+          key: ${{ runner.os }}-buildx-frontend-e2e-${{ hashFiles('app/package.json', 'app/pnpm-lock.yaml', 'app/Dockerfile.e2e') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-frontend-e2e-
+
+      - name: Validate Docker setup
+        run: |
+          chmod +x scripts/validate-docker-e2e.sh
+          ./scripts/validate-docker-e2e.sh
+
+      - name: Build Docker images with cache
+        run: |
+          # Build backend with cache
+          docker buildx build \
+            --file backend/golang/Dockerfile \
+            --target production \
+            --cache-from type=local,src=/tmp/.buildx-cache-backend \
+            --cache-to type=local,dest=/tmp/.buildx-cache-backend-new,mode=max \
+            --load \
+            --tag enchanted-backend:latest \
+            backend/golang
+          
+          # Build frontend e2e with cache
+          docker buildx build \
+            --file app/Dockerfile.e2e \
+            --cache-from type=local,src=/tmp/.buildx-cache-frontend \
+            --cache-to type=local,dest=/tmp/.buildx-cache-frontend-new,mode=max \
+            --load \
+            --tag enchanted-e2e:latest \
+            app
+          
+          # Move cache directories
+          rm -rf /tmp/.buildx-cache-backend
+          rm -rf /tmp/.buildx-cache-frontend
+          mv /tmp/.buildx-cache-backend-new /tmp/.buildx-cache-backend || true
+          mv /tmp/.buildx-cache-frontend-new /tmp/.buildx-cache-frontend || true
+
+      - name: Pre-start services for faster test execution
+        run: |
+          # Start backend service and wait for it to be healthy
+          docker-compose -f docker-compose.e2e.yml up -d backend
+          
+          # Wait for backend to be healthy (with timeout)
+          timeout 120 bash -c 'until docker-compose -f docker-compose.e2e.yml ps backend | grep -q "healthy"; do sleep 2; done'
+          
+          echo "✅ Backend is ready for testing"
+
+      - name: Run E2E tests
+        run: |
+          chmod +x scripts/docker-e2e.sh
+          
+          # Determine test command
+          if [ "${{ github.event.inputs.test_command }}" != "" ]; then
+            TEST_CMD="${{ github.event.inputs.test_command }}"
+          else
+            TEST_CMD="pnpm test:e2e:master"
+          fi
+          
+          # Run tests with proper options
+          if [ "${{ github.event.inputs.keep_containers }}" == "true" ]; then
+            ./scripts/docker-e2e.sh --keep-running --logs "$TEST_CMD"
+          else
+            ./scripts/docker-e2e.sh --logs "$TEST_CMD"
+          fi
+
+      - name: Collect test artifacts
+        if: always()
+        run: |
+          # Ensure test results directory exists
+          mkdir -p test-results/artifacts
+          
+          # Copy logs from containers if they exist
+          docker-compose -f docker-compose.e2e.yml logs backend > test-results/backend-logs.txt 2>&1 || true
+          docker-compose -f docker-compose.e2e.yml logs e2e-tests > test-results/e2e-logs.txt 2>&1 || true
+          
+          # Get container information
+          docker-compose -f docker-compose.e2e.yml ps > test-results/container-status.txt 2>&1 || true
+          
+          echo "📁 Test artifacts collected:"
+          ls -la test-results/ || true
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ github.run_number }}
+          path: |
+            test-results/
+          retention-days: 30
+
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots-${{ github.run_number }}
+          path: |
+            test-results/artifacts/
+          retention-days: 7
+
+      - name: Comment on PR with results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            let comment = '## 🐳 Docker E2E Test Results\n\n';
+            
+            // Add status
+            const success = '${{ job.status }}' === 'success';
+            if (success) {
+              comment += '✅ **All E2E tests passed!**\n\n';
+            } else {
+              comment += '❌ **E2E tests failed**\n\n';
+            }
+            
+            // Add changed files info
+            const changedFiles = [
+              'E2E: ${{ needs.changes.outputs.e2e }}',
+              'Backend: ${{ needs.changes.outputs.backend }}', 
+              'Frontend: ${{ needs.changes.outputs.frontend }}'
+            ].filter(item => item.includes('true'));
+            
+            if (changedFiles.length > 0) {
+              comment += '**Changed components:**\n';
+              changedFiles.forEach(file => {
+                comment += `- ${file}\n`;
+              });
+              comment += '\n';
+            }
+            
+            // Add artifacts info
+            comment += '**Artifacts:**\n';
+            comment += `- 📊 Test results: Available in workflow artifacts\n`;
+            if (!success) {
+              comment += `- 📸 Screenshots: Available in workflow artifacts\n`;
+              comment += `- 📄 Logs: Check workflow logs or artifacts\n`;
+            }
+            
+            // Add manual run info if applicable
+            if ('${{ github.event.inputs.test_command }}') {
+              comment += `\n**Custom test command:** \`${{ github.event.inputs.test_command }}\`\n`;
+            }
+            if ('${{ github.event.inputs.keep_containers }}' === 'true') {
+              comment += `**Containers kept running for debugging**\n`;
+            }
+            
+            // Post comment
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Cleanup containers
+        if: always() && github.event.inputs.keep_containers != 'true'
+        run: |
+          echo "🧹 Cleaning up Docker containers and volumes..."
+          docker-compose -f docker-compose.e2e.yml down -v --remove-orphans || true
+          docker system prune -af --volumes || true
+
+      - name: Debug info (if containers kept running)
+        if: always() && github.event.inputs.keep_containers == 'true'
+        run: |
+          echo "🔄 Containers are kept running for debugging"
+          echo "📋 Container status:"
+          docker-compose -f docker-compose.e2e.yml ps || true
+          echo ""
+          echo "🔍 To access containers locally:"
+          echo "  docker-compose -f docker-compose.e2e.yml exec e2e-tests bash"
+          echo "  docker-compose -f docker-compose.e2e.yml exec backend bash"
+          echo ""
+          echo "🧹 To clean up:"
+          echo "  docker-compose -f docker-compose.e2e.yml down -v"
