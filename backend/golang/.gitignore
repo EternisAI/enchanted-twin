@@ -18,3 +18,4 @@ weaviate-test-memory/*
 pkg/testing/personalities/testdata/reports/
 
 launch.json
+*.gguf
