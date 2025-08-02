@@ -16,6 +16,7 @@
     "test:e2e:docker:clean": "./scripts/docker-e2e.sh --clean --build",
     "test:e2e:validate": "./scripts/validate-docker-e2e.sh",
     "docker:validate": "./scripts/validate-docker-e2e.sh",
+    "docker:test-build": "./scripts/test-docker-build.sh",
     "docker:e2e": "./scripts/docker-e2e.sh",
     "docker:e2e:help": "./scripts/docker-e2e.sh --help",
     "setup:dev": "cd app && pnpm install && cd ../backend/golang && go mod download",
