@@ -173,8 +173,6 @@ func main() {
 		runGmail()
 	case "chunks":
 		runChunks()
-	case "shards":
-		runShards()
 	case "prompts":
 		runPrompts()
 	case "facts":
@@ -526,127 +524,6 @@ func runChunks() {
 	logger.Info("Chunking done", "original", len(documents), "chunks", len(chunkedDocs), "output", outputFile)
 }
 
-func runShards() {
-	// Find X_1 file with optional type filtering
-	typeFilter := parseTypeFlag()
-	inputFile := findFileByType("pipeline_output/X_1_*.jsonl", typeFilter)
-	if inputFile == "" {
-		if typeFilter != "" {
-			logger.Error("No X_1 file found matching type", "type", typeFilter)
-		} else {
-			logger.Error("No X_1 chunks file found")
-		}
-		os.Exit(1)
-	}
-
-	logger.Info("Creating shards from chunks", "input", inputFile, "type_filter", typeFilter)
-
-	// Load chunks
-	documents, err := memory.LoadConversationDocumentsFromJSON(inputFile)
-	if err != nil {
-		logger.Error("Load failed", "error", err)
-		os.Exit(1)
-	}
-
-	var shardDocs []memory.ConversationDocument
-	for _, doc := range documents {
-		// Split each chunk into smaller shards (≤500 chars each)
-		shards := createShardsFromDocument(doc, 500)
-		shardDocs = append(shardDocs, shards...)
-	}
-
-	// Generate output filename based on input file type
-	baseName := strings.TrimSuffix(filepath.Base(inputFile), ".jsonl")
-	typeSuffix := strings.TrimPrefix(baseName, "X_1_")
-	typeSuffix = strings.TrimSuffix(typeSuffix, "_chunks")
-	if typeSuffix == baseName || typeSuffix == "" {
-		// Fallback if naming doesn't match expected pattern
-		typeSuffix = "shards"
-	} else {
-		typeSuffix += "_shards"
-	}
-	outputFile := fmt.Sprintf("pipeline_output/X_2_%s.jsonl", typeSuffix)
-
-	// Save shards as JSONL using memory package helper
-	if err := memory.ExportConversationDocumentsJSON(shardDocs, outputFile); err != nil {
-		logger.Error("Save failed", "error", err, "output", outputFile)
-		os.Exit(1)
-	}
-
-	logger.Info("Sharding done", "original_chunks", len(documents), "shards", len(shardDocs), "output", outputFile)
-}
-
-// createShardsFromDocument splits a ConversationDocument into smaller shards
-// Each shard contains messages up to maxChars total characters
-func createShardsFromDocument(doc memory.ConversationDocument, maxChars int) []memory.ConversationDocument {
-	// Access the conversation messages directly from the document
-	allMessages := doc.Conversation
-	
-	if len(allMessages) == 0 {
-		return []memory.ConversationDocument{}
-	}
-	
-	var shards []memory.ConversationDocument
-	var currentShardMessages []memory.ConversationMessage
-	var currentCharCount int
-	shardIndex := 0
-
-	for _, msg := range allMessages {
-		msgCharCount := len(msg.Content)
-		
-		// If adding this message would exceed the limit, create a new shard
-		if currentCharCount > 0 && currentCharCount + msgCharCount > maxChars {
-			// Create shard from current messages
-			if len(currentShardMessages) > 0 {
-				shard := createShardDocument(doc, currentShardMessages, shardIndex)
-				shards = append(shards, shard)
-				shardIndex++
-			}
-			
-			// Start new shard with this message
-			currentShardMessages = []memory.ConversationMessage{msg}
-			currentCharCount = msgCharCount
-		} else {
-			// Add message to current shard
-			currentShardMessages = append(currentShardMessages, msg)
-			currentCharCount += msgCharCount
-		}
-	}
-	
-	// Don't forget the last shard
-	if len(currentShardMessages) > 0 {
-		shard := createShardDocument(doc, currentShardMessages, shardIndex)
-		shards = append(shards, shard)
-	}
-	
-	return shards
-}
-
-// createShardDocument creates a new ConversationDocument shard from an original document
-func createShardDocument(originalDoc memory.ConversationDocument, messages []memory.ConversationMessage, shardIndex int) memory.ConversationDocument {
-	// Create a new document with the shard messages and preserve original metadata
-	shardID := fmt.Sprintf("%s_shard_%d", originalDoc.ID(), shardIndex)
-	
-	// Copy metadata and add shard-specific info
-	shardMetadata := make(map[string]string)
-	for k, v := range originalDoc.Metadata() {
-		shardMetadata[k] = v
-	}
-	shardMetadata["_enchanted_shard_number"] = fmt.Sprintf("%d", shardIndex)
-	shardMetadata["_enchanted_original_document_id"] = originalDoc.ID()
-	shardMetadata["_enchanted_shard_type"] = "conversation_shard"
-	
-	return memory.ConversationDocument{
-		FieldID:       shardID,
-		FieldSource:   originalDoc.Source(),
-		People:        originalDoc.People,
-		User:          originalDoc.User,
-		Conversation:  messages,
-		FieldTags:     originalDoc.Tags(),
-		FieldMetadata: shardMetadata,
-	}
-}
-
 // 🔥 PARALLEL FACT EXTRACTION WORKER POOL.
 func extractFactsParallel(documents []memory.Document, numWorkers int) []*memory.MemoryFact {
 	aiService := ai.NewOpenAIService(
@@ -746,7 +623,7 @@ func extractFactsParallel(documents []memory.Document, numWorkers int) []*memory
 }
 
 func runPrompts() {
-	logger.Info("Converting shards documents to formatted prompts")
+	logger.Info("Converting anonymized chunks to formatted prompts")
 
 	// Find X_2 file with optional type filtering
 	typeFilter := parseTypeFlag()
@@ -790,7 +667,7 @@ func runPrompts() {
 	// Generate output filename based on input file type
 	baseName := strings.TrimSuffix(filepath.Base(inputFile), ".jsonl")
 	typeSuffix := strings.TrimPrefix(baseName, "X_2_")
-	typeSuffix = strings.TrimSuffix(typeSuffix, "_shards") // Remove _shards suffix
+	typeSuffix = strings.TrimSuffix(typeSuffix, "_anon") // Remove _anon suffix
 	if typeSuffix == baseName || typeSuffix == "" {
 		// Fallback if naming doesn't match expected pattern
 		typeSuffix = "shards"
@@ -861,7 +738,7 @@ func runFacts() {
 
 	file, err := os.Open(inputFile)
 	if err != nil {
-		logger.Error("Failed to open X_2 file", "error", err, "file", inputFile)
+		logger.Error("Failed to open X_3 file", "error", err, "file", inputFile)
 		os.Exit(1)
 	}
 	defer func() { _ = file.Close() }()
@@ -1394,7 +1271,6 @@ func printUsage() {
 	fmt.Println("  memory-processor-test gmail")
 	fmt.Println("  memory-processor-test gmail --senders  # Analyze senders only")
 	fmt.Println("  memory-processor-test chunks")
-	fmt.Println("  memory-processor-test shards")
 	fmt.Println("  memory-processor-test prompts")
 	fmt.Println("  memory-processor-test facts")
 	fmt.Println("  memory-processor-test store")
@@ -1409,7 +1285,7 @@ func printUsage() {
 	fmt.Println("  make gmail    # Convert Gmail mbox")
 	fmt.Println("  make gmail --senders # Analyze Gmail senders, create senders.json")
 	fmt.Println("  make chunks   # X_0 → X_1")
-	fmt.Println("  make shards   # X_1 → X_2 (≤500 chars each)")
+	fmt.Println("  make anonymize # X_1 → X_2 (anonymized chunks)")
 	fmt.Println("  make prompts  # X_2 → X_3")
 	fmt.Println("  make facts    # X_3 → X_4")
 	fmt.Println("  make store    # X_4 → Weaviate")

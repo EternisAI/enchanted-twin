@@ -5,6 +5,7 @@ import random
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
+MODEL_ID = "eternis/qwen1.7b-anonymizer-merged"
 
 TASK_INSTRUCTION = """
 You are an anonymizer. Your task is to identify and replace personally identifiable information (PII) in the given text.
@@ -146,7 +147,7 @@ def run_on_dataset(model_id, dataset_path, output_path, sample_size=None):
 
 if __name__ == "__main__":
     run_on_dataset(
-        model_id="eternis/qwen1.7b-anonymizer-merged",
+        model_id=MODEL_ID,
         dataset_path="datasets/pii_test.jsonl",
         output_path="results/test.jsonl",
         sample_size=100,

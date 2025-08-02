@@ -1,6 +1,6 @@
 # Telegram & WhatsApp Memory Pipeline Makefile
 # 
-# Simplified Pipeline: Raw → ConversationDocument (X_0) → Chunks (X_1) → Shards (X_2) → Prompts (X_3) → Facts (X_4)
+# Simplified Pipeline: Raw → ConversationDocument (X_0) → Chunks (X_1) → Anonymized (X_2) → Prompts (X_3) → Facts (X_4)
 #
 # Usage:
 #   make whatsapp      - Convert WhatsApp SQLite to ConversationDocument (X_0)
@@ -9,8 +9,8 @@
 #   make gmail         - Convert Gmail MBOX to ConversationDocument (X_0)
 #   make gmail-senders - Analyze Gmail senders to include/exclude them from the ConversationDocument (X_0)
 #   make chunks        - Convert ConversationDocument (X_0) to chunks (X_1)
-#   make shards        - Convert chunks (X_1) to smaller shards (X_2)
-#   make prompts       - Convert shards (X_2) to formatted prompts (X_3)
+#   make anonymize     - Anonymize chunks (X_1) to anonymized chunks (X_2)
+#   make prompts       - Convert anonymized chunks (X_2) to formatted prompts (X_3)
 #   make facts         - Convert formatted prompts (X_3) to facts (X_4)
 #   TYPE=gmail         - Add fuzzy type filtering to any command (e.g. make chunks TYPE=gm)
 #   make all           - Run complete pipeline (Raw → X_4)
@@ -164,28 +164,32 @@ chunks:
 		exit 1; \
 	fi
 
-# Convert chunks to smaller shards (X_1 → X_2)
-shards:
-	@echo "✂️ Converting chunks to smaller shards (X_1 → X_2)..."
+# Anonymize chunks using virtual sharding (X_1 → X_2)
+anonymize:
+	@echo "🕵️ Anonymizing chunks using virtual sharding (X_1 → X_2)..."
 	@if ls "$(OUTPUT_DIR)"/X_1_*.jsonl >/dev/null 2>&1; then \
 		echo "✅ Auto-detecting X_1 chunks..."; \
+		CMD_ARGS=""; \
 		if [ -n "$(TYPE)" ]; then \
 			echo "🔍 Using type filter: $(TYPE)"; \
-			go run . shards --type=$(TYPE); \
-		else \
-			go run . shards; \
+			CMD_ARGS="$$CMD_ARGS --type=$(TYPE)"; \
 		fi; \
-		echo "✅ X_2 shards created in $(OUTPUT_DIR)/"; \
+		if [ -n "$(SHARD_LENGTH)" ]; then \
+			echo "📏 Using shard length: $(SHARD_LENGTH)"; \
+			CMD_ARGS="$$CMD_ARGS --shard-length=$(SHARD_LENGTH)"; \
+		fi; \
+		cd anonymizer && uv run anonymize.py $$CMD_ARGS; \
+		echo "✅ X_2 anonymized chunks created in $(OUTPUT_DIR)/"; \
 	else \
 		echo "❌ No X_1 chunks file found. Run 'make chunks' first."; \
 		exit 1; \
 	fi
 
-# Convert shards to formatted prompts (X_2 → X_3)
+# Convert anonymized chunks to formatted prompts (X_2 → X_3)
 prompts:
-	@echo "📝 Converting shards to formatted prompts (X_2 → X_3)..."
-	@if ls "$(OUTPUT_DIR)"/X_2_*.jsonl >/dev/null 2>&1; then \
-		echo "✅ Auto-detecting X_2 shards..."; \
+	@echo "📝 Converting anonymized chunks to formatted prompts (X_2 → X_3)..."
+	@if ls "$(OUTPUT_DIR)"/X_2_*_anon.jsonl >/dev/null 2>&1; then \
+		echo "✅ Auto-detecting X_2 anonymized chunks..."; \
 		if [ -n "$(TYPE)" ]; then \
 			echo "🔍 Using type filter: $(TYPE)"; \
 			go run . prompts --type=$(TYPE); \
@@ -194,7 +198,7 @@ prompts:
 		fi; \
 		echo "✅ X_3 formatted prompts created in $(OUTPUT_DIR)/"; \
 	else \
-		echo "❌ No X_2 shards file found. Run 'make shards' first."; \
+		echo "❌ No X_2 anonymized file found. Run 'make anonymize' first."; \
 		exit 1; \
 	fi
 
@@ -334,7 +338,7 @@ all:
 	fi
 	@echo "🔄 Running pipeline steps..."
 	$(MAKE) chunks  
-	$(MAKE) shards
+	$(MAKE) anonymize
 	$(MAKE) prompts
 	$(MAKE) facts
 	$(MAKE) store
@@ -361,7 +365,7 @@ status:
 	@if [ -f "$(OUTPUT_DIR)/X_0_chatgpt.json" ]; then echo "✅ ChatGPT X_0 ConversationDocument ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_0_gmail.json" ]; then echo "✅ Gmail X_0 ConversationDocument ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_1_chunked_documents.json" ]; then echo "✅ X_1 chunks ready"; fi
-	@if ls "$(OUTPUT_DIR)"/X_2_*.jsonl >/dev/null 2>&1; then echo "✅ X_2 shards ready"; fi
+	@if ls "$(OUTPUT_DIR)"/X_2_*_anon.jsonl >/dev/null 2>&1; then echo "✅ X_2 anonymized ready"; fi
 	@if ls "$(OUTPUT_DIR)"/X_3_*.jsonl >/dev/null 2>&1; then echo "✅ X_3 prompts ready"; fi
 	@if ls "$(OUTPUT_DIR)"/X_4_*.jsonl >/dev/null 2>&1; then echo "✅ X_4 facts ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_5_consolidation_reports.jsonl" ]; then echo "✅ X_5 consolidation reports ready"; fi
@@ -379,15 +383,16 @@ help:
 	@echo
 	@echo "🧠 Atomic Memory Pipeline (X_i → X_{i+1}):"
 	@echo "  make chunks     - X_0 ConversationDocument → X_1 chunks"
-	@echo "  make shards     - X_1 chunks → X_2 shards (≤500 chars each)"
-	@echo "  make prompts    - X_2 shards → X_3 formatted prompts"
+	@echo "  make anonymize  - X_1 chunks → X_2 anonymized chunks (PII replaced)"
+	@echo "  make prompts    - X_2 anonymized → X_3 formatted prompts"
 	@echo "  make facts      - X_3 formatted prompts → X_4 facts"
 	@echo "  make store      - X_4 facts → Weaviate database"
 	@echo
-	@echo "🔍 Type Filtering (fuzzy substring matching):"
+	@echo "🔍 Type Filtering & Parameters:"
 	@echo "  make chunks TYPE=gmail     - Process only gmail files"
-	@echo "  make prompts TYPE=whats    - Process only whatsapp files"
-	@echo "  make facts TYPE=tel        - Process only telegram files"
+	@echo "  make anonymize TYPE=whats  - Process only whatsapp files"
+	@echo "  make anonymize SHARD_LENGTH=300 - Use 300 char shards (default: 500)"
+	@echo "  make prompts TYPE=tel      - Process only telegram files"
 	@echo "  make consolidation - Weaviate → X_5 comprehensive consolidation (all 20 subjects)"
 	@echo "  make store-consolidations - X_5 consolidation → Weaviate consolidations storage"
 	@echo "  make query-consolidations - Test consolidated vs raw fact querying"
@@ -405,7 +410,7 @@ help:
 		@echo "For WhatsApp:"
 	@echo "  make whatsapp   # SQLite → X_0 ConversationDocument" 
 	@echo "  make chunks     # X_0 → X_1 chunks"
-	@echo "  make shards     # X_1 → X_2 shards"
+	@echo "  make anonymize  # X_1 → X_2 anonymized"
 	@echo "  make prompts    # X_2 → X_3 prompts"
 	@echo "  make facts      # X_3 → X_4 facts"
 	@echo "  make store      # X_4 → Weaviate database"
@@ -414,7 +419,7 @@ help:
 	@echo "For Telegram:"
 	@echo "  make telegram   # JSON → X_0 ConversationDocument"  
 	@echo "  make chunks     # X_0 → X_1 chunks"
-	@echo "  make shards     # X_1 → X_2 shards"
+	@echo "  make anonymize  # X_1 → X_2 anonymized"
 	@echo "  make prompts    # X_2 → X_3 prompts"
 	@echo "  make facts      # X_3 → X_4 facts"
 	@echo "  make store      # X_4 → Weaviate database"
@@ -423,7 +428,7 @@ help:
 	@echo "For ChatGPT:"
 	@echo "  make chatgpt    # JSON → X_0 ConversationDocument"
 	@echo "  make chunks     # X_0 → X_1 chunks"
-	@echo "  make shards     # X_1 → X_2 shards"
+	@echo "  make anonymize  # X_1 → X_2 anonymized"
 	@echo "  make prompts    # X_2 → X_3 prompts"
 	@echo "  make facts      # X_3 → X_4 facts"
 	@echo "  make store      # X_4 → Weaviate database"
@@ -432,7 +437,7 @@ help:
 	@echo "For Gmail:"
 	@echo "  make gmail      # MBOX → X_0 ConversationDocument"
 	@echo "  make chunks     # X_0 → X_1 chunks"
-	@echo "  make shards     # X_1 → X_2 shards"
+	@echo "  make anonymize  # X_1 → X_2 anonymized"
 	@echo "  make prompts    # X_2 → X_3 prompts"
 	@echo "  make facts      # X_3 → X_4 facts"
 	@echo "  make store      # X_4 → Weaviate database"
@@ -444,4 +449,4 @@ help:
 	@echo "  make consolidation  # Runs consolidation for all 20 canonical subjects"
 	@echo "                      # Creates comprehensive X_5 report with all subject insights"
 
-.PHONY: build whatsapp telegram chatgpt gmail gmail-senders chunks shards prompts facts store consolidation store-consolidations query-consolidations query all clean status help 
+.PHONY: build whatsapp telegram chatgpt gmail gmail-senders chunks anonymize prompts facts store consolidation store-consolidations query-consolidations query all clean status help 
