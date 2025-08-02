@@ -135,6 +135,7 @@ type WeaviateStorage struct {
 	client            *weaviate.Client
 	logger            *log.Logger
 	embeddingsWrapper *EmbeddingWrapper
+	classPrefix       string // Optional prefix for class names to enable test isolation
 }
 
 // NewStorageInput contains the dependencies needed to create a WeaviateStorage instance.
@@ -142,6 +143,7 @@ type NewStorageInput struct {
 	Client            *weaviate.Client
 	Logger            *log.Logger
 	EmbeddingsWrapper *EmbeddingWrapper
+	ClassPrefix       string // Optional prefix for class names to enable test isolation
 }
 
 // New creates a new WeaviateStorage instance.
@@ -159,14 +161,39 @@ func New(input NewStorageInput) (Interface, error) {
 		client:            input.Client,
 		logger:            input.Logger,
 		embeddingsWrapper: input.EmbeddingsWrapper,
+		classPrefix:       input.ClassPrefix,
 	}, nil
+}
+
+// getClassName returns the class name with optional prefix for test isolation.
+func (s *WeaviateStorage) getClassName() string {
+	if s.classPrefix != "" {
+		return s.classPrefix + "_" + ClassName
+	}
+	return ClassName
+}
+
+// getDocumentClassName returns the document class name with optional prefix.
+func (s *WeaviateStorage) getDocumentClassName() string {
+	if s.classPrefix != "" {
+		return s.classPrefix + "_" + DocumentClassName
+	}
+	return DocumentClassName
+}
+
+// getDocumentChunkClassName returns the document chunk class name with optional prefix.
+func (s *WeaviateStorage) getDocumentChunkClassName() string {
+	if s.classPrefix != "" {
+		return s.classPrefix + "_" + DocumentChunkClassName
+	}
+	return DocumentChunkClassName
 }
 
 // GetByID retrieves a specific memory fact from Weaviate by its ID.
 func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.MemoryFact, error) {
 	result, err := s.client.Data().ObjectsGetter().
 		WithID(id).
-		WithClassName(ClassName).
+		WithClassName(s.getClassName()).
 		Do(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting object by ID: %w", err)
@@ -239,7 +266,7 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, fact *memory.Me
 	// Step 1: Fetch the existing object to preserve all fields
 	existing, err := s.client.Data().ObjectsGetter().
 		WithID(id).
-		WithClassName(ClassName).
+		WithClassName(s.getClassName()).
 		Do(ctx)
 	if err != nil {
 		return fmt.Errorf("fetching existing object for update: %w", err)
@@ -316,7 +343,7 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, fact *memory.Me
 	// Step 4: Save with all fields preserved
 	err = s.client.Data().Updater().
 		WithID(id).
-		WithClassName(ClassName).
+		WithClassName(s.getClassName()).
 		WithProperties(properties).
 		WithVector(vector).
 		Do(ctx)
@@ -332,7 +359,7 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, fact *memory.Me
 func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
 	err := s.client.Data().Deleter().
 		WithID(id).
-		WithClassName(ClassName).
+		WithClassName(s.getClassName()).
 		Do(ctx)
 	if err != nil {
 		return fmt.Errorf("deleting object: %w", err)
@@ -346,6 +373,18 @@ func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
 func (s *WeaviateStorage) StoreBatch(ctx context.Context, objects []*models.Object) error {
 	if len(objects) == 0 {
 		return nil
+	}
+
+	// Update class names to use prefixed versions for test isolation
+	for _, obj := range objects {
+		switch obj.Class {
+		case ClassName:
+			obj.Class = s.getClassName()
+		case DocumentClassName:
+			obj.Class = s.getDocumentClassName()
+		case DocumentChunkClassName:
+			obj.Class = s.getDocumentChunkClassName()
+		}
 	}
 
 	// Use the client's batch API
@@ -374,26 +413,26 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 	// Note: For v5 client, we need to delete the class and recreate it
 	// as batch delete with filters has changed significantly
 
-	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
+	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(s.getClassName()).Do(ctx)
 	if err != nil {
-		return fmt.Errorf("checking class existence before delete all for '%s': %w", ClassName, err)
+		return fmt.Errorf("checking class existence before delete all for '%s': %w", s.getClassName(), err)
 	}
 	if !exists {
-		s.logger.Info("Class does not exist, no need to delete.", "class", ClassName)
+		s.logger.Info("Class does not exist, no need to delete.", "class", s.getClassName())
 		return nil
 	}
 
-	err = s.client.Schema().ClassDeleter().WithClassName(ClassName).Do(ctx)
+	err = s.client.Schema().ClassDeleter().WithClassName(s.getClassName()).Do(ctx)
 	if err != nil {
-		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
+		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(s.getClassName()).Do(ctx)
 		if checkErr == nil && !existsAfterAttempt {
-			s.logger.Info("Class was deleted, possibly concurrently.", "class", ClassName)
+			s.logger.Info("Class was deleted, possibly concurrently.", "class", s.getClassName())
 			return nil
 		}
-		return fmt.Errorf("failed to delete class '%s': %w", ClassName, err)
+		return fmt.Errorf("failed to delete class '%s': %w", s.getClassName(), err)
 	}
 
-	s.logger.Info("Successfully deleted all memories by removing class", "class", ClassName)
+	s.logger.Info("Successfully deleted all memories by removing class", "class", s.getClassName())
 
 	return s.EnsureSchemaExists(ctx)
 }
@@ -423,8 +462,8 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 	}
 
 	for _, class := range schema.Classes {
-		if class.Class == ClassName {
-			s.logger.Infof("Schema for class %s already exists, validating...", ClassName)
+		if class.Class == s.getClassName() {
+			s.logger.Infof("Schema for class %s already exists, validating...", s.getClassName())
 
 			existingProps := make(map[string]string)
 			for _, prop := range class.Properties {
@@ -477,10 +516,10 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 		}
 	}
 
-	s.logger.Infof("Creating schema for class %s", ClassName)
+	s.logger.Infof("Creating schema for class %s", s.getClassName())
 
 	classObj := &models.Class{
-		Class:       ClassName,
+		Class:       s.getClassName(),
 		Description: "A memory entry in the evolving memory system with structured facts",
 		Properties: []*models.Property{
 			{
@@ -593,8 +632,8 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 	}
 
 	for _, class := range schema.Classes {
-		if class.Class == DocumentClassName {
-			s.logger.Infof("Schema for class %s already exists, validating...", DocumentClassName)
+		if class.Class == s.getDocumentClassName() {
+			s.logger.Infof("Schema for class %s already exists, validating...", s.getDocumentClassName())
 
 			expectedProps := map[string]string{
 				contentProperty:             "text",
@@ -628,11 +667,11 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 	}
 
 	// Schema doesn't exist, create it
-	s.logger.Infof("Creating schema for class %s", DocumentClassName)
+	s.logger.Infof("Creating schema for class %s", s.getDocumentClassName())
 
 	indexFilterable := true
 	classObj := &models.Class{
-		Class:       DocumentClassName,
+		Class:       s.getDocumentClassName(),
 		Description: "A document in the separate document storage system",
 		Properties: []*models.Property{
 			{
@@ -690,8 +729,8 @@ func (s *WeaviateStorage) ensureDocumentChunkClassExists(ctx context.Context) er
 	}
 
 	for _, class := range schema.Classes {
-		if class.Class == DocumentChunkClassName {
-			s.logger.Infof("Schema for class %s already exists, validating...", DocumentChunkClassName)
+		if class.Class == s.getDocumentChunkClassName() {
+			s.logger.Infof("Schema for class %s already exists, validating...", s.getDocumentChunkClassName())
 
 			expectedProps := map[string]string{
 				contentProperty:                 "text",
@@ -727,11 +766,11 @@ func (s *WeaviateStorage) ensureDocumentChunkClassExists(ctx context.Context) er
 	}
 
 	// Schema doesn't exist, create it
-	s.logger.Infof("Creating schema for class %s", DocumentChunkClassName)
+	s.logger.Infof("Creating schema for class %s", s.getDocumentChunkClassName())
 
 	indexFilterable := true
 	classObj := &models.Class{
-		Class:       DocumentChunkClassName,
+		Class:       s.getDocumentChunkClassName(),
 		Description: "A chunk of a document stored separately from facts",
 		Properties: []*models.Property{
 			{
@@ -840,9 +879,15 @@ func (s *WeaviateStorage) buildQueryBuilder(queryVector []float32, filter *memor
 
 	// 4. Build base query
 	queryBuilder := s.client.GraphQL().Get().
-		WithClassName(ClassName).
+		WithClassName(s.getClassName()).
 		WithNearVector(nearVector).
 		WithFields(fields...)
+
+	// 5. Apply limit from filter
+	if filter != nil && filter.Limit != nil {
+		queryBuilder = queryBuilder.WithLimit(*filter.Limit)
+		s.logger.Debug("Applied filter limit", "limit", *filter.Limit)
+	}
 
 	// 6. Add WHERE filters
 	if filter != nil {
@@ -866,7 +911,7 @@ func (s *WeaviateStorage) buildFilterOnlyQueryBuilder(filter *memory.Filter) (*w
 
 	// Build base query without vector search
 	queryBuilder := s.client.GraphQL().Get().
-		WithClassName(ClassName).
+		WithClassName(s.getClassName()).
 		WithFields(fields...)
 
 	// Apply limit from filter
@@ -1138,9 +1183,9 @@ func (s *WeaviateStorage) parseQueryResponseToFacts(resp *models.GraphQLResponse
 		return []memory.MemoryFact{}, nil
 	}
 
-	classData, ok := data[ClassName].([]interface{})
+	classData, ok := data[s.getClassName()].([]interface{})
 	if !ok {
-		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", ClassName)
+		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", s.getClassName())
 		return []memory.MemoryFact{}, nil
 	}
 
@@ -1255,7 +1300,7 @@ func (s *WeaviateStorage) GetStoredDocumentsBatch(ctx context.Context, documentI
 		WithValueText(documentIDs...)
 
 	result, err := s.client.GraphQL().Get().
-		WithClassName(DocumentClassName).
+		WithClassName(s.getDocumentClassName()).
 		WithFields(fields...).
 		WithWhere(whereFilter).
 		WithLimit(len(documentIDs)).
@@ -1279,9 +1324,9 @@ func (s *WeaviateStorage) GetStoredDocumentsBatch(ctx context.Context, documentI
 		return allDocuments, nil
 	}
 
-	classData, ok := data[DocumentClassName].([]interface{})
+	classData, ok := data[s.getDocumentClassName()].([]interface{})
 	if !ok {
-		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", DocumentClassName)
+		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", s.getDocumentClassName())
 		return allDocuments, nil
 	}
 
@@ -1353,7 +1398,7 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 	// Query Weaviate directly to get the documentReferences field
 	result, err := s.client.Data().ObjectsGetter().
 		WithID(memoryID).
-		WithClassName(ClassName).
+		WithClassName(s.getClassName()).
 		Do(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting object by ID: %w", err)
@@ -1412,7 +1457,7 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error) {
 	result, err := s.client.Data().ObjectsGetter().
 		WithID(documentID).
-		WithClassName(DocumentClassName).
+		WithClassName(s.getDocumentClassName()).
 		Do(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting object by ID: %w", err)
@@ -1539,7 +1584,7 @@ func (s *WeaviateStorage) addMemoryFactFields(ctx context.Context) error {
 		} else {
 			// Add missing property
 			if err := s.client.Schema().PropertyCreator().
-				WithClassName(ClassName).
+				WithClassName(s.getClassName()).
 				WithProperty(propDef).Do(ctx); err != nil {
 				return fmt.Errorf("failed to add required property %s: %w", propName, err)
 			}
@@ -1565,7 +1610,7 @@ func (s *WeaviateStorage) getExistingProperties(ctx context.Context) (map[string
 
 	existingProps := make(map[string]string)
 	for _, class := range schema.Classes {
-		if class.Class == ClassName {
+		if class.Class == s.getClassName() {
 			for _, prop := range class.Properties {
 				if len(prop.DataType) > 0 {
 					existingProps[prop.Name] = prop.DataType[0]
@@ -1752,7 +1797,7 @@ func (s *WeaviateStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 		}
 
 		obj := &models.Object{
-			Class:      DocumentChunkClassName,
+			Class:      s.getDocumentChunkClassName(),
 			Properties: properties,
 			Vector:     embeddings[i],
 		}
@@ -1825,7 +1870,7 @@ func (s *WeaviateStorage) QueryDocumentChunks(ctx context.Context, queryText str
 
 	// Build query
 	queryBuilder := s.client.GraphQL().Get().
-		WithClassName(DocumentChunkClassName).
+		WithClassName(s.getDocumentChunkClassName()).
 		WithNearVector(nearVector)
 
 	// Add fields - no longer need the loop since we're using proper Field objects
@@ -1859,7 +1904,7 @@ func (s *WeaviateStorage) QueryDocumentChunks(ctx context.Context, queryText str
 		return []*DocumentChunk{}, nil
 	}
 
-	classData, ok := get[DocumentChunkClassName].([]interface{})
+	classData, ok := get[s.getDocumentChunkClassName()].([]interface{})
 	if !ok {
 		s.logger.Debug("No DocumentChunk class data in result")
 		return []*DocumentChunk{}, nil
@@ -1987,7 +2032,7 @@ func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Documen
 	}
 
 	obj := &models.Object{
-		Class:      DocumentClassName,
+		Class:      s.getDocumentClassName(),
 		ID:         strfmt.UUID(id),
 		Properties: props,
 	}
@@ -2045,7 +2090,7 @@ func (s *WeaviateStorage) GetFactsByIDs(ctx context.Context, factIDs []string) (
 		WithValueText(factIDs...)
 
 	result, err := s.client.GraphQL().Get().
-		WithClassName(ClassName).
+		WithClassName(s.getClassName()).
 		WithFields(fields...).
 		WithWhere(whereFilter).
 		Do(ctx)

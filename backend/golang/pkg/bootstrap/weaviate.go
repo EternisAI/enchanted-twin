@@ -22,11 +22,46 @@ import (
 )
 
 func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
-	checkAndConfigurePorts(logger)
-
-	_ = os.Setenv("CLUSTER_HOSTNAME", "node1")
-
+	// Configure single-node cluster for test/embedded mode
+	_ = os.Setenv("CLUSTER_HOSTNAME", "localhost")
 	_ = os.Unsetenv("CLUSTER_JOIN")
+	_ = os.Setenv("RAFT_JOIN", "")
+	_ = os.Setenv("RAFT_ENABLE_FQDN_RESOLVER", "false")
+
+	// Force all cluster communication to localhost
+	_ = os.Setenv("CLUSTER_ADVERTISE_ADDR", "127.0.0.1")
+	_ = os.Setenv("CLUSTER_HOSTNAME_ADDR", "127.0.0.1")
+
+	// Force single-node bootstrap - increased timeout for reliable startup
+	_ = os.Setenv("RAFT_BOOTSTRAP_EXPECT", "1")
+	_ = os.Setenv("RAFT_BOOTSTRAP_TIMEOUT", "30") // 30 seconds for single-node clusters
+	_ = os.Setenv("RAFT_FORCE_BOOTSTRAP", "true")
+
+	// Additional single-node configuration
+	_ = os.Setenv("QUERY_DEFAULTS_LIMIT", "25")
+	_ = os.Setenv("ENABLE_API_BASED_MODULES", "true")
+	_ = os.Setenv("RAFT_ENABLE_ONE_NODE_RECOVERY", "true")
+	_ = os.Setenv("RAFT_BIND_ADDRESS", "127.0.0.1")
+	_ = os.Setenv("RAFT_RPC_ADDRESS", "127.0.0.1")
+	_ = os.Setenv("RAFT_INTERNAL_RPC_ADDRESS", "127.0.0.1")
+
+	// Set up single node clustering - data port must be gossip port + 1
+	gossipPort := getRandomAvailablePort(logger)
+	dataPort := gossipPort + 1
+	raftPort := getRandomAvailablePort(logger)
+	logger.Info("Using cluster ports", "gossip_port", gossipPort, "data_port", dataPort, "raft_port", raftPort)
+	_ = os.Setenv("CLUSTER_GOSSIP_BIND_PORT", fmt.Sprintf("%d", gossipPort))
+	_ = os.Setenv("CLUSTER_DATA_BIND_PORT", fmt.Sprintf("%d", dataPort))
+
+	// Set RAFT to use a random port on localhost
+	_ = os.Setenv("RAFT_PORT", fmt.Sprintf("%d", raftPort))
+	_ = os.Setenv("RAFT_RPC_BIND", fmt.Sprintf("127.0.0.1:%d", raftPort))
+	_ = os.Setenv("RAFT_ADVERTISE_ADDR", fmt.Sprintf("127.0.0.1:%d", raftPort))
+
+	// Set cluster bind address to localhost
+	_ = os.Setenv("CLUSTER_BIND", "localhost")
+	_ = os.Setenv("CLUSTER_GOSSIP_BIND_IP", "127.0.0.1")
+	_ = os.Setenv("CLUSTER_DATA_BIND_IP", "127.0.0.1")
 
 	_ = os.Setenv("DISABLE_TELEMETRY", "true")
 	_ = os.Setenv("AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED", "true")
@@ -88,7 +123,8 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	logger.Debug("All option groups added", "elapsed", time.Since(startTime))
 
 	logger.Debug("Parsing command line arguments")
-	if _, err := parser.Parse(); err != nil {
+	// Parse empty args to avoid conflicts with test flags
+	if _, err := parser.ParseArgs([]string{}); err != nil {
 		if fe, ok := err.(*flags.Error); ok && fe.Type == flags.ErrHelp {
 			return nil, nil
 		}
@@ -127,8 +163,8 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	time.Sleep(100 * time.Millisecond)
 
 	readyURL := fmt.Sprintf("http://localhost:%d/v1/.well-known/ready", p)
-	deadline := time.Now().Add(45 * time.Second)
-	logger.Info("Waiting for Weaviate to become ready", "url", readyURL, "timeout", "45s")
+	deadline := time.Now().Add(60 * time.Second) // Increased timeout for test environments
+	logger.Info("Waiting for Weaviate to become ready", "url", readyURL, "timeout", "60s")
 
 	checkCount := 0
 	for {
@@ -145,7 +181,7 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 		resp, err := http.DefaultClient.Do(req)
 
 		if err != nil {
-			if checkCount <= 5 || checkCount%5 == 0 {
+			if checkCount <= 10 || checkCount%10 == 0 {
 				logger.Debug("Weaviate readiness check failed",
 					"error", err,
 					"attempt", checkCount,
@@ -165,8 +201,8 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 					"checks_performed", checkCount)
 				return server, nil
 			} else {
-				if checkCount <= 5 || checkCount%5 == 0 {
-					logger.Debug("Weaviate not ready yet",
+				if checkCount <= 10 || checkCount%10 == 0 {
+					logger.Warn("Weaviate not ready yet",
 						"status_code", resp.StatusCode,
 						"attempt", checkCount,
 						"elapsed", time.Since(startTime))
@@ -201,16 +237,6 @@ func InitSchema(client *weaviate.Client, logger *log.Logger, embedding ai.Embedd
 
 	logger.Debug("Schema initialization completed", "elapsed", time.Since(start))
 	return nil
-}
-
-func checkAndConfigurePorts(logger *log.Logger) {
-	gossipPort := getRandomAvailablePort(logger)
-	dataPort := getRandomAvailablePort(logger)
-
-	logger.Info("Using dynamic ports", "gossip_port", gossipPort, "data_port", dataPort)
-
-	_ = os.Setenv("CLUSTER_GOSSIP_BIND_PORT", fmt.Sprintf("%d", gossipPort))
-	_ = os.Setenv("CLUSTER_DATA_BIND_PORT", fmt.Sprintf("%d", dataPort))
 }
 
 func getRandomAvailablePort(logger *log.Logger) int {

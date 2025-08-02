@@ -173,6 +173,7 @@ type ComplexityRoot struct {
 		Activate                  func(childComplexity int, inviteCode string) int
 		AddDataSource             func(childComplexity int, name string, path string) int
 		AddTrackedFolder          func(childComplexity int, input model.AddTrackedFolderInput) int
+		CancelMessage             func(childComplexity int, chatID string) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
 		ConnectMCPServer          func(childComplexity int, input model.ConnectMCPServerInput) int
 		CreateChat                func(childComplexity int, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string, isReasoning bool) int
@@ -348,6 +349,7 @@ type MutationResolver interface {
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string, isReasoning bool) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
+	CancelMessage(ctx context.Context, chatID string) (bool, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
@@ -1006,6 +1008,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.AddTrackedFolder(childComplexity, args["input"].(model.AddTrackedFolderInput)), true
+
+	case "Mutation.cancelMessage":
+		if e.complexity.Mutation.CancelMessage == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_cancelMessage_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CancelMessage(childComplexity, args["chatId"].(string)), true
 
 	case "Mutation.completeOAuthFlow":
 		if e.complexity.Mutation.CompleteOAuthFlow == nil {
@@ -2146,6 +2160,29 @@ func (ec *executionContext) field_Mutation_addTrackedFolder_argsInput(
 	}
 
 	var zeroVal model.AddTrackedFolderInput
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_cancelMessage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_cancelMessage_argsChatID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["chatId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_cancelMessage_argsChatID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
+	if tmp, ok := rawArgs["chatId"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
 	return zeroVal, nil
 }
 
@@ -7058,6 +7095,61 @@ func (ec *executionContext) fieldContext_Mutation_sendMessage(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_sendMessage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelMessage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelMessage(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CancelMessage(rctx, fc.Args["chatId"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_cancelMessage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_cancelMessage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -15784,6 +15876,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "sendMessage":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_sendMessage(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelMessage":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelMessage(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

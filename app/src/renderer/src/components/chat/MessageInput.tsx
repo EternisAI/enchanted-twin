@@ -170,7 +170,7 @@ export function SendButton({
           variant={isWaitingForAgent ? 'destructive' : 'default'}
           className={cn('rounded-full transition-all duration-200 ease-in-out relative', className)}
           onClick={isWaitingForAgent ? handleStop : onSend}
-          disabled={isStreamingResponse || !text.trim()}
+          disabled={!isStreamingResponse && !text.trim()}
         >
           <AnimatePresence mode="wait">
             {isWaitingForAgent ? (

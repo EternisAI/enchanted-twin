@@ -23,7 +23,7 @@ import (
 type Resolver struct {
 	Logger                 *log.Logger
 	TemporalClient         client.Client
-	TwinChatService        twinchat.Service
+	TwinChatService        *twinchat.Service
 	Nc                     *nats.Conn
 	Store                  *db.Store
 	AiService              *ai.Service
