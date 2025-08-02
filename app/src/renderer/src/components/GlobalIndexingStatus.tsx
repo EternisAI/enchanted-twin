@@ -22,10 +22,10 @@ export function GlobalIndexingStatus() {
   }
 
   const getStatusText = () => {
-    if (isIndexing) return 'Indexing...'
-    if (isProcessing) return 'Processing...'
+    if (isIndexing || isProcessing) return 'Processing data...'
     if (isDownloadingModel) return 'Downloading model...'
-    if (isNotStarted) return 'Starting...'
+    if (isNotStarted) return 'Starting import...'
+    if (isCalculating) return 'Calculating...'
     return ''
   }
 
@@ -39,7 +39,7 @@ export function GlobalIndexingStatus() {
   }
 
   const progressValue = getProgress()
-  const { timeRemaining, isCalculating } = useTimeRemaining(
+  const { isCalculating } = useTimeRemaining(
     progressValue,
     indexingData?.indexingStatus?.globalStartTime
   )
@@ -56,7 +56,6 @@ export function GlobalIndexingStatus() {
     >
       <div className="flex items-center gap-2">
         <span>{getStatusText()}</span>
-        {isCalculating ? <span>Calculating...</span> : <span>{timeRemaining} left</span>}
         <div className="w-16 bg-secondary rounded-full h-1">
           <div
             className="bg-primary h-1 rounded-full transition-all duration-300"

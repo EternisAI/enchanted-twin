@@ -60,7 +60,7 @@ export function setupMenu() {
         ]
       : []),
     {
-      label: 'App',
+      label: 'File',
       submenu: [
         {
           label: 'New Chat',
