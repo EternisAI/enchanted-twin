@@ -334,12 +334,69 @@ Make sure your local test configuration includes:
 - **Utility classes** provide consistent behavior
 - **Phase-based structure** allows easy insertion of new steps
 
-## Tips
+## 💡 Tips & Best Practices
 
-1. **Backend must be running** before starting tests
-2. **Google credentials** must be valid test accounts
-3. **Chat interface timing** may vary - tests include progressive wait strategies
-4. **Screenshots help debug** issues when tests fail
-5. **Master test recommended** over individual tests for full flow verification
-6. **Phase logs** make it easy to identify where failures occur
-7. **Utility functions** can be reused in other test files 
+### Docker Setup (Recommended)
+1. **Use Docker for CI/CD** - Consistent environment across all machines
+2. **VNC debugging** - Connect to `localhost:5900` for visual debugging
+3. **Context optimization** - `.dockerignore` provides 53,000x build speed improvement
+4. **Environment validation** - Run `./scripts/validate-docker-e2e.sh` before testing
+5. **Resource cleanup** - Use `pnpm run docker:e2e:cleanup` to free disk space
+
+### Local Setup
+6. **Backend must be running** before starting local tests
+7. **Google credentials** must be valid test accounts
+8. **Chat interface timing** may vary - tests include progressive wait strategies
+9. **Screenshots help debug** issues when tests fail
+
+### General Testing
+10. **Master test recommended** over individual tests for full flow verification
+11. **Phase logs** make it easy to identify where failures occur
+12. **Utility functions** can be reused in other test files
+13. **Progressive fallbacks** handle timing variations automatically
+
+### Development Workflow
+```bash
+# Recommended development flow
+pnpm run docker:e2e:setup     # One-time setup
+pnpm run docker:e2e:test      # Run tests  
+pnpm run docker:e2e:debug     # Debug issues with VNC
+pnpm run docker:e2e:cleanup   # Clean up when done
+```
+
+## 🎯 Docker vs Local Setup Comparison
+
+| Feature | 🐳 Docker Setup | 💻 Local Setup |
+|---------|----------------|----------------|
+| **Environment Isolation** | ✅ Complete isolation | ❌ Affects local environment |
+| **Dependency Management** | ✅ Automatic (Node.js, Go, Electron) | ❌ Manual installation required |
+| **Context Size** | ✅ 108kB (optimized) | ❌ Full project (5.74GB) |
+| **Build Speed** | ✅ Fast (cached layers) | ❌ Slower (repeated installs) |
+| **Cross-platform** | ✅ Consistent everywhere | ❌ OS-dependent issues |
+| **CI/CD Ready** | ✅ Perfect for automation | ❌ Requires environment setup |
+| **Visual Debugging** | ✅ VNC access | ✅ Native display |
+| **Setup Complexity** | ✅ Simple (Docker + env file) | ❌ Complex (multiple tools) |
+| **Resource Usage** | ✅ Isolated containers | ❌ Uses host resources |
+
+### Migration from Local to Docker
+
+If you're currently using local E2E tests:
+
+1. **Backup your current `.env`**: `cp tests/e2e/.env tests/e2e/.env.backup`
+2. **Try Docker setup**: Follow the Docker Quick Start above
+3. **Compare results**: Both should produce identical test outcomes
+4. **Switch gradually**: Use Docker for CI/CD first, then development
+
+### When to Use Each
+
+**Use Docker when:**
+- Setting up CI/CD pipelines
+- Working on different machines
+- Onboarding new team members  
+- Need consistent, reproducible results
+- Want visual debugging with VNC
+
+**Use Local when:**
+- Quick iteration during development
+- Debugging specific local environment issues
+- Maximum performance requirements
