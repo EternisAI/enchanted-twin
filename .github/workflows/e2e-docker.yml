@@ -123,7 +123,6 @@ jobs:
           # Build backend with cache
           docker buildx build \
             --file backend/golang/Dockerfile \
-            --target production \
             --cache-from type=local,src=/tmp/.buildx-cache-backend \
             --cache-to type=local,dest=/tmp/.buildx-cache-backend-new,mode=max \
             --load \

@@ -32,10 +32,10 @@
     "build:dev:linux": "npm run build && electron-builder --linux --config electron-builder.dev.yml --publish always",
     "build:helper": "node scripts/build.js",
     "test:e2e:master": "playwright test --config=playwright.master.config.ts",
-    "test:e2e:docker": "bash ../scripts/docker-e2e.sh",
-    "test:e2e:docker:debug": "bash ../scripts/docker-e2e.sh --keep-running --logs",
-    "test:e2e:docker:clean": "bash ../scripts/docker-e2e.sh --clean --build",
-    "test:e2e:validate": "bash ../scripts/validate-docker-e2e.sh"
+    "test:e2e:docker": "cd .. && pnpm test:e2e:docker",
+    "test:e2e:docker:debug": "cd .. && pnpm test:e2e:docker:debug",
+    "test:e2e:docker:clean": "cd .. && pnpm test:e2e:docker:clean",
+    "test:e2e:validate": "cd .. && pnpm docker:validate"
   },
   "dependencies": {
     "@apollo/client": "^3.13.7",

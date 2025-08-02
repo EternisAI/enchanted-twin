@@ -2,6 +2,7 @@
   "name": "enchanted-twin",
   "version": "0.0.1",
   "description": "Enchanted Twin - Personal AI Assistant",
+  "packageManager": "pnpm@8.15.0",
   "scripts": {
     "dev:frontend": "cd app && pnpm dev",
     "dev:backend": "cd backend/golang && make run",
@@ -18,7 +19,8 @@
     "docker:e2e": "./scripts/docker-e2e.sh",
     "docker:e2e:help": "./scripts/docker-e2e.sh --help",
     "setup:dev": "cd app && pnpm install && cd ../backend/golang && go mod download",
-    "lint:all": "cd app && pnpm lint && cd ../backend/golang && make lint"
+    "lint:all": "cd app && pnpm lint && cd ../backend/golang && make lint",
+    "install": "echo 'Use pnpm install in app/ directory for frontend dependencies'"
   },
   "keywords": ["ai", "assistant", "privacy", "electron", "go"],
   "author": "EternisAI",

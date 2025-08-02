@@ -1,6 +1,12 @@
 FROM golang:1.24.2 AS builder
 WORKDIR /app
 
+# Install build dependencies for CGO
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy module files
 COPY go.mod go.sum ./
 
@@ -11,7 +17,7 @@ RUN go mod download
 COPY . .
 
 # Build the application with CGO enabled for SQLite support
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o /app/server ./cmd/server
+RUN CGO_ENABLED=1 go build -o /app/server ./cmd/server
 
 # --- Final Stage ---
 FROM debian:bookworm-slim
