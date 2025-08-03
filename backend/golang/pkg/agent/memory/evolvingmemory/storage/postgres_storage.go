@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -51,6 +53,12 @@ func normalizeVector(vector []float32) []float32 {
 	}
 
 	return normalized
+}
+
+// sha256hex computes the SHA256 hash of the input string and returns it as a hex string.
+func sha256hex(input string) string {
+	hash := sha256.Sum256([]byte(input))
+	return hex.EncodeToString(hash[:])
 }
 
 // NewPostgresStorageInput contains the dependencies for PostgresStorage.

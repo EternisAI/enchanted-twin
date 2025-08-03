@@ -24,7 +24,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
-	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -200,10 +199,8 @@ func main() {
 	switch envs.MemoryBackend {
 	case "postgresql":
 		storageInterface, err = createPostgreSQLStorage(context.Background(), logger, envs, aiEmbeddingsService, embeddingsWrapper)
-	case "weaviate":
-		storageInterface, err = createWeaviateStorage(context.Background(), logger, envs, aiEmbeddingsService, embeddingsWrapper)
 	default:
-		logger.Fatal("Unsupported memory backend", "backend", envs.MemoryBackend, "supported", []string{"postgresql", "weaviate"})
+		logger.Fatal("Unsupported memory backend", "backend", envs.MemoryBackend, "supported", []string{"postgresql"})
 	}
 	if err != nil {
 		logger.Fatal("Failed to create storage interface", "backend", envs.MemoryBackend, "error", err)
@@ -773,48 +770,5 @@ func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *conf
 	}
 
 	logger.Info("PostgreSQL memory backend initialized successfully")
-	return storageInterface, nil
-}
-
-// createWeaviateStorage initializes Weaviate storage backend.
-func createWeaviateStorage(ctx context.Context, logger *log.Logger, envs *config.Config, aiEmbeddingsService ai.Embedding, embeddingsWrapper *storage.EmbeddingWrapper) (storage.Interface, error) {
-	logger.Info("Setting up Weaviate memory backend")
-
-	weaviatePath := filepath.Join(envs.AppDataPath, "db", "weaviate")
-	logger.Info("Starting Weaviate bootstrap process", "path", weaviatePath, "port", envs.WeaviatePort)
-	weaviateBootstrapStart := time.Now()
-
-	_, err := bootstrap.BootstrapWeaviateServer(ctx, logger, envs.WeaviatePort, weaviatePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to bootstrap Weaviate server: %w", err)
-	}
-	logger.Info("Weaviate server bootstrap completed", "elapsed", time.Since(weaviateBootstrapStart))
-
-	// Create Weaviate client
-	weaviateClient, err := weaviate.NewClient(weaviate.Config{
-		Host:   fmt.Sprintf("localhost:%s", envs.WeaviatePort),
-		Scheme: "http",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Weaviate client: %w", err)
-	}
-
-	logger.Info("Initializing Weaviate schema")
-	schemaInitStart := time.Now()
-	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel); err != nil {
-		return nil, fmt.Errorf("failed to initialize Weaviate schema: %w", err)
-	}
-	logger.Info("Weaviate schema initialization completed", "elapsed", time.Since(schemaInitStart))
-
-	storageInterface, err := storage.New(storage.NewStorageInput{
-		Client:            weaviateClient,
-		Logger:            logger,
-		EmbeddingsWrapper: embeddingsWrapper,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Weaviate storage interface: %w", err)
-	}
-
-	logger.Info("Weaviate memory backend initialized successfully")
 	return storageInterface, nil
 }

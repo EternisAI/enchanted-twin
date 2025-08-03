@@ -2,7 +2,7 @@
 
 ## What is this?
 
-This package stores and retrieves user memories using hot-swappable storage backends (currently Weaviate). It processes documents, extracts memory facts using LLMs with **structured extraction**, and stores them directly without complex decision-making processes.
+This package stores and retrieves user memories using PostgreSQL with pgvector for vector storage. It processes documents, extracts memory facts using LLMs with **structured extraction**, and stores them directly without complex decision-making processes.
 
 ## Architecture Overview
 
@@ -21,9 +21,9 @@ The package follows clean architecture principles with a **simplified 2-layer ap
          │             └──────────────────────┘             │
          │                                                  ▼
          ▼ (Clean Public Interface)                ┌──────────────────┐
-   ┌─────────────────┐                             │ WeaviateStorage  │
-   │  MemoryStorage  │                             │ RedisStorage     │
-   │   (Interface)   │                             │ PostgresStorage  │
+   ┌─────────────────┐                             │ PostgresStorage  │
+   │  MemoryStorage  │                             │                  │
+   │   (Interface)   │                             │                  │
    └─────────────────┘                             └──────────────────┘
 ```
 
@@ -141,7 +141,7 @@ Memory facts are stored with all structured fields directly accessible:
 
 **Database Storage** (direct fields for precise filtering):
 ```go
-// Direct storage in Weaviate with structured fields
+// Direct storage in PostgreSQL with structured fields
 {
     "content": fact.GenerateContent(), // Auto-generated searchable string
     "factCategory":        fact.Category,
@@ -831,7 +831,7 @@ result, err := storage.Query(ctx, "health information", filter)
 
 - **Before**: `LIKE *"source":"value"*` pattern matching on JSON strings
 - **After**: Direct field queries with proper indexing + structured fact fields
-- **Result**: Faster queries, cleaner Weaviate GraphQL, precise fact filtering
+- **Result**: Faster queries, cleaner PostgreSQL queries, precise fact filtering
 
 **Backward Compatibility**: 100% maintained - pass `nil` filter to use original behavior.
 
@@ -937,10 +937,10 @@ filter := &memory.Filter{
 - No complex UPDATE/DELETE operations during ingestion
 - Focus on fast, reliable storage with structured data
 
-**Hot-Swappable Storage:**
-- Depends on `storage.Interface`, not specific implementations
-- Currently supports WeaviateStorage
-- Easy to add RedisStorage, PostgresStorage, etc.
+**PostgreSQL Storage:**
+- Uses `storage.Interface` for clean abstraction
+- PostgreSQL + pgvector for vector similarity search
+- Structured fact storage with proper indexing
 
 ### Performance Benefits
 
@@ -962,7 +962,7 @@ evolvingmemory/
 ├── prompts.go              # All LLM prompts for fact extraction
 ├── *_test.go               # Comprehensive test suite
 └── storage/
-    └── storage.go          # Storage abstraction (WeaviateStorage implementation)
+    └── storage.go          # Storage abstraction (Interface definition)
 ```
 
 ### Key Files Explained
@@ -988,9 +988,9 @@ evolvingmemory/
 - `FactExtractionPrompt` - Advanced structured fact extraction with quality thresholds
 - Rich examples and category definitions
 
-**storage/storage.go** - Hot-swappable storage abstraction:
-- `Interface` - Storage abstraction with document operations
-- `WeaviateStorage` - Current implementation with document table + structured fact fields
+**storage/storage.go** - Storage abstraction:
+- `Interface` - Storage abstraction with document operations  
+- `PostgresStorage` - PostgreSQL implementation with document table + structured fact fields
 - `StoreDocument()` - Document storage with deduplication
 - `GetStoredDocument()` - Document retrieval from document table
 - Schema migration for structured fact fields
@@ -1174,7 +1174,7 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
 1. **Direct storage only** - All facts are stored immediately without decision-making
 2. **Facts can be empty** - Not all documents produce extractable facts
 3. **Channels close in order** - Progress channel closes before error channel
-4. **Storage abstraction** - Don't depend on Weaviate-specific features
+4. **Storage abstraction** - Use the clean interface for storage operations
 5. **Document content vs hash** - Ensure `GetStoredDocument()` returns actual content, not content hash
 6. **Multiple references** - Use `GetDocumentReferences()` for complete audit trail
 7. **Backward compatibility** - Old format memories have empty content in document references
