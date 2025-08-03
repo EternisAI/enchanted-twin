@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/weaviate/weaviate/entities/models"
-
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
@@ -40,12 +38,20 @@ type DocumentChunk struct {
 	CreatedAt          time.Time
 }
 
+// StorageObject represents an object to be stored in the vector database.
+type StorageObject struct {
+	ID         string                 `json:"id,omitempty"`
+	Class      string                 `json:"class"`
+	Properties map[string]interface{} `json:"properties"`
+	Vector     []float32              `json:"vector,omitempty"`
+}
+
 // Interface defines the storage operations needed by evolvingmemory.
 type Interface interface {
 	GetByID(ctx context.Context, id string) (*memory.MemoryFact, error)
 	Update(ctx context.Context, id string, fact *memory.MemoryFact, vector []float32) error
 	Delete(ctx context.Context, id string) error
-	StoreBatch(ctx context.Context, objects []*models.Object) error
+	StoreBatch(ctx context.Context, objects []*StorageObject) error
 	DeleteAll(ctx context.Context) error
 	Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error)
 	EnsureSchemaExists(ctx context.Context) error

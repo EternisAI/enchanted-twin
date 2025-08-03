@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pgvector/pgvector-go"
-	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage/sqlc"
@@ -249,7 +248,7 @@ func (s *PostgresStorage) Delete(ctx context.Context, id string) error {
 }
 
 // StoreBatch stores multiple objects in a transaction.
-func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*models.Object) error {
+func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*StorageObject) error {
 	if len(objects) == 0 {
 		return nil
 	}
@@ -296,12 +295,12 @@ func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*models.Obje
 }
 
 // Helper method to store a single object within a transaction.
-func (s *PostgresStorage) storeSingleObject(ctx context.Context, txQueries *sqlc.Queries, obj *models.Object) error {
+func (s *PostgresStorage) storeSingleObject(ctx context.Context, txQueries *sqlc.Queries, obj *StorageObject) error {
 	var objectID uuid.UUID
 	var err error
 
 	if obj.ID != "" {
-		objectID, err = uuid.Parse(string(obj.ID))
+		objectID, err = uuid.Parse(obj.ID)
 		if err != nil {
 			return fmt.Errorf("invalid object ID: %w", err)
 		}
@@ -327,11 +326,8 @@ func (s *PostgresStorage) storeSingleObject(ctx context.Context, txQueries *sqlc
 }
 
 // Helper method to store a memory fact.
-func (s *PostgresStorage) storeMemoryFact(ctx context.Context, txQueries *sqlc.Queries, id pgtype.UUID, obj *models.Object) error {
-	props, ok := obj.Properties.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid properties type")
-	}
+func (s *PostgresStorage) storeMemoryFact(ctx context.Context, txQueries *sqlc.Queries, id pgtype.UUID, obj *StorageObject) error {
+	props := obj.Properties
 
 	content, _ := props["content"].(string)
 	source, _ := props["source"].(string)
@@ -423,11 +419,8 @@ func (s *PostgresStorage) storeMemoryFact(ctx context.Context, txQueries *sqlc.Q
 }
 
 // Helper method to store a source document.
-func (s *PostgresStorage) storeSourceDocument(ctx context.Context, txQueries *sqlc.Queries, id pgtype.UUID, obj *models.Object) error {
-	props, ok := obj.Properties.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid properties type")
-	}
+func (s *PostgresStorage) storeSourceDocument(ctx context.Context, txQueries *sqlc.Queries, id pgtype.UUID, obj *StorageObject) error {
+	props := obj.Properties
 
 	content, _ := props["content"].(string)
 	contentHash, _ := props["contentHash"].(string)
@@ -453,11 +446,8 @@ func (s *PostgresStorage) storeSourceDocument(ctx context.Context, txQueries *sq
 }
 
 // Helper method to store a document chunk.
-func (s *PostgresStorage) storeDocumentChunk(ctx context.Context, txQueries *sqlc.Queries, id pgtype.UUID, obj *models.Object) error {
-	props, ok := obj.Properties.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid properties type")
-	}
+func (s *PostgresStorage) storeDocumentChunk(ctx context.Context, txQueries *sqlc.Queries, id pgtype.UUID, obj *StorageObject) error {
+	props := obj.Properties
 
 	content, _ := props["content"].(string)
 	source, _ := props["source"].(string)
