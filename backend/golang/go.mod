@@ -46,6 +46,7 @@ require (
 	go.mau.fi/whatsmeow v0.0.0-20250501130609-4c93ee4e6efa
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-133.3
+	go.uber.org/fx v1.24.0
 	golang.org/x/net v0.42.0
 	google.golang.org/grpc v1.72.0
 )
