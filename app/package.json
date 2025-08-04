@@ -135,7 +135,7 @@
   "build": {
     "productName": "Enchanted",
     "appId": "com.eternis.enchanted",
-"copyright": "© 2025 Eternis Labs Inc. | Enchanted • Freysa",
+    "copyright": "© 2025 Eternis Labs Inc.\nEnchanted • Freysa",
     "extraResources": [
       {
         "from": "./resources",
