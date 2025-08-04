@@ -63,11 +63,11 @@ func DefaultManagerConfig() ManagerConfig {
 
 	return ManagerConfig{
 		HolonAPIURL:   holonAPIURL,
-		FetchInterval: 30 * time.Second,
+		FetchInterval: 5 * time.Minute, // Reduced from 30s for energy efficiency
 		BatchSize:     50,
 		MaxRetries:    3,
-		RetryDelay:    30 * time.Second,
-		EnableLogging: false, // TURN OFF HOLON LOGS HERE!
+		RetryDelay:    2 * time.Minute, // Reduced from 30s for energy efficiency
+		EnableLogging: false,           // TURN OFF HOLON LOGS HERE!
 		ScheduleID:    "holon-sync-schedule",
 	}
 }

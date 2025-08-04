@@ -197,11 +197,14 @@ func main() {
 	}
 
 	var storageInterface storage.Interface
+	var postgresServer interface{ Stop() error }
+	var weaviateServer interface{} // Weaviate server doesn't have Stop() method
+
 	switch envs.MemoryBackend {
 	case "postgresql":
-		storageInterface, err = createPostgreSQLStorage(context.Background(), logger, envs, aiEmbeddingsService, embeddingsWrapper)
+		storageInterface, postgresServer, err = createPostgreSQLStorage(context.Background(), logger, envs, aiEmbeddingsService, embeddingsWrapper)
 	case "weaviate":
-		storageInterface, err = createWeaviateStorage(context.Background(), logger, envs, aiEmbeddingsService, embeddingsWrapper)
+		storageInterface, weaviateServer, err = createWeaviateStorage(context.Background(), logger, envs, aiEmbeddingsService, embeddingsWrapper)
 	default:
 		logger.Fatal("Unsupported memory backend", "backend", envs.MemoryBackend, "supported", []string{"postgresql", "weaviate"})
 	}
@@ -374,7 +377,7 @@ func main() {
 	holonService.InitializeThreadProcessor(aiCompletionsService, envs.CompletionsModel, mem)
 
 	// Initialize and start background processor for automatic thread processing
-	processingInterval := 30 * time.Second // Process received threads every 30 seconds
+	processingInterval := 5 * time.Minute // Process received threads every 5 minutes (reduced from 30s for energy efficiency)
 	holonService.InitializeBackgroundProcessor(processingInterval)
 
 	// Create a cancellable context for background processing that will be canceled on shutdown
@@ -502,6 +505,22 @@ func main() {
 
 	if err := localAnonymizer.Close(); err != nil {
 		logger.Error("Error closing local anonymizer", "error", err)
+	}
+
+	// Stop database servers to prevent orphaned processes
+	if postgresServer != nil {
+		logger.Info("Stopping PostgreSQL server")
+		if err := postgresServer.Stop(); err != nil {
+			logger.Error("Failed to stop PostgreSQL server", "error", err)
+		} else {
+			logger.Info("PostgreSQL server stopped successfully")
+		}
+	}
+
+	if weaviateServer != nil {
+		logger.Info("Weaviate server cleanup - no stop method available")
+		// Note: Weaviate embedded server doesn't provide a Stop() method
+		// It will be cleaned up when the process exits
 	}
 }
 
@@ -691,12 +710,12 @@ func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client
 		logger.Warn("Failed to delete identity personality workflow - continuing without it", "error", err)
 	}
 
-	// Create holon sync schedule with override flag to ensure it uses the updated 30-second interval
+	// Create holon sync schedule with override flag to ensure it uses energy-efficient interval
 	err = helpers.CreateOrUpdateSchedule(
 		logger,
 		temporalClient,
 		"holon-sync-schedule",
-		30*time.Second, // Use updated 30-second interval
+		5*time.Minute, // Reduced from 30s to 5min for energy efficiency
 		holon.HolonSyncWorkflow,
 		[]any{holon.HolonSyncWorkflowInput{ForceSync: false}},
 		true, // Override if different settings
@@ -709,7 +728,7 @@ func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client
 }
 
 // createPostgreSQLStorage initializes PostgreSQL storage backend.
-func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *config.Config, aiEmbeddingsService ai.Embedding, embeddingsWrapper *storage.EmbeddingWrapper) (storage.Interface, error) {
+func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *config.Config, aiEmbeddingsService ai.Embedding, embeddingsWrapper *storage.EmbeddingWrapper) (storage.Interface, interface{ Stop() error }, error) {
 	logger.Info("Setting up PostgreSQL memory backend")
 
 	// Always use AppData path for PostgreSQL data to ensure persistence
@@ -723,7 +742,7 @@ func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *conf
 
 	postgresServer, err := bootstrap.BootstrapPostgresServer(ctx, logger, envs.PostgresPort, postgresPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bootstrap PostgreSQL server: %w", err)
+		return nil, nil, fmt.Errorf("failed to bootstrap PostgreSQL server: %w", err)
 	}
 	logger.Info("PostgreSQL server bootstrap completed", "elapsed", time.Since(postgresBootstrapStart))
 
@@ -733,7 +752,7 @@ func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *conf
 		if stopErr := postgresServer.Stop(); stopErr != nil {
 			logger.Error("Failed to stop PostgreSQL server after schema init error", "error", stopErr)
 		}
-		return nil, fmt.Errorf("failed to initialize PostgreSQL schema: %w", err)
+		return nil, nil, fmt.Errorf("failed to initialize PostgreSQL schema: %w", err)
 	}
 	logger.Info("PostgreSQL schema initialization completed", "elapsed", time.Since(schemaInitStart))
 
@@ -746,7 +765,7 @@ func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *conf
 		if stopErr := postgresServer.Stop(); stopErr != nil {
 			logger.Error("Failed to stop PostgreSQL server after pool config error", "error", stopErr)
 		}
-		return nil, fmt.Errorf("failed to parse PostgreSQL pool config: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse PostgreSQL pool config: %w", err)
 	}
 
 	pgPool, err := pgxpool.NewWithConfig(ctx, poolConfig)
@@ -754,7 +773,7 @@ func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *conf
 		if stopErr := postgresServer.Stop(); stopErr != nil {
 			logger.Error("Failed to stop PostgreSQL server after connection pool error", "error", stopErr)
 		}
-		return nil, fmt.Errorf("failed to create PostgreSQL connection pool for storage: %w", err)
+		return nil, nil, fmt.Errorf("failed to create PostgreSQL connection pool for storage: %w", err)
 	}
 
 	storageInterface, err := storage.NewPostgresStorage(storage.NewPostgresStorageInput{
@@ -769,24 +788,24 @@ func createPostgreSQLStorage(ctx context.Context, logger *log.Logger, envs *conf
 		if stopErr := postgresServer.Stop(); stopErr != nil {
 			logger.Error("Failed to stop PostgreSQL server after storage creation error", "error", stopErr)
 		}
-		return nil, fmt.Errorf("failed to create PostgreSQL storage interface: %w", err)
+		return nil, nil, fmt.Errorf("failed to create PostgreSQL storage interface: %w", err)
 	}
 
 	logger.Info("PostgreSQL memory backend initialized successfully")
-	return storageInterface, nil
+	return storageInterface, postgresServer, nil
 }
 
 // createWeaviateStorage initializes Weaviate storage backend.
-func createWeaviateStorage(ctx context.Context, logger *log.Logger, envs *config.Config, aiEmbeddingsService ai.Embedding, embeddingsWrapper *storage.EmbeddingWrapper) (storage.Interface, error) {
+func createWeaviateStorage(ctx context.Context, logger *log.Logger, envs *config.Config, aiEmbeddingsService ai.Embedding, embeddingsWrapper *storage.EmbeddingWrapper) (storage.Interface, interface{}, error) {
 	logger.Info("Setting up Weaviate memory backend")
 
 	weaviatePath := filepath.Join(envs.AppDataPath, "db", "weaviate")
 	logger.Info("Starting Weaviate bootstrap process", "path", weaviatePath, "port", envs.WeaviatePort)
 	weaviateBootstrapStart := time.Now()
 
-	_, err := bootstrap.BootstrapWeaviateServer(ctx, logger, envs.WeaviatePort, weaviatePath)
+	weaviateServer, err := bootstrap.BootstrapWeaviateServer(ctx, logger, envs.WeaviatePort, weaviatePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bootstrap Weaviate server: %w", err)
+		return nil, nil, fmt.Errorf("failed to bootstrap Weaviate server: %w", err)
 	}
 	logger.Info("Weaviate server bootstrap completed", "elapsed", time.Since(weaviateBootstrapStart))
 
@@ -796,13 +815,13 @@ func createWeaviateStorage(ctx context.Context, logger *log.Logger, envs *config
 		Scheme: "http",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Weaviate client: %w", err)
+		return nil, nil, fmt.Errorf("failed to create Weaviate client: %w", err)
 	}
 
 	logger.Info("Initializing Weaviate schema")
 	schemaInitStart := time.Now()
 	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel); err != nil {
-		return nil, fmt.Errorf("failed to initialize Weaviate schema: %w", err)
+		return nil, nil, fmt.Errorf("failed to initialize Weaviate schema: %w", err)
 	}
 	logger.Info("Weaviate schema initialization completed", "elapsed", time.Since(schemaInitStart))
 
@@ -812,9 +831,9 @@ func createWeaviateStorage(ctx context.Context, logger *log.Logger, envs *config
 		EmbeddingsWrapper: embeddingsWrapper,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Weaviate storage interface: %w", err)
+		return nil, nil, fmt.Errorf("failed to create Weaviate storage interface: %w", err)
 	}
 
 	logger.Info("Weaviate memory backend initialized successfully")
-	return storageInterface, nil
+	return storageInterface, weaviateServer, nil
 }
