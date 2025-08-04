@@ -17,6 +17,13 @@ type SlackClient struct {
 	Logger *log.Logger
 }
 
+func NewClient(store *db.Store, logger *log.Logger) *SlackClient {
+	return &SlackClient{
+		Store:  store,
+		Logger: logger,
+	}
+}
+
 func (c *SlackClient) ListTools(
 	ctx context.Context,
 	request mcp_golang.ListToolsRequest,

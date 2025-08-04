@@ -15,7 +15,7 @@ import (
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
-// gooseLogWriter wraps goose output with our structured logger
+// gooseLogWriter wraps goose output with our structured logger.
 type gooseLogWriter struct {
 	logger *log.Logger
 }

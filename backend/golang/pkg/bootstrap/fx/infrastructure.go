@@ -31,8 +31,11 @@ func ProvideLogger() *log.Logger {
 }
 
 // ProvideConfig loads application configuration.
+// Environment variable logging is controlled by the DEBUG_CONFIG_PRINT environment variable.
+// Set DEBUG_CONFIG_PRINT=true to enable detailed logging of all environment variables
+// during configuration loading (sensitive values like API keys will be masked).
 func ProvideConfig(logger *log.Logger) (*config.Config, error) {
-	envs, err := config.LoadConfig(true)
+	envs, err := config.LoadConfigWithAutoDetection()
 	if err != nil {
 		logger.Error("Failed to load config", "error", err)
 		return nil, err

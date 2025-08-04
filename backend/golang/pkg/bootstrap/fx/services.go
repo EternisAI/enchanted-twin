@@ -81,15 +81,15 @@ type TwinChatServiceResult struct {
 // TwinChatServiceParams holds parameters for twin chat service.
 type TwinChatServiceParams struct {
 	fx.In
-	Logger              *log.Logger
-	Config              *config.Config
-	CompletionsService  *ai.Service
-	ChatStorage         *chatrepository.Repository
-	NATSConn            *nats.Conn
-	Memory              memory.Storage
-	ToolRegistry        *tools.ToolMapRegistry
-	Store               *db.Store
-	IdentityService     *identity.IdentityService
+	Logger             *log.Logger
+	Config             *config.Config
+	CompletionsService *ai.Service
+	ChatStorage        *chatrepository.Repository
+	NATSConn           *nats.Conn
+	Memory             memory.Storage
+	ToolRegistry       *tools.ToolMapRegistry
+	Store              *db.Store
+	IdentityService    *identity.IdentityService
 }
 
 // ProvideTwinChatService creates twin chat service.
@@ -386,6 +386,7 @@ func ProvideDirectoryWatcher(params DirectoryWatcherParams) (DirectoryWatcherRes
 // BackgroundServicesParams holds parameters for background services.
 type BackgroundServicesParams struct {
 	fx.In
+	Lifecycle       fx.Lifecycle
 	Logger          *log.Logger
 	Config          *config.Config
 	TelegramService *telegram.TelegramService
@@ -395,20 +396,30 @@ type BackgroundServicesParams struct {
 
 // StartBackgroundServices starts services that need background goroutines.
 func StartBackgroundServices(params BackgroundServicesParams) {
-	params.Logger.Info("Starting background services")
+	params.Lifecycle.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			params.Logger.Info("Starting background services")
 
-	// Start telegram background services
-	go telegram.SubscribePoller(params.TelegramService, params.Logger)
-	go telegram.MonitorAndRegisterTelegramTool(
-		context.Background(),
-		params.TelegramService,
-		params.Logger,
-		params.ToolRegistry,
-		params.Database.ConfigQueries,
-		params.Config,
-	)
+			// Start telegram background services
+			go telegram.SubscribePoller(ctx, params.TelegramService, params.Logger)
+			go telegram.MonitorAndRegisterTelegramTool(
+				ctx,
+				params.TelegramService,
+				params.Logger,
+				params.ToolRegistry,
+				params.Database.ConfigQueries,
+				params.Config,
+			)
 
-	params.Logger.Info("Background services started")
+			params.Logger.Info("Background services started")
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			params.Logger.Info("Stopping background services")
+			// Context cancellation will automatically stop the background goroutines
+			return nil
+		},
+	})
 }
 
 // ApplicationToolsParams holds parameters for application tools registration.
@@ -437,16 +448,19 @@ func RegisterApplicationTools(params ApplicationToolsParams) error {
 	threadPreviewTool := holon.NewThreadPreviewTool(params.HolonService)
 	if err := params.ToolRegistry.Register(threadPreviewTool); err != nil {
 		params.Logger.Error("Failed to register thread preview tool", "error", err)
+		return err
 	}
 
 	sendToHolonTool := holon.NewSendToHolonTool(params.HolonService)
 	if err := params.ToolRegistry.Register(sendToHolonTool); err != nil {
 		params.Logger.Error("Failed to register send to holon tool", "error", err)
+		return err
 	}
 
 	sendMessageToHolonTool := holon.NewAddMessageToThreadTool(params.HolonService)
 	if err := params.ToolRegistry.Register(sendMessageToHolonTool); err != nil {
 		params.Logger.Error("Failed to register send message to holon tool", "error", err)
+		return err
 	}
 
 	// MCP tools are automatically registered by the MCP service

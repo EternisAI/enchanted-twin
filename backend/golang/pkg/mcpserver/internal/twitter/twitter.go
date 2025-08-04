@@ -18,6 +18,13 @@ type TwitterClient struct {
 	Logger *log.Logger
 }
 
+func NewClient(store *db.Store, logger *log.Logger) *TwitterClient {
+	return &TwitterClient{
+		Store:  store,
+		Logger: logger,
+	}
+}
+
 func (c *TwitterClient) ListTools(
 	ctx context.Context,
 	request mcp_golang.ListToolsRequest,

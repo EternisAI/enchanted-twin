@@ -30,7 +30,7 @@ const PostgreSQL17_5 embeddedpostgres.PostgresVersion = "17.5"
 // Test-specific PostgreSQL version to match pgvector binaries.
 const PostgreSQL16_4 embeddedpostgres.PostgresVersion = "16.4"
 
-// postgresLogWriter wraps PostgreSQL process output with our structured logger
+// postgresLogWriter wraps PostgreSQL process output with our structured logger.
 type postgresLogWriter struct {
 	logger *log.Logger
 }

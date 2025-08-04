@@ -14,6 +14,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
@@ -23,7 +24,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 )
 
 // TemporalModule provides Temporal workflow orchestration services.
@@ -52,21 +52,28 @@ func ProvideTemporalClient(
 ) (TemporalClientResult, error) {
 	logger.Info("Starting Temporal server")
 
+	// Create a cancellable context for the Temporal server
+	serverCtx, cancelServer := context.WithCancel(context.Background())
+
 	ready := make(chan struct{})
-	go bootstrap.CreateTemporalServer(logger, ready, envs.DBPath)
+	go bootstrap.CreateTemporalServer(serverCtx, logger, ready, envs.DBPath)
 	<-ready
 	logger.Info("Temporal server started")
 
 	temporalClient, err := bootstrap.NewTemporalClient(logger)
 	if err != nil {
 		logger.Error("Unable to create temporal client", "error", err)
+		cancelServer() // Cancel server context if client creation fails
 		return TemporalClientResult{}, err
 	}
 	logger.Info("Temporal client created")
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			logger.Info("Closing Temporal client")
+			logger.Info("Stopping Temporal server and closing client")
+			// Cancel the server context to trigger graceful shutdown
+			cancelServer()
+			// Close the client
 			temporalClient.Close()
 			return nil
 		},
@@ -84,15 +91,15 @@ type TemporalWorkerResult struct {
 // TemporalWorkerParams holds parameters for temporal worker.
 type TemporalWorkerParams struct {
 	fx.In
-	Lifecycle           fx.Lifecycle
-	Logger              *log.Logger
-	Config              *config.Config
-	TemporalClient      client.Client
-	Store               *db.Store
-	NATSConn            *nats.Conn
-	Memory              evolvingmemory.MemoryStorage
-	CompletionsService  *ai.Service
-	ToolRegistry        *tools.ToolMapRegistry
+	Lifecycle            fx.Lifecycle
+	Logger               *log.Logger
+	Config               *config.Config
+	TemporalClient       client.Client
+	Store                *db.Store
+	NATSConn             *nats.Conn
+	Memory               evolvingmemory.MemoryStorage
+	CompletionsService   *ai.Service
+	ToolRegistry         *tools.ToolMapRegistry
 	NotificationsService *notifications.Service
 }
 
@@ -185,6 +192,7 @@ func SetupPeriodicWorkflows(params PeriodicWorkflowsParams) error {
 
 	err := helpers.DeleteScheduleIfExists(params.Logger, params.TemporalClient, identity.PersonalityWorkflowID)
 	if err != nil {
+		// Log as warning and continue - schedule deletion is not critical for setup
 		params.Logger.Warn("Failed to delete identity personality workflow - continuing without it", "error", err)
 	}
 
@@ -199,6 +207,7 @@ func SetupPeriodicWorkflows(params PeriodicWorkflowsParams) error {
 		true, // Override if different settings
 	)
 	if err != nil {
+		// Return error immediately - schedule creation is critical for periodic workflows
 		params.Logger.Error("Failed to create holon sync schedule", "error", err)
 		return err
 	}

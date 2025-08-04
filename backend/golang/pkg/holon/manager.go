@@ -76,10 +76,10 @@ func DefaultManagerConfig() ManagerConfig {
 func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temporalClient client.Client, worker worker.Worker) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Use the passed logger but adjust level if logging is disabled
-	effectiveLogger := logger
+	// Create a child logger to avoid modifying the shared logger instance
+	effectiveLogger := logger.With("component", "holon-manager")
 	if !config.EnableLogging {
-		// Set the logger to only show errors and above
+		// Set the child logger to only show errors and above
 		effectiveLogger.SetLevel(clog.ErrorLevel)
 	}
 

@@ -90,7 +90,7 @@ func CreateTemporalClient(logger *log.Logger, address string, namespace string, 
 }
 
 // CreateTemporalServer starts a Temporal server and signals readiness on the ready channel.
-func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath string) {
+func CreateTemporalServer(ctx context.Context, logger *log.Logger, ready chan<- struct{}, dbPath string) {
 	ip := TemporalServerIP
 	port := TemporalServerPort
 	historyPort := port + 1
@@ -284,9 +284,13 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 	logger.Info("Temporal server", "ip", ip, "port", port)
 	logger.Info("Temporal UI", "address", fmt.Sprintf("http://%s:%d", ip, uiPort))
 
-	// Wait for shutdown signal
-	<-sigChan
-	logger.Info("Shutting down Temporal server...")
+	// Wait for shutdown signal (either OS signal or context cancellation)
+	select {
+	case <-sigChan:
+		logger.Info("Received OS signal, shutting down Temporal server...")
+	case <-ctx.Done():
+		logger.Info("Context canceled, shutting down Temporal server...")
+	}
 
 	// Stop the server gracefully
 	if err := server.Stop(); err != nil {

@@ -49,18 +49,18 @@ type GraphQLServerResult struct {
 // GraphQLServerParams holds parameters for GraphQL server.
 type GraphQLServerParams struct {
 	fx.In
-	Logger           *log.Logger
-	Config           *config.Config
-	TemporalClient   client.Client
-	TwinChatService  *twinchat.Service
-	NATSConn         *nats.Conn
-	Store            *db.Store
+	Logger             *log.Logger
+	Config             *config.Config
+	TemporalClient     client.Client
+	TwinChatService    *twinchat.Service
+	NATSConn           *nats.Conn
+	Store              *db.Store
 	CompletionsService *ai.Service
-	MCPService       mcpserver.MCPService
-	TelegramService  *telegram.TelegramService
-	HolonService     *holon.Service
-	DirectoryWatcher *directorywatcher.DirectoryWatcher
-	WhatsAppService  *whatsapp.Service
+	MCPService         mcpserver.MCPService
+	TelegramService    *telegram.TelegramService
+	HolonService       *holon.Service
+	DirectoryWatcher   *directorywatcher.DirectoryWatcher
+	WhatsAppService    *whatsapp.Service
 }
 
 // ProvideGraphQLServer creates GraphQL server with all dependencies.
@@ -156,11 +156,18 @@ type StartGraphQLServerParams struct {
 
 // StartGraphQLServer starts the HTTP server.
 func StartGraphQLServer(params StartGraphQLServerParams) {
+	var server *http.Server
+
 	params.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
+			server = &http.Server{
+				Addr:    ":" + params.Config.GraphqlPort,
+				Handler: params.Router,
+			}
+
 			go func() {
 				params.Logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+params.Config.GraphqlPort)
-				err := http.ListenAndServe(":"+params.Config.GraphqlPort, params.Router)
+				err := server.ListenAndServe()
 				if err != nil && err != http.ErrServerClosed {
 					params.Logger.Error("HTTP server error", "error", err)
 				}
@@ -168,7 +175,10 @@ func StartGraphQLServer(params StartGraphQLServerParams) {
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			params.Logger.Info("GraphQL HTTP server stopped")
+			params.Logger.Info("Shutting down GraphQL HTTP server")
+			if server != nil {
+				return server.Shutdown(ctx)
+			}
 			return nil
 		},
 	})

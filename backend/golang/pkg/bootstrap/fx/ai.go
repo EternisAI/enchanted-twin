@@ -2,6 +2,7 @@ package fx
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	"github.com/charmbracelet/log"
@@ -37,7 +38,7 @@ func ProvideFirebaseTokenGetter(store *db.Store) FirebaseTokenGetter {
 			return "", err
 		}
 		if firebaseToken == nil {
-			return "", err
+			return "", fmt.Errorf("firebase token not found")
 		}
 		return firebaseToken.AccessToken, nil
 	}
@@ -185,10 +186,10 @@ type PrivateCompletionsServiceResult struct {
 // PrivateCompletionsServiceParams holds parameters for private completions service.
 type PrivateCompletionsServiceParams struct {
 	fx.In
-	Lifecycle         fx.Lifecycle
-	Logger            *log.Logger
+	Lifecycle          fx.Lifecycle
+	Logger             *log.Logger
 	CompletionsService *ai.Service
-	AnonymizerManager *ai.AnonymizerManager `optional:"true"`
+	AnonymizerManager  *ai.AnonymizerManager `optional:"true"`
 }
 
 // ProvidePrivateCompletionsService creates private completions service if anonymizer is enabled.

@@ -17,6 +17,13 @@ type GoogleClient struct {
 	Logger *log.Logger
 }
 
+func NewClient(store *db.Store, logger *log.Logger) *GoogleClient {
+	return &GoogleClient{
+		Store:  store,
+		Logger: logger,
+	}
+}
+
 func (c *GoogleClient) ListTools(
 	ctx context.Context,
 	request mcp_golang.ListToolsRequest,

@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -37,10 +38,44 @@ type Config struct {
 
 func getEnv(key, defaultValue string, printEnv bool) string {
 	value := os.Getenv(key)
+	if printEnv {
+		if value == "" {
+			log.Printf("ENV: %s = %s (default)", key, defaultValue)
+		} else {
+			// Mask sensitive values (API keys, tokens, passwords)
+			displayValue := value
+			if isSensitiveKey(key) {
+				displayValue = maskSensitiveValue(value)
+			}
+			log.Printf("ENV: %s = %s", key, displayValue)
+		}
+	}
 	if value == "" {
 		return defaultValue
 	}
 	return value
+}
+
+// isSensitiveKey determines if an environment variable contains sensitive information.
+func isSensitiveKey(key string) bool {
+	sensitiveKeys := []string{
+		"API_KEY", "TOKEN", "PASSWORD", "SECRET", "KEY", "AUTH",
+		"COMPLETIONS_API_KEY", "EMBEDDINGS_API_KEY", "TELEGRAM_BOT_TOKEN",
+	}
+	for _, sensitive := range sensitiveKeys {
+		if len(key) >= len(sensitive) && key[len(key)-len(sensitive):] == sensitive {
+			return true
+		}
+	}
+	return false
+}
+
+// maskSensitiveValue masks sensitive values for logging.
+func maskSensitiveValue(value string) string {
+	if len(value) <= 8 {
+		return "***masked***"
+	}
+	return value[:4] + "***masked***" + value[len(value)-4:]
 }
 
 func getEnvOrPanic(key string, printEnv bool) string {
@@ -51,8 +86,24 @@ func getEnvOrPanic(key string, printEnv bool) string {
 	return value
 }
 
+// LoadConfigWithAutoDetection loads configuration with automatic printEnv detection.
+// The printEnv flag is determined by the DEBUG_CONFIG_PRINT environment variable.
+// Set DEBUG_CONFIG_PRINT=true to enable environment variable logging during config load.
+func LoadConfigWithAutoDetection() (*Config, error) {
+	// Determine printEnv flag from environment variable
+	printEnv := os.Getenv("DEBUG_CONFIG_PRINT") == "true"
+	return LoadConfig(printEnv)
+}
+
+// LoadConfig loads configuration with explicit printEnv control.
+// When printEnv is true, all environment variables and their values (with sensitive masking)
+// will be logged during configuration loading for debugging purposes.
 func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
+
+	if printEnv {
+		log.Printf("Loading configuration with environment variable debugging enabled")
+	}
 
 	conf := &Config{
 		CompletionsAPIURL:  getEnv("COMPLETIONS_API_URL", "https://api.openai.com/v1", printEnv),

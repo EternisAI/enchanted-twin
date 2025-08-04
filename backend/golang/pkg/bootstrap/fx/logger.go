@@ -8,17 +8,17 @@ import (
 	"go.uber.org/fx/fxevent"
 )
 
-// CharmLogger adapts charmbracelet log.Logger to fx's fxevent.Logger interface
+// CharmLogger adapts charmbracelet log.Logger to fx's fxevent.Logger interface.
 type CharmLogger struct {
 	logger *log.Logger
 }
 
-// NewCharmLogger creates a new fx logger that uses charmbracelet logger
+// NewCharmLogger creates a new fx logger that uses charmbracelet logger.
 func NewCharmLogger(logger *log.Logger) fxevent.Logger {
 	return &CharmLogger{logger: logger}
 }
 
-// LogEvent implements fxevent.Logger interface
+// LogEvent implements fxevent.Logger interface.
 func (l *CharmLogger) LogEvent(event fxevent.Event) {
 	switch e := event.(type) {
 	case *fxevent.OnStartExecuting:
