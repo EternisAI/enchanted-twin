@@ -30,6 +30,19 @@ const PostgreSQL17_5 embeddedpostgres.PostgresVersion = "17.5"
 // Test-specific PostgreSQL version to match pgvector binaries.
 const PostgreSQL16_4 embeddedpostgres.PostgresVersion = "16.4"
 
+// postgresLogWriter wraps PostgreSQL process output with our structured logger
+type postgresLogWriter struct {
+	logger *log.Logger
+}
+
+func (w *postgresLogWriter) Write(p []byte) (n int, err error) {
+	msg := strings.TrimSpace(string(p))
+	if msg != "" {
+		w.logger.Debug("postgres", "message", msg)
+	}
+	return len(p), nil
+}
+
 type PostgresServer struct {
 	postgres    *embeddedpostgres.EmbeddedPostgres
 	db          *sql.DB
@@ -134,7 +147,8 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		Password(password).
 		Database("postgres").
 		Version(version). // Use specified version
-		StartTimeout(60 * time.Second)
+		StartTimeout(60 * time.Second).
+		Logger(&postgresLogWriter{logger: logger})
 
 	// Use binaries if available
 	if pgvectorBinariesPath != "" {
