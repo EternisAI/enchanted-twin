@@ -224,7 +224,7 @@ func runDataProcessor(name string, filePatterns []string, outputFile string, pro
 
 	// Create processor
 	ctx := context.Background()
-	store, _ := db.NewStore(ctx, ":memory:")
+	store, _ := db.NewStore(ctx, ":memory:", nil)
 	defer func() {
 		if err := store.Close(); err != nil {
 			logger.Error("Failed to close store", "error", err)
@@ -455,7 +455,7 @@ func runGmailSenders() {
 
 	// Create processor
 	ctx := context.Background()
-	store, _ := db.NewStore(ctx, ":memory:")
+	store, _ := db.NewStore(ctx, ":memory:", nil)
 	defer func() {
 		if err := store.Close(); err != nil {
 			logger.Error("Failed to close store", "error", err)

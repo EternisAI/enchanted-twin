@@ -76,16 +76,11 @@ func DefaultManagerConfig() ManagerConfig {
 func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temporalClient client.Client, worker worker.Worker) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Create filtered logger if logging is disabled
+	// Use the passed logger but adjust level if logging is disabled
 	effectiveLogger := logger
 	if !config.EnableLogging {
-		// Create a filtered logger that only shows errors
-		effectiveLogger = clog.NewWithOptions(os.Stdout, clog.Options{
-			ReportCaller:    false,
-			ReportTimestamp: true,
-			Level:           clog.ErrorLevel, // Only show errors, no info/debug
-			TimeFormat:      "15:04:05",
-		})
+		// Set the logger to only show errors and above
+		effectiveLogger.SetLevel(clog.ErrorLevel)
 	}
 
 	service := NewServiceWithLogger(store, effectiveLogger)

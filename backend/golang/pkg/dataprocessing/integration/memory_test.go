@@ -540,7 +540,7 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 	require.NoError(t, err)
 
 	storePath := filepath.Join(tempDir, "test.db")
-	store, err := db.NewStore(ctx, storePath)
+	store, err := db.NewStore(ctx, storePath, nil)
 	require.NoError(t, err)
 
 	completionsModel := config.CompletionsModel

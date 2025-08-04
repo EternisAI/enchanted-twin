@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 
 	fxbootstrap "github.com/EternisAI/enchanted-twin/pkg/bootstrap/fx"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
@@ -17,6 +18,10 @@ import (
 func main() {
 	app := fx.New(
 		fxbootstrap.AppModule,
+		// Use our custom charmbracelet logger for fx events
+		fx.WithLogger(func(logger *log.Logger) fxevent.Logger {
+			return fxbootstrap.NewCharmLogger(logger)
+		}),
 		fx.Invoke(func(
 			logger *log.Logger,
 			identityService *identity.IdentityService,

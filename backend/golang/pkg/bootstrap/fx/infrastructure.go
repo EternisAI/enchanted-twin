@@ -96,7 +96,7 @@ type StoreResult struct {
 
 // ProvideStore creates and initializes database store.
 func ProvideStore(lc fx.Lifecycle, logger *log.Logger, envs *config.Config) (StoreResult, error) {
-	store, err := db.NewStore(context.Background(), envs.DBPath)
+	store, err := db.NewStore(context.Background(), envs.DBPath, logger)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
 		return StoreResult{}, err

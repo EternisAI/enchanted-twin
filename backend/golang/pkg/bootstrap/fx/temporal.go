@@ -116,7 +116,7 @@ func ProvideTemporalWorker(params TemporalWorkerParams) (TemporalWorkerResult, e
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
 	// Register auth activities
-	authActivities := auth.NewOAuthActivities(params.Store)
+	authActivities := auth.NewOAuthActivities(params.Store, params.Logger)
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	// Register the planned agent v2 workflow

@@ -9,14 +9,16 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-func NewOAuthActivities(authStore *db.Store) *OAuthActivities {
+func NewOAuthActivities(authStore *db.Store, logger *log.Logger) *OAuthActivities {
 	return &OAuthActivities{
 		authStore: authStore,
+		logger:    logger,
 	}
 }
 
 type OAuthActivities struct {
 	authStore *db.Store
+	logger    *log.Logger
 }
 
 func (a *OAuthActivities) RegisterWorkflowsAndActivities(worker *worker.Worker) {
@@ -28,7 +30,5 @@ func (w *OAuthActivities) RefreshTokenActivity(
 	ctx context.Context,
 	provider string,
 ) (bool, error) {
-	logger := log.Default()
-
-	return RefreshOAuthToken(ctx, logger, w.authStore, provider)
+	return RefreshOAuthToken(ctx, w.logger, w.authStore, provider)
 }

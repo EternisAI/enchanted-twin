@@ -89,7 +89,7 @@ func TestToDocuments(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	store, err := db.NewStore(ctx, dbFile.Name(), nil)
 	require.NoError(t, err)
 	defer store.Close() //nolint:errcheck
 
@@ -186,7 +186,7 @@ func TestProcessDirectoryInput(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	store, err := db.NewStore(ctx, dbFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	store, err := db.NewStore(ctx, dbFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -350,7 +350,7 @@ func TestProcessDirectoryNoJsonFiles(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	store, err := db.NewStore(ctx, dbFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestProcessRealTelegramExport(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	store, err := db.NewStore(ctx, dbFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -464,7 +464,7 @@ func TestProcessFileEndToEnd(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	store, err := db.NewStore(ctx, dbFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
