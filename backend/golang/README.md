@@ -12,11 +12,11 @@ temporal workflow start \
   --input '{"task": "Send me a joke"}'
 ```
 
-### Vector database (Weaviate)
+### Vector database (PostgreSQL + pgvector)
 
-The Go backend starts an **embedded Weaviate server** at runtime (see `bootstrapWeaviateServer` in `cmd/server/main.go`).
+The Go backend uses **embedded PostgreSQL with pgvector** for vector storage and similarity search.
 
-• It serves on the port defined by the `WEAVIATE_PORT` environment variable (defaults to `51414`).
+• It serves on the port defined by the `POSTGRES_PORT` environment variable (defaults to `5432`).
 
 ### Integration tests memory 
 
