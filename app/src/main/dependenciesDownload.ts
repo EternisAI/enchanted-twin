@@ -10,11 +10,6 @@ import { LiveKitAgentBootstrap } from './livekitAgent'
 
 const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
-const extractVersionFromUrl = (url: string): string | null => {
-  const match = url.match(/-(\d{4}-\d{2}-\d{2})\.zip$/)
-  return match ? match[1] : null
-}
-
 // PostgreSQL files to download
 const POSTGRES_FILES = {
   binaries: ['bin/postgres', 'bin/initdb', 'bin/pg_ctl'],

@@ -182,7 +182,7 @@ export async function startLlamaCppSetup(): Promise<void> {
     }
 
     const modelDir = getDependencyPath('anonymizer')
-    const { model4b, model06b } = findModelFiles(modelDir)
+    const { model06b } = findModelFiles(modelDir)
 
     if (!model06b) {
       log.warn('[LlamaCpp] No 6gb GGUF model file found in anonymizer directory, skipping setup')
