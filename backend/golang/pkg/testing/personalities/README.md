@@ -298,7 +298,7 @@ Each content type has a specialized evaluation handler:
 ### Prerequisites
 - Go 1.21+
 - OpenAI API key for LLM evaluation
-- Weaviate or compatible vector database (for full integration)
+- PostgreSQL with pgvector (for full integration)
 
 ### Quick Start - Flexible Scenarios
 ```bash

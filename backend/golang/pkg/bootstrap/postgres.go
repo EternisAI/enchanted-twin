@@ -532,6 +532,16 @@ func findPgCtlPath(logger *log.Logger) string {
 	return ""
 }
 
+// isPortInUse checks if a port is already in use by attempting to bind to it.
+func isPortInUse(port int) bool {
+	conn, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return true
+	}
+	_ = conn.Close()
+	return false
+}
+
 func findAvailablePostgresPort(preferredPort uint32, logger *log.Logger) uint32 {
 	// Try the preferred port first
 	if !isPortInUse(int(preferredPort)) {
