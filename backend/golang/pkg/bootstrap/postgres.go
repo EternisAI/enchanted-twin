@@ -203,27 +203,33 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 	// Enable pgvector extension if we have pgvector binaries
 	if hasPgvector {
 		if err := server.enablePgvectorExtension(ctx); err != nil {
-			// If pgvector extension fails, warn but continue without it
-			logger.Warn("Failed to enable pgvector extension, continuing without vector support", "error", err)
-			server.hasPgvector = false
+			// Fail fast if pgvector extension fails - the system requires it
+			if stopErr := server.Stop(); stopErr != nil {
+				logger.Error("Failed to stop PostgreSQL after pgvector extension error", "error", stopErr)
+			}
+			return nil, fmt.Errorf("failed to enable pgvector extension (required for memory backend): %w", err)
 		}
+	} else {
+		// Fail fast if pgvector is not available - the system requires it
+		if stopErr := server.Stop(); stopErr != nil {
+			logger.Error("Failed to stop PostgreSQL after missing pgvector", "error", stopErr)
+		}
+		return nil, fmt.Errorf("pgvector extension is required for PostgreSQL memory backend but is not available")
 	}
 
-	// Run migrations only if pgvector is enabled (production mode)
-	if server.hasPgvector {
-		if err := server.runMigrations(ctx); err != nil {
-			if stopErr := server.Stop(); stopErr != nil {
-				logger.Error("Failed to stop PostgreSQL after migration error", "error", stopErr)
-			}
-			return nil, fmt.Errorf("failed to run migrations: %w", err)
+	// Run migrations (pgvector is guaranteed to be available at this point)
+	if err := server.runMigrations(ctx); err != nil {
+		if stopErr := server.Stop(); stopErr != nil {
+			logger.Error("Failed to stop PostgreSQL after migration error", "error", stopErr)
 		}
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	logger.Info("PostgreSQL server is ready",
 		"elapsed", time.Since(startTime),
 		"port", actualPort,
 		"dataPath", dataPath,
-		"pgvector_enabled", server.hasPgvector)
+		"pgvector_enabled", true)
 
 	return server, nil
 }
