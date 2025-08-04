@@ -23,7 +23,7 @@ type BackgroundProcessor struct {
 // NewBackgroundProcessor creates a new background processor.
 func NewBackgroundProcessor(service *Service, logger *log.Logger, processingInterval time.Duration) *BackgroundProcessor {
 	if processingInterval == 0 {
-		processingInterval = 30 * time.Second // Default to 30 seconds
+		processingInterval = 5 * time.Minute // Default to 5 minutes for energy efficiency
 	}
 
 	return &BackgroundProcessor{

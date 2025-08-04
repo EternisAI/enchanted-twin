@@ -10,9 +10,9 @@ func DefaultConfig() Config {
 		Workers:                4,
 		FactsPerWorker:         50,
 		BatchSize:              100,
-		FlushInterval:          30 * time.Second,
-		FactExtractionTimeout:  20 * time.Minute,
-		StorageTimeout:         20 * time.Minute,
+		FlushInterval:          5 * time.Minute, // Reduced from 30s for energy efficiency
+		FactExtractionTimeout:  5 * time.Minute, // Reduced from 20min to prevent long-running AI operations
+		StorageTimeout:         5 * time.Minute, // Reduced from 20min for better resource management
 		EnableRichContext:      true,
 		ParallelFactExtraction: true,
 		StreamingProgress:      true,

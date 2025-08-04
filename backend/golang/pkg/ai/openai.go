@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
@@ -26,6 +27,7 @@ type Service struct {
 	opts               []option.RequestOption
 	privateCompletions PrivateCompletions // Optional private completions service
 	defaultPriority    Priority           // Default priority for private completions
+	rateLimiter        *RateLimiter       // Rate limiter for API calls
 }
 
 func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Service {
@@ -33,9 +35,14 @@ func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Servic
 		option.WithAPIKey(apiKey),
 		option.WithBaseURL(baseUrl),
 	)
+
+	// Create rate limiter: 60 requests per minute (1 per second average)
+	rateLimiter := NewRateLimiter(60, time.Minute)
+
 	return &Service{
-		client: &client,
-		logger: logger,
+		client:      &client,
+		logger:      logger,
+		rateLimiter: rateLimiter,
 	}
 }
 
@@ -46,15 +53,27 @@ func NewOpenAIServiceProxy(logger *log.Logger, getFirebaseToken func() (string, 
 	}
 
 	client := openai.NewClient(opts...)
+
+	// Create rate limiter: 60 requests per minute (1 per second average)
+	rateLimiter := NewRateLimiter(60, time.Minute)
+
 	return &Service{
 		client:         &client,
 		logger:         logger,
 		getAccessToken: getFirebaseToken,
 		opts:           opts,
+		rateLimiter:    rateLimiter,
 	}
 }
 
 func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
+	// Apply rate limiting before making API call
+	if s.rateLimiter != nil {
+		if err := s.rateLimiter.Wait(ctx); err != nil {
+			return openai.ChatCompletionMessage{}, fmt.Errorf("rate limit wait failed: %w", err)
+		}
+	}
+
 	opts := s.opts
 	s.logger.Info("ParamsCompletions", "opts", opts)
 	if s.getAccessToken != nil {
@@ -204,6 +223,13 @@ fallbackLoop:
 }
 
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
+	// Apply rate limiting before making API call
+	if s.rateLimiter != nil {
+		if err := s.rateLimiter.Wait(ctx); err != nil {
+			return nil, fmt.Errorf("rate limit wait failed: %w", err)
+		}
+	}
+
 	opts := s.opts
 	if s.getAccessToken != nil {
 		firebaseToken, err := s.getAccessToken()
@@ -230,6 +256,13 @@ func (s *Service) Embeddings(ctx context.Context, inputs []string, model string)
 }
 
 func (s *Service) Embedding(ctx context.Context, input string, model string) ([]float64, error) {
+	// Apply rate limiting before making API call
+	if s.rateLimiter != nil {
+		if err := s.rateLimiter.Wait(ctx); err != nil {
+			return nil, fmt.Errorf("rate limit wait failed: %w", err)
+		}
+	}
+
 	opts := s.opts
 	if s.getAccessToken != nil {
 		firebaseToken, err := s.getAccessToken()
@@ -251,4 +284,11 @@ func (s *Service) Embedding(ctx context.Context, input string, model string) ([]
 		return nil, err
 	}
 	return embedding.Data[0].Embedding, nil
+}
+
+// Close stops the rate limiter and cleans up resources.
+func (s *Service) Close() {
+	if s.rateLimiter != nil {
+		s.rateLimiter.Stop()
+	}
 }

@@ -18,7 +18,7 @@ func HolonSyncWorkflow(
 	// Configure activity options with appropriate timeouts and retry policy
 	activityOptions := workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Minute, // Allow up to 10 minutes for sync
-		HeartbeatTimeout:    30 * time.Second, // Heartbeat every 30 seconds
+		HeartbeatTimeout:    2 * time.Minute,  // Heartbeat every 2 minutes (reduced from 30s for energy efficiency)
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second * 5,
 			BackoffCoefficient: 2.0,
