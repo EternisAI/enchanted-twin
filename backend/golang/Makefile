@@ -10,9 +10,10 @@ build:
 	go build -o bin/enchanted-twin cmd/server/main.go
 
 fresh-db:
-	@echo "Removing all Weaviate and SQLite data to restart with fresh schema..."
+	@echo "Removing all PostgreSQL and SQLite data to restart with fresh schema..."
 	rm -rf ./output
-	find . -name "*.db" -not -path "./cmd/memory-processor-test/*" -not -path "./weaviate-test-memory/*" -delete 2>/dev/null || true
+	rm -rf ./postgres-data 2>/dev/null || true
+	find . -name "*.db" -delete 2>/dev/null || true
 	find . -name "*.db-wal" -delete 2>/dev/null || true  
 	find . -name "*.db-shm" -delete 2>/dev/null || true
 	@echo "All data will be recreated on next server startup."
