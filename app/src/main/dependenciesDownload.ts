@@ -145,7 +145,8 @@ const DEPENDENCIES_CONFIGS: Record<
   },
   anonymizer: {
     // Naming pattern: qwen3-4b_q4_k_m-YYYY-MM-DD.zip - e.g: qwen3-4b_q4_k_m-2025-01-15.zip
-    url: 'https://dgbaewh9qedok.cloudfront.net/models/qwen3-4b_q4_k_m-2025-08-01.zip',
+    // url: 'https://dgbaewh9qedok.cloudfront.net/models/qwen3-4b_q4_k_m-2025-08-01.zip',
+    url: 'https://dgbaewh9qedok.cloudfront.net/models/qwen3-06b-q4_K_M-2025-08-04.zip',
     name: 'anonymizer',
     dir: path.join(DEPENDENCIES_DIR, 'models', 'anonymizer'),
     install: async function () {
@@ -174,25 +175,12 @@ const DEPENDENCIES_CONFIGS: Record<
       }
 
       try {
-        const version = extractVersionFromUrl(this.url)
-        if (!version) {
-          const files = fs.readdirSync(this.dir)
-          const ggufs = files.filter((file) => file.endsWith('.gguf'))
-
-          const has17bModel = ggufs.some((file) => file.toLowerCase().includes('qwen3-17b'))
-
-          const has06bModel = ggufs.some((file) => file.toLowerCase().includes('qwen3-06b'))
-
-          return has17bModel && has06bModel
-        }
-
         const files = fs.readdirSync(this.dir)
         const ggufs = files.filter((file) => file.endsWith('.gguf'))
 
-        const has17bModel = ggufs.some((file) => file.toLowerCase().includes('qwen3-17b'))
         const has06bModel = ggufs.some((file) => file.toLowerCase().includes('qwen3-06b'))
 
-        return has17bModel && has06bModel
+        return has06bModel
       } catch (error) {
         return false
       }
@@ -200,6 +188,7 @@ const DEPENDENCIES_CONFIGS: Record<
   },
   LLAMACCP: {
     url: 'https://github.com/ggml-org/llama.cpp/releases/download/b5916/llama-b5916-bin-macos-arm64.zip',
+    // url: 'https://dgbaewh9qedok.cloudfront.net/models/llama-server-new.zip',
     name: 'llamacpp',
     dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib', 'llamacpp'),
     install: async function () {

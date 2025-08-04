@@ -38,8 +38,6 @@ export class LlamaCppServerManager {
     const args = [
       '-m',
       this.model4bPath,
-      '-md',
-      this.model06bPath || '',
       '--flash-attn',
       '--ctx-size',
       '4096',
@@ -49,20 +47,16 @@ export class LlamaCppServerManager {
       'q8_0',
       '-ngl',
       '99',
-      '-ngld',
-      '32',
       '--draft-max',
-      '32',
-      '--draft-min',
       '12',
+      '--draft-min',
+      '8',
       '--draft-p-min',
       '0.5',
       '-b',
-      '8192',
+      '4096',
       '--ubatch-size',
-      '3072',
-      '--parallel',
-      '2',
+      '1536',
       '--reasoning-format',
       'none',
       '--reasoning-budget',
@@ -190,13 +184,13 @@ export async function startLlamaCppSetup(): Promise<void> {
     const modelDir = getDependencyPath('anonymizer')
     const { model4b, model06b } = findModelFiles(modelDir)
 
-    if (!model4b) {
-      log.warn('[LlamaCpp] No 17b GGUF model file found in anonymizer directory, skipping setup')
+    if (!model06b) {
+      log.warn('[LlamaCpp] No 6gb GGUF model file found in anonymizer directory, skipping setup')
       return
     }
 
     if (!llamaCppInstance) {
-      llamaCppInstance = new LlamaCppServerManager(model4b, model06b, 11435)
+      llamaCppInstance = new LlamaCppServerManager(model06b, null, 11435)
     }
 
     await llamaCppInstance.run()
