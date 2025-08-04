@@ -167,6 +167,9 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	logger.Info("Waiting for Weaviate to become ready", "url", readyURL, "timeout", "60s")
 
 	checkCount := 0
+	backoffDelay := 200 * time.Millisecond
+	maxBackoff := 5 * time.Second
+
 	for {
 		checkCount++
 		if time.Now().After(deadline) {
@@ -185,7 +188,8 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 				logger.Debug("Weaviate readiness check failed",
 					"error", err,
 					"attempt", checkCount,
-					"elapsed", time.Since(startTime))
+					"elapsed", time.Since(startTime),
+					"next_backoff", backoffDelay)
 			}
 		} else {
 			// Always close the response body to prevent resource leaks
@@ -205,12 +209,18 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 					logger.Warn("Weaviate not ready yet",
 						"status_code", resp.StatusCode,
 						"attempt", checkCount,
-						"elapsed", time.Since(startTime))
+						"elapsed", time.Since(startTime),
+						"next_backoff", backoffDelay)
 				}
 			}
 		}
 
-		time.Sleep(200 * time.Millisecond)
+		// Exponential backoff with jitter to reduce thundering herd effects
+		time.Sleep(backoffDelay)
+		backoffDelay = time.Duration(float64(backoffDelay) * 1.5)
+		if backoffDelay > maxBackoff {
+			backoffDelay = maxBackoff
+		}
 	}
 }
 

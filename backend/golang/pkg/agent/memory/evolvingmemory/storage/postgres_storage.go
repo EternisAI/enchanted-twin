@@ -246,17 +246,10 @@ func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*models.Obje
 		return nil
 	}
 
-	conn, err := pgx.Connect(ctx, s.connString)
-	if err != nil {
-		return fmt.Errorf("connecting to database: %w", err)
-	}
-	defer func() {
-		if err := conn.Close(ctx); err != nil {
-			s.logger.Error("Failed to close database connection", "error", err)
-		}
-	}()
-
-	tx, err := conn.Begin(ctx)
+	// Use the existing database connection pool instead of creating a new connection
+	tx, err := s.db.(interface {
+		Begin(ctx context.Context) (pgx.Tx, error)
+	}).Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
@@ -800,17 +793,10 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 
 // DeleteAll removes all memory facts (used for testing).
 func (s *PostgresStorage) DeleteAll(ctx context.Context) error {
-	conn, err := pgx.Connect(ctx, s.connString)
-	if err != nil {
-		return fmt.Errorf("connecting to database: %w", err)
-	}
-	defer func() {
-		if err := conn.Close(ctx); err != nil {
-			s.logger.Error("Failed to close database connection", "error", err)
-		}
-	}()
-
-	tx, err := conn.Begin(ctx)
+	// Use the existing database connection pool instead of creating a new connection
+	tx, err := s.db.(interface {
+		Begin(ctx context.Context) (pgx.Tx, error)
+	}).Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
@@ -1108,17 +1094,10 @@ func (s *PostgresStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 		return nil
 	}
 
-	conn, err := pgx.Connect(ctx, s.connString)
-	if err != nil {
-		return fmt.Errorf("connecting to database: %w", err)
-	}
-	defer func() {
-		if err := conn.Close(ctx); err != nil {
-			s.logger.Error("Failed to close database connection", "error", err)
-		}
-	}()
-
-	tx, err := conn.Begin(ctx)
+	// Use the existing database connection pool instead of creating a new connection
+	tx, err := s.db.(interface {
+		Begin(ctx context.Context) (pgx.Tx, error)
+	}).Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
