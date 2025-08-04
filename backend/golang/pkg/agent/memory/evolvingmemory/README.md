@@ -1192,16 +1192,21 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
 ### Hot-Swappable Storage
 The storage abstraction allows easy switching between backends:
 ```go
-// Current: Weaviate
-weaviateStorage := storage.New(weaviateClient, logger, embeddingsService)
+// Current: PostgreSQL + pgvector
+pgStorage, err := storage.NewPostgresStorage(storage.NewPostgresStorageInput{
+    DB:                db,
+    Logger:            logger,
+    EmbeddingsWrapper: embeddingsWrapper,
+    ConnString:        connString,
+})
 
-// Future: Redis, Postgres, etc.
-redisStorage := redis.New(redisClient, logger, embeddingsService)
-pgStorage := postgres.New(pgClient, logger, embeddingsService)
+// Future: Other backends can implement storage.Interface
+// redisStorage := redis.NewRedisStorage(...)
+// weaviateStorage := weaviate.NewWeaviateStorage(...)
 
-// Just change the dependency injection!
-storage, _ := evolvingmemory.New(evolvingmemory.Dependencies{
-    Storage: redisStorage,  // or weaviateStorage, or pgStorage
+// Change storage backend via dependency injection
+memoryEngine, err := evolvingmemory.New(evolvingmemory.Dependencies{
+    Storage: pgStorage,  // Easy to swap with other implementations
     // ... other dependencies unchanged
 })
 ```

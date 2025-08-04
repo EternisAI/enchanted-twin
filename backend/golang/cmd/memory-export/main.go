@@ -42,7 +42,6 @@ func main() {
 func exportSampleMemoryFacts(outputFile string, count int) {
 	fmt.Printf("🔄 Creating %d sample memory facts and exporting to: %s\n", count, outputFile)
 
-	// Create sample memory facts
 	facts := make([]memory.MemoryFact, count)
 	categories := []string{"health", "career", "preferences", "goals", "relationships"}
 	subjects := []string{"Physical Health & Fitness", "Career & Professional Life", "Media & Culture Tastes", "Goals & Projects", "Friends & Social Network"}
@@ -67,7 +66,6 @@ func exportSampleMemoryFacts(outputFile string, count int) {
 		}
 	}
 
-	// Export using utility function - THIS IS THE KEY USAGE!
 	if err := memory.ExportMemoryFactsJSON(facts, outputFile); err != nil {
 		fmt.Printf("❌ Failed to export memory facts: %v\n", err)
 		return
@@ -77,20 +75,20 @@ func exportSampleMemoryFacts(outputFile string, count int) {
 	fmt.Printf("🔧 This demonstrates the ExportMemoryFactsJSON utility function usage.\n")
 
 	// Show statistics
-	categories_count := make(map[string]int)
-	subjects_count := make(map[string]int)
+	categoriesCount := make(map[string]int)
+	subjectsCount := make(map[string]int)
 	for _, fact := range facts {
-		categories_count[fact.Category]++
-		subjects_count[fact.Subject]++
+		categoriesCount[fact.Category]++
+		subjectsCount[fact.Subject]++
 	}
 
 	fmt.Printf("\n📈 Export Statistics:\n")
-	fmt.Printf("Categories: %d unique\n", len(categories_count))
-	fmt.Printf("Subjects: %d unique\n", len(subjects_count))
+	fmt.Printf("Categories: %d unique\n", len(categoriesCount))
+	fmt.Printf("Subjects: %d unique\n", len(subjectsCount))
 
 	// Show categories
 	fmt.Printf("\nCategories:\n")
-	for cat, count := range categories_count {
+	for cat, count := range categoriesCount {
 		fmt.Printf("  %s: %d facts\n", cat, count)
 	}
 }
@@ -98,13 +96,11 @@ func exportSampleMemoryFacts(outputFile string, count int) {
 func importMemoryFacts(inputFile string) {
 	fmt.Printf("🔄 Importing memory facts from: %s\n", inputFile)
 
-	// Check if file exists
 	if _, err := os.Stat(inputFile); os.IsNotExist(err) {
 		fmt.Printf("❌ Input file does not exist: %s\n", inputFile)
 		return
 	}
 
-	// Load facts using utility function - THIS IS THE KEY USAGE!
 	facts, err := memory.LoadMemoryFactsFromJSON(inputFile)
 	if err != nil {
 		fmt.Printf("❌ Failed to load memory facts: %v\n", err)
@@ -119,7 +115,6 @@ func importMemoryFacts(inputFile string) {
 		return
 	}
 
-	// Show statistics about loaded facts
 	categories := make(map[string]int)
 	subjects := make(map[string]int)
 	for _, fact := range facts {
