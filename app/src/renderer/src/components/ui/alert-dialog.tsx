@@ -27,7 +27,7 @@ function AlertDialogOverlay(
     <AlertDialogPrimitive.Overlay
       data-slot="alert-dialog-overlay"
       className={cn(
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 bg-black/50 backdrop-blur-md',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 bg-background/50 backdrop-blur-md',
         'z-200', // Restored fixed z-index. My previous fix of z-[210] is superseded by this dynamic approach.
         className
       )}
