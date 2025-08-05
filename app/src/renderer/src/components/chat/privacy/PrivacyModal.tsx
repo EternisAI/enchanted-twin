@@ -16,7 +16,7 @@ export function PrivacyModal() {
       </div>
 
       {/* Content */}
-      <div className="overflow-y-auto max-h-[70vh] scrollbar-thin scrollbar-thumb-gray-300 voice-chat-scrollbar p-6">
+      <div className="overflow-y-auto max-h-[70vh] scrollbar-thin scrollbar-thumb-gray-300 p-6">
         <div className="w-full">
           <div className="flex flex-col gap-4 prose prose-gray dark:prose-invert max-w-none pb-6">
             <p className="text-base leading-relaxed">
@@ -330,23 +330,6 @@ export function PrivacyModal() {
           </div>
         </div>
       </div>
-
-      <style>{`
-        .voice-chat-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .voice-chat-scrollbar::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 4px;
-        }
-        .voice-chat-scrollbar::-webkit-scrollbar-thumb {
-          background: #888;
-          border-radius: 4px;
-        }
-        .voice-chat-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #555;
-        }
-      `}</style>
     </div>
   )
 }

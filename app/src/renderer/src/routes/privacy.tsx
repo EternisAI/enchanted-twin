@@ -6,7 +6,7 @@ export const Route = createFileRoute('/privacy')({
 
 function PrivacyPage() {
   return (
-    <div className="flex flex-col items-center pt-20 min-h-screen w-full mx-auto p-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 voice-chat-scrollbar">
+    <div className="flex flex-col items-center pt-20 min-h-screen w-full mx-auto p-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
       <div className="w-full max-w-3xl">
         <h1 className="text-4xl font-bold mb-8 text-center">Privacy-preserving AI interface</h1>
 
@@ -314,23 +314,6 @@ function PrivacyPage() {
           </p>
         </div>
       </div>
-
-      <style>{`
-        .voice-chat-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .voice-chat-scrollbar::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 4px;
-        }
-        .voice-chat-scrollbar::-webkit-scrollbar-thumb {
-          background: #888;
-          border-radius: 4px;
-        }
-        .voice-chat-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #555;
-        }
-      `}</style>
     </div>
   )
 }
