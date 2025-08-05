@@ -751,7 +751,7 @@ func createPostgreSQLStorageWithServer(ctx context.Context, logger *log.Logger, 
 	connString := fmt.Sprintf("host=localhost port=%d user=postgres password=testpassword dbname=postgres sslmode=disable", postgresServer.GetPort())
 
 	// Configure connection pool with proper parameters and timeouts
-	poolConfig, err := pgxpool.ParseConfig(connString + " pool_max_conns=10 pool_min_conns=2 pool_max_conn_lifetime=30m pool_max_conn_idle_time=15m connect_timeout=30s")
+	poolConfig, err := pgxpool.ParseConfig(connString + " pool_max_conns=10 pool_min_conns=2 pool_max_conn_lifetime=30m pool_max_conn_idle_time=15m connect_timeout=30")
 	if err != nil {
 		if stopErr := postgresServer.Stop(); stopErr != nil {
 			logger.Error("Failed to stop PostgreSQL server after pool config error", "error", stopErr)
