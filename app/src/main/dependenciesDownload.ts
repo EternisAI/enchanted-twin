@@ -4,9 +4,10 @@ import fs from 'fs'
 import axios from 'axios'
 import extract from 'extract-zip'
 import * as tar from 'tar'
+import { spawn } from 'child_process'
+import log from 'electron-log'
 import { windowManager } from './windows'
 import { DependencyName } from './types/dependencies'
-import { LiveKitAgentBootstrap } from './livekitAgent'
 import { EMBEDDED_RUNTIME_DEPS_CONFIG } from './embeddedDepsConfig'
 
 const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
@@ -161,7 +162,6 @@ function createGenericInstaller(depName: DependencyName) {
           }
 
           // Execute the shell script
-          const { spawn } = require('child_process')
           const process = spawn('sh', ['-c', config.install_script], {
             stdio: ['pipe', 'pipe', 'pipe']
           })

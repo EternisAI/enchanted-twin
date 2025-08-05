@@ -159,7 +159,7 @@ fetch-deps:
 				;; \
 			"zip") \
 				URL=$$(jq -r ".dependencies.$$dep.url" "$$DEPS_CONFIG"); \
-				curl -fsSL "$$URL" -o "$$DEP_DIR/temp.zip"; \
+				curl -fsSL "$$URL" -o "$$DEP_DIR/temp.zip" || { echo "Failed to download $$URL"; exit 1; }; \
 				cd "$$DEP_DIR" && unzip -q temp.zip && rm temp.zip; \
 				;; \
 			"tar.gz") \
@@ -185,7 +185,7 @@ fetch-deps:
 				else \
 					URL=$$(jq -r ".dependencies.$$dep.url" "$$DEPS_CONFIG"); \
 				fi; \
-				curl -fsSL "$$URL" -o "$$DEP_DIR/temp.tgz"; \
+				curl -fsSL "$$URL" -o "$$DEP_DIR/temp.tgz" || { echo "Failed to download $$URL"; exit 1; }; \
 				cd "$$DEP_DIR" && tar -xzf temp.tgz && rm temp.tgz; \
 				;; \
 			"curl_script") \
