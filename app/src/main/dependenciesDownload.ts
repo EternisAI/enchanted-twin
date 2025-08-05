@@ -361,7 +361,7 @@ const DEPENDENCIES_CONFIGS: Record<
     install: () => Promise<void>
     isDownloaded: () => boolean
   }> = {}
-  const dependencyNames = Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}) as DependencyName[]
+  const dependencyNames = Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}).filter((key): key is DependencyName => typeof key === 'string')
 
   for (const depName of dependencyNames) {
     const genericInstaller = createGenericInstaller(depName)
@@ -436,7 +436,7 @@ export async function downloadDependency(dependencyName: DependencyName) {
 
 export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
   const result: Record<string, boolean> = {}
-  const dependencyNames = Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}) as DependencyName[]
+  const dependencyNames = Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}).filter((key): key is DependencyName => typeof key === 'string')
 
   for (const depName of dependencyNames) {
     const config = DEPENDENCIES_CONFIGS[depName]
