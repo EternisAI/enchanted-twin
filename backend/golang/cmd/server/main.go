@@ -384,7 +384,7 @@ func main() {
 	holonService.InitializeThreadProcessor(aiCompletionsService, envs.CompletionsModel, mem)
 
 	// Initialize and start background processor for automatic thread processing
-	processingInterval := 5 * time.Minute // Process received threads every 5 minutes (was 30s)
+	processingInterval := 5 * time.Minute
 	holonService.InitializeBackgroundProcessor(processingInterval)
 
 	// Create a cancellable context for background processing that will be canceled on shutdown
@@ -650,7 +650,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 	srv.AddTransport(transport.GET{})
 
 	srv.AddTransport(transport.Websocket{
-		KeepAlivePingInterval: 30 * time.Second, // Increased from 10s to reduce energy consumption
+		KeepAlivePingInterval: 30 * time.Second,
 		Upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true
@@ -706,7 +706,7 @@ func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client
 		logger,
 		temporalClient,
 		"holon-sync-schedule",
-		5*time.Minute, // Use updated 5-minute interval (was 30s)
+		5*time.Minute,
 		holon.HolonSyncWorkflow,
 		[]any{holon.HolonSyncWorkflowInput{ForceSync: false}},
 		true, // Override if different settings

@@ -192,7 +192,6 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 			return nil, fmt.Errorf("failed to connect to PostgreSQL after %d attempts", maxRetries)
 		}
 
-		// Exponential backoff with cap
 		time.Sleep(backoffDelay)
 		backoffDelay = time.Duration(float64(backoffDelay) * 1.2)
 		if backoffDelay > maxBackoff {

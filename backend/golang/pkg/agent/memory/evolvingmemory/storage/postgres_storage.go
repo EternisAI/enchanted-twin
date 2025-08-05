@@ -253,7 +253,6 @@ func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*StorageObje
 		return nil
 	}
 
-	// Use the existing database connection pool instead of creating a new connection
 	tx, err := s.db.(interface {
 		Begin(ctx context.Context) (pgx.Tx, error)
 	}).Begin(ctx)
@@ -791,7 +790,7 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 
 // DeleteAll removes all memory facts (used for testing).
 func (s *PostgresStorage) DeleteAll(ctx context.Context) error {
-	// Use the existing database connection pool instead of creating a new connection
+	
 	tx, err := s.db.(interface {
 		Begin(ctx context.Context) (pgx.Tx, error)
 	}).Begin(ctx)
@@ -1092,7 +1091,7 @@ func (s *PostgresStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 		return nil
 	}
 
-	// Use the existing database connection pool instead of creating a new connection
+	
 	tx, err := s.db.(interface {
 		Begin(ctx context.Context) (pgx.Tx, error)
 	}).Begin(ctx)
