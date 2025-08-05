@@ -1,7 +1,7 @@
 {
   "name": "enchanted",
   "version": "0.0.1",
-  "description": "Eternis Enchanted",
+  "description": "A personal AI interface focused on balancing privacy with state-of-the-art reasoning models.",
   "main": "./out/main/index.js",
   "author": "Eternis Labs, Inc",
   "homepage": "https://eternis.ai",
