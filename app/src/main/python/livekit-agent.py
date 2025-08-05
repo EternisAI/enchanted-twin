@@ -118,7 +118,6 @@ async def start_command_listener():
 
 # Patch termios for non-TTY environments before importing livekit
 if os.getenv("LIVEKIT_DISABLE_TERMIOS"):
-
     logger.info("Starting termios patching")
     import termios
 
@@ -180,7 +179,7 @@ TTS_API_KEY = fireBaseTOken or os.getenv("TTS_API_KEY")
 TTS_URL = os.getenv("PROXY_TEE_URL") or os.getenv("TTS_URL")
 TTS_MODEL = os.getenv("TTS_MODEL")
 
-STT_API_KEY = fireBaseTOken or  os.getenv("STT_API_KEY")
+STT_API_KEY = fireBaseTOken or os.getenv("STT_API_KEY")
 STT_URL = os.getenv("PROXY_TEE_URL") or os.getenv("STT_URL")
 STT_MODEL = os.getenv("STT_MODEL")
 CHAT_ID = os.getenv("CHAT_ID")

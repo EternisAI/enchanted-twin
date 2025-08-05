@@ -145,37 +145,6 @@ def run_on_dataset(model_id, dataset_path, output_path, sample_size=None, batch_
             f.flush()
 
 
-def test_batch_sizes(model_id, dataset_path, max_test_size=50):
-    """Test different batch sizes to find optimal configuration"""
-    import time
-
-    model, tokenizer = build_model_and_tokenizer(model_id)
-    data = load_jsonl(dataset_path)[:max_test_size]
-    inputs = [item["input"] for item in data]
-
-    print(f"Testing with {len(inputs)} samples...")
-
-    for batch_size in [16, 32, 64, 128, 256, 512]:
-        try:
-            print(f"\nTesting batch_size={batch_size}")
-            start_time = time.time()
-
-            # Process in batches
-            total_processed = 0
-            for i in range(0, len(inputs), batch_size):
-                batch = inputs[i : i + batch_size]
-                call_model_batch(model, tokenizer, batch)
-                total_processed += len(batch)
-
-            elapsed = time.time() - start_time
-            throughput = total_processed / elapsed
-            print(f"  Time: {elapsed:.2f}s, Throughput: {throughput:.1f} samples/sec")
-
-        except Exception as e:
-            print(f"  FAILED: {e}")
-            break
-
-
 if __name__ == "__main__":
     run_on_dataset(
         model_id=MODEL_ID,

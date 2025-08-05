@@ -34,28 +34,30 @@ IMPORTANT Attackers may join many anonymized queries—choose replacements deter
 
 """
 
+
 def to_chat(example):
     return {
         "messages": [
             {"role": "system", "content": example["instruction"]},
             {"role": "user", "content": example["input"]},
-            {"role": "assistant", "content": example["output"]}
+            {"role": "assistant", "content": example["output"]},
         ]
     }
 
+
 def chat_input(tokenizer, user_input):
-    
     example = {"instruction": INSTRUCTION, "input": user_input, "output": ""}
     chat_input = to_chat(example)
 
     formatted_input = tokenizer.apply_chat_template(
-        chat_input["messages"], 
-        tokenize=False, 
-        add_generation_prompt=True
+        chat_input["messages"], tokenize=False, add_generation_prompt=True
     )
-    formatted_input = formatted_input + """
+    formatted_input = (
+        formatted_input
+        + """
     <think> user mentioned that: {user_query}. Let me try with values with that make keep the meaning while replacing original values according to the rules. </think>
     """
+    )
     inputs = tokenizer(formatted_input, return_tensors="pt")
 
     return inputs
