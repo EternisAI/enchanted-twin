@@ -1,7 +1,9 @@
-import { ExternalLink, LockIcon } from 'lucide-react'
+import { LockIcon } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import { cn } from '@renderer/lib/utils'
 import { Button } from '@renderer/components/ui/button'
+import { useModal } from '@renderer/hooks/useModal'
+import { PrivacyModal } from './PrivacyModal'
 
 export function PrivacyButton({
   className,
@@ -10,12 +12,10 @@ export function PrivacyButton({
   className?: string
   label?: string | boolean
 }) {
-  const handleClick = () => {
-    window.location.href = '#/privacy'
-  }
+  const { openModal } = useModal()
 
-  const handleLearnMoreClick = () => {
-    window.location.href = '#/privacy'
+  const handleClick = () => {
+    openModal(<PrivacyModal />)
   }
 
   return (
@@ -38,13 +38,6 @@ export function PrivacyButton({
         <p className="text-xs max-w-[180px]">
           Your messages are routed through our privacy network
         </p>
-        <button
-          onClick={handleLearnMoreClick}
-          className="my-0.5 inline-flex items-center gap-1 relative font-semibold hover:underline text-xs text-primary-foreground/50 before:content-[''] before:absolute before:-inset-2"
-        >
-          Learn more
-          <ExternalLink strokeWidth={2.5} className="w-3 h-3" />
-        </button>
       </TooltipContent>
     </Tooltip>
   )
