@@ -1,39 +1,28 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import React, { createContext, useContext, useState } from 'react'
-
-interface ModalContextType {
-  openModal: (content: React.ReactNode, closeOnBackdropClick?: boolean) => void
-  closeModal: () => void
-}
-
-const ModalContext = createContext<ModalContextType | undefined>(undefined)
-
-export function useModal() {
-  const context = useContext(ModalContext)
-  if (!context) {
-    throw new Error('useModal must be used within a ModalProvider')
-  }
-  return context
-}
+import React, { useState, useCallback } from 'react'
+import { ModalContext } from '@renderer/contexts/ModalContext'
 
 export function ModalProvider({ children }: { children: React.ReactNode }) {
   const [modalContent, setModalContent] = useState<React.ReactNode | null>(null)
   const [closeOnBackdropClick, setCloseOnBackdropClick] = useState(true)
 
-  const openModal = (content: React.ReactNode, allowBackdropClick: boolean = true) => {
+  const openModal = useCallback((content: React.ReactNode, allowBackdropClick: boolean = true) => {
     setCloseOnBackdropClick(allowBackdropClick)
     setModalContent(content)
-  }
+  }, [])
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setModalContent(null)
-  }
+  }, [])
 
   const handleBackdropClick = () => {
     if (closeOnBackdropClick) {
       closeModal()
     }
   }
+
+  // Note: Route-based modal dismissal will be handled by a separate component
+  // inside the router context to avoid hook ordering issues
 
   return (
     <ModalContext.Provider value={{ openModal, closeModal }}>
