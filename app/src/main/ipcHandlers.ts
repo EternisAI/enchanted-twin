@@ -702,7 +702,7 @@ export function registerIpcHandlers() {
     // Validate that the requested dependency is actually a model
     const config = EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies?.[modelName]
     if (!config || config.category !== 'model') {
-      throw new Error(`Cannot download ${modelName}: only models can be downloaded via this API`)
+      throw new Error(`Cannot download ${String(modelName)}: only models can be downloaded via this API`)
     }
 
     return downloadDependency(modelName)

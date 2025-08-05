@@ -5,6 +5,6 @@ type ModelEntries = {
   [K in keyof typeof EMBEDDED_RUNTIME_DEPS_CONFIG.dependencies]: (typeof EMBEDDED_RUNTIME_DEPS_CONFIG.dependencies)[K]['category'] extends 'model'
     ? K
     : never
-}[keyof typeof EMBEDDED_RUNTIME_DEPS_CONFIG.dependencies]
+}[keyof typeof EMBEDDED_RUNTIME_DEPS_CONFIG.dependencies & string]
 
 export type ModelName = ModelEntries
