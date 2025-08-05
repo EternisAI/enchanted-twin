@@ -6,6 +6,35 @@ import extract from 'extract-zip'
 import * as tar from 'tar'
 import { spawn } from 'child_process'
 import log from 'electron-log'
+
+// Helper type for dependency configuration (matching the readonly generated structure)
+type DependencyConfig = {
+  readonly backend_download_enabled: boolean
+  readonly url: string | Record<string, string>
+  readonly name: string
+  readonly display_name?: string
+  readonly description?: string
+  readonly category: string
+  readonly dir: string
+  readonly type: string
+  readonly platform_url_key?: boolean
+  readonly validation_condition?: 'has_both_models' | 'platform_specific_binary'
+  readonly validation_files?: readonly string[] | Record<string, readonly string[]>
+  readonly install_script?: string
+  readonly files?: {
+    readonly binaries?: readonly string[]
+    readonly libraries?: readonly string[]
+    readonly dataFiles?: readonly string[]
+  }
+  readonly post_download?: {
+    readonly chmod?: {
+      readonly files: readonly string[]
+      readonly mode: string
+    }
+    readonly cleanup?: readonly string[]
+    readonly copy_from_global?: boolean
+  }
+}
 import { windowManager } from './windows'
 import { DependencyName } from './types/dependencies'
 import { EMBEDDED_RUNTIME_DEPS_CONFIG } from './embeddedDepsConfig'
@@ -29,7 +58,7 @@ function getPlatformKey(): string {
 
 // Generic dependency installer functions
 function createGenericInstaller(depName: DependencyName) {
-  const config = RUNTIME_DEPS_CONFIG?.dependencies?.[depName]
+  const config = RUNTIME_DEPS_CONFIG?.dependencies?.[depName] as DependencyConfig | undefined
   if (!config) {
     console.warn(`No config found for dependency: ${depName}`)
     return null
@@ -93,7 +122,7 @@ function createGenericInstaller(depName: DependencyName) {
 
         case 'zip': {
           const file = await downloadFile(
-            config.url,
+            config.url as string,
             depDir,
             'temp.zip',
             (pct, total, downloaded) => {
@@ -120,17 +149,18 @@ function createGenericInstaller(depName: DependencyName) {
         }
 
         case 'tar.gz': {
-          let url = config.url
-          if (config.platform_url_key && typeof url === 'object') {
+          let url: string = typeof config.url === 'string' ? config.url : ''
+          if (config.platform_url_key && typeof config.url === 'object') {
+            const urlObj = config.url as Record<string, string>
             if (process.platform === 'darwin' && process.arch === 'arm64') {
-              url = url['darwin-arm64']
+              url = urlObj['darwin-arm64'] || ''
             } else {
-              url = url['linux-x64']
+              url = urlObj['linux-x64'] || ''
             }
           }
 
           const file = await downloadFile(
-            url as string,
+            url,
             depDir,
             'temp.tgz',
             (pct, total, downloaded) => {
@@ -229,7 +259,7 @@ function createGenericInstaller(depName: DependencyName) {
     isDownloaded: function () {
       const depDir = config.dir.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR)
 
-      // Handle special validation conditions first
+      // Handle special validation conditions first  
       if (config.validation_condition === 'has_both_models') {
         if (process.env.ANONYMIZER_TYPE === 'no-op') {
           return true
@@ -324,22 +354,19 @@ const DEPENDENCIES_CONFIGS: Record<
     isDownloaded: () => boolean
   }
 > = (() => {
-  const configs: Record<
-    DependencyName,
-    {
-      url: string
-      name: string
-      dir: string
-      install: () => Promise<void>
-      isDownloaded: () => boolean
-    }
-  > = {}
+  const configs: Record<string, {
+    url: string
+    name: string
+    dir: string
+    install: () => Promise<void>
+    isDownloaded: () => boolean
+  }> = {}
   const dependencyNames = Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}) as DependencyName[]
 
   for (const depName of dependencyNames) {
     const genericInstaller = createGenericInstaller(depName)
     if (genericInstaller) {
-      const config = RUNTIME_DEPS_CONFIG?.dependencies?.[depName]
+      const config = RUNTIME_DEPS_CONFIG?.dependencies?.[depName] as DependencyConfig | undefined
       configs[depName] = {
         url: (() => {
           if (typeof config?.url === 'string') {
@@ -372,7 +399,13 @@ const DEPENDENCIES_CONFIGS: Record<
     }
   }
 
-  return configs
+  return configs as Record<DependencyName, {
+    url: string
+    name: string
+    dir: string
+    install: () => Promise<void>
+    isDownloaded: () => boolean
+  }>
 })()
 
 export function getDependencyPath(dependencyName: DependencyName): string {

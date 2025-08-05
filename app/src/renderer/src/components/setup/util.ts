@@ -2,6 +2,15 @@ import { DownloadState } from './DependenciesGate'
 import { DependencyName } from '../../types/dependencies'
 import { EMBEDDED_RUNTIME_DEPS_CONFIG } from '../../embeddedDepsConfig'
 
+// Type for dependency config from embedded runtime deps
+type EmbeddedDependencyConfig = {
+  name?: string
+  display_name?: string
+  description?: string
+  category?: string
+  [key: string]: unknown
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
 
@@ -39,9 +48,14 @@ export const DEPENDENCY_CONFIG: Record<
   const deps = EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies || {}
 
   for (const [depName, depConfig] of Object.entries(deps)) {
-    config[depName] = {
-      name: depConfig.display_name || depConfig.name || depName,
-      description: depConfig.description || '',
+    const typedConfig = depConfig as EmbeddedDependencyConfig
+    const configEntry = config as Record<
+      string,
+      { name: string; description: string; disabled?: boolean }
+    >
+    configEntry[depName] = {
+      name: typedConfig.display_name || typedConfig.name || depName,
+      description: typedConfig.description || '',
       disabled: false
     }
   }

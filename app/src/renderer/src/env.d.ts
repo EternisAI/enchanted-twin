@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+import { DependencyName } from './types/dependencies'
+
 export {}
 
 interface IElectronAPI {
@@ -160,6 +162,9 @@ interface IApi {
         error?: string
       }) => void
     ) => () => void
+  }
+  dependencies: {
+    download: (dependencyName: string) => Promise<{ success: boolean; path: string }>
   }
   goServer: {
     initialize: () => Promise<{ success: boolean; error?: string }>

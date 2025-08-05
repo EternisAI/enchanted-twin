@@ -40,7 +40,7 @@ const handleDependencyDownload = (
 ): boolean => {
   if (!isDownloaded) {
     // Download ALL dependencies via the frontend API
-    window.api.dependencies.download(dependencyName).catch((error) => {
+    window.api.dependencies.download(dependencyName).catch((error: unknown) => {
       setDownloadState((prev) => ({
         ...prev,
         [dependencyName]: {
@@ -49,7 +49,7 @@ const handleDependencyDownload = (
           error: error instanceof Error ? error.message : 'Download failed'
         }
       }))
-      onError?.(error)
+      onError?.(error instanceof Error ? error : new Error('Download failed'))
     })
 
     setDownloadState((prev) => ({

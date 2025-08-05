@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ElectronAPI } from '@electron-toolkit/preload'
+import { DependencyName } from '../renderer/src/types/dependencies'
 
 interface FileDialogResult {
   canceled: boolean
@@ -134,6 +135,9 @@ interface IApi {
         error?: string
       }) => void
     ) => () => void
+  }
+  dependencies: {
+    download: (dependencyName: string) => Promise<{ success: boolean; path: string }>
   }
   goServer: {
     initialize: () => Promise<{ success: boolean; error?: string }>
