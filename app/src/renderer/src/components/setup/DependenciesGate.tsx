@@ -2,13 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Check, Loader, RefreshCw } from 'lucide-react'
 
 import { useGoServerContext } from '@renderer/contexts/GoServerContext'
-import {
-  formatBytes,
-  initialDownloadState,
-  DEPENDENCY_CONFIG,
-  DEPENDENCY_NAMES,
-  MODEL_NAMES
-} from './util'
+import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES } from './util'
 import { Button } from '../ui/button'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
@@ -45,48 +39,31 @@ const handleDependencyDownload = (
   onError?: (error: Error) => void
 ): boolean => {
   if (!isDownloaded) {
-    // Only attempt to download models via the frontend API
-    // Infrastructure dependencies are handled automatically by the backend
-    if (MODEL_NAMES.includes(dependencyName)) {
-      window.api.models.downloadModels(dependencyName).catch((error) => {
-        setDownloadState((prev) => ({
-          ...prev,
-          [dependencyName]: {
-            ...prev[dependencyName as keyof typeof prev],
-            downloading: false,
-            error: error instanceof Error ? error.message : 'Download failed'
-          }
-        }))
-        onError?.(error)
-      })
-
-      setDownloadState((prev) => ({
-        ...prev,
-        [dependencyName]: {
-          downloading: true,
-          percentage: 0,
-          completed: false,
-          totalBytes: 0,
-          downloadedBytes: 0
-        }
-      }))
-
-      return true
-    } else {
-      // Infrastructure dependencies are assumed to be handled by backend
-      // Mark them as completed without triggering frontend download
+    // Download ALL dependencies via the frontend API
+    window.api.dependencies.download(dependencyName).catch((error) => {
       setDownloadState((prev) => ({
         ...prev,
         [dependencyName]: {
           ...prev[dependencyName as keyof typeof prev],
-          completed: true,
           downloading: false,
-          percentage: 100
+          error: error instanceof Error ? error.message : 'Download failed'
         }
       }))
+      onError?.(error)
+    })
 
-      return false
-    }
+    setDownloadState((prev) => ({
+      ...prev,
+      [dependencyName]: {
+        downloading: true,
+        percentage: 0,
+        completed: false,
+        totalBytes: 0,
+        downloadedBytes: 0
+      }
+    }))
+
+    return true
   } else {
     setDownloadState((prev) => ({
       ...prev,
@@ -132,7 +109,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     }))
 
     try {
-      await window.api.models.downloadModels(modelName)
+      await window.api.dependencies.download(modelName)
     } catch (error) {
       setDownloadState((prev) => ({
         ...prev,

@@ -708,6 +708,10 @@ export function registerIpcHandlers() {
     return downloadDependency(modelName)
   })
 
+  ipcMain.handle('dependencies:download', async (_, dependencyName: DependencyName) => {
+    return downloadDependency(dependencyName)
+  })
+
   ipcMain.handle('llamacpp:start', async () => {
     try {
       log.info('[LlamaCpp] Starting LlamaCpp server via IPC request')

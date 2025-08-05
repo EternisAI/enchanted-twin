@@ -211,6 +211,10 @@ const api = {
       return () => ipcRenderer.removeListener('models:progress', listener)
     }
   },
+  dependencies: {
+    download: (dependencyName: string) =>
+      ipcRenderer.invoke('dependencies:download', dependencyName)
+  },
   goServer: {
     initialize: () => ipcRenderer.invoke('go-server:initialize'),
     cleanup: () => ipcRenderer.invoke('go-server:cleanup'),
