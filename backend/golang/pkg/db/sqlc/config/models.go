@@ -9,17 +9,25 @@ import (
 	"time"
 )
 
+type AnonymizedMessage struct {
+	ID             int64        `json:"id"`
+	ConversationID string       `json:"conversationId"`
+	MessageHash    string       `json:"messageHash"`
+	AnonymizedAt   sql.NullTime `json:"anonymizedAt"`
+}
+
 type Author struct {
 	Identity string         `json:"identity"`
 	Alias    sql.NullString `json:"alias"`
 }
 
 type Chat struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	Category      string         `json:"category"`
-	HolonThreadID sql.NullString `json:"holonThreadId"`
-	CreatedAt     time.Time      `json:"createdAt"`
+	ID              string         `json:"id"`
+	Name            string         `json:"name"`
+	Category        string         `json:"category"`
+	HolonThreadID   sql.NullString `json:"holonThreadId"`
+	CreatedAt       time.Time      `json:"createdAt"`
+	PrivacyDictJson sql.NullString `json:"privacyDictJson"`
 }
 
 type Config struct {
@@ -27,14 +35,26 @@ type Config struct {
 	Value sql.NullString `json:"value"`
 }
 
+type ConversationDict struct {
+	ConversationID string    `json:"conversationId"`
+	DictData       string    `json:"dictData"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
 type DataSource struct {
-	ID            string         `json:"id"`
-	Name          sql.NullString `json:"name"`
-	Path          sql.NullString `json:"path"`
-	ProcessedPath sql.NullString `json:"processedPath"`
-	UpdatedAt     time.Time      `json:"updatedAt"`
-	IsIndexed     sql.NullBool   `json:"isIndexed"`
-	HasError      sql.NullBool   `json:"hasError"`
+	ID                   string         `json:"id"`
+	Name                 sql.NullString `json:"name"`
+	Path                 sql.NullString `json:"path"`
+	ProcessedPath        sql.NullString `json:"processedPath"`
+	UpdatedAt            time.Time      `json:"updatedAt"`
+	IsIndexed            sql.NullBool   `json:"isIndexed"`
+	HasError             sql.NullBool   `json:"hasError"`
+	CreatedAt            time.Time      `json:"createdAt"`
+	State                sql.NullString `json:"state"`
+	ProcessingStatus     sql.NullString `json:"processingStatus"`
+	ProcessingStartedAt  sql.NullTime   `json:"processingStartedAt"`
+	ProcessingWorkflowID sql.NullString `json:"processingWorkflowId"`
 }
 
 type FriendActivityTracking struct {
@@ -92,17 +112,21 @@ type SourceUsername struct {
 }
 
 type Thread struct {
-	ID             string        `json:"id"`
-	Title          string        `json:"title"`
-	Content        string        `json:"content"`
-	AuthorIdentity string        `json:"authorIdentity"`
-	CreatedAt      time.Time     `json:"createdAt"`
-	ExpiresAt      sql.NullTime  `json:"expiresAt"`
-	ImageUrls      interface{}   `json:"imageUrls"`
-	Actions        interface{}   `json:"actions"`
-	Views          int64         `json:"views"`
-	State          string        `json:"state"`
-	RemoteThreadID sql.NullInt64 `json:"remoteThreadId"`
+	ID                   string          `json:"id"`
+	Title                string          `json:"title"`
+	Content              string          `json:"content"`
+	AuthorIdentity       string          `json:"authorIdentity"`
+	CreatedAt            time.Time       `json:"createdAt"`
+	ExpiresAt            sql.NullTime    `json:"expiresAt"`
+	ImageUrls            interface{}     `json:"imageUrls"`
+	Actions              interface{}     `json:"actions"`
+	Views                int64           `json:"views"`
+	State                string          `json:"state"`
+	RemoteThreadID       sql.NullInt64   `json:"remoteThreadId"`
+	EvaluationReason     sql.NullString  `json:"evaluationReason"`
+	EvaluationConfidence sql.NullFloat64 `json:"evaluationConfidence"`
+	EvaluatedAt          sql.NullTime    `json:"evaluatedAt"`
+	EvaluatedBy          sql.NullString  `json:"evaluatedBy"`
 }
 
 type ThreadMessage struct {
@@ -114,6 +138,15 @@ type ThreadMessage struct {
 	IsDelivered    bool        `json:"isDelivered"`
 	Actions        interface{} `json:"actions"`
 	State          string      `json:"state"`
+}
+
+type TrackedFolder struct {
+	ID        string         `json:"id"`
+	Path      string         `json:"path"`
+	Name      sql.NullString `json:"name"`
+	IsEnabled sql.NullBool   `json:"isEnabled"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
 }
 
 type UserProfile struct {

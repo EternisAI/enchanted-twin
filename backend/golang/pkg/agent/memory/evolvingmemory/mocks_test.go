@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/mock"
-	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
@@ -34,7 +33,7 @@ func (m *MockStorage) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
-func (m *MockStorage) StoreBatch(ctx context.Context, objects []*models.Object) error {
+func (m *MockStorage) StoreBatch(ctx context.Context, objects []*storage.StorageObject) error {
 	args := m.Called(ctx, objects)
 	return args.Error(0)
 }

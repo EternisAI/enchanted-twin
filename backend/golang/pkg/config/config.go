@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/joho/godotenv"
 )
@@ -22,7 +23,9 @@ type Config struct {
 	WatchDirectoryPath string
 	TelegramChatServer string
 	ContainerRuntime   string
-	WeaviatePort       string
+	PostgresPort       string
+	PostgresDataPath   string // Deprecated: PostgreSQL data is now always stored in AppDataPath/postgres-data
+	MemoryBackend      string
 	EnchantedMcpURL    string
 	ProxyTeeURL        string
 	UseLocalEmbedding  string
@@ -63,7 +66,8 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
-		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
+		PostgresPort:       getEnv("POSTGRES_PORT", "5432", printEnv),
+		MemoryBackend:      getEnv("MEMORY_BACKEND", "postgresql", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
 		UseLocalEmbedding:  getEnv("USE_LOCAL_EMBEDDINGS", "", printEnv),
@@ -71,5 +75,9 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		TelegramBotName:    getEnv("TELEGRAM_BOT_NAME", "TalkEnchantedBot", printEnv),
 		TTSEndpoint:        getEnv("TTS_ENDPOINT", "https://inference.tinfoil.sh/v1/audio/speech", printEnv),
 	}
+
+	// Set PostgresDataPath using AppDataPath as base
+	conf.PostgresDataPath = getEnv("POSTGRES_DATA_PATH", filepath.Join(conf.AppDataPath, "postgres-data"), printEnv)
+
 	return conf, nil
 }

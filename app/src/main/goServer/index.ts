@@ -43,7 +43,7 @@ export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND
     log.info(`Database path: ${dbPath}`)
 
     const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
-    const goBinaryPath = IS_PRODUCTION
+    const goBinaryPath = !IS_PRODUCTION
       ? join(__dirname, '..', '..', 'resources', executable)
       : join(process.resourcesPath, 'resources', executable)
 
