@@ -15,6 +15,7 @@ import { Route as TasksImport } from './routes/tasks'
 import { Route as SettingsImport } from './routes/settings'
 import { Route as PrivacyImport } from './routes/privacy'
 import { Route as OnboardingImport } from './routes/onboarding'
+import { Route as BrowserImport } from './routes/browser'
 import { Route as AdminImport } from './routes/admin'
 import { Route as IndexImport } from './routes/index'
 import { Route as HolonIndexImport } from './routes/holon/index'
@@ -49,6 +50,12 @@ const PrivacyRoute = PrivacyImport.update({
 const OnboardingRoute = OnboardingImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const BrowserRoute = BrowserImport.update({
+  id: '/browser',
+  path: '/browser',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -128,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminImport
+      parentRoute: typeof rootRoute
+    }
+    '/browser': {
+      id: '/browser'
+      path: '/browser'
+      fullPath: '/browser'
+      preLoaderRoute: typeof BrowserImport
       parentRoute: typeof rootRoute
     }
     '/onboarding': {
@@ -242,6 +256,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/browser': typeof BrowserRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -259,6 +274,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/browser': typeof BrowserRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -277,6 +293,7 @@ export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/browser': typeof BrowserRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -296,6 +313,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/browser'
     | '/onboarding'
     | '/privacy'
     | '/settings'
@@ -312,6 +330,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/browser'
     | '/onboarding'
     | '/privacy'
     | '/settings'
@@ -328,6 +347,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/browser'
     | '/onboarding'
     | '/privacy'
     | '/settings'
@@ -346,6 +366,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  BrowserRoute: typeof BrowserRoute
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
   SettingsRoute: typeof SettingsRouteWithChildren
@@ -358,6 +379,7 @@ export interface RootRouteChildren {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  BrowserRoute: BrowserRoute,
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
   SettingsRoute: SettingsRouteWithChildren,
@@ -379,6 +401,7 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/admin",
+        "/browser",
         "/onboarding",
         "/privacy",
         "/settings",
@@ -393,6 +416,9 @@ export const routeTree = rootRoute
     },
     "/admin": {
       "filePath": "admin.tsx"
+    },
+    "/browser": {
+      "filePath": "browser.tsx"
     },
     "/onboarding": {
       "filePath": "onboarding.tsx"

@@ -228,6 +228,102 @@ const api = {
   tts: {
     generate: (text: string, firebaseToken: string) =>
       ipcRenderer.invoke('tts:generate', text, firebaseToken)
+  },
+  invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
+  browser: {
+    createSession: (sessionId: string, url: string, partition: string, securitySettings: object) =>
+      ipcRenderer.invoke('browser:create-session', sessionId, url, partition, securitySettings),
+    destroySession: (sessionId: string) => ipcRenderer.invoke('browser:destroy-session', sessionId),
+    setBounds: (sessionId: string, rect: { x: number; y: number; width: number; height: number }) =>
+      ipcRenderer.send('browser:set-bounds', sessionId, rect),
+    loadUrl: (sessionId: string, url: string) =>
+      ipcRenderer.invoke('browser:load-url', sessionId, url),
+    goBack: (sessionId: string) => ipcRenderer.invoke('browser:go-back', sessionId),
+    goForward: (sessionId: string) => ipcRenderer.invoke('browser:go-forward', sessionId),
+    reload: (sessionId: string) => ipcRenderer.invoke('browser:reload', sessionId),
+    stop: (sessionId: string) => ipcRenderer.invoke('browser:stop', sessionId),
+    onDidStartLoading: (callback: (sid: string) => void) => {
+      const listener = (_: unknown, sid: string) => callback(sid)
+      ipcRenderer.on('browser:did-start-loading', listener)
+      return () => ipcRenderer.removeListener('browser:did-start-loading', listener)
+    },
+    onDidStopLoading: (callback: (sid: string) => void) => {
+      const listener = (_: unknown, sid: string) => callback(sid)
+      ipcRenderer.on('browser:did-stop-loading', listener)
+      return () => ipcRenderer.removeListener('browser:did-stop-loading', listener)
+    },
+    onDidFailLoad: (
+      callback: (
+        sid: string,
+        details: {
+          errorCode: number
+          errorDescription: string
+          validatedURL: string
+          isMainFrame: boolean
+        }
+      ) => void
+    ) => {
+      const listener = (
+        _: unknown,
+        sid: string,
+        details: {
+          errorCode: number
+          errorDescription: string
+          validatedURL: string
+          isMainFrame: boolean
+        }
+      ) => callback(sid, details)
+      ipcRenderer.on('browser:did-fail-load', listener)
+      return () => ipcRenderer.removeListener('browser:did-fail-load', listener)
+    },
+    onDidNavigate: (callback: (sid: string, newUrl: string) => void) => {
+      const listener = (_: unknown, sid: string, newUrl: string) => callback(sid, newUrl)
+      ipcRenderer.on('browser:did-navigate', listener)
+      return () => ipcRenderer.removeListener('browser:did-navigate', listener)
+    },
+    onPageTitleUpdated: (callback: (sid: string, title: string) => void) => {
+      const listener = (_: unknown, sid: string, title: string) => callback(sid, title)
+      ipcRenderer.on('browser:page-title-updated', listener)
+      return () => ipcRenderer.removeListener('browser:page-title-updated', listener)
+    },
+    onNavigationState: (
+      callback: (sid: string, state: { canGoBack: boolean; canGoForward: boolean }) => void
+    ) => {
+      const listener = (
+        _: unknown,
+        sid: string,
+        state: { canGoBack: boolean; canGoForward: boolean }
+      ) => callback(sid, state)
+      ipcRenderer.on('browser:navigation-state', listener)
+      return () => ipcRenderer.removeListener('browser:navigation-state', listener)
+    },
+    onSessionUpdated: (
+      callback: (
+        sid: string,
+        content: {
+          text: string
+          html: string
+          metadata: { title: string; description?: string; keywords?: string[]; author?: string }
+        }
+      ) => void
+    ) => {
+      const listener = (
+        _: unknown,
+        sid: string,
+        content: {
+          text: string
+          html: string
+          metadata: { title: string; description?: string; keywords?: string[]; author?: string }
+        }
+      ) => callback(sid, content)
+      ipcRenderer.on('browser:session-updated', listener)
+      return () => ipcRenderer.removeListener('browser:session-updated', listener)
+    },
+    onNavigationOccurred: (callback: (sid: string, url: string) => void) => {
+      const listener = (_: unknown, sid: string, url: string) => callback(sid, url)
+      ipcRenderer.on('browser:navigation-occurred', listener)
+      return () => ipcRenderer.removeListener('browser:navigation-occurred', listener)
+    }
   }
 }
 

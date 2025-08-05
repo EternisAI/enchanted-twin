@@ -51,3 +51,7 @@ export const checkConnectorsDisabled = (): boolean => {
 export const checkVoiceDisabled = (): boolean => {
   return import.meta.env.VITE_DISABLE_VOICE === 'true'
 }
+
+export const checkBrowserEnabled = (): boolean => {
+  return import.meta.env.VITE_ENABLE_BROWSER === 'true'
+}

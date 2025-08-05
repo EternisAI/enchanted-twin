@@ -1,5 +1,21 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_DISABLE_ONBOARDING: string
+  readonly VITE_DISABLE_HOLONS: string
+  readonly VITE_DISABLE_TASKS: string
+  readonly VITE_DISABLE_CONNECTORS: string
+  readonly VITE_DISABLE_VOICE: string
+  readonly VITE_ENABLE_BROWSER: string
+  readonly VITE_FIREBASE_API_KEY: string
+  readonly VITE_FIREBASE_AUTH_DOMAIN: string
+  readonly VITE_FIREBASE_PROJECT_ID: string
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
+
 export {}
 
 interface IElectronAPI {
@@ -195,6 +211,54 @@ interface IApi {
       setupInProgress: boolean
       error?: string
     }>
+  }
+  invoke: (channel: string, ...args: unknown[]) => Promise<any>
+  browser: {
+    createSession: (
+      sessionId: string,
+      url: string,
+      partition: string,
+      securitySettings: object
+    ) => Promise<{ success: boolean; error?: string }>
+    destroySession: (sessionId: string) => Promise<{ success: boolean; error?: string }>
+    setBounds: (
+      sessionId: string,
+      rect: { x: number; y: number; width: number; height: number }
+    ) => void
+    loadUrl: (sessionId: string, url: string) => Promise<{ success: boolean; error?: string }>
+    goBack: (sessionId: string) => Promise<{ success: boolean; error?: string }>
+    goForward: (sessionId: string) => Promise<{ success: boolean; error?: string }>
+    reload: (sessionId: string) => Promise<{ success: boolean; error?: string }>
+    stop: (sessionId: string) => Promise<{ success: boolean; error?: string }>
+    onDidStartLoading: (callback: (sid: string) => void) => () => void
+    onDidStopLoading: (callback: (sid: string) => void) => () => void
+    onDidFailLoad: (
+      callback: (
+        sid: string,
+        details: {
+          errorCode: number
+          errorDescription: string
+          validatedURL: string
+          isMainFrame: boolean
+        }
+      ) => void
+    ) => () => void
+    onDidNavigate: (callback: (sid: string, newUrl: string) => void) => () => void
+    onPageTitleUpdated: (callback: (sid: string, title: string) => void) => () => void
+    onNavigationState: (
+      callback: (sid: string, state: { canGoBack: boolean; canGoForward: boolean }) => void
+    ) => () => void
+    onSessionUpdated: (
+      callback: (
+        sid: string,
+        content: {
+          text: string
+          html: string
+          metadata: { title: string; description?: string; keywords?: string[]; author?: string }
+        }
+      ) => void
+    ) => () => void
+    onNavigationOccurred: (callback: (sid: string, url: string) => void) => () => void
   }
 }
 

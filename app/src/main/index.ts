@@ -16,6 +16,7 @@ import {
 import { registerAccessibilityIpc } from './accessibilityPermissions'
 import { windowManager } from './windows'
 import { registerIpcHandlers, registerShortcut } from './ipcHandlers'
+import { registerBrowserIpc } from './features/browser/browserIpc'
 import { setupMenu } from './menuSetup'
 import { checkForUpdates, setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
@@ -81,6 +82,7 @@ app.whenReady().then(async () => {
   registerScreenpipeIpc()
   registerAccessibilityIpc()
   registerIpcHandlers()
+  registerBrowserIpc(mainWindow)
   initializeAnalytics()
 
   setupMenu()

@@ -55,6 +55,7 @@
     "@tailwindcss/vite": "^4.1.11",
     "@tanstack/react-router": "^1.116.0",
     "@tanstack/react-router-devtools": "^1.116.0",
+    "allotment": "^1.20.4",
     "axios": "^1.11.0",
     "babel-plugin-glsl": "^1.0.0",
     "class-variance-authority": "^0.7.1",
