@@ -3,7 +3,10 @@ install:
 	brew install mockery
 	brew install golangci-lint
 
-run:
+run: fetch-deps
+	go run cmd/server/main.go
+
+fast-run:
 	go run cmd/server/main.go
 
 build:
@@ -187,12 +190,33 @@ fetch-deps:
 	echo "Dependencies installed to: $$DEPENDENCIES_DIR"
 
 clean-deps:
-	@ENV_FILE=".env" && \
+	@command -v jq >/dev/null 2>&1 || { echo "jq is required but not installed. Install with: brew install jq"; exit 1; }
+	@ROOT_DIR="$(shell cd ../.. && pwd)" && \
+	ENV_FILE=".env" && \
 	if [ -f "$$ENV_FILE" ]; then \
+		echo "Loading environment from backend/golang/$$ENV_FILE"; \
 		set -a && . "$$ENV_FILE" && set +a; \
 	fi && \
+	DEPS_CONFIG="$$ROOT_DIR/runtime-dependencies.json" && \
+	if [ ! -f "$$DEPS_CONFIG" ]; then \
+		echo "Error: runtime-dependencies.json not found at $$DEPS_CONFIG"; \
+		exit 1; \
+	fi && \
 	DEPENDENCIES_DIR="$${APP_DATA_PATH:-./output}" && \
-	echo "This will remove all downloaded dependencies from $$DEPENDENCIES_DIR" && \
+	echo "This will remove the following dependencies from $$DEPENDENCIES_DIR:" && \
+	for dep in $$(jq -r '.dependencies | keys[]' "$$DEPS_CONFIG"); do \
+		DEP_DIR=$$(jq -r ".dependencies.$$dep.dir" "$$DEPS_CONFIG" | sed "s|{DEPENDENCIES_DIR}|$$DEPENDENCIES_DIR|g"); \
+		if [ -d "$$DEP_DIR" ]; then \
+			echo "  - $$dep ($$DEP_DIR)"; \
+		fi; \
+	done && \
+	echo "" && \
 	read -p "Are you sure? (y/N): " confirm && [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ] || { echo "Cancelled"; exit 1; } && \
-	rm -rf "$$DEPENDENCIES_DIR" && \
-	echo "✓ Dependencies cleaned from $$DEPENDENCIES_DIR"
+	for dep in $$(jq -r '.dependencies | keys[]' "$$DEPS_CONFIG"); do \
+		DEP_DIR=$$(jq -r ".dependencies.$$dep.dir" "$$DEPS_CONFIG" | sed "s|{DEPENDENCIES_DIR}|$$DEPENDENCIES_DIR|g"); \
+		if [ -d "$$DEP_DIR" ]; then \
+			echo "Removing $$dep from $$DEP_DIR"; \
+			rm -rf "$$DEP_DIR"; \
+		fi; \
+	done && \
+	echo "✓ Dependencies cleaned successfully"

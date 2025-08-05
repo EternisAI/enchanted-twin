@@ -1,4 +1,6 @@
-import { DownloadState, DependencyName } from './DependenciesGate'
+import { DownloadState } from './DependenciesGate'
+import { DependencyName } from '../../types/dependencies'
+import { EMBEDDED_RUNTIME_DEPS_CONFIG } from '../../embeddedDepsConfig'
 
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
@@ -10,6 +12,7 @@ export function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))}${sizes[i]}`
 }
 
+// Generate dependency config from JSON using embedded display names and descriptions
 export const DEPENDENCY_CONFIG: Record<
   DependencyName,
   {
@@ -17,34 +20,22 @@ export const DEPENDENCY_CONFIG: Record<
     description: string
     disabled?: boolean
   }
-> = {
-  embeddings: {
-    name: 'Embeddings model',
-    description: 'Enchanted makes sense of your content'
-  },
-  anonymizer: {
-    name: 'Anonymizer model',
-    description: 'Enchanted keeps your data private'
-  },
-  onnx: {
-    name: 'Inference engine',
-    description: ''
-  },
-  LLAMACCP: {
-    name: 'LLM engine',
-    description: ''
-  },
-  uv: {
-    name: 'Voice mode dependencies',
-    description: ''
-  },
-  postgres: {
-    name: 'PostgreSQL database',
-    description: 'Vector database for memory storage'
+> = (() => {
+  const config: any = {}
+  const deps = EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies || {}
+  
+  for (const [depName, depConfig] of Object.entries(deps)) {
+    config[depName] = {
+      name: depConfig.display_name || depConfig.name || depName,
+      description: depConfig.description || '',
+      disabled: false
+    }
   }
-}
+  
+  return config
+})()
 
-export const DEPENDENCY_NAMES: DependencyName[] = Object.keys(DEPENDENCY_CONFIG) as DependencyName[]
+export const DEPENDENCY_NAMES: DependencyName[] = Object.keys(EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies || {}) as DependencyName[]
 
 export const initialDownloadState: DownloadState = DEPENDENCY_NAMES.reduce((acc, dependency) => {
   acc[dependency] = {

@@ -7,8 +7,7 @@ import { Button } from '../ui/button'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
 import { PrivacyButton } from '../chat/privacy/PrivacyButton'
-
-export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLAMACCP' | 'uv' | 'postgres'
+import { DependencyName } from '../../types/dependencies'
 
 interface ModelDownloadItemProps {
   name: string

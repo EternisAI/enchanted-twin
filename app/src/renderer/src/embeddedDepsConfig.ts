@@ -1,4 +1,8 @@
-{
+// @generated
+// This file is auto-generated at build time from runtime-dependencies.json
+// Do not edit manually!
+
+export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
   "dependencies": {
     "postgres": {
       "backend_download_enabled": true,
@@ -11,7 +15,7 @@
       "files": {
         "binaries": [
           "bin/postgres",
-          "bin/initdb", 
+          "bin/initdb",
           "bin/pg_ctl"
         ],
         "libraries": [
@@ -39,7 +43,7 @@
           "share/postgresql/pg_service.conf.sample",
           "share/postgresql/psqlrc.sample",
           "share/postgresql/system_constraints.sql",
-          "share/postgresql/system_functions.sql", 
+          "share/postgresql/system_functions.sql",
           "share/postgresql/system_views.sql",
           "share/postgresql/sql_features.txt",
           "share/postgresql/snowball_create.sql",
@@ -81,7 +85,11 @@
       ],
       "post_download": {
         "chmod": {
-          "files": ["bin/postgres", "bin/initdb", "bin/pg_ctl"],
+          "files": [
+            "bin/postgres",
+            "bin/initdb",
+            "bin/pg_ctl"
+          ],
           "mode": "755"
         }
       }
@@ -94,9 +102,13 @@
       "description": "Enchanted makes sense of your content",
       "dir": "{DEPENDENCIES_DIR}/models/jina-embeddings-v2-base-en",
       "type": "zip",
-      "validation_files": ["model.onnx"],
+      "validation_files": [
+        "model.onnx"
+      ],
       "post_download": {
-        "cleanup": ["*.zip"]
+        "cleanup": [
+          "*.zip"
+        ]
       }
     },
     "anonymizer": {
@@ -107,9 +119,14 @@
       "description": "Enchanted keeps your data private",
       "dir": "{DEPENDENCIES_DIR}/models/anonymizer",
       "type": "zip",
-      "validation_files": ["qwen3-0.6b-q4_k_m.gguf", "qwen3-4b_q4_k_m.gguf"],
+      "validation_files": [
+        "qwen3-0.6b-q4_k_m.gguf",
+        "qwen3-4b_q4_k_m.gguf"
+      ],
       "post_download": {
-        "cleanup": ["*.zip"]
+        "cleanup": [
+          "*.zip"
+        ]
       }
     },
     "onnx": {
@@ -125,11 +142,17 @@
       "type": "tar.gz",
       "platform_url_key": true,
       "validation_files": {
-        "darwin-arm64": ["onnxruntime-osx-arm64-1.22.0/lib/libonnxruntime.dylib"],
-        "linux-x64": ["onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"]
+        "darwin-arm64": [
+          "onnxruntime-osx-arm64-1.22.0/lib/libonnxruntime.dylib"
+        ],
+        "linux-x64": [
+          "onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"
+        ]
       },
       "post_download": {
-        "cleanup": ["*.tgz"]
+        "cleanup": [
+          "*.tgz"
+        ]
       }
     },
     "LLAMACCP": {
@@ -138,11 +161,15 @@
       "name": "llamaccp",
       "display_name": "LLM engine",
       "description": "",
-      "dir": "{DEPENDENCIES_DIR}/shared/lib/llamaccp", 
+      "dir": "{DEPENDENCIES_DIR}/shared/lib/llamaccp",
       "type": "zip",
-      "validation_files": ["build"],
+      "validation_files": [
+        "build"
+      ],
       "post_download": {
-        "cleanup": ["*.zip"]
+        "cleanup": [
+          "*.zip"
+        ]
       }
     },
     "uv": {
@@ -155,8 +182,12 @@
       "type": "curl_script",
       "install_script": "curl -LsSf https://astral.sh/uv/install.sh | sh",
       "validation_files": {
-        "win32": ["uv.exe"],  
-        "default": ["uv"]
+        "win32": [
+          "uv.exe"
+        ],
+        "default": [
+          "uv"
+        ]
       },
       "validation_condition": "platform_specific_binary",
       "post_download": {
@@ -169,7 +200,7 @@
   },
   "platform_mappings": {
     "darwin": "macos",
-    "linux": "linux", 
+    "linux": "linux",
     "win32": "windows"
   }
-}
+} as const;

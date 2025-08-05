@@ -150,7 +150,7 @@ function createGenericInstaller(depName: DependencyName) {
       const depDir = config.dir.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR)
       
       // Handle special validation conditions first
-      if (config.validation_condition === 'has_both_models' && depName === 'anonymizer') {
+      if (config.validation_condition === 'has_both_models') {
         if (process.env.ANONYMIZER_TYPE === 'no-op') {
           return true
         }
@@ -178,12 +178,26 @@ function createGenericInstaller(depName: DependencyName) {
         }
       }
       
-      if (config.validation_condition === 'platform_specific_binary' && depName === 'uv') {
+      if (config.validation_condition === 'platform_specific_binary') {
         if (process.env.VITE_DISABLE_VOICE === 'true') {
           return true
         }
-        const uvBin = process.platform === 'win32' ? 'uv.exe' : 'uv'
-        return fs.existsSync(path.join(depDir, uvBin))
+        
+        // Get platform-specific validation files
+        let platformValidationFiles = config.validation_files
+        if (typeof platformValidationFiles === 'object' && !Array.isArray(platformValidationFiles)) {
+          const platformKey = process.platform === 'win32' ? 'win32' : 'default'
+          platformValidationFiles = platformValidationFiles[platformKey] || []
+        }
+        
+        if (Array.isArray(platformValidationFiles)) {
+          return platformValidationFiles.some(filePath => {
+            const fullPath = path.join(depDir, filePath)
+            return fs.existsSync(fullPath)
+          })
+        }
+        
+        return false
       }
       
       // Handle platform-specific validation files (like ONNX)
@@ -228,7 +242,7 @@ const DEPENDENCIES_CONFIGS: Record<
   }
 > = (() => {
   const configs: any = {}
-  const dependencyNames: DependencyName[] = ['embeddings', 'anonymizer', 'onnx', 'LLAMACCP', 'uv', 'postgres']
+  const dependencyNames = Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}) as DependencyName[]
   
   for (const depName of dependencyNames) {
     const genericInstaller = createGenericInstaller(depName)
@@ -286,14 +300,15 @@ export async function downloadDependency(dependencyName: DependencyName) {
 }
 
 export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
-  return {
-    embeddings: DEPENDENCIES_CONFIGS.embeddings.isDownloaded(),
-    anonymizer: DEPENDENCIES_CONFIGS.anonymizer.isDownloaded(),
-    onnx: DEPENDENCIES_CONFIGS.onnx.isDownloaded(),
-    LLAMACCP: DEPENDENCIES_CONFIGS.LLAMACCP.isDownloaded(),
-    uv: DEPENDENCIES_CONFIGS.uv.isDownloaded(),
-    postgres: DEPENDENCIES_CONFIGS.postgres.isDownloaded()
+  const result: Record<string, boolean> = {}
+  const dependencyNames = Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}) as DependencyName[]
+  
+  for (const depName of dependencyNames) {
+    const config = DEPENDENCIES_CONFIGS[depName]
+    result[depName] = config ? config.isDownloaded() : false
   }
+  
+  return result as Record<DependencyName, boolean>
 }
 
 async function downloadSingleFile(url: string, destPath: string): Promise<void> {

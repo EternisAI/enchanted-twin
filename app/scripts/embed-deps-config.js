@@ -16,8 +16,13 @@ const tsContent = `// @generated
 export const EMBEDDED_RUNTIME_DEPS_CONFIG = ${JSON.stringify(config, null, 2)} as const;
 `
 
-// Write the generated TypeScript file
-const outputPath = path.join(__dirname, '..', 'src', 'main', 'embeddedDepsConfig.ts')
-fs.writeFileSync(outputPath, tsContent)
+// Write the generated TypeScript file for main process
+const mainOutputPath = path.join(__dirname, '..', 'src', 'main', 'embeddedDepsConfig.ts')
+fs.writeFileSync(mainOutputPath, tsContent)
 
-console.log('✓ Embedded runtime dependencies config generated at:', outputPath)
+// Also create a renderer-accessible version
+const rendererOutputPath = path.join(__dirname, '..', 'src', 'renderer', 'src', 'embeddedDepsConfig.ts')
+fs.writeFileSync(rendererOutputPath, tsContent)
+
+console.log('✓ Embedded runtime dependencies config generated at:', mainOutputPath)
+console.log('✓ Embedded runtime dependencies config generated at:', rendererOutputPath)

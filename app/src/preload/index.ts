@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { AppNotification } from '../renderer/src/graphql/generated/graphql'
 import { MediaType } from '../main/mediaPermissions'
 import { voiceStore, screenpipeStore } from '../main/stores'
+import { DependencyName } from '../main/types/dependencies'
 
 const api = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -188,7 +189,7 @@ const api = {
   },
   models: {
     hasModelsDownloaded: () => ipcRenderer.invoke('models:has-models-downloaded'),
-    downloadModels: (modelName: 'embeddings' | 'anonymizer') =>
+    downloadModels: (modelName: DependencyName) =>
       ipcRenderer.invoke('models:download', modelName),
     onProgress: (
       callback: (data: {
