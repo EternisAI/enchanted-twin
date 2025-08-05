@@ -9,8 +9,21 @@ const __dirname = path.dirname(__filename)
 
 // Read the runtime dependencies config
 const configPath = path.join(__dirname, '..', '..', 'runtime-dependencies.json')
-const configData = fs.readFileSync(configPath, 'utf8')
-const config = JSON.parse(configData)
+let config
+try {
+  const configData = fs.readFileSync(configPath, 'utf8')
+  config = JSON.parse(configData)
+} catch (error) {
+  if (error.code === 'ENOENT') {
+    console.error(`❌ Failed to read runtime-dependencies.json: File not found at ${configPath}`)
+  } else if (error instanceof SyntaxError) {
+    console.error(`❌ Failed to parse runtime-dependencies.json: Invalid JSON syntax`)
+    console.error(`   Error: ${error.message}`)
+  } else {
+    console.error(`❌ Failed to read runtime-dependencies.json: ${error.message}`)
+  }
+  process.exit(1)
+}
 
 // Generate TypeScript file with embedded config
 const tsContent = `// @generated

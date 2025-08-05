@@ -21,7 +21,21 @@ export const DEPENDENCY_CONFIG: Record<
     disabled?: boolean
   }
 > = (() => {
-  const config: Record<string, any> = {}
+  const config: Record<
+    DependencyName,
+    {
+      name: string
+      description: string
+      disabled?: boolean
+    }
+  > = {} as Record<
+    DependencyName,
+    {
+      name: string
+      description: string
+      disabled?: boolean
+    }
+  >
   const deps = EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies || {}
 
   for (const [depName, depConfig] of Object.entries(deps)) {

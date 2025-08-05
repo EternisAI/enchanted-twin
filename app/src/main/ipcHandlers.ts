@@ -704,7 +704,7 @@ export function registerIpcHandlers() {
     if (!config || config.category !== 'model') {
       throw new Error(`Cannot download ${modelName}: only models can be downloaded via this API`)
     }
-    
+
     return downloadDependency(modelName)
   })
 

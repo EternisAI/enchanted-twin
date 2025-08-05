@@ -14,6 +14,18 @@ const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 // Use embedded config that was generated at build time
 const RUNTIME_DEPS_CONFIG = EMBEDDED_RUNTIME_DEPS_CONFIG
 
+// Helper function to get platform-specific key
+function getPlatformKey(): string {
+  if (process.platform === 'darwin' && process.arch === 'arm64') {
+    return 'darwin-arm64'
+  } else if (process.platform === 'linux' && process.arch === 'x64') {
+    return 'linux-x64'
+  } else if (process.platform === 'win32') {
+    return 'win32'
+  }
+  return 'linux-x64' // fallback default
+}
+
 // Generic dependency installer functions
 function createGenericInstaller(depName: DependencyName) {
   const config = RUNTIME_DEPS_CONFIG?.dependencies?.[depName]
@@ -92,7 +104,17 @@ function createGenericInstaller(depName: DependencyName) {
               })
             }
           )
-          await extractZip(file, depDir)
+          try {
+            await extractZip(file, depDir)
+          } catch (error) {
+            log.error(`Failed to extract ZIP file for ${config.name}:`, error)
+            windowManager.mainWindow?.webContents.send('models:progress', {
+              modelName: config.name,
+              pct: 0,
+              error: `Failed to extract ZIP file: ${error instanceof Error ? error.message : 'Unknown error'}`
+            })
+            throw error
+          }
           break
         }
 
@@ -119,28 +141,86 @@ function createGenericInstaller(depName: DependencyName) {
               })
             }
           )
-          await extractTarGz(file, depDir)
+          try {
+            await extractTarGz(file, depDir)
+          } catch (error) {
+            log.error(`Failed to extract TAR.GZ file for ${config.name}:`, error)
+            windowManager.mainWindow?.webContents.send('models:progress', {
+              modelName: config.name,
+              pct: 0,
+              error: `Failed to extract TAR.GZ file: ${error instanceof Error ? error.message : 'Unknown error'}`
+            })
+            throw error
+          }
           break
         }
 
         case 'curl_script': {
-          if (process.env.VITE_DISABLE_VOICE === 'true') {
-            return
+          if (!config.install_script) {
+            throw new Error(`No install_script defined for ${config.name}`)
           }
 
-          const livekitAgent = new LiveKitAgentBootstrap({
-            onProgress: (data) => {
+          // Execute the shell script
+          const { spawn } = require('child_process')
+          const process = spawn('sh', ['-c', config.install_script], {
+            stdio: ['pipe', 'pipe', 'pipe']
+          })
+
+          let progress = 0
+          const progressInterval = setInterval(() => {
+            progress = Math.min(progress + 10, 90) // Increment progress up to 90%
+            windowManager.mainWindow?.webContents.send('models:progress', {
+              modelName: config.name,
+              pct: progress,
+              totalBytes: 0,
+              downloadedBytes: 0
+            })
+          }, 1000)
+
+          await new Promise<void>((resolve, reject) => {
+            let stdout = ''
+            let stderr = ''
+
+            process.stdout.on('data', (data) => {
+              stdout += data.toString()
+            })
+
+            process.stderr.on('data', (data) => {
+              stderr += data.toString()
+            })
+
+            process.on('close', (code) => {
+              clearInterval(progressInterval)
+
+              if (code === 0) {
+                windowManager.mainWindow?.webContents.send('models:progress', {
+                  modelName: config.name,
+                  pct: 100,
+                  totalBytes: 0,
+                  downloadedBytes: 0
+                })
+                resolve(undefined)
+              } else {
+                const errorMsg = `Script failed with code ${code}: ${stderr || stdout}`
+                windowManager.mainWindow?.webContents.send('models:progress', {
+                  modelName: config.name,
+                  pct: 0,
+                  error: errorMsg
+                })
+                reject(new Error(errorMsg))
+              }
+            })
+
+            process.on('error', (error) => {
+              clearInterval(progressInterval)
               windowManager.mainWindow?.webContents.send('models:progress', {
                 modelName: config.name,
-                pct: data.progress,
-                status: data.status,
-                error: data.error,
-                totalBytes: 0,
-                downloadedBytes: 0
+                pct: 0,
+                error: `Failed to execute script: ${error.message}`
               })
-            }
+              reject(error)
+            })
           })
-          await livekitAgent.setup()
           break
         }
       }
@@ -173,7 +253,7 @@ function createGenericInstaller(depName: DependencyName) {
               (file.toLowerCase().includes('0.6b') || file.toLowerCase().includes('0.6-b'))
           )
           return has4bModel && has06bModel
-        } catch (error) {
+        } catch {
           return false
         }
       }
@@ -244,7 +324,16 @@ const DEPENDENCIES_CONFIGS: Record<
     isDownloaded: () => boolean
   }
 > = (() => {
-  const configs: Record<string, any> = {}
+  const configs: Record<
+    DependencyName,
+    {
+      url: string
+      name: string
+      dir: string
+      install: () => Promise<void>
+      isDownloaded: () => boolean
+    }
+  > = {}
   const dependencyNames = Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}) as DependencyName[]
 
   for (const depName of dependencyNames) {
@@ -252,7 +341,15 @@ const DEPENDENCIES_CONFIGS: Record<
     if (genericInstaller) {
       const config = RUNTIME_DEPS_CONFIG?.dependencies?.[depName]
       configs[depName] = {
-        url: typeof config?.url === 'string' ? config.url : '',
+        url: (() => {
+          if (typeof config?.url === 'string') {
+            return config.url
+          } else if (typeof config?.url === 'object' && config?.url) {
+            const platformKey = getPlatformKey()
+            return config.url[platformKey] || ''
+          }
+          return ''
+        })(),
         name: config?.name || depName,
         dir:
           config?.dir?.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR) ||

@@ -110,7 +110,16 @@ fetch-deps:
 			ARCH=$$(uname -m); \
 			if [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "arm64" ]; then \
 				PLATFORM_KEY="darwin-arm64"; \
+			elif [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "x86_64" ]; then \
+				PLATFORM_KEY="darwin-x64"; \
+			elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "x86_64" ]; then \
+				PLATFORM_KEY="linux-x64"; \
+			elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "aarch64" ]; then \
+				PLATFORM_KEY="linux-arm64"; \
+			elif [ "$$PLATFORM" = "mingw32" ] || [ "$$PLATFORM" = "msys" ] || [ "$$PLATFORM" = "cygwin" ]; then \
+				PLATFORM_KEY="win32"; \
 			else \
+				echo "Warning: Unsupported platform $$PLATFORM-$$ARCH, defaulting to linux-x64"; \
 				PLATFORM_KEY="linux-x64"; \
 			fi; \
 			for validation_file in $$(jq -r ".dependencies.$$dep.validation_files.\"$$PLATFORM_KEY\"[]?" "$$DEPS_CONFIG"); do \
@@ -159,10 +168,20 @@ fetch-deps:
 					PLATFORM=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
 					ARCH=$$(uname -m); \
 					if [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "arm64" ]; then \
-						URL=$$(jq -r ".dependencies.$$dep.url.\"darwin-arm64\"" "$$DEPS_CONFIG"); \
+						PLATFORM_KEY="darwin-arm64"; \
+					elif [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "x86_64" ]; then \
+						PLATFORM_KEY="darwin-x64"; \
+					elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "x86_64" ]; then \
+						PLATFORM_KEY="linux-x64"; \
+					elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "aarch64" ]; then \
+						PLATFORM_KEY="linux-arm64"; \
+					elif [ "$$PLATFORM" = "mingw32" ] || [ "$$PLATFORM" = "msys" ] || [ "$$PLATFORM" = "cygwin" ]; then \
+						PLATFORM_KEY="win32"; \
 					else \
-						URL=$$(jq -r ".dependencies.$$dep.url.\"linux-x64\"" "$$DEPS_CONFIG"); \
+						echo "Warning: Unsupported platform $$PLATFORM-$$ARCH, defaulting to linux-x64"; \
+						PLATFORM_KEY="linux-x64"; \
 					fi; \
+					URL=$$(jq -r ".dependencies.$$dep.url.\"$$PLATFORM_KEY\"" "$$DEPS_CONFIG"); \
 				else \
 					URL=$$(jq -r ".dependencies.$$dep.url" "$$DEPS_CONFIG"); \
 				fi; \

@@ -2,7 +2,13 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Check, Loader, RefreshCw } from 'lucide-react'
 
 import { useGoServerContext } from '@renderer/contexts/GoServerContext'
-import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES, MODEL_NAMES } from './util'
+import {
+  formatBytes,
+  initialDownloadState,
+  DEPENDENCY_CONFIG,
+  DEPENDENCY_NAMES,
+  MODEL_NAMES
+} from './util'
 import { Button } from '../ui/button'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
@@ -42,7 +48,7 @@ const handleDependencyDownload = (
     // Only attempt to download models via the frontend API
     // Infrastructure dependencies are handled automatically by the backend
     if (MODEL_NAMES.includes(dependencyName)) {
-      window.api.models.downloadModels(dependencyName as any).catch((error) => {
+      window.api.models.downloadModels(dependencyName).catch((error) => {
         setDownloadState((prev) => ({
           ...prev,
           [dependencyName]: {
@@ -200,7 +206,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
       cleanup()
       hasInitializedGoServer.current = false
     }
-  }, [])
+  }, [initializeIfNeeded])
 
   useEffect(() => {
     const allCompleted = Object.values(downloadState).every((dependency) => dependency.completed)
@@ -257,7 +263,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
       console.log('[DependenciesGate] Cleaning up Go server monitoring')
       clearInterval(interval)
     }
-  }, [allDependenciesCompleted])
+  }, [allDependenciesCompleted, goServerActions])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>
