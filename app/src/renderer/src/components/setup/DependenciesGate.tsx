@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Check, Loader, RefreshCw } from 'lucide-react'
 
 import { useGoServerContext } from '@renderer/contexts/GoServerContext'
-import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES } from './util'
+import { formatBytes, initialDownloadState, DEPENDENCY_CONFIG, DEPENDENCY_NAMES, MODEL_NAMES } from './util'
 import { Button } from '../ui/button'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
@@ -39,30 +39,48 @@ const handleDependencyDownload = (
   onError?: (error: Error) => void
 ): boolean => {
   if (!isDownloaded) {
-    window.api.models.downloadModels(dependencyName).catch((error) => {
+    // Only attempt to download models via the frontend API
+    // Infrastructure dependencies are handled automatically by the backend
+    if (MODEL_NAMES.includes(dependencyName)) {
+      window.api.models.downloadModels(dependencyName as any).catch((error) => {
+        setDownloadState((prev) => ({
+          ...prev,
+          [dependencyName]: {
+            ...prev[dependencyName as keyof typeof prev],
+            downloading: false,
+            error: error instanceof Error ? error.message : 'Download failed'
+          }
+        }))
+        onError?.(error)
+      })
+
+      setDownloadState((prev) => ({
+        ...prev,
+        [dependencyName]: {
+          downloading: true,
+          percentage: 0,
+          completed: false,
+          totalBytes: 0,
+          downloadedBytes: 0
+        }
+      }))
+
+      return true
+    } else {
+      // Infrastructure dependencies are assumed to be handled by backend
+      // Mark them as completed without triggering frontend download
       setDownloadState((prev) => ({
         ...prev,
         [dependencyName]: {
           ...prev[dependencyName as keyof typeof prev],
+          completed: true,
           downloading: false,
-          error: error instanceof Error ? error.message : 'Download failed'
+          percentage: 100
         }
       }))
-      onError?.(error)
-    })
 
-    setDownloadState((prev) => ({
-      ...prev,
-      [dependencyName]: {
-        downloading: true,
-        percentage: 0,
-        completed: false,
-        totalBytes: 0,
-        downloadedBytes: 0
-      }
-    }))
-
-    return true
+      return false
+    }
   } else {
     setDownloadState((prev) => ({
       ...prev,

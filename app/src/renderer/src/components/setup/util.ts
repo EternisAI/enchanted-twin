@@ -39,6 +39,11 @@ export const DEPENDENCY_NAMES: DependencyName[] = Object.keys(
   EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies || {}
 ) as DependencyName[]
 
+export const MODEL_NAMES: DependencyName[] = DEPENDENCY_NAMES.filter((name) => {
+  const config = EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies?.[name]
+  return config?.category === 'model'
+})
+
 export const initialDownloadState: DownloadState = DEPENDENCY_NAMES.reduce((acc, dependency) => {
   acc[dependency] = {
     downloading: false,

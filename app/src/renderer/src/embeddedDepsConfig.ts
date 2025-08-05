@@ -10,6 +10,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "name": "postgres",
       "display_name": "PostgreSQL database",
       "description": "Vector database for memory storage",
+      "category": "infrastructure",
       "dir": "{DEPENDENCIES_DIR}/postgres",
       "type": "individual_files",
       "files": {
@@ -100,6 +101,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "name": "embeddings",
       "display_name": "Embeddings model",
       "description": "Enchanted makes sense of your content",
+      "category": "model",
       "dir": "{DEPENDENCIES_DIR}/models/jina-embeddings-v2-base-en",
       "type": "zip",
       "validation_files": [
@@ -117,6 +119,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "name": "anonymizer",
       "display_name": "Anonymizer model",
       "description": "Enchanted keeps your data private",
+      "category": "model",
       "dir": "{DEPENDENCIES_DIR}/models/anonymizer",
       "type": "zip",
       "validation_files": [
@@ -138,6 +141,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "name": "onnx",
       "display_name": "Inference engine",
       "description": "",
+      "category": "infrastructure",
       "dir": "{DEPENDENCIES_DIR}/shared/lib",
       "type": "tar.gz",
       "platform_url_key": true,
@@ -161,6 +165,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "name": "llamaccp",
       "display_name": "LLM engine",
       "description": "",
+      "category": "infrastructure",
       "dir": "{DEPENDENCIES_DIR}/shared/lib/llamaccp",
       "type": "zip",
       "validation_files": [
@@ -178,6 +183,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "name": "uv",
       "display_name": "Voice mode dependencies",
       "description": "",
+      "category": "infrastructure",
       "dir": "{DEPENDENCIES_DIR}/shared/bin",
       "type": "curl_script",
       "install_script": "curl -LsSf https://astral.sh/uv/install.sh | sh",
