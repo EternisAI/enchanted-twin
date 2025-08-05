@@ -54,7 +54,7 @@ The tests will automatically use your existing `.env` file (the same one used by
 
 ### Test Environment
 The tests use a `testEnvironment` struct that handles:
-- Weaviate server setup and teardown
+- PostgreSQL server setup and teardown
 - Database initialization
 - Memory service configuration
 - Document loading and storage

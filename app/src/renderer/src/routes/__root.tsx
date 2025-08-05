@@ -14,6 +14,7 @@ import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import { useSidebarStore } from '@renderer/lib/stores/sidebar'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
 import { PrivacyButton } from '@renderer/components/chat/privacy/PrivacyButton'
+import { ModalRouteDismisser } from '@renderer/components/providers/ModalRouteDismisser'
 
 function RootComponent() {
   const omnibar = useOmnibarStore()
@@ -147,6 +148,7 @@ function RootComponent() {
   if (location.pathname.startsWith('/settings')) {
     return (
       <>
+        <ModalRouteDismisser />
         <Omnibar />
         <Outlet />
       </>
@@ -156,6 +158,7 @@ function RootComponent() {
   return (
     <NotificationsProvider>
       <LayoutGroup>
+        <ModalRouteDismisser />
         <motion.div
           className="flex flex-col h-screen w-screen text-foreground relative bg-background"
           layout="position"

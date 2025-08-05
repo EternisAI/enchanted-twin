@@ -21,14 +21,6 @@ export function GlobalIndexingStatus() {
     navigate({ to: '/settings/data-sources' })
   }
 
-  const getStatusText = () => {
-    if (isIndexing) return 'Indexing...'
-    if (isProcessing) return 'Processing...'
-    if (isDownloadingModel) return 'Downloading model...'
-    if (isNotStarted) return 'Starting...'
-    return ''
-  }
-
   const getProgress = () => {
     if (!indexingData?.indexingStatus?.dataSources?.length) return 0
     const totalProgress = indexingData.indexingStatus.dataSources.reduce(
@@ -39,10 +31,18 @@ export function GlobalIndexingStatus() {
   }
 
   const progressValue = getProgress()
-  const { timeRemaining, isCalculating } = useTimeRemaining(
+  const { isCalculating } = useTimeRemaining(
     progressValue,
     indexingData?.indexingStatus?.globalStartTime
   )
+
+  const getStatusText = () => {
+    if (isIndexing || isProcessing) return 'Processing data...'
+    if (isDownloadingModel) return 'Downloading model...'
+    if (isNotStarted) return 'Starting import...'
+    if (isCalculating) return 'Calculating...'
+    return ''
+  }
   // Only show if there's an active indexing operation
   if (!hasActiveOperation) {
     return null
@@ -56,7 +56,6 @@ export function GlobalIndexingStatus() {
     >
       <div className="flex items-center gap-2">
         <span>{getStatusText()}</span>
-        {isCalculating ? <span>Calculating...</span> : <span>{timeRemaining} left</span>}
         <div className="w-16 bg-secondary rounded-full h-1">
           <div
             className="bg-primary h-1 rounded-full transition-all duration-300"

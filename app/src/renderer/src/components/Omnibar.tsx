@@ -19,7 +19,7 @@ import { SendButton } from './chat/MessageInput'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 
 export const Omnibar = () => {
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -46,7 +46,7 @@ export const Omnibar = () => {
     }
 
     debounceTimeout.current = setTimeout(() => {
-      setDebouncedQuery(query)
+      setDebouncedQuery(query.trim())
     }, 150)
     return () => {
       if (debounceTimeout.current) {
@@ -108,11 +108,62 @@ export const Omnibar = () => {
     }
   }, [query, navigate, router, createChat, isVoiceMode, closeOmnibar])
 
+  const handleArrowKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+
+      const isAtEnd =
+        textarea.selectionStart === textarea.value.length &&
+        textarea.selectionEnd === textarea.value.length
+      const isAtStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0
+
+      const hasSuggestions = filteredChats.length > 0
+      const maxIndex = filteredChats.length
+
+      if (e.key === 'ArrowDown' && isAtEnd && hasSuggestions) {
+        e.preventDefault()
+        setSelectedIndex((prev) => Math.min(prev + 1, maxIndex))
+      }
+      if (e.key === 'ArrowUp' && hasSuggestions) {
+        if (selectedIndex === 0 && isAtStart) {
+          setSelectedIndex(-1)
+        } else if (selectedIndex > 0) {
+          e.preventDefault()
+          setSelectedIndex((prev) => prev - 1)
+        }
+      }
+    },
+    [selectedIndex, filteredChats.length]
+  )
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.addEventListener('keydown', handleArrowKeyDown)
+      return () => textarea.removeEventListener('keydown', handleArrowKeyDown)
+    }
+  }, [isOpen, handleArrowKeyDown])
+
+  useEffect(() => {
+    if (!debouncedQuery || filteredChats.length === 0) {
+      setSelectedIndex(-1)
+    } else {
+      setSelectedIndex(0)
+    }
+  }, [debouncedQuery, filteredChats.length])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (query.trim()) {
-      if (filteredChats.length > 0 && selectedIndex < filteredChats.length) {
-        navigate({ to: `/chat/${filteredChats[selectedIndex].id}` })
+      if (
+        filteredChats.length > 0 &&
+        selectedIndex >= 1 &&
+        selectedIndex < filteredChats.length + 1
+      ) {
+        navigate({ to: `/chat/${filteredChats[selectedIndex - 1].id}` })
         closeOmnibar()
       } else {
         handleCreateChat()
@@ -130,21 +181,11 @@ export const Omnibar = () => {
       if (e.key === 'Escape') {
         closeOmnibar()
       }
-      if (isOpen) {
-        if (e.key === 'ArrowDown') {
-          e.preventDefault()
-          setSelectedIndex((prev) => Math.min(prev + 1, filteredChats.length))
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault()
-          setSelectedIndex((prev) => Math.max(prev - 1, 0))
-        }
-      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, selectedIndex, filteredChats, navigate, closeOmnibar, isCompleted])
+  }, [closeOmnibar, isCompleted])
 
   return (
     <FocusLock disabled={!isOpen} returnFocus>
@@ -181,7 +222,6 @@ export const Omnibar = () => {
                       value={query}
                       onChange={(e) => {
                         setQuery(e.target.value)
-                        setSelectedIndex(0)
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -228,6 +268,18 @@ export const Omnibar = () => {
                         className="rounded-lg overflow-hidden"
                       >
                         <div className="py-1">
+                          <button
+                            type="button"
+                            onClick={handleCreateChat}
+                            className={cn(
+                              'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
+                              'hover:bg-muted/80',
+                              selectedIndex === 0 && 'bg-primary/10 text-primary rounded-md'
+                            )}
+                          >
+                            <span>New chat: &quot;{debouncedQuery}&quot;</span>
+                            <Send className="h-4 w-4 text-muted-foreground" />
+                          </button>
                           {filteredChats.map((chat, index) => (
                             <motion.button
                               key={chat.id}
@@ -239,7 +291,8 @@ export const Omnibar = () => {
                               className={cn(
                                 'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
                                 'hover:bg-muted/80',
-                                selectedIndex === index && 'bg-primary/10 text-primary rounded-md'
+                                selectedIndex === index + 1 &&
+                                  'bg-primary/10 text-primary rounded-md'
                               )}
                               layoutId={`chat-${chat.id}`}
                             >
@@ -247,21 +300,6 @@ export const Omnibar = () => {
                               <ChevronRight className="h-4 w-4 text-muted-foreground" />
                             </motion.button>
                           ))}
-                          {debouncedQuery.trim() && (
-                            <button
-                              type="button"
-                              onClick={handleCreateChat}
-                              className={cn(
-                                'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
-                                'hover:bg-muted/80',
-                                selectedIndex === filteredChats.length &&
-                                  'bg-primary/10 text-primary rounded-md'
-                              )}
-                            >
-                              <span>New chat: &quot;{debouncedQuery}&quot;</span>
-                              <Send className="h-4 w-4 text-muted-foreground" />
-                            </button>
-                          )}
                         </div>
                       </motion.div>
                     )}

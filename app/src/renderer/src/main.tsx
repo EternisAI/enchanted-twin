@@ -15,6 +15,7 @@ import { routeTree } from '@renderer/routeTree.gen'
 import AuthGate from './components/onboarding/AuthGate'
 import UpdateNotification from './components/UpdateNotification'
 import DependenciesGate from './components/setup/DependenciesGate'
+import { ModalProvider } from './components/providers/ModalProvider'
 
 export const router = createRouter({
   routeTree,
@@ -35,16 +36,18 @@ function App() {
       <TTSProvider>
         <ApolloClientProvider>
           <GoServerProvider>
-            <UpdateNotification />
-            <div className="flex flex-col h-screen w-screen bg-background">
-              <DependenciesGate>
-                <AuthProvider>
-                  <AuthGate>
-                    <RouterProvider router={router} />
-                  </AuthGate>
-                </AuthProvider>
-              </DependenciesGate>
-            </div>
+            <ModalProvider>
+              <UpdateNotification />
+              <div className="flex flex-col h-screen w-screen bg-background">
+                <DependenciesGate>
+                  <AuthProvider>
+                    <AuthGate>
+                      <RouterProvider router={router} />
+                    </AuthGate>
+                  </AuthProvider>
+                </DependenciesGate>
+              </div>
+            </ModalProvider>
           </GoServerProvider>
         </ApolloClientProvider>
       </TTSProvider>

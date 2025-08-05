@@ -34,10 +34,6 @@ func NewWhatsappProcessor(store *db.Store, logger *log.Logger) (*WhatsappProcess
 	return &WhatsappProcessor{store: store, logger: logger}, nil
 }
 
-func (s *WhatsappProcessor) Name() string {
-	return "whatsapp"
-}
-
 // convertWhatsAppTimestamp tries multiple timestamp conversion strategies.
 func convertWhatsAppTimestamp(rawTimestamp interface{}) time.Time {
 	var timestampFloat float64
@@ -989,10 +985,6 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 	}
 
 	return records, nil
-}
-
-func (s *WhatsappProcessor) ProcessDirectory(ctx context.Context, filePath string) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
 func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.ConversationDocument, error) {
