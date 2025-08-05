@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Read the runtime dependencies config
 const configPath = path.join(__dirname, '..', '..', 'runtime-dependencies.json')
@@ -21,7 +25,14 @@ const mainOutputPath = path.join(__dirname, '..', 'src', 'main', 'embeddedDepsCo
 fs.writeFileSync(mainOutputPath, tsContent)
 
 // Also create a renderer-accessible version
-const rendererOutputPath = path.join(__dirname, '..', 'src', 'renderer', 'src', 'embeddedDepsConfig.ts')
+const rendererOutputPath = path.join(
+  __dirname,
+  '..',
+  'src',
+  'renderer',
+  'src',
+  'embeddedDepsConfig.ts'
+)
 fs.writeFileSync(rendererOutputPath, tsContent)
 
 console.log('✓ Embedded runtime dependencies config generated at:', mainOutputPath)

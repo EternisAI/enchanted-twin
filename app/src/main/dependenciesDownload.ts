@@ -23,9 +23,9 @@ function createGenericInstaller(depName: DependencyName) {
   }
 
   return {
-    install: async function() {
+    install: async function () {
       const depDir = config.dir.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR)
-      
+
       switch (config.type) {
         case 'individual_files': {
           const baseUrl = config.url
@@ -77,7 +77,7 @@ function createGenericInstaller(depName: DependencyName) {
           }
           break
         }
-        
+
         case 'zip': {
           const file = await downloadFile(
             config.url,
@@ -95,7 +95,7 @@ function createGenericInstaller(depName: DependencyName) {
           await extractZip(file, depDir)
           break
         }
-        
+
         case 'tar.gz': {
           let url = config.url
           if (config.platform_url_key && typeof url === 'object') {
@@ -105,7 +105,7 @@ function createGenericInstaller(depName: DependencyName) {
               url = url['linux-x64']
             }
           }
-          
+
           const file = await downloadFile(
             url as string,
             depDir,
@@ -122,7 +122,7 @@ function createGenericInstaller(depName: DependencyName) {
           await extractTarGz(file, depDir)
           break
         }
-        
+
         case 'curl_script': {
           if (process.env.VITE_DISABLE_VOICE === 'true') {
             return
@@ -145,20 +145,20 @@ function createGenericInstaller(depName: DependencyName) {
         }
       }
     },
-    
-    isDownloaded: function() {
+
+    isDownloaded: function () {
       const depDir = config.dir.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR)
-      
+
       // Handle special validation conditions first
       if (config.validation_condition === 'has_both_models') {
         if (process.env.ANONYMIZER_TYPE === 'no-op') {
           return true
         }
-        
+
         if (!isExtractedDirValid(depDir)) {
           return false
         }
-        
+
         try {
           const files = fs.readdirSync(depDir)
           const ggufs = files.filter((file) => file.endsWith('.gguf'))
@@ -177,29 +177,32 @@ function createGenericInstaller(depName: DependencyName) {
           return false
         }
       }
-      
+
       if (config.validation_condition === 'platform_specific_binary') {
         if (process.env.VITE_DISABLE_VOICE === 'true') {
           return true
         }
-        
+
         // Get platform-specific validation files
         let platformValidationFiles = config.validation_files
-        if (typeof platformValidationFiles === 'object' && !Array.isArray(platformValidationFiles)) {
+        if (
+          typeof platformValidationFiles === 'object' &&
+          !Array.isArray(platformValidationFiles)
+        ) {
           const platformKey = process.platform === 'win32' ? 'win32' : 'default'
           platformValidationFiles = platformValidationFiles[platformKey] || []
         }
-        
+
         if (Array.isArray(platformValidationFiles)) {
-          return platformValidationFiles.some(filePath => {
+          return platformValidationFiles.some((filePath) => {
             const fullPath = path.join(depDir, filePath)
             return fs.existsSync(fullPath)
           })
         }
-        
+
         return false
       }
-      
+
       // Handle platform-specific validation files (like ONNX)
       let validationFiles = config.validation_files || []
       if (typeof validationFiles === 'object' && !Array.isArray(validationFiles)) {
@@ -207,24 +210,24 @@ function createGenericInstaller(depName: DependencyName) {
         const platform = process.platform
         const arch = process.arch
         let platformKey: string
-        
+
         if (platform === 'darwin' && arch === 'arm64') {
           platformKey = 'darwin-arm64'
         } else {
           platformKey = 'linux-x64'
         }
-        
+
         validationFiles = validationFiles[platformKey] || []
       }
-      
+
       // Standard validation using validation_files (array)
       if (Array.isArray(validationFiles)) {
-        return validationFiles.every(filePath => {
+        return validationFiles.every((filePath) => {
           const fullPath = path.join(depDir, filePath)
           return fs.existsSync(fullPath)
         })
       }
-      
+
       return false
     }
   }
@@ -241,9 +244,9 @@ const DEPENDENCIES_CONFIGS: Record<
     isDownloaded: () => boolean
   }
 > = (() => {
-  const configs: any = {}
+  const configs: Record<string, any> = {}
   const dependencyNames = Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}) as DependencyName[]
-  
+
   for (const depName of dependencyNames) {
     const genericInstaller = createGenericInstaller(depName)
     if (genericInstaller) {
@@ -251,7 +254,9 @@ const DEPENDENCIES_CONFIGS: Record<
       configs[depName] = {
         url: typeof config?.url === 'string' ? config.url : '',
         name: config?.name || depName,
-        dir: config?.dir?.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR) || path.join(DEPENDENCIES_DIR, depName),
+        dir:
+          config?.dir?.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR) ||
+          path.join(DEPENDENCIES_DIR, depName),
         install: genericInstaller.install,
         isDownloaded: genericInstaller.isDownloaded
       }
@@ -269,7 +274,7 @@ const DEPENDENCIES_CONFIGS: Record<
       }
     }
   }
-  
+
   return configs
 })()
 
@@ -302,12 +307,12 @@ export async function downloadDependency(dependencyName: DependencyName) {
 export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
   const result: Record<string, boolean> = {}
   const dependencyNames = Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}) as DependencyName[]
-  
+
   for (const depName of dependencyNames) {
     const config = DEPENDENCIES_CONFIGS[depName]
     result[depName] = config ? config.isDownloaded() : false
   }
-  
+
   return result as Record<DependencyName, boolean>
 }
 

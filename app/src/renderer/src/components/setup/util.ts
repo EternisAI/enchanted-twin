@@ -21,9 +21,9 @@ export const DEPENDENCY_CONFIG: Record<
     disabled?: boolean
   }
 > = (() => {
-  const config: any = {}
+  const config: Record<string, any> = {}
   const deps = EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies || {}
-  
+
   for (const [depName, depConfig] of Object.entries(deps)) {
     config[depName] = {
       name: depConfig.display_name || depConfig.name || depName,
@@ -31,11 +31,13 @@ export const DEPENDENCY_CONFIG: Record<
       disabled: false
     }
   }
-  
+
   return config
 })()
 
-export const DEPENDENCY_NAMES: DependencyName[] = Object.keys(EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies || {}) as DependencyName[]
+export const DEPENDENCY_NAMES: DependencyName[] = Object.keys(
+  EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies || {}
+) as DependencyName[]
 
 export const initialDownloadState: DownloadState = DEPENDENCY_NAMES.reduce((acc, dependency) => {
   acc[dependency] = {

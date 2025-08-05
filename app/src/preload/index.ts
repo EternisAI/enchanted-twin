@@ -189,8 +189,7 @@ const api = {
   },
   models: {
     hasModelsDownloaded: () => ipcRenderer.invoke('models:has-models-downloaded'),
-    downloadModels: (modelName: DependencyName) =>
-      ipcRenderer.invoke('models:download', modelName),
+    downloadModels: (modelName: DependencyName) => ipcRenderer.invoke('models:download', modelName),
     onProgress: (
       callback: (data: {
         modelName: string
