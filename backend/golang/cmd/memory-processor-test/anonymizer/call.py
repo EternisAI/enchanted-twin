@@ -1,9 +1,9 @@
 import re
-import torch
 import json
 import random
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer
+from vllm import LLM, SamplingParams
 
 MODEL_ID = "eternis/qwen1.7b-anonymizer-merged"
 
@@ -53,20 +53,15 @@ TOOLS_SCHEMA = [
 ]
 
 
-def build_model_and_tokenizer(model_name, device: str = "cuda"):
-    """Load model and tokenizer with optional adapter"""
+def build_model_and_tokenizer(model_name):
+    """Load vLLM model and tokenizer"""
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-
-    model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True).to(
-        device
+    model = LLM(
+        model=model_name,
+        trust_remote_code=True,
+        tensor_parallel_size=1,  # adjust based on your GPU setup
+        gpu_memory_utilization=0.9,
     )
-    model.eval()
-
-    if torch.backends.cuda.is_built():
-        try:
-            model = torch.compile(model)
-        except Exception:
-            pass
 
     return model, tokenizer
 
@@ -82,41 +77,38 @@ def clean_model_response(completion):
 
 
 def call_model(model, tokenizer, input: str, max_new_tokens: int = 250):
-    messages = [
-        {"role": "system", "content": TASK_INSTRUCTION},
-        {"role": "user", "content": input + "\n/no_think"},
-    ]
+    """Single input inference"""
+    return call_model_batch(model, tokenizer, [input], max_new_tokens)[0]
 
-    prompt = tokenizer.apply_chat_template(
-        messages,
-        tools=TOOLS_SCHEMA,
-        tokenize=False,
-        add_generation_prompt=True,
+
+def call_model_batch(model, tokenizer, inputs: list[str], max_new_tokens: int = 250):
+    """Batched inference - the main improvement"""
+    prompts = []
+    for input_text in inputs:
+        messages = [
+            {"role": "system", "content": TASK_INSTRUCTION},
+            {"role": "user", "content": input_text + "\n/no_think"},
+        ]
+
+        prompt = tokenizer.apply_chat_template(
+            messages,
+            tools=TOOLS_SCHEMA,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        prompts.append(prompt)
+
+    # vLLM sampling params - preserve your exact generation config
+    sampling_params = SamplingParams(
+        temperature=0.3,
+        top_p=0.9,
+        max_tokens=max_new_tokens,
+        stop=["<|im_end|>"],  # equivalent to eos_token_id
     )
 
-    input = tokenizer(prompt, return_tensors="pt", padding=True, truncation=True).to(
-        "cuda"
-    )
-
-    with torch.no_grad():
-        gen_cfg = dict(
-            max_new_tokens=max_new_tokens,
-            temperature=0.3,
-            do_sample=True,
-            top_p=0.9,
-            eos_token_id=tokenizer.convert_tokens_to_ids("<|im_end|>"),
-            pad_token_id=tokenizer.eos_token_id,
-            num_return_sequences=1,
-            use_cache=True,
-        )
-        out_ids = model.generate(
-            input_ids=input["input_ids"],
-            attention_mask=input["attention_mask"],
-            **gen_cfg,
-        )
-
-    decoded = tokenizer.batch_decode(out_ids, skip_special_tokens=True)
-    return clean_model_response(decoded[0])
+    # This is where the magic happens - true batching
+    outputs = model.generate(prompts, sampling_params)
+    return [clean_model_response(output.outputs[0].text) for output in outputs]
 
 
 def load_jsonl(file_path):
@@ -130,7 +122,7 @@ def load_jsonl(file_path):
     return data
 
 
-def run_on_dataset(model_id, dataset_path, output_path, sample_size=None):
+def run_on_dataset(model_id, dataset_path, output_path, sample_size=None, batch_size=8):
     model, tokenizer = build_model_and_tokenizer(model_id)
     data = load_jsonl(dataset_path)
     if sample_size is not None:
@@ -138,10 +130,18 @@ def run_on_dataset(model_id, dataset_path, output_path, sample_size=None):
         data = random.sample(data, sample_size)
 
     with open(output_path, "w", encoding="utf-8") as f:
-        for item in tqdm(data, desc="Processing questions"):
-            model_output = call_model(model, tokenizer, input=item["input"])
-            item["model_output"] = model_output
-            f.write(json.dumps(item) + "\n")
+        # Process in batches for true GPU parallelism
+        for i in tqdm(range(0, len(data), batch_size), desc="Processing batches"):
+            batch = data[i : i + batch_size]
+            inputs = [item["input"] for item in batch]
+
+            # Batched inference - much faster!
+            model_outputs = call_model_batch(model, tokenizer, inputs)
+
+            # Write results
+            for item, output in zip(batch, model_outputs):
+                item["model_output"] = output
+                f.write(json.dumps(item) + "\n")
             f.flush()
 
 
@@ -151,4 +151,5 @@ if __name__ == "__main__":
         dataset_path="datasets/pii_test.jsonl",
         output_path="results/test.jsonl",
         sample_size=100,
+        batch_size=50,
     )
