@@ -253,9 +253,13 @@ func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*StorageObje
 		return nil
 	}
 
-	tx, err := s.db.(interface {
+	txBegin, ok := s.db.(interface {
 		Begin(ctx context.Context) (pgx.Tx, error)
-	}).Begin(ctx)
+	})
+	if !ok {
+		return fmt.Errorf("database does not support transactions")
+	}
+	tx, err := txBegin.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
@@ -790,10 +794,13 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 
 // DeleteAll removes all memory facts (used for testing).
 func (s *PostgresStorage) DeleteAll(ctx context.Context) error {
-	
-	tx, err := s.db.(interface {
+	txBegin, ok := s.db.(interface {
 		Begin(ctx context.Context) (pgx.Tx, error)
-	}).Begin(ctx)
+	})
+	if !ok {
+		return fmt.Errorf("database does not support transactions")
+	}
+	tx, err := txBegin.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
@@ -1091,10 +1098,13 @@ func (s *PostgresStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 		return nil
 	}
 
-	
-	tx, err := s.db.(interface {
+	txBegin, ok := s.db.(interface {
 		Begin(ctx context.Context) (pgx.Tx, error)
-	}).Begin(ctx)
+	})
+	if !ok {
+		return fmt.Errorf("database does not support transactions")
+	}
+	tx, err := txBegin.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
