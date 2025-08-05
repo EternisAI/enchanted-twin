@@ -41,7 +41,7 @@ export default function AgentTasks() {
   const agentTasks = [...(data?.getAgentTasks || [])]
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full max-w-4xl mx-auto px-4">
       {loading && <div className="py-4 text-center">Loading tasks...</div>}
       {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>}
 
