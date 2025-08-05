@@ -72,9 +72,9 @@ fetch-deps:
 	@echo "Fetching runtime dependencies..."
 	@command -v jq >/dev/null 2>&1 || { echo "jq is required but not installed. Install with: brew install jq"; exit 1; }
 	@ROOT_DIR="$(shell cd ../.. && pwd)" && \
-	ENV_FILE="$$ROOT_DIR/.env" && \
+	ENV_FILE=".env" && \
 	if [ -f "$$ENV_FILE" ]; then \
-		echo "Loading environment from $$ENV_FILE"; \
+		echo "Loading environment from backend/golang/$$ENV_FILE"; \
 		set -a && . "$$ENV_FILE" && set +a; \
 	fi && \
 	DEPS_CONFIG="$$ROOT_DIR/runtime-dependencies.json" && \
@@ -187,8 +187,7 @@ fetch-deps:
 	echo "Dependencies installed to: $$DEPENDENCIES_DIR"
 
 clean-deps:
-	@ROOT_DIR="$(shell cd ../.. && pwd)" && \
-	ENV_FILE="$$ROOT_DIR/.env" && \
+	@ENV_FILE=".env" && \
 	if [ -f "$$ENV_FILE" ]; then \
 		set -a && . "$$ENV_FILE" && set +a; \
 	fi && \
