@@ -42,7 +42,7 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 
 	chatId, ok := inputs["chat_id"].(string)
 	if !ok {
-		return nil, errors.New("chat_id is not a string")
+		return nil, errors.New("chat_id is required")
 	}
 
 	if chatId == "" {
@@ -81,7 +81,7 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 
 	id, err := e.chatStorage.AddMessageToChat(ctx, dbMessage)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("❌ Failed to store send_to_chat message to database: %w", err)
 	}
 
 	natsMessage := model.Message{
@@ -101,6 +101,9 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 		ToolName: "send_to_chat",
 		ToolParams: map[string]any{
 			"chat_id": chatId,
+		},
+		Output: map[string]any{
+			"content": "Message sent successfully",
 		},
 	}, nil
 }

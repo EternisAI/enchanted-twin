@@ -44,7 +44,8 @@ const api = {
   requestMediaAccess: (type: MediaType) => ipcRenderer.invoke('permissions:request', type),
   accessibility: {
     getStatus: () => ipcRenderer.invoke('accessibility:get-status'),
-    request: () => ipcRenderer.invoke('accessibility:request')
+    request: () => ipcRenderer.invoke('accessibility:request'),
+    openSettings: () => ipcRenderer.invoke('accessibility:open-settings')
   },
   checkForUpdates: (silent: boolean = false) => ipcRenderer.invoke('check-for-updates', silent),
   onUpdateStatus: (callback: (status: string) => void) => {
@@ -74,6 +75,7 @@ const api = {
     ipcRenderer.on('toggle-sidebar', listener)
     return () => ipcRenderer.removeListener('toggle-sidebar', listener)
   },
+  getEnvVar: (key: string) => ipcRenderer.invoke('get-env-var', key),
   screenpipe: {
     getStatus: () => ipcRenderer.invoke('screenpipe:get-status'),
     install: () => ipcRenderer.invoke('screenpipe:install'),
@@ -153,10 +155,18 @@ const api = {
     }
   },
   onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => {
-    const listener = (_: unknown, data: { source: 'stdout' | 'stderr'; line: string }) =>
-      callback(data)
-    ipcRenderer.on('go-log', listener)
-    return () => ipcRenderer.removeListener('go-log', listener)
+    const batchLogListener = (
+      _: unknown,
+      logs: Array<{ source: 'stdout' | 'stderr'; line: string; timestamp: number }>
+    ) => {
+      logs.forEach((log) => callback({ source: log.source, line: log.line }))
+    }
+
+    ipcRenderer.on('go-logs-batch', batchLogListener)
+
+    return () => {
+      ipcRenderer.removeListener('go-logs-batch', batchLogListener)
+    }
   },
   openMainWindowWithChat: (chatId?: string, initialMessage?: string, reasoning?: boolean) =>
     ipcRenderer.invoke('open-main-window-with-chat', chatId, initialMessage, reasoning),

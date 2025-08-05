@@ -74,10 +74,6 @@ func NewChatGPTProcessor(store *db.Store, logger *log.Logger) (*ChatGPTProcessor
 	return &ChatGPTProcessor{store: store, logger: logger}, nil
 }
 
-func (s *ChatGPTProcessor) Name() string {
-	return "chatgpt"
-}
-
 func parseTimestamp(ts string) (time.Time, error) {
 	parts := strings.Split(ts, ".")
 	if len(parts) != 2 {

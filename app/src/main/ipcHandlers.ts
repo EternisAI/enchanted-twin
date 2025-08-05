@@ -21,7 +21,7 @@ import {
 } from './livekitManager'
 import { downloadDependency, hasDependenciesDownloaded } from './dependenciesDownload'
 import { DependencyName } from './types/dependencies'
-import { initializeGoServer, cleanupGoServer, isGoServerRunning } from './goServer'
+import { initializeGoServer, cleanupGoServer, getGoServerState } from './goServer'
 import { generateTTS } from './ttsManager'
 import { startLlamaCppSetup, cleanupLlamaCpp, getLlamaCppStatus } from './llamaCppServer'
 
@@ -50,9 +50,7 @@ export function registerIpcHandlers() {
       log.info(
         `Processing restart intent: ${restartIntent.route}, modal: ${restartIntent.showModal}`
       )
-      const navigationUrl = restartIntent.showModal
-        ? `${restartIntent.route}?screenpipe=true`
-        : restartIntent.route
+      const navigationUrl = restartIntent.route
       windowManager.setPendingNavigation(navigationUrl)
       windowManager.processPendingNavigation()
       // Clear the restart intent after processing
@@ -787,11 +785,16 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('go-server:status', () => {
-    const isRunning = isGoServerRunning()
+    const state = getGoServerState()
     return {
       success: true,
-      isRunning,
-      message: isRunning ? 'Go server is running' : 'Go server is not running'
+      isRunning: state.isRunning,
+      isInitializing: state.isInitializing,
+      message: state.isRunning
+        ? 'Go server is running'
+        : state.isInitializing
+          ? 'Go server is initializing'
+          : 'Go server is not running'
     }
   })
 
@@ -813,6 +816,10 @@ export function registerIpcHandlers() {
         error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
+  })
+
+  ipcMain.handle('get-env-var', async (_, key: string) => {
+    return process.env[key] || null
   })
 }
 

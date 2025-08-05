@@ -173,9 +173,10 @@ type ComplexityRoot struct {
 		Activate                  func(childComplexity int, inviteCode string) int
 		AddDataSource             func(childComplexity int, name string, path string) int
 		AddTrackedFolder          func(childComplexity int, input model.AddTrackedFolderInput) int
+		CancelMessage             func(childComplexity int, chatID string) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
 		ConnectMCPServer          func(childComplexity int, input model.ConnectMCPServerInput) int
-		CreateChat                func(childComplexity int, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) int
+		CreateChat                func(childComplexity int, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string, isReasoning bool) int
 		DeleteAgentTask           func(childComplexity int, id string) int
 		DeleteChat                func(childComplexity int, chatID string) int
 		DeleteDataSource          func(childComplexity int, id string) int
@@ -287,6 +288,7 @@ type ComplexityRoot struct {
 	}
 
 	ToolCall struct {
+		Error       func(childComplexity int) int
 		ID          func(childComplexity int) int
 		IsCompleted func(childComplexity int) int
 		MessageID   func(childComplexity int) int
@@ -345,8 +347,9 @@ type MutationResolver interface {
 	CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error)
 	RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
-	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) (*model.Chat, error)
+	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string, isReasoning bool) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
+	CancelMessage(ctx context.Context, chatID string) (bool, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
@@ -1006,6 +1009,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.AddTrackedFolder(childComplexity, args["input"].(model.AddTrackedFolderInput)), true
 
+	case "Mutation.cancelMessage":
+		if e.complexity.Mutation.CancelMessage == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_cancelMessage_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CancelMessage(childComplexity, args["chatId"].(string)), true
+
 	case "Mutation.completeOAuthFlow":
 		if e.complexity.Mutation.CompleteOAuthFlow == nil {
 			break
@@ -1040,7 +1055,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateChat(childComplexity, args["name"].(string), args["category"].(model.ChatCategory), args["holonThreadId"].(*string), args["initialMessage"].(*string)), true
+		return e.complexity.Mutation.CreateChat(childComplexity, args["name"].(string), args["category"].(model.ChatCategory), args["holonThreadId"].(*string), args["initialMessage"].(*string), args["isReasoning"].(bool)), true
 
 	case "Mutation.deleteAgentTask":
 		if e.complexity.Mutation.DeleteAgentTask == nil {
@@ -1703,6 +1718,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Tool.Name(childComplexity), true
 
+	case "ToolCall.error":
+		if e.complexity.ToolCall.Error == nil {
+			break
+		}
+
+		return e.complexity.ToolCall.Error(childComplexity), true
+
 	case "ToolCall.id":
 		if e.complexity.ToolCall.ID == nil {
 			break
@@ -2141,6 +2163,29 @@ func (ec *executionContext) field_Mutation_addTrackedFolder_argsInput(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_cancelMessage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_cancelMessage_argsChatID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["chatId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_cancelMessage_argsChatID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
+	if tmp, ok := rawArgs["chatId"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_completeOAuthFlow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2228,6 +2273,11 @@ func (ec *executionContext) field_Mutation_createChat_args(ctx context.Context, 
 		return nil, err
 	}
 	args["initialMessage"] = arg3
+	arg4, err := ec.field_Mutation_createChat_argsIsReasoning(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["isReasoning"] = arg4
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_createChat_argsName(
@@ -2279,6 +2329,19 @@ func (ec *executionContext) field_Mutation_createChat_argsInitialMessage(
 	}
 
 	var zeroVal *string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_createChat_argsIsReasoning(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (bool, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("isReasoning"))
+	if tmp, ok := rawArgs["isReasoning"]; ok {
+		return ec.unmarshalNBoolean2bool(ctx, tmp)
+	}
+
+	var zeroVal bool
 	return zeroVal, nil
 }
 
@@ -6221,6 +6284,8 @@ func (ec *executionContext) fieldContext_Message_toolCalls(_ context.Context, fi
 				return ec.fieldContext_ToolCall_messageId(ctx, field)
 			case "result":
 				return ec.fieldContext_ToolCall_result(ctx, field)
+			case "error":
+				return ec.fieldContext_ToolCall_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ToolCall", field.Name)
 		},
@@ -6906,7 +6971,7 @@ func (ec *executionContext) _Mutation_createChat(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateChat(rctx, fc.Args["name"].(string), fc.Args["category"].(model.ChatCategory), fc.Args["holonThreadId"].(*string), fc.Args["initialMessage"].(*string))
+		return ec.resolvers.Mutation().CreateChat(rctx, fc.Args["name"].(string), fc.Args["category"].(model.ChatCategory), fc.Args["holonThreadId"].(*string), fc.Args["initialMessage"].(*string), fc.Args["isReasoning"].(bool))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7030,6 +7095,61 @@ func (ec *executionContext) fieldContext_Mutation_sendMessage(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_sendMessage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelMessage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelMessage(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CancelMessage(rctx, fc.Args["chatId"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_cancelMessage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_cancelMessage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -9986,6 +10106,8 @@ func (ec *executionContext) fieldContext_Subscription_toolCallUpdated(ctx contex
 				return ec.fieldContext_ToolCall_messageId(ctx, field)
 			case "result":
 				return ec.fieldContext_ToolCall_result(ctx, field)
+			case "error":
+				return ec.fieldContext_ToolCall_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ToolCall", field.Name)
 		},
@@ -11570,6 +11692,47 @@ func (ec *executionContext) fieldContext_ToolCall_result(_ context.Context, fiel
 				return ec.fieldContext_ToolCallResult_imageUrls(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ToolCallResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolCall_error(ctx context.Context, field graphql.CollectedField, obj *model.ToolCall) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolCall_error(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Error, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolCall_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolCall",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -15717,6 +15880,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "cancelMessage":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelMessage(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "deleteChat":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteChat(ctx, field)
@@ -16794,6 +16964,8 @@ func (ec *executionContext) _ToolCall(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "result":
 			out.Values[i] = ec._ToolCall_result(ctx, field, obj)
+		case "error":
+			out.Values[i] = ec._ToolCall_error(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

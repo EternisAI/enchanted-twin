@@ -205,7 +205,7 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 }
 
 // CreateChat is the resolver for the createChat field.
-func (r *mutationResolver) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) (*model.Chat, error) {
+func (r *mutationResolver) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string, isReasoning bool) (*model.Chat, error) {
 	chat, err := r.TwinChatService.CreateChat(ctx, name, category, holonThreadID)
 	if err != nil {
 		r.Logger.Error("Failed to create chat", "error", err)
@@ -217,7 +217,7 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string, category
 			bgCtx := context.Background()
 
 			isVoice := category == model.ChatCategoryVoice
-			_, err := r.TwinChatService.SendMessage(bgCtx, chat.ID, *initialMessage, false, isVoice)
+			_, err := r.TwinChatService.SendMessage(bgCtx, chat.ID, *initialMessage, isReasoning, isVoice)
 			if err != nil {
 				r.Logger.Error("Failed to send initial message asynchronously", "error", err, "chat_id", chat.ID)
 
@@ -242,6 +242,11 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string, category
 // SendMessage is the resolver for the sendMessage field.
 func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error) {
 	return r.TwinChatService.SendMessage(context.WithoutCancel(ctx), chatID, text, reasoning, voice)
+}
+
+// CancelMessage is the resolver for the cancelMessage field.
+func (r *mutationResolver) CancelMessage(ctx context.Context, chatID string) (bool, error) {
+	return r.TwinChatService.CancelMessage(ctx, chatID)
 }
 
 // DeleteChat is the resolver for the deleteChat field.

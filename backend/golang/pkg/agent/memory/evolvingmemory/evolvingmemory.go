@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/go-openapi/strfmt"
-	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
@@ -339,7 +337,7 @@ func (s *StorageImpl) storeFileDocumentsDirectly(ctx context.Context, documents 
 		}
 
 		documentChunk := &storage.DocumentChunk{
-			ID:                 "",                 // Let Weaviate auto-generate UUID
+			ID:                 "",                 // Let storage backend auto-generate UUID
 			Content:            chunk.Content(),    // Chunk content for semantic search
 			ChunkIndex:         chunkIndex,         // Position within document
 			OriginalDocumentID: originalDocumentID, // Reference to original document
@@ -403,7 +401,7 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 	config := DefaultConfig()
 
 	// Convert facts to storage objects with embeddings
-	var objects []*models.Object
+	var objects []*storage.StorageObject
 	processed := 0
 
 	// Batch generate embeddings for efficiency
@@ -419,7 +417,12 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 		return fmt.Errorf("failed to generate batch embeddings: %w", err)
 	}
 
-	// Create Weaviate objects with pre-generated embeddings
+	// Validate embedding count matches fact count
+	if len(embeddings) != len(facts) {
+		return fmt.Errorf("embedding count mismatch: got %d embeddings for %d facts", len(embeddings), len(facts))
+	}
+
+	// Create storage objects with pre-generated embeddings
 	for i, fact := range facts {
 		// Build tags
 		tags := fact.Tags
@@ -438,7 +441,7 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 		}
 		metadataJSON, _ := json.Marshal(metadata)
 
-		// Create Weaviate object with structured fields
+		// Create storage object with structured fields
 		properties := map[string]interface{}{
 			"content":            fact.GenerateContent(),
 			"timestamp":          fact.Timestamp.Format(time.RFC3339),
@@ -461,7 +464,7 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 			properties["factTemporalContext"] = *fact.TemporalContext
 		}
 
-		obj := &models.Object{
+		obj := &storage.StorageObject{
 			Class:      "MemoryFact",
 			Properties: properties,
 			Vector:     embeddings[i], // Use pre-generated embedding
@@ -469,7 +472,7 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 
 		// Only set ID if it's a valid UUID format
 		if fact.ID != "" {
-			obj.ID = strfmt.UUID(fact.ID)
+			obj.ID = fact.ID
 		}
 
 		objects = append(objects, obj)

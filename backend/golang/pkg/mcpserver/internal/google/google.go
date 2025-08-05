@@ -128,6 +128,28 @@ func (c *GoogleClient) CallTool(
 			return nil, err
 		}
 		content = result
+	case GET_LABELS_TOOL_NAME:
+		var argumentsTyped GetLabelsArguments
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		result, err := processGetLabels(ctx, c.Store, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
+	case MODIFY_EMAIL_LABELS_TOOL_NAME:
+		var argumentsTyped ModifyEmailLabelsArguments
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		result, err := processModifyEmailLabels(ctx, c.Store, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
 	case SEARCH_FILES_TOOL_NAME:
 		var argumentsTyped SearchFilesArguments
 		err := request.BindArguments(&argumentsTyped)
@@ -168,6 +190,28 @@ func (c *GoogleClient) CallTool(
 			return nil, err
 		}
 		result, err := processCreateEvent(ctx, c.Store, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
+	case UPDATE_CALENDAR_EVENT_TOOL_NAME:
+		var argumentsTyped UpdateEventArgs
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		result, err := processUpdateEvent(ctx, c.Store, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
+	case DELETE_CALENDAR_EVENT_TOOL_NAME:
+		var argumentsTyped DeleteEventArgs
+		err := request.BindArguments(&argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		result, err := processDeleteEvent(ctx, c.Store, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}

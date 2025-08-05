@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Button } from '../ui/button'
 import { ArrowUp, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { cn } from '../../lib/utils'
+import { checkVoiceDisabled, cn } from '../../lib/utils'
 
 import { EnableVoiceModeButton, ReasoningButton } from './ChatInputBox'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
@@ -37,7 +37,7 @@ export default function MessageInput({
   const { isVoiceReady } = useDependencyStatus()
 
   const handleSend = () => {
-    if (!text.trim() || isWaitingTwinResponse) return
+    if (!text.trim() || isWaitingTwinResponse || isStreamingResponse) return
     onSend(text, isReasonSelected, voiceMode)
     setText('')
   }
@@ -131,7 +131,8 @@ export function SendButton({
   text,
   className,
   onVoiceModeChange,
-  isVoiceReady
+  isVoiceReady,
+  type = 'submit'
 }: {
   isWaitingTwinResponse: boolean
   onSend: () => void
@@ -141,8 +142,10 @@ export function SendButton({
   className?: string
   onVoiceModeChange?: () => void
   isVoiceReady: boolean
+  type?: 'button' | 'submit' | 'reset'
 }) {
   const [prevWaitingState, setPrevWaitingState] = useState(false)
+  const isVoiceDisabled = checkVoiceDisabled()
 
   useEffect(() => {
     if (!isWaitingTwinResponse && prevWaitingState) {
@@ -158,15 +161,16 @@ export function SendButton({
 
   return (
     <>
-      {!isWaitingForAgent && !text.trim() ? (
+      {!isWaitingForAgent && !text.trim() && !isVoiceDisabled ? (
         <EnableVoiceModeButton onClick={() => onVoiceModeChange?.()} isVoiceReady={isVoiceReady} />
       ) : (
         <Button
+          type={type}
           size="icon"
           variant={isWaitingForAgent ? 'destructive' : 'default'}
           className={cn('rounded-full transition-all duration-200 ease-in-out relative', className)}
           onClick={isWaitingForAgent ? handleStop : onSend}
-          disabled={isStreamingResponse}
+          disabled={!isStreamingResponse && !text.trim()}
         >
           <AnimatePresence mode="wait">
             {isWaitingForAgent ? (

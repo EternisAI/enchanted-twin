@@ -7,7 +7,15 @@ import {
   useState,
   useEffect
 } from 'react'
-import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
+import { useMutation } from '@apollo/client'
+
+import {
+  CancelMessageDocument,
+  Chat,
+  Message,
+  Role,
+  ToolCall
+} from '@renderer/graphql/generated/graphql'
 import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
@@ -38,6 +46,7 @@ interface ChatActions {
   setHistoricToolCalls: (toolCalls: ToolCall[] | ((prev: ToolCall[]) => ToolCall[])) => void
   setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void
   updatePrivacyDict: (privacyDict: string) => void
+  cancelMessageStreaming: (chatId: string) => void
 }
 
 const ChatStateContext = createContext<ChatState | null>(null)
@@ -56,7 +65,7 @@ export function ChatProvider({
   initialMessage,
   initialReasoningState
 }: ChatProviderProps) {
-  const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
+  const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(!!initialMessage)
   const [isReasonSelected, setIsReasonSelected] = useState(initialReasoningState || false)
   const [error, setError] = useState<string>('')
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]) // current message
@@ -192,16 +201,10 @@ export function ChatProvider({
 
     if (message.role !== Role.User) {
       upsertMessage(message)
-      window.api.analytics.capture('message_received', {
-        tools: message.toolCalls.map((tool) => tool.name)
-      })
     }
 
     if (message.role === Role.User) {
       upsertMessage(message)
-      window.api.analytics.capture('voice_message_sent', {
-        tools: message.toolCalls.map((tool) => tool.name)
-      })
     }
   })
 
@@ -211,6 +214,8 @@ export function ChatProvider({
 
     // Use deanonymized content for display, fallback to accumulated if not available
     const messageText = deanonymizedAccumulatedMessage || accumulatedMessage || ''
+
+    if (messageText.length === 0) return
 
     if (!existingMessage) {
       if (lastMessageStartTime) {
@@ -242,6 +247,10 @@ export function ChatProvider({
 
     setIsWaitingTwinResponse(false)
     setIsStreamingResponse(!data.isComplete)
+
+    if (data.isComplete) {
+      window.api.analytics.capture('message_received', {})
+    }
   })
 
   useToolCallUpdate(chat.id, (toolCall) => {
@@ -257,6 +266,27 @@ export function ChatProvider({
       return [...prev, toolCall]
     })
   })
+
+  useEffect(() => {
+    const completedToolCalls = activeToolCalls.filter((tc) => tc.isCompleted)
+
+    if (completedToolCalls.length > 0) {
+      const timeoutIds: NodeJS.Timeout[] = []
+
+      completedToolCalls.forEach((toolCall) => {
+        const timeoutId = setTimeout(() => {
+          setActiveToolCalls((prev) => prev.filter((tc) => tc.id !== toolCall.id))
+          setHistoricToolCalls((prev) => [toolCall, ...prev])
+        }, 8000)
+
+        timeoutIds.push(timeoutId)
+      })
+
+      return () => {
+        timeoutIds.forEach((id) => clearTimeout(id))
+      }
+    }
+  }, [activeToolCalls])
 
   usePrivacyDictUpdate(chat.id, (privacyDict) => {
     updatePrivacyDict(privacyDict)
@@ -314,6 +344,23 @@ export function ChatProvider({
     setIsWaitingTwinResponse(false)
   })
 
+  const [cancelMessageStreamingMutation] = useMutation(CancelMessageDocument, {
+    onCompleted: () => {
+      console.log('cancelMessageStreamingMutation completed')
+      setIsWaitingTwinResponse(false)
+      setIsStreamingResponse(false)
+    }
+  })
+
+  const cancelMessageStreaming = useCallback(
+    (chatId: string) => {
+      cancelMessageStreamingMutation({
+        variables: { chatId }
+      })
+    },
+    [cancelMessageStreamingMutation]
+  )
+
   const actions = useMemo<ChatActions>(
     () => ({
       sendMessage: sendMessageHook,
@@ -326,7 +373,8 @@ export function ChatProvider({
       setActiveToolCalls,
       setHistoricToolCalls,
       setMessages,
-      updatePrivacyDict
+      updatePrivacyDict,
+      cancelMessageStreaming
     }),
     [
       sendMessageHook,
@@ -339,7 +387,8 @@ export function ChatProvider({
       setActiveToolCalls,
       setHistoricToolCalls,
       setMessages,
-      updatePrivacyDict
+      updatePrivacyDict,
+      cancelMessageStreaming
     ]
   )
 

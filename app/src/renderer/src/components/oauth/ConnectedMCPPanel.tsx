@@ -2,18 +2,22 @@ import { useMutation, useQuery } from '@apollo/client'
 import {
   GetMcpServersDocument,
   RemoveMcpServerDocument,
-  McpServerDefinition
+  McpServerDefinition,
+  McpServerType
 } from '@renderer/graphql/generated/graphql'
 import { toast } from 'sonner'
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import ConnectedMCPServerItem from './ConnectedMCPServerItem'
 import { Skeleton } from '@renderer/components/ui/skeleton'
+import { useScreenpipeConnection } from '@renderer/hooks/useScreenpipeConnection'
 
 export default function ConnectedMCPPanel() {
   const { data, loading, error, refetch } = useQuery(GetMcpServersDocument, {
     fetchPolicy: 'network-only'
   })
+
+  const { handleStopScreenpipe } = useScreenpipeConnection()
 
   const [deleteMcpServer] = useMutation(RemoveMcpServerDocument, {
     onCompleted: () => {
@@ -28,6 +32,22 @@ export default function ConnectedMCPPanel() {
   const connectedServers = useMemo(() => {
     return (data?.getMCPServers || []).filter((server: McpServerDefinition) => server.connected)
   }, [data])
+
+  const handleDisconnect = async (server: McpServerDefinition) => {
+    try {
+      // Special handling for Screenpipe - stop the process first
+      if (server.type === McpServerType.Screenpipe) {
+        console.log('[ConnectedMCPPanel] Stopping Screenpipe before disconnecting...')
+        await handleStopScreenpipe()
+      }
+
+      // Then remove from MCP servers
+      await deleteMcpServer({ variables: { id: server.id } })
+    } catch (error) {
+      console.error('[ConnectedMCPPanel] Error during disconnect:', error)
+      toast.error('Failed to disconnect server properly')
+    }
+  }
 
   const ConnectedServerSkeleton = () => (
     <div className="p-4 w-full rounded-md">
@@ -80,9 +100,7 @@ export default function ConnectedMCPPanel() {
               >
                 <ConnectedMCPServerItem
                   server={server}
-                  onDisconnect={() => {
-                    deleteMcpServer({ variables: { id: server.id } })
-                  }}
+                  onDisconnect={() => handleDisconnect(server)}
                 />
               </motion.div>
             ))}

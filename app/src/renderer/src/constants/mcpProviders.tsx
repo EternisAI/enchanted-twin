@@ -21,7 +21,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     scope:
       'openid email profile https://www.googleapis.com/auth/drive https://mail.google.com/ https://www.googleapis.com/auth/calendar',
     description: '',
-    icon: <Google className="size-7" />,
+    icon: <Google className="size-8" />,
     supportsMultipleConnections: false
   },
   [McpServerType.Slack]: {
@@ -29,7 +29,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     scope:
       'channels:read,groups:read,channels:history,groups:history,im:read,mpim:read,search:read,users:read',
     description: '',
-    icon: <Slack className="size-7" />,
+    icon: <Slack className="size-8" />,
     supportsMultipleConnections: false
   },
   [McpServerType.Twitter]: {
@@ -37,8 +37,8 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     scope: 'like.read tweet.read users.read offline.access tweet.write bookmark.read',
     description: '',
     icon: (
-      <IconContainer className="bg-foreground size-8">
-        <XformerlyTwitter className="size-5 text-primary-foreground" />
+      <IconContainer className="bg-foreground dark:bg-black size-8">
+        <XformerlyTwitter className="size-5 text-primary-foreground dark:text-white" />
       </IconContainer>
     ),
     supportsMultipleConnections: false
@@ -56,7 +56,7 @@ export const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
     description: 'Connect custom MCP servers',
     icon: (
       <IconContainer>
-        <PlugIcon strokeWidth={1.5} className="size-7" />
+        <PlugIcon strokeWidth={1.5} className="size-5" />
       </IconContainer>
     ),
     supportsMultipleConnections: false
@@ -93,3 +93,22 @@ export const PROVIDER_DESCRIPTION_MAP: Record<McpServerType, string> = Object.fr
 export const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = Object.fromEntries(
   Object.entries(PROVIDER_CONFIG).map(([key, value]) => [key, value.icon])
 ) as Record<McpServerType, React.ReactNode>
+
+// Small icons for compact displays
+export const SMALL_PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
+  [McpServerType.Google]: <Google className="size-4" />,
+  [McpServerType.Slack]: <Slack className="size-4" />,
+  [McpServerType.Twitter]: (
+    <IconContainer className="bg-foreground dark:bg-black size-4 rounded-[3px]">
+      <XformerlyTwitter className="size-[10px] text-primary-foreground dark:text-white" />
+    </IconContainer>
+  ),
+  [McpServerType.Screenpipe]: <img src={screenpipeIcon} alt="Screenpipe" className="size-5" />,
+  [McpServerType.Other]: (
+    <IconContainer className="size-4 rounded-xs">
+      <PlugIcon strokeWidth={1.5} className="size-[8px]" />
+    </IconContainer>
+  ),
+  [McpServerType.Enchanted]: <img src={enchantedIcon} alt="Essentials" className="size-5" />,
+  [McpServerType.Freysa]: <img src={enchantedIcon} alt="Freysa" className="size-5" />
+}

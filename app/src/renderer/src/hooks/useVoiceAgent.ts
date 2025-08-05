@@ -22,7 +22,6 @@ export default function useVoiceAgent() {
         setIsSessionReady(sessionReady)
 
         const currentAgentState = await window.api.livekit.getAgentState()
-        console.log('currentAgentState', currentAgentState)
         setAgentState(currentAgentState)
       } catch (error) {
         console.error('Failed to initialize voice agent states:', error)

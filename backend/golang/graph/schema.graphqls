@@ -48,6 +48,7 @@ type ToolCall {
   isCompleted: Boolean!
   messageId: String!
   result: ToolCallResult
+  error: String
 }
 
 type ToolCallResult {
@@ -161,6 +162,7 @@ type Mutation {
     category: ChatCategory! = TEXT
     holonThreadId: String
     initialMessage: String
+    isReasoning: Boolean! = false
   ): Chat!
   sendMessage(
     chatId: ID!
@@ -168,6 +170,7 @@ type Mutation {
     reasoning: Boolean! = False
     voice: Boolean! = False
   ): Message!
+  cancelMessage(chatId: ID!): Boolean!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!

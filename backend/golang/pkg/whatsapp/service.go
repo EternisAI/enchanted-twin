@@ -288,7 +288,9 @@ func (s *Service) publishToNATS(subject string, data interface{}) {
 }
 
 func (s *Service) bootstrapClient() {
-	client := BootstrapWhatsAppClient(
+	s.logger.Info("Bootstrapping WhatsApp client...")
+
+	client, err := BootstrapWhatsAppClient(
 		s.memoryStorage,
 		s.dbsqlc,
 		s.logger,
@@ -299,6 +301,14 @@ func (s *Service) bootstrapClient() {
 		s.connectChan,
 		s.qrChan,
 	)
+	if err != nil {
+		s.logger.Error("Failed to bootstrap WhatsApp client",
+			"error", err,
+			"dbPath", s.envs.DBPath)
+		return
+	}
+
+	s.logger.Info("WhatsApp client bootstrapped successfully")
 
 	s.mu.Lock()
 	s.client = client

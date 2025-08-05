@@ -526,7 +526,12 @@ func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, log
 	peopleMap := make(map[string]bool)
 
 	for _, messageInfo := range conversation.Messages {
-		userReceipts := messageInfo.GetMessage().UserReceipt
+		message := messageInfo.GetMessage()
+		if message == nil || message.Key == nil || message.Key.FromMe == nil {
+			continue
+		}
+
+		userReceipts := message.UserReceipt
 		contacts := []string{}
 
 		for _, userReceipt := range userReceipts {
@@ -542,11 +547,6 @@ func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, log
 			} else {
 				contacts = append(contacts, normalizeJID(userJID))
 			}
-		}
-
-		message := messageInfo.GetMessage()
-		if message == nil || message.Key == nil || message.Key.FromMe == nil {
-			continue
 		}
 
 		var content string
@@ -1271,28 +1271,47 @@ func BootstrapWhatsAppClient(
 	aiService *ai.Service,
 	connectChan chan struct{},
 	qrChan chan QRCodeEvent,
-) *whatsmeow.Client {
+) (*whatsmeow.Client, error) {
+	logger.Info("Starting WhatsApp client bootstrap", "dbPath", dbPath)
+
 	dbLog := &WhatsmeowLoggerAdapter{Logger: logger, Module: "Database"}
 
 	dbDir := filepath.Dir(dbPath)
+	logger.Info("WhatsApp database directory", "dbDir", dbDir)
+
 	if dbDir != "." {
+		logger.Info("Creating WhatsApp database directory", "dbDir", dbDir)
 		if err := os.MkdirAll(dbDir, 0o755); err != nil {
-			logger.Error("Failed to create WhatsApp database directory", "error", err)
-			panic(err)
+			logger.Error("Failed to create WhatsApp database directory",
+				"error", err,
+				"dbDir", dbDir,
+				"permissions", "0755")
+			return nil, fmt.Errorf("failed to create WhatsApp database directory %s: %w", dbDir, err)
 		}
+		logger.Info("WhatsApp database directory created successfully", "dbDir", dbDir)
 	}
 
 	dbFilePath := filepath.Join(dbDir, "whatsapp_store.db")
+	logger.Info("Initializing WhatsApp SQLite database", "dbFilePath", dbFilePath)
+
 	container, err := sqlstore.New("sqlite3", "file:"+dbFilePath+"?_foreign_keys=on", dbLog)
 	if err != nil {
-		logger.Info("Failed to create WhatsApp database:", "dbFilePath", dbFilePath)
-		logger.Error("Failed to create WhatsApp database:", "error", err, "dbFilePath", dbFilePath)
-		panic(err)
+		logger.Error("Failed to create WhatsApp database",
+			"error", err,
+			"dbFilePath", dbFilePath,
+			"connectionString", "file:"+dbFilePath+"?_foreign_keys=on")
+		return nil, fmt.Errorf("failed to create WhatsApp database at %s: %w", dbFilePath, err)
 	}
+	logger.Info("WhatsApp SQLite database created successfully", "dbFilePath", dbFilePath)
+
+	logger.Info("Retrieving WhatsApp device store")
 	deviceStore, err := container.GetFirstDevice()
 	if err != nil {
-		panic(err)
+		logger.Error("Failed to get WhatsApp device store", "error", err)
+		return nil, fmt.Errorf("failed to get WhatsApp device store: %w", err)
 	}
+	logger.Info("WhatsApp device store retrieved successfully")
+
 	clientLog := &WhatsmeowLoggerAdapter{Logger: logger, Module: "Client"}
 	client := whatsmeow.NewClient(deviceStore, clientLog)
 	client.AddEventHandler(EventHandler(memoryStorage, database, logger, nc, config, aiService))
@@ -1403,5 +1422,5 @@ func BootstrapWhatsAppClient(
 		connManager.Disconnect()
 	}()
 
-	return client
+	return client, nil
 }

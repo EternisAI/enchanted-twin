@@ -141,7 +141,14 @@ func (s *Service) ProcessMessageHistoryStream(
 	}
 
 	toolCallResultsMap := make(map[string]model.ToolCallResult)
+	toolCallErrorsMap := make(map[string]string)
 	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
+		var errorField *string
+		if toolResult.Error() != "" {
+			errorField = helpers.Ptr(toolResult.Error())
+			toolCallErrorsMap[toolCall.ID] = toolResult.Error()
+		}
+
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:        toolCall.ID,
 			Name:      toolCall.Function.Name,
@@ -151,6 +158,7 @@ func (s *Service) ProcessMessageHistoryStream(
 				ImageUrls: toolResult.ImageURLs(),
 			},
 			IsCompleted: true,
+			Error:       errorField,
 		})
 		toolCallResultsMap[toolCall.ID] = model.ToolCallResult{
 			Content:   helpers.Ptr(toolResult.Content()),
@@ -271,37 +279,90 @@ func (s *Service) ProcessMessageHistoryStream(
 				if ok {
 					toolCall.Result = &result
 				}
+
+				// Add error information if available
+				if errorMsg, hasError := toolCallErrorsMap[toolCall.ID]; hasError {
+					toolCall.Error = helpers.Ptr(errorMsg)
+				}
+
 				toolCalls = append(toolCalls, toolCall)
 			}
+			s.logger.Info("📝 Marshaling tool calls for database storage (stream)",
+				"toolCallsCount", len(toolCalls),
+				"toolCallsWithErrors", func() int {
+					count := 0
+					for _, tc := range toolCalls {
+						if tc.Error != nil {
+							count++
+						}
+					}
+					return count
+				}())
+
 			toolCallsJson, err := json.Marshal(toolCalls)
 			if err != nil {
-				s.logger.Error("failed to marshal tool calls", "error", err)
+				s.logger.Error("❌ Failed to marshal tool calls (stream)", "error", err, "toolCallsCount", len(toolCalls))
 			} else {
+				s.logger.Debug("📝 Tool calls JSON for database (stream)", "json", string(toolCallsJson))
 				assistantMessageDb.ToolCallsStr = helpers.Ptr(string(toolCallsJson))
 			}
 		}
 		if len(response.ToolResults) > 0 {
+			s.logger.Info("📝 Marshaling tool results for database storage (stream)",
+				"toolResultsCount", len(response.ToolResults),
+				"toolResultsWithErrors", func() int {
+					count := 0
+					for _, tr := range response.ToolResults {
+						if tr.Error() != "" {
+							count++
+						}
+					}
+					return count
+				}())
+
 			toolResultsJson, err := json.Marshal(response.ToolResults)
 			if err != nil {
-				s.logger.Error("failed to marshal tool results", "error", err)
+				s.logger.Error("❌ Failed to marshal tool results (stream)", "error", err, "toolResultsCount", len(response.ToolResults))
 			} else {
+				s.logger.Debug("📝 Tool results JSON for database (stream)", "json", string(toolResultsJson))
 				assistantMessageDb.ToolResultsStr = helpers.Ptr(string(toolResultsJson))
 			}
 		}
 		if len(response.ImageURLs) > 0 {
+			s.logger.Info("📝 Marshaling image URLs for database storage (stream)", "imageURLsCount", len(response.ImageURLs))
 			imageURLsJson, err := json.Marshal(response.ImageURLs)
 			if err != nil {
-				s.logger.Error("failed to marshal image URLs", "error", err)
+				s.logger.Error("❌ Failed to marshal image URLs (stream)", "error", err, "imageURLsCount", len(response.ImageURLs))
 			} else {
+				s.logger.Debug("📝 Image URLs JSON for database (stream)", "json", string(imageURLsJson))
 				assistantMessageDb.ImageURLsStr = helpers.Ptr(string(imageURLsJson))
 			}
 		}
 
+		s.logger.Info("📦 Storing assistant message in database (stream)",
+			"messageID", assistantMessageId,
+			"chatID", chatID,
+			"contentLength", len(response.Content),
+			"toolCallsCount", len(response.ToolCalls),
+			"toolResultsCount", len(response.ToolResults),
+			"imageURLsCount", len(response.ImageURLs),
+			"hasToolCallsStr", assistantMessageDb.ToolCallsStr != nil,
+			"hasToolResultsStr", assistantMessageDb.ToolResultsStr != nil,
+			"hasImageURLsStr", assistantMessageDb.ImageURLsStr != nil)
+
 		idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
 		if err != nil {
-			s.logger.Error("failed to save assistant message", "error", err)
+			s.logger.Error("❌ Failed to save assistant message (stream)",
+				"messageID", assistantMessageId,
+				"chatID", chatID,
+				"error", err)
 			return
 		}
+
+		s.logger.Info("✅ Assistant message stored in database (stream)",
+			"messageID", assistantMessageId,
+			"returnedID", idAssistant,
+			"chatID", chatID)
 
 		assistantMessage := &model.Message{
 			ID:          idAssistant,

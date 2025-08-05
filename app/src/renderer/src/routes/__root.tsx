@@ -14,6 +14,7 @@ import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import { useSidebarStore } from '@renderer/lib/stores/sidebar'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
 import { PrivacyButton } from '@renderer/components/chat/privacy/PrivacyButton'
+import { ModalRouteDismisser } from '@renderer/components/providers/ModalRouteDismisser'
 
 function RootComponent() {
   const omnibar = useOmnibarStore()
@@ -93,7 +94,6 @@ function RootComponent() {
             case 'toggleSidebar':
               // Only prevent toggling on settings pages where sidebar doesn't exist
               if (!location.pathname.startsWith('/settings')) {
-                console.log('Toggling sidebar from keyboard shortcut')
                 setSidebarOpen(!sidebarOpen)
               }
               break
@@ -146,12 +146,19 @@ function RootComponent() {
   ])
 
   if (location.pathname.startsWith('/settings')) {
-    return <Outlet />
+    return (
+      <>
+        <ModalRouteDismisser />
+        <Omnibar />
+        <Outlet />
+      </>
+    )
   }
 
   return (
     <NotificationsProvider>
       <LayoutGroup>
+        <ModalRouteDismisser />
         <motion.div
           className="flex flex-col h-screen w-screen text-foreground relative bg-background"
           layout="position"
@@ -160,14 +167,14 @@ function RootComponent() {
           <motion.div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center">
             {/* {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '} */}
           </motion.div>
-          <div className="fixed top-0 right-0 z-50 h-8 no-drag flex items-center gap-2">
+          <div className="fixed top-0.5 right-4 z-50 h-8 no-drag flex items-center gap-2">
             {location.pathname !== '/onboarding' && <PrivacyButton />}
             <GlobalIndexingStatus />
           </div>
 
           <div className="flex flex-1 overflow-hidden">
             <AnimatePresence>
-              {isCompleted && !location.pathname.startsWith('/settings') && (
+              {isCompleted && (
                 <motion.div
                   key="sidebar"
                   initial={{ width: sidebarOpen ? 256 : 64 }}

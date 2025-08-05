@@ -41,25 +41,27 @@ export default function AgentTasks() {
   const agentTasks = [...(data?.getAgentTasks || [])]
 
   return (
-    <div className="p-4 w-full overflow-y-auto">
+    <div className="w-full h-full">
       {loading && <div className="py-4 text-center">Loading tasks...</div>}
       {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>}
 
       <div className="flex flex-col gap-4 pb-6">
-        <div className="flex items-center justify-between gap-2">
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <AlarmClockCheckIcon className="w-6 h-6" />
-            Tasks
-          </h1>
-          <Button
-            onClick={() => openOmnibar('Create a task to automate recurring activities')}
-            variant="default"
-            size="sm"
-          >
-            <Plus className="w-4 h-4" />
-            Create task
-          </Button>
-        </div>
+        {agentTasks.length > 0 && (
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-2xl font-semibold flex items-center gap-2">
+              <AlarmClockCheckIcon className="w-6 h-6" />
+              Tasks
+            </h1>
+            <Button
+              onClick={() => openOmnibar('Create a task to automate recurring activities')}
+              variant="default"
+              size="sm"
+            >
+              <Plus className="w-4 h-4" />
+              Create task
+            </Button>
+          </div>
+        )}
         {agentTasks.length === 0 ? (
           <EmptyTasksState />
         ) : (
@@ -86,9 +88,9 @@ function EmptyTasksState() {
   }
 
   const examples = [
-    'Send me a joke on Telegram every day at 9am',
-    'Remind me to move the bins to the street every Wednesday at 8pm',
-    'Summarize the latest crypto news every Monday morning'
+    'Send me the top headlines from CNN, Wall Street Journal and Fox News every weekday morning',
+    'Send an interesting historic fact from the 18th century every 18 hours',
+    'Remind me every Friday evening to check-in what I learned, and what to learn next week'
   ]
 
   return (
@@ -119,7 +121,7 @@ function EmptyTasksState() {
             </Button>
           ))}
           <Button
-            variant="outline"
+            variant="default"
             size="lg"
             className="w-full"
             onClick={() => handleSuggestionClick('')}
@@ -141,7 +143,7 @@ type Props = {
 
 function AgentTaskRow({ task, onDelete, onUpdate }: Props) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-gray-300 p-4 w-full">
+    <div className="flex flex-col gap-2 rounded-xl border border-border p-4 w-full">
       <div className="flex justify-between items-start gap-4">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-4">

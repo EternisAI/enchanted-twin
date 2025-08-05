@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -50,6 +51,8 @@ type Service struct {
 	userStorage      *db.Store
 	identityService  *identity.IdentityService
 	anonymizerType   string
+	activeStreams    map[string]context.CancelFunc
+	streamsMutex     sync.Mutex
 }
 
 func NewService(
@@ -77,6 +80,8 @@ func NewService(
 		userStorage:      userStorage,
 		identityService:  identityService,
 		anonymizerType:   anonymizerType,
+		activeStreams:    make(map[string]context.CancelFunc),
+		streamsMutex:     sync.Mutex{},
 	}
 }
 
@@ -134,6 +139,9 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 	}
 	holonThreadId := chat.HolonThreadID
 
+	canSearchWeb := s.checkWebSearchCapability()
+	availableTools := s.getAvailableTools()
+
 	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
 		UserName:          userProfile.Name,
 		Bio:               userProfile.Bio,
@@ -143,11 +151,46 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 		IsVoice:           isVoice,
 		UserMemoryProfile: userMemoryProfile,
 		HolonThreadID:     holonThreadId,
+		CanSearchWeb:      canSearchWeb,
+		AvailableTools:    availableTools,
 	})
 	if err != nil {
 		return "", err
 	}
 	return systemPrompt, nil
+}
+
+func (s *Service) checkWebSearchCapability() bool {
+	webSearchTools := []string{"perplexity_ask", "web_search", "search_web", "google_search", "search_internet"}
+
+	for _, toolName := range webSearchTools {
+		if _, exists := s.toolRegistry.Get(toolName); exists {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *Service) getAvailableTools() []prompts.ToolInfo {
+	if s.toolRegistry == nil {
+		return []prompts.ToolInfo{}
+	}
+
+	allTools := s.toolRegistry.GetAll()
+	toolInfos := make([]prompts.ToolInfo, 0, len(allTools))
+
+	for _, tool := range allTools {
+		def := tool.Definition()
+		if def.Type == "function" {
+			toolInfos = append(toolInfos, prompts.ToolInfo{
+				Name:        def.Function.Name,
+				Description: def.Function.Description.Value,
+			})
+		}
+	}
+
+	return toolInfos
 }
 
 func (s *Service) SendMessage(
@@ -159,6 +202,19 @@ func (s *Service) SendMessage(
 ) (*model.Message, error) {
 	startTime := time.Now()
 	s.logger.Info("SendMessage started", "chatID", chatID, "messageLength", len(message), "isReasoning", isReasoning, "isVoice", isVoice)
+
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	s.streamsMutex.Lock()
+	s.activeStreams[chatID] = cancel
+	s.streamsMutex.Unlock()
+
+	defer func() {
+		s.streamsMutex.Lock()
+		delete(s.activeStreams, chatID)
+		s.streamsMutex.Unlock()
+	}()
 
 	now := time.Now()
 
@@ -222,6 +278,9 @@ func (s *Service) SendMessage(
 	s.logger.Info("Message history prepared", "duration", messageHistoryTime, "historyLength", len(messageHistory))
 
 	assistantMessageId := uuid.New().String()
+
+	var accumulatedContent string
+
 	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:          toolCall.ID,
@@ -241,7 +300,14 @@ func (s *Service) SendMessage(
 	}
 
 	toolCallResultsMap := make(map[string]model.ToolCallResult)
+	toolCallErrorsMap := make(map[string]string)
 	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
+		var errorField *string
+		if toolResult.Error() != "" {
+			errorField = helpers.Ptr(toolResult.Error())
+			toolCallErrorsMap[toolCall.ID] = toolResult.Error()
+		}
+
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:        toolCall.ID,
 			Name:      toolCall.Function.Name,
@@ -251,6 +317,7 @@ func (s *Service) SendMessage(
 				ImageUrls: toolResult.ImageURLs(),
 			},
 			IsCompleted: true,
+			Error:       errorField,
 		})
 		toolCallResultsMap[toolCall.ID] = model.ToolCallResult{
 			Content:   helpers.Ptr(toolResult.Content()),
@@ -272,6 +339,15 @@ func (s *Service) SendMessage(
 	createdAt := time.Now().Format(time.RFC3339)
 
 	onDelta := func(delta agent.StreamDelta) {
+		select {
+		case <-streamCtx.Done():
+			s.logger.Debug("Context canceled in onDelta, stopping stream", "chatID", chatID, "error", streamCtx.Err())
+			return
+		default:
+		}
+
+		accumulatedContent += delta.ContentDelta
+
 		payload := model.MessageStreamPayload{
 			MessageID:                      assistantMessageId,
 			ImageUrls:                      delta.ImageURLs,
@@ -298,15 +374,12 @@ func (s *Service) SendMessage(
 	}
 
 	// Add to database
-	userDbStart := time.Now()
 	_, err = s.storage.AddMessageToChat(ctx, userMsg)
 	if err != nil {
+		s.logger.Error(" Failed to store user message in database", "messageID", userMsgID, "chatID", chatID, "error", err)
 		return nil, err
 	}
-	userDbTime := time.Since(userDbStart)
-	s.logger.Info("User message stored in database", "duration", userDbTime)
 
-	userNatsStart := time.Now()
 	userNatsMsg := model.Message{
 		ID:        userMsgID,
 		Text:      &message,
@@ -315,8 +388,6 @@ func (s *Service) SendMessage(
 		Role:      model.RoleUser,
 	}
 	_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s", chatID), userNatsMsg)
-	userNatsTime := time.Since(userNatsStart)
-	s.logger.Info("User message published to NATS", "duration", userNatsTime)
 
 	agent := agent.NewAgent(
 		s.logger,
@@ -334,9 +405,40 @@ func (s *Service) SendMessage(
 	s.logger.Info("Agent setup completed", "duration", agentSetupTime, "toolsCount", len(toolsList))
 
 	agentExecutionStart := time.Now()
-	response, err := agent.ExecuteStreamWithPrivacy(ctx, chatID, messageHistory, toolsList, onDelta, isReasoning)
+	response, err := agent.ExecuteStreamWithPrivacy(streamCtx, chatID, messageHistory, toolsList, onDelta, isReasoning)
 	agentExecutionTime := time.Since(agentExecutionStart)
 	if err != nil {
+		if streamCtx.Err() == context.Canceled {
+			s.logger.Info("Agent execution canceled", "duration", agentExecutionTime, "chatID", chatID)
+			text := accumulatedContent
+			if text == "" {
+				text = "Message was canceled."
+			}
+
+			assistantMessageDb := repository.Message{
+				ID:           assistantMessageId,
+				ChatID:       chatID,
+				Text:         text,
+				Role:         model.RoleAssistant.String(),
+				CreatedAtStr: time.Now().Format(time.RFC3339Nano),
+			}
+
+			idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
+			if err != nil {
+				s.logger.Error("Failed to store canceled message in database", "messageID", assistantMessageId, "chatID", chatID, "error", err)
+			}
+
+			return &model.Message{
+				ID:          idAssistant,
+				Text:        helpers.Ptr(text),
+				Role:        model.RoleAssistant,
+				ImageUrls:   []string{},
+				CreatedAt:   time.Now().Format(time.RFC3339),
+				ToolCalls:   []*model.ToolCall{},
+				ToolResults: []string{},
+			}, nil
+		}
+
 		s.logger.Error("Agent execution failed", "duration", agentExecutionTime, "error", err)
 		// send message to stop progress indicator
 		payload := model.MessageStreamPayload{
@@ -352,15 +454,6 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 	s.logger.Info("Agent execution completed", "duration", agentExecutionTime, "contentLength", len(response.Content), "toolCallsCount", len(response.ToolCalls), "toolResultsCount", len(response.ToolResults), "imageURLsCount", len(response.ImageURLs), "replacementRulesCount", len(response.ReplacementRules))
-	s.logger.Debug(
-		"Agent response",
-		"content",
-		response.Content,
-		"tool_calls",
-		len(response.ToolCalls),
-		"tool_results",
-		len(response.ToolResults),
-	)
 
 	subject := fmt.Sprintf("chat.%s", chatID)
 	toolResults := make([]string, len(response.ToolResults))
@@ -374,11 +467,18 @@ func (s *Service) SendMessage(
 
 	toolCalls := make([]*model.ToolCall, len(response.ToolCalls))
 	for i, v := range response.ToolCalls {
-		toolCalls[i] = &model.ToolCall{
+		toolCall := &model.ToolCall{
 			ID:          v.ID,
 			Name:        v.Function.Name,
 			IsCompleted: true,
 		}
+
+		// Add error information if available
+		if errorMsg, hasError := toolCallErrorsMap[v.ID]; hasError {
+			toolCall.Error = helpers.Ptr(errorMsg)
+		}
+
+		toolCalls[i] = toolCall
 	}
 
 	messageContent := response.Content
@@ -453,36 +553,63 @@ func (s *Service) SendMessage(
 			if ok {
 				toolCall.Result = &result
 			}
+
+			// Add error information if available
+			if errorMsg, hasError := toolCallErrorsMap[toolCall.ID]; hasError {
+				toolCall.Error = helpers.Ptr(errorMsg)
+			}
+
 			toolCalls = append(toolCalls, toolCall)
 		}
+
 		toolCallsJson, err := json.Marshal(toolCalls)
 		if err != nil {
+			s.logger.Error("❌ Failed to marshal tool calls", "error", err, "toolCallsCount", len(toolCalls))
 			return nil, errors.Wrap(err, "failed to marshal tool calls")
 		}
+		s.logger.Debug("📝 Tool calls JSON for database", "json", string(toolCallsJson))
 		assistantMessageDb.ToolCallsStr = helpers.Ptr(string(toolCallsJson))
 	}
 	if len(response.ToolResults) > 0 {
+		s.logger.Info("📝 Marshaling tool results for database storage",
+			"toolResultsCount", len(response.ToolResults),
+			"toolResultsWithErrors", func() int {
+				count := 0
+				for _, tr := range response.ToolResults {
+					if tr.Error() != "" {
+						count++
+					}
+				}
+				return count
+			}())
+
 		toolResultsJson, err := json.Marshal(response.ToolResults)
 		if err != nil {
+			s.logger.Error("❌ Failed to marshal tool results", "error", err, "toolResultsCount", len(response.ToolResults))
 			return nil, errors.Wrap(err, "failed to marshal tool results")
 		}
+		s.logger.Debug("📝 Tool results JSON for database", "json", string(toolResultsJson))
 		assistantMessageDb.ToolResultsStr = helpers.Ptr(string(toolResultsJson))
 	}
 	if len(response.ImageURLs) > 0 {
+		s.logger.Info("📝 Marshaling image URLs for database storage", "imageURLsCount", len(response.ImageURLs))
 		imageURLsJson, err := json.Marshal(response.ImageURLs)
 		if err != nil {
+			s.logger.Error("❌ Failed to marshal image URLs", "error", err, "imageURLsCount", len(response.ImageURLs))
 			return nil, errors.Wrap(err, "failed to marshal image URLs")
 		}
+		s.logger.Debug("📝 Image URLs JSON for database", "json", string(imageURLsJson))
 		assistantMessageDb.ImageURLsStr = helpers.Ptr(string(imageURLsJson))
 	}
 
-	assistantDbStart := time.Now()
 	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
 	if err != nil {
+		s.logger.Error("❌ Failed to store assistant message in database",
+			"messageID", assistantMessageId,
+			"chatID", chatID,
+			"error", err)
 		return nil, err
 	}
-	assistantDbTime := time.Since(assistantDbStart)
-	s.logger.Info("Assistant message stored in database", "duration", assistantDbTime)
 
 	assistantMessageJson, err := json.Marshal(model.Message{
 		ID:          idAssistant,
@@ -525,6 +652,19 @@ func (s *Service) SendMessage(
 		ToolCalls:   assistantMessageDb.ToModel().ToolCalls,
 		ToolResults: assistantMessageDb.ToModel().ToolResults,
 	}, nil
+}
+
+func (s *Service) CancelMessage(ctx context.Context, chatID string) (bool, error) {
+	s.streamsMutex.Lock()
+	defer s.streamsMutex.Unlock()
+
+	if cancel, exists := s.activeStreams[chatID]; exists {
+		cancel()
+		delete(s.activeStreams, chatID)
+		return true, nil
+	}
+
+	return false, fmt.Errorf("no active stream found for chat %s", chatID)
 }
 
 func (s *Service) GetChats(ctx context.Context) ([]*model.Chat, error) {

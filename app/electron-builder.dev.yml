@@ -2,27 +2,40 @@ appId: com.eternis.enchanted.dev
 productName: Enchanted Dev
 directories:
   buildResources: build
+icon: resources/dev-icons/icon.png
 extraResources:
   - from: './resources'
     to: 'resources'
     filter: ['**/*']
 files:
+  - out/**
+  - package.json
+  - resources/**
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!node_modules/.pnpm/electron@*'
+  - '!node_modules/.pnpm/app-builder-bin@*'
+  - '!**/*.map'
+
 asarUnpack:
   - resources/**
+
 win:
   executableName: app
+  icon: resources/dev-icons/icon.ico
+
 nsis:
   artifactName: ${productName}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+
 mac:
+  icon: resources/dev-icons/icon.icns
   target:
     - dmg
     - zip
@@ -31,14 +44,16 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   gatekeeperAssess: false
   extendInfo:
-    - NSCameraUsageDescription: This app requires access to the camera.
-    - NSMicrophoneUsageDescription: This app requires access to the microphone.
-    - NSDocumentsFolderUsageDescription: This app requires access to the Documents folder.
-    - NSScreenRecordingUsageDescription: This app needs screen-recording permission so you can share your screen.
-    - NSAccessibilityUsageDescription: This app needs accessibility permissions to enhance user experience.
-    - NSUserNotificationUsageDescription: This app needs notification permissions to send you important updates and alerts.
+    NSCameraUsageDescription: This app requires access to the camera.
+    NSMicrophoneUsageDescription: This app requires access to the microphone.
+    NSDocumentsFolderUsageDescription: This app requires access to Documents.
+    NSScreenRecordingUsageDescription: This app needs screen-recording permission.
+    NSAccessibilityUsageDescription: This app needs accessibility permissions.
+    NSUserNotificationUsageDescription: This app needs notification permissions.
+
 dmg:
   artifactName: ${productName}-${version}.${ext}
+
 linux:
   target:
     - AppImage

@@ -13,11 +13,16 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { useGoServerContext } from '../../contexts/GoServerContext'
-import { useGoServer } from '../../hooks/useGoServer'
 
 export default function GoLogsViewer() {
-  const { logs, clearLogs, downloadLogs } = useGoServerContext()
-  const { state, checkStatus, start, stop, retry } = useGoServer()
+  const {
+    logs,
+    clearLogs,
+    downloadLogs,
+    goServerState: state,
+    goServerActions
+  } = useGoServerContext()
+  const { checkStatus, start, stop, retry } = goServerActions
   const [autoScroll, setAutoScroll] = useState(true)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
@@ -114,7 +119,7 @@ export default function GoLogsViewer() {
   return (
     <div className="flex flex-col gap-4">
       <Card className="p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col lg:flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <Server className="w-5 h-5" />
             <h3>Go Server Status</h3>
@@ -139,8 +144,8 @@ export default function GoLogsViewer() {
         )}
       </Card>
 
-      <Card className="p-4 flex flex-col gap-4 min-w-2xl">
-        <div className="flex items-center justify-between">
+      <Card className="p-4 flex flex-col gap-4 w-full lg:min-w-2xl">
+        <div className="flex flex-col lg:flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <ScrollText className="w-5 h-5" />
             <h3>Server Logs</h3>

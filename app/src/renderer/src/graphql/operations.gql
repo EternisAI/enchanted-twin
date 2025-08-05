@@ -27,6 +27,7 @@ query GetChats($first: Int!, $offset: Int!) {
           content
           imageUrls
         }
+        error
       }
       toolResults
     }
@@ -56,6 +57,7 @@ query GetChat($id: ID!) {
           content
           imageUrls
         }
+        error
       }
       toolResults
     }
@@ -173,12 +175,14 @@ mutation CreateChat(
   $category: ChatCategory! = TEXT
   $holonThreadId: String
   $initialMessage: String
+  $isReasoning: Boolean! = false
 ) {
   createChat(
     name: $name
     category: $category
     holonThreadId: $holonThreadId
     initialMessage: $initialMessage
+    isReasoning: $isReasoning
   ) {
     id
     name
@@ -205,6 +209,7 @@ mutation SendMessage($chatId: ID!, $text: String!, $reasoning: Boolean!, $voice:
         content
         imageUrls
       }
+      error
     }
   }
 }
@@ -241,6 +246,7 @@ subscription MessageAdded($chatId: ID!) {
         content
         imageUrls
       }
+      error
     }
   }
 }
@@ -255,6 +261,7 @@ subscription ToolCallUpdated($chatId: ID!) {
       content
       imageUrls
     }
+    error
   }
 }
 
@@ -461,4 +468,8 @@ mutation DeleteTrackedFolder($id: ID!) {
 
 mutation UpdateTrackedFolder($id: ID!, $input: UpdateTrackedFolderInput!) {
   updateTrackedFolder(id: $id, input: $input)
+}
+
+mutation CancelMessage($chatId: ID!) {
+  cancelMessage(chatId: $chatId)
 }

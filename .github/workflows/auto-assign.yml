@@ -1,5 +1,7 @@
 name: 'Auto Assign'
-on: pull_request_target
+on:
+  pull_request_target:
+    types: [opened, synchronize, ready_for_review]
 
 permissions:
   pull-requests: write
@@ -14,117 +16,130 @@ jobs:
         with:
           fetch-depth: 0
           
-      - name: Generate auto-assign configs from teams.yml
+      - name: Install yq
+        env:
+          YQ_VERSION: "v4.44.1"          # 📌 bump intentionally on updates
+          YQ_SHA256: "6dc2d0cd4e0caca5aeffd0d784a48263591080e4a0895abe69f3a76eb50d1ba3"
         run: |
-          # Generate config files using yq
-          for team in frontend mcp memory agent data_ingestion anonymiser holon twinchat github default; do
-            team_file=$(echo $team | tr '_' '-')
-            cat > .github/auto-assign-${team_file}.yml << EOF
-          skipDraft: true
-          addReviewers: true
-          addAssignees: false
-          numberOfReviewers: 1
-          skipKeywords: ['[skip ci]', '[skip review]']
-          reviewers:
-          $(yq -r ".teams.${team}[]" .github/teams.yml | sed 's/^/  - /')
-          EOF
-          done
-          
-      - name: Load teams for self-assignment prevention
-        id: teams
+          curl -L -o yq https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64
+          echo "${YQ_SHA256}  yq" | sha256sum -c -
+          sudo install -m0755 yq /usr/local/bin/yq
+          rm yq
+      - name: Generate auto-request-review config
         run: |
-          echo "frontend=$(yq -r '.teams.frontend | join(",")' .github/teams.yml)" >> $GITHUB_OUTPUT
-          echo "mcp=$(yq -r '.teams.mcp | join(",")' .github/teams.yml)" >> $GITHUB_OUTPUT
-          
-      - name: Check changed paths
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
-        id: filter
-        with:
-          filters: |
-            frontend:
-              - 'app/**'
+          cat > .github/auto_request_review.yml << EOF
+          groups:
+            frontend: 
+          $(yq -r '.teams.frontend[]' .github/teams.yml | sed 's/^/      - /')
             mcp:
-              - 'backend/golang/pkg/mcpserver/**'
+          $(yq -r '.teams.mcp[]' .github/teams.yml | sed 's/^/      - /')
             memory:
-              - 'backend/golang/pkg/agent/memory/**'
+          $(yq -r '.teams.memory[]' .github/teams.yml | sed 's/^/      - /')
             agent:
-              - 'backend/golang/pkg/agent/**'
+          $(yq -r '.teams.agent[]' .github/teams.yml | sed 's/^/      - /')
             data_ingestion:
-              - 'backend/golang/pkg/dataprocessing/**'
+          $(yq -r '.teams.data_ingestion[]' .github/teams.yml | sed 's/^/      - /')
             anonymiser:
-              - 'backend/golang/pkg/ai/**'
+          $(yq -r '.teams.anonymiser[]' .github/teams.yml | sed 's/^/      - /')
             holon:
-              - 'backend/golang/pkg/holon/**'
+          $(yq -r '.teams.holon[]' .github/teams.yml | sed 's/^/      - /')
             twinchat:
-              - 'backend/golang/pkg/twinchat/**'
+          $(yq -r '.teams.twinchat[]' .github/teams.yml | sed 's/^/      - /')
             github:
-              - '.github/**'
-              
-      - name: Auto-assign reviewers - Frontend
-        if: steps.filter.outputs.frontend == 'true' && !contains(fromJSON(format('["{0}"]', replace(steps.teams.outputs.frontend, ',', '","'))), github.actor)
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
-        with:
-          configuration-path: '.github/auto-assign-frontend.yml'
+          $(yq -r '.teams.github[]' .github/teams.yml | sed 's/^/      - /')
           
-      - name: Auto-assign reviewers - MCP  
-        if: steps.filter.outputs.mcp == 'true' && !contains(fromJSON(format('["{0}"]', replace(steps.teams.outputs.mcp, ',', '","'))), github.actor)
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
-        with:
-          configuration-path: '.github/auto-assign-mcp.yml'
+          options:
+            ignore_draft: true
+            ignore_paths:
+              - '**.md'
           
-      - name: Auto-assign reviewers - Memory
-        if: steps.filter.outputs.memory == 'true' && steps.filter.outputs.agent != 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
-        with:
-          configuration-path: '.github/auto-assign-memory.yml'
+          rules:
+            - name: Frontend changes
+              condition:
+                files:
+                  - 'app/**'
+              reviewers:
+                groups:
+                  - frontend
+                users: []
+              random_count: 1
+            - name: MCP changes  
+              condition:
+                files:
+                  - 'backend/golang/pkg/mcpserver/**'
+              reviewers:
+                groups:
+                  - mcp
+                users: []
+              random_count: 1
+            - name: Memory changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/agent/memory/**'
+              reviewers:
+                groups:
+                  - memory
+                users: []
+              random_count: 1
+            - name: Agent changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/agent/**'
+              reviewers:
+                groups:
+                  - agent
+                users: []
+              random_count: 1
+            - name: Data ingestion changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/dataprocessing/**'
+              reviewers:
+                groups:
+                  - data_ingestion
+                users: []
+              random_count: 1
+            - name: Anonymiser changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/ai/**'
+              reviewers:
+                groups:
+                  - anonymiser
+                users: []
+              random_count: 1
+            - name: Holon changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/holon/**'
+              reviewers:
+                groups:
+                  - holon
+                users: []
+              random_count: 1
+            - name: TwinChat changes
+              condition:
+                files:
+                  - 'backend/golang/pkg/twinchat/**'
+              reviewers:
+                groups:
+                  - twinchat
+                users: []
+              random_count: 1
+            - name: GitHub/CI changes
+              condition:
+                files:
+                  - '.github/**'
+              reviewers:
+                groups:
+                  - github
+                users: []
+              random_count: 1
+          EOF
           
-      - name: Auto-assign reviewers - Agent
-        if: steps.filter.outputs.agent == 'true' && steps.filter.outputs.memory != 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
+      - name: Auto-assign reviewers
+        uses: necojackarc/auto-request-review@v0.13.0
         with:
-          configuration-path: '.github/auto-assign-agent.yml'
-          
-      - name: Auto-assign reviewers - Data Ingestion
-        if: steps.filter.outputs.data_ingestion == 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
-        with:
-          configuration-path: '.github/auto-assign-data-ingestion.yml'
-          
-      - name: Auto-assign reviewers - Anonymiser
-        if: steps.filter.outputs.anonymiser == 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
-        with:
-          configuration-path: '.github/auto-assign-anonymiser.yml'
-          
-      - name: Auto-assign reviewers - Holon
-        if: steps.filter.outputs.holon == 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
-        with:
-          configuration-path: '.github/auto-assign-holon.yml'
-          
-      - name: Auto-assign reviewers - TwinChat
-        if: steps.filter.outputs.twinchat == 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
-        with:
-          configuration-path: '.github/auto-assign-twinchat.yml'
-          
-      - name: Auto-assign reviewers - GitHub/CI
-        if: steps.filter.outputs.github == 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
-        with:
-          configuration-path: '.github/auto-assign-github.yml'
-          
-      - name: Auto-assign reviewers - Default
-        if: |
-          steps.filter.outputs.frontend != 'true' &&
-          steps.filter.outputs.mcp != 'true' &&
-          steps.filter.outputs.memory != 'true' &&
-          steps.filter.outputs.agent != 'true' &&
-          steps.filter.outputs.data_ingestion != 'true' &&
-          steps.filter.outputs.anonymiser != 'true' &&
-          steps.filter.outputs.holon != 'true' &&
-          steps.filter.outputs.twinchat != 'true' &&
-          steps.filter.outputs.github != 'true'
-        uses: kentaro-m/auto-assign-action@fcd94f1b00f6c4071ed7eaa8b8a6dd6e7dfcc5d8 # v2.0.1
-        with:
-          configuration-path: '.github/auto-assign-default.yml'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config: .github/auto_request_review.yml
+          use_local: true

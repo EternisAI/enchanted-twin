@@ -5,7 +5,7 @@ import { Tooltip } from '../ui/tooltip'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button } from '../ui/button'
 import { AudioLinesIcon, Brain, CheckIcon, X } from 'lucide-react'
-import { cn } from '@renderer/lib/utils'
+import { checkVoiceDisabled, cn } from '@renderer/lib/utils'
 import { SendButton } from './MessageInput'
 import { toast } from 'sonner'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
@@ -37,6 +37,8 @@ export default function ChatInputBox({
   onVoiceModeChange,
   onLayoutAnimationComplete
 }: ChatInputBoxProps) {
+  const isVoiceDisabled = checkVoiceDisabled()
+
   // Auto-resize textarea fallback for browsers without field-sizing support
   useEffect(() => {
     if (!textareaRef.current) return
@@ -73,7 +75,7 @@ export default function ChatInputBox({
           min-height: 50px;
           max-height: 240px;
         }
-        
+
         @supports not (field-sizing: content) {
           /* Fallback for browsers that don't support field-sizing */
           .auto-sizing-textarea {
@@ -81,7 +83,7 @@ export default function ChatInputBox({
             max-height: 240px;
           }
         }
-        
+
         .auto-sizing-textarea::-webkit-scrollbar {
           width: 4px;
         }
@@ -139,7 +141,7 @@ export default function ChatInputBox({
                 />
               </motion.div>
             )}
-            {!isVoiceMode && query.length === 0 ? (
+            {!isVoiceMode && query.length === 0 && !isVoiceDisabled ? (
               <motion.div
                 key="talk"
                 layout="position"
@@ -193,7 +195,7 @@ interface ReasoningButtonProps {
   disabled?: boolean
 }
 
-const REASONING_MODEL = 'o4-mini-high'
+const REASONING_MODEL = 'o3'
 const NOT_REASONING_MODEL = 'gpt-4.1'
 
 export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps) {
@@ -211,6 +213,12 @@ export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButt
     setOpen(false)
   }
 
+  const brainVariants = {
+    initial: { scale: 1 },
+    animate: { scale: 1.1 },
+    exit: { scale: 1 }
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -220,7 +228,13 @@ export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButt
           variant="outline"
           disabled={disabled}
         >
-          <Brain className="w-4 h-4" />
+          <motion.div
+            variants={brainVariants}
+            animate={isSelected ? 'animate' : 'initial'}
+            transition={{ type: 'spring', stiffness: 350, damping: isSelected ? 5 : 20 }}
+          >
+            <Brain className="w-4 h-4" />
+          </motion.div>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-1" align="end">

@@ -30,14 +30,6 @@ interface AuthContextType {
   signInWithX: () => Promise<void>
   authError: string | null
   hasUpdatedToken: boolean
-  whitelist: {
-    isWhitelisted: boolean
-    status: boolean | null
-    loading: boolean
-    called: boolean
-    error: string | null
-    activateInviteCode: (inviteCode: string) => Promise<void>
-  }
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -62,30 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   })
 
-  // @TODO: Move whitelist logic to InvitationGate
-  const {
-    data: whitelistData,
-    loading: whitelistLoading,
-    error: whitelistError,
-    called: whitelistCalled,
-    refetch: refetchWhitelist
-  } = useQuery(GetWhitelistStatusDocument, {
-    fetchPolicy: 'network-only',
-    skip: !user || !hasUpdatedToken
-  })
-
-  const [activateInviteCodeMutation] = useMutation(ActivateInviteCodeDocument, {
-    onCompleted: async () => {
-      toast.success('Invite code activated successfully!')
-      await refetchWhitelist()
-    },
-    onError: (error) => {
-      console.error('[Auth] Failed to activate invite code:', error)
-      toast.error(`Failed to activate invite code: ${error.message}`)
-      throw error
-    }
-  })
-
   const [connectMcpServer] = useMutation(ConnectMcpServerDocument, {
     onCompleted: () => {
       console.log('[Auth] Enchanted MCP server auto-connected successfully')
@@ -99,19 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     skip: !user || !hasUpdatedToken,
     fetchPolicy: 'network-only'
   })
-
-  const activateInviteCode = async (inviteCode: string) => {
-    if (!inviteCode.trim()) {
-      throw new Error('Please enter an invite code')
-    }
-
-    await activateInviteCodeMutation({
-      variables: { inviteCode: inviteCode.trim() }
-    })
-  }
-
-  const whitelistStatus = whitelistData?.whitelistStatus || null
-  const isWhitelisted = Boolean(whitelistStatus || whitelistError)
 
   useEffect(() => {
     if (!user) return
@@ -359,14 +314,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         signInWithGoogle,
         authError,
-        whitelist: {
-          status: whitelistStatus,
-          loading: whitelistLoading,
-          error: whitelistError?.message || null,
-          called: whitelistCalled,
-          isWhitelisted,
-          activateInviteCode
-        },
         signInWithX
       }}
     >

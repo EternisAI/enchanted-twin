@@ -13,6 +13,8 @@ import { ArrowDown } from 'lucide-react'
 import { Fade } from '../ui/blur-fade'
 import Error from './Error'
 import { AnonToggleButton } from './AnonToggleButton'
+import { usePrevious } from '@renderer/lib/hooks/usePrevious'
+import { checkVoiceDisabled } from '@renderer/lib/utils'
 
 interface ChatViewProps {
   chat: Chat
@@ -27,6 +29,8 @@ export default function ChatView({ chat }: ChatViewProps) {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const [isAnonymized, setIsAnonymized] = useState(false)
 
+  const isVoiceDisabled = checkVoiceDisabled()
+
   const {
     privacyDict,
     messages,
@@ -37,9 +41,11 @@ export default function ChatView({ chat }: ChatViewProps) {
     historicToolCalls,
     isStreamingResponse,
     sendMessage,
-    setIsWaitingTwinResponse,
-    setIsReasonSelected
+    setIsReasonSelected,
+    cancelMessageStreaming
   } = useChat()
+
+  const comingFromVoiceMode = usePrevious(isVoiceMode)
 
   // TODO: replace with intersection observer instead of scroll event listener - performance improvement
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -54,13 +60,13 @@ export default function ChatView({ chat }: ChatViewProps) {
     if (!container) return
 
     const scrollOptions = { top: container.scrollHeight }
-    if (!mounted) {
+    if (!mounted || comingFromVoiceMode) {
       container.scrollTo({ ...scrollOptions, behavior: 'instant' })
       setMounted(true)
     } else if (isAtBottom) {
       container.scrollTo({ ...scrollOptions, behavior: 'smooth' })
     }
-  }, [messages, mounted, isAtBottom])
+  }, [messages, mounted, isAtBottom, isVoiceMode, comingFromVoiceMode])
 
   const scrollToBottom = () => {
     if (containerRef.current) {
@@ -71,7 +77,7 @@ export default function ChatView({ chat }: ChatViewProps) {
     }
   }
 
-  if (isVoiceMode) {
+  if (isVoiceMode && !isVoiceDisabled) {
     return (
       <VoiceModeChatView
         chat={chat}
@@ -171,7 +177,7 @@ export default function ChatView({ chat }: ChatViewProps) {
             isStreamingResponse={isStreamingResponse}
             onSend={sendMessage}
             onStop={() => {
-              setIsWaitingTwinResponse(false)
+              cancelMessageStreaming(chat.id)
             }}
             voiceMode={isVoiceMode}
             onVoiceModeChange={() => {

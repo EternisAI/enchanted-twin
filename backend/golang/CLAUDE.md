@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `make sqlc-generate` - Generate SQL code from queries and schema
 
 ### Database Management
-- `make fresh-db` - Remove all Weaviate and SQLite data for a fresh start
+- `make fresh-db` - Remove all PostgreSQL and SQLite data for a fresh start
 
 ### Installation
 - `make install` - Install required tools (gqlgen, mockery, golangci-lint)
@@ -49,7 +49,7 @@ This is a Go backend for an AI agent system called "Enchanted Twin" that process
 - Utility functions for AI interactions
 
 **Storage Layer**
-- **Weaviate**: Embedded vector database server (starts on `WEAVIATE_PORT`, default 51414)
+- **Memory Backend**: **PostgreSQL + pgvector**: Embedded PostgreSQL with vector search capabilities
 - **SQLite**: Relational data with multiple schemas (config, holons, whatsapp)
 - **SQLC**: Type-safe SQL code generation from queries
 
@@ -70,7 +70,7 @@ This is a Go backend for an AI agent system called "Enchanted Twin" that process
 
 - **Go 1.24.2** with extensive dependency list
 - **Temporal** for workflow orchestration
-- **Weaviate** for vector storage
+- **PostgreSQL + pgvector** for vector storage
 - **SQLite** for relational data
 - **GraphQL** via gqlgen
 - **NATS** for messaging
@@ -82,7 +82,7 @@ This is a Go backend for an AI agent system called "Enchanted Twin" that process
 - Temporal workflows for async processing
 - Type-safe database queries via SQLC
 - Integration testing with real data samples
-- Embedded services (Weaviate) for simplified deployment
+- Embedded services (PostgreSQL) for simplified deployment
 
 ### Testing
 
@@ -92,7 +92,8 @@ This is a Go backend for an AI agent system called "Enchanted Twin" that process
 
 ### Environment Variables
 
-- `WEAVIATE_PORT` - Port for embedded Weaviate server (default: 51414)
+- `MEMORY_BACKEND` - Memory storage backend: `postgresql` (default)
+- `POSTGRES_PORT` - Port for embedded PostgreSQL server (default: 5432)
 - Various OAuth and API credentials for external services
 
 ### Code Style Notes

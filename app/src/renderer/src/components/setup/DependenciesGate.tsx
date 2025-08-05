@@ -8,7 +8,7 @@ import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
 import { PrivacyButton } from '../chat/privacy/PrivacyButton'
 
-export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLAMACCP' | 'uv'
+export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLAMACCP' | 'uv' | 'postgres'
 
 interface ModelDownloadItemProps {
   name: string
@@ -204,7 +204,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
           startLlamaCpp()
         }
       }
-    }, 15000)
+    }, 60000)
 
     return () => clearInterval(interval)
   }, [startLlamaCpp, hasModelsDownloaded.LLAMACCP, hasModelsDownloaded.anonymizer])
@@ -214,44 +214,33 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     Object.values(downloadState).every((dependency) => dependency.completed)
 
   useEffect(() => {
-    console.log('[DependenciesGate] Setting up Go server monitoring')
-
     if (!allDependenciesCompleted || process.env.NODE_ENV === 'development') {
-      console.log(
-        '[DependenciesGate] Skipping Go server monitoring - dependencies not completed or in dev mode'
-      )
       return
     }
 
-    console.log('[DependenciesGate] Starting Go server monitoring every 10s')
-
     const interval = setInterval(async () => {
-      console.log('[DependenciesGate] Checking Go server status...')
-
       try {
         const status = await goServerActions.checkStatus()
         console.log('[DependenciesGate] Go server status:', status)
 
-        if (!status.isRunning && !goServerState.initializing) {
-          console.log(
-            '[DependenciesGate] Go server is not running and not initializing, starting initialization...'
-          )
-          await goServerActions.initializeIfNeeded()
+        if (!status.isRunning && !status.isInitializing) {
+          const result = await goServerActions.initializeIfNeeded()
+          console.log('[DependenciesGate] Go server initialization result:', result)
         } else if (status.isRunning) {
           console.log('[DependenciesGate] Go server is running')
-        } else if (goServerState.initializing) {
+        } else if (status.isInitializing) {
           console.log('[DependenciesGate] Go server is currently initializing')
         }
       } catch (error) {
         console.error('[DependenciesGate] Error checking Go server status:', error)
       }
-    }, 10000)
+    }, 15000)
 
     return () => {
       console.log('[DependenciesGate] Cleaning up Go server monitoring')
       clearInterval(interval)
     }
-  }, [allDependenciesCompleted, goServerState.initializing, goServerActions])
+  }, [allDependenciesCompleted])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>
@@ -268,6 +257,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
               {allDependenciesCompleted ? 'It begins with Freysa' : 'Enchanted is loading'}
             </h1>
             {!allDependenciesCompleted && <p className="text-xs text-white">~5 minutes</p>}
+            <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
           </div>
 
           <div className="flex flex-col gap-4">
@@ -300,7 +290,6 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
                 onRetry={retryGoServer}
               />
             )}
-            <PrivacyButton className="text-white hover:bg-transparent hover:text-white/90" />
           </div>
         </div>
       </div>
