@@ -7,75 +7,216 @@ import * as tar from 'tar'
 import { windowManager } from './windows'
 import { DependencyName } from './types/dependencies'
 import { LiveKitAgentBootstrap } from './livekitAgent'
+import { EMBEDDED_RUNTIME_DEPS_CONFIG } from './embeddedDepsConfig'
 
 const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
-// PostgreSQL files to download
-const POSTGRES_FILES = {
-  binaries: [
-    'bin/postgres',
-    'bin/initdb', 
-    'bin/pg_ctl'
-  ],
-  libraries: [
-    'lib/libpq.5.dylib',
-    'lib/libpq.dylib',
-    'lib/postgresql/vector.dylib',
-    'lib/postgresql/dict_snowball.dylib',
-    'lib/postgresql/plpgsql.dylib',
-    // Essential system libraries that PostgreSQL binaries depend on
-    'lib/libicuuc.75.dylib',
-    'lib/libicui18n.75.dylib',
-    'lib/libicudata.75.dylib',
-    'lib/libssl.3.dylib',
-    'lib/libcrypto.3.dylib',
-    'lib/libxml2.2.dylib',
-    'lib/libzstd.1.dylib',
-    'lib/liblz4.1.dylib'
-  ],
-  dataFiles: [
-    'share/postgresql/postgres.bki',
-    'share/postgresql/errcodes.txt',
-    'share/postgresql/information_schema.sql',
-    // Configuration sample files required by initdb
-    'share/postgresql/pg_hba.conf.sample',
-    'share/postgresql/pg_ident.conf.sample',
-    'share/postgresql/postgresql.conf.sample',
-    'share/postgresql/pg_service.conf.sample',
-    'share/postgresql/psqlrc.sample',
-    // System catalog and function definitions
-    'share/postgresql/system_constraints.sql',
-    'share/postgresql/system_functions.sql', 
-    'share/postgresql/system_views.sql',
-    'share/postgresql/sql_features.txt',
-    'share/postgresql/snowball_create.sql',
-    // Core PostgreSQL extension (required by initdb)
-    'share/postgresql/extension/plpgsql.control',
-    'share/postgresql/extension/plpgsql--1.0.sql',
-    // pgvector extension files
-    'share/postgresql/extension/vector.control',
-    'share/postgresql/extension/vector--0.8.0.sql',
-    // Essential timezone files - just UTC
-    'share/postgresql/timezone/UTC',
-    // Timezone sets - required directory structure for PostgreSQL
-    'share/postgresql/timezonesets/Africa.txt',
-    'share/postgresql/timezonesets/America.txt',
-    'share/postgresql/timezonesets/Antarctica.txt',
-    'share/postgresql/timezonesets/Asia.txt',
-    'share/postgresql/timezonesets/Atlantic.txt',
-    'share/postgresql/timezonesets/Australia',
-    'share/postgresql/timezonesets/Australia.txt',
-    'share/postgresql/timezonesets/Default',
-    'share/postgresql/timezonesets/Etc.txt',
-    'share/postgresql/timezonesets/Europe.txt',
-    'share/postgresql/timezonesets/India',
-    'share/postgresql/timezonesets/Indian.txt',
-    'share/postgresql/timezonesets/Pacific.txt',
-    // Text search data - just English
-    'share/postgresql/tsearch_data/english.stop'
-  ]
+// Use embedded config that was generated at build time
+const RUNTIME_DEPS_CONFIG = EMBEDDED_RUNTIME_DEPS_CONFIG
+
+// Generic dependency installer functions
+function createGenericInstaller(depName: DependencyName) {
+  const config = RUNTIME_DEPS_CONFIG?.dependencies?.[depName]
+  if (!config) {
+    console.warn(`No config found for dependency: ${depName}`)
+    return null
+  }
+
+  return {
+    install: async function() {
+      const depDir = config.dir.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR)
+      
+      switch (config.type) {
+        case 'individual_files': {
+          const baseUrl = config.url
+          const allFiles = [
+            ...(config.files?.binaries || []),
+            ...(config.files?.libraries || []),
+            ...(config.files?.dataFiles || [])
+          ]
+          let downloadedFiles = 0
+          const totalFiles = allFiles.length
+          const failedDownloads: string[] = []
+
+          for (const filePath of allFiles) {
+            const fileUrl = `${baseUrl}/${filePath}`
+            const destPath = path.join(depDir, filePath)
+            const destDir = path.dirname(destPath)
+
+            if (!fs.existsSync(destDir)) {
+              fs.mkdirSync(destDir, { recursive: true })
+            }
+
+            try {
+              await downloadSingleFile(fileUrl, destPath)
+              downloadedFiles++
+
+              const pct = Math.round((downloadedFiles / totalFiles) * 100)
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct,
+                totalBytes: totalFiles,
+                downloadedBytes: downloadedFiles
+              })
+            } catch (error) {
+              console.error(`Failed to download ${filePath}:`, error)
+              failedDownloads.push(filePath)
+            }
+          }
+
+          // Set executable permissions based on post_download config
+          if (config.post_download?.chmod && process.platform !== 'win32') {
+            const mode = config.post_download.chmod.mode
+            const files = config.post_download.chmod.files || []
+            for (const filePath of files) {
+              const fullPath = path.join(depDir, filePath)
+              if (fs.existsSync(fullPath)) {
+                fs.chmodSync(fullPath, parseInt(mode, 8))
+              }
+            }
+          }
+          break
+        }
+        
+        case 'zip': {
+          const file = await downloadFile(
+            config.url,
+            depDir,
+            'temp.zip',
+            (pct, total, downloaded) => {
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct,
+                totalBytes: total,
+                downloadedBytes: downloaded
+              })
+            }
+          )
+          await extractZip(file, depDir)
+          break
+        }
+        
+        case 'tar.gz': {
+          let url = config.url
+          if (config.platform_url_key && typeof url === 'object') {
+            if (process.platform === 'darwin' && process.arch === 'arm64') {
+              url = url['darwin-arm64']
+            } else {
+              url = url['linux-x64']
+            }
+          }
+          
+          const file = await downloadFile(
+            url as string,
+            depDir,
+            'temp.tgz',
+            (pct, total, downloaded) => {
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct,
+                totalBytes: total,
+                downloadedBytes: downloaded
+              })
+            }
+          )
+          await extractTarGz(file, depDir)
+          break
+        }
+        
+        case 'curl_script': {
+          if (process.env.VITE_DISABLE_VOICE === 'true') {
+            return
+          }
+
+          const livekitAgent = new LiveKitAgentBootstrap({
+            onProgress: (data) => {
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct: data.progress,
+                status: data.status,
+                error: data.error,
+                totalBytes: 0,
+                downloadedBytes: 0
+              })
+            }
+          })
+          await livekitAgent.setup()
+          break
+        }
+      }
+    },
+    
+    isDownloaded: function() {
+      const depDir = config.dir.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR)
+      
+      // Handle special validation conditions first
+      if (config.validation_condition === 'has_both_models' && depName === 'anonymizer') {
+        if (process.env.ANONYMIZER_TYPE === 'no-op') {
+          return true
+        }
+        
+        if (!isExtractedDirValid(depDir)) {
+          return false
+        }
+        
+        try {
+          const files = fs.readdirSync(depDir)
+          const ggufs = files.filter((file) => file.endsWith('.gguf'))
+          const has4bModel = ggufs.some(
+            (file) =>
+              file.toLowerCase().includes('qwen') &&
+              (file.toLowerCase().includes('4b') || file.toLowerCase().includes('4-b'))
+          )
+          const has06bModel = ggufs.some(
+            (file) =>
+              file.toLowerCase().includes('qwen') &&
+              (file.toLowerCase().includes('0.6b') || file.toLowerCase().includes('0.6-b'))
+          )
+          return has4bModel && has06bModel
+        } catch (error) {
+          return false
+        }
+      }
+      
+      if (config.validation_condition === 'platform_specific_binary' && depName === 'uv') {
+        if (process.env.VITE_DISABLE_VOICE === 'true') {
+          return true
+        }
+        const uvBin = process.platform === 'win32' ? 'uv.exe' : 'uv'
+        return fs.existsSync(path.join(depDir, uvBin))
+      }
+      
+      // Handle platform-specific validation files (like ONNX)
+      let validationFiles = config.validation_files || []
+      if (typeof validationFiles === 'object' && !Array.isArray(validationFiles)) {
+        // Platform-specific validation files
+        const platform = process.platform
+        const arch = process.arch
+        let platformKey: string
+        
+        if (platform === 'darwin' && arch === 'arm64') {
+          platformKey = 'darwin-arm64'
+        } else {
+          platformKey = 'linux-x64'
+        }
+        
+        validationFiles = validationFiles[platformKey] || []
+      }
+      
+      // Standard validation using validation_files (array)
+      if (Array.isArray(validationFiles)) {
+        return validationFiles.every(filePath => {
+          const fullPath = path.join(depDir, filePath)
+          return fs.existsSync(fullPath)
+        })
+      }
+      
+      return false
+    }
+  }
 }
 
+// Create JSON-driven dependency configs
 const DEPENDENCIES_CONFIGS: Record<
   DependencyName,
   {
@@ -85,250 +226,38 @@ const DEPENDENCIES_CONFIGS: Record<
     install: () => Promise<void>
     isDownloaded: () => boolean
   }
-> = {
-  embeddings: {
-    url: 'https://d3o88a4htgfnky.cloudfront.net/models/jina-embeddings-v2-base-en.zip',
-    name: 'embeddings',
-    dir: path.join(DEPENDENCIES_DIR, 'models', 'jina-embeddings-v2-base-en'),
-    install: async function () {
-      const file = await downloadFile(
-        this.url,
-        this.dir,
-        'embeddings.zip',
-        (pct, total, downloaded) => {
-          windowManager.mainWindow?.webContents.send('models:progress', {
-            modelName: this.name,
-            pct,
-            totalBytes: total,
-            downloadedBytes: downloaded
-          })
-        }
-      )
-      await extractZip(file, this.dir)
-    },
-    isDownloaded: function () {
-      return isExtractedDirValid(this.dir)
-    }
-  },
-  uv: {
-    url: '',
-    name: 'uv',
-    dir: path.join(DEPENDENCIES_DIR, 'shared', 'bin'),
-    install: async function () {
-      if (process.env.VITE_DISABLE_VOICE === 'true') {
-        return
+> = (() => {
+  const configs: any = {}
+  const dependencyNames: DependencyName[] = ['embeddings', 'anonymizer', 'onnx', 'LLAMACCP', 'uv', 'postgres']
+  
+  for (const depName of dependencyNames) {
+    const genericInstaller = createGenericInstaller(depName)
+    if (genericInstaller) {
+      const config = RUNTIME_DEPS_CONFIG?.dependencies?.[depName]
+      configs[depName] = {
+        url: typeof config?.url === 'string' ? config.url : '',
+        name: config?.name || depName,
+        dir: config?.dir?.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR) || path.join(DEPENDENCIES_DIR, depName),
+        install: genericInstaller.install,
+        isDownloaded: genericInstaller.isDownloaded
       }
-
-      const livekitAgent = new LiveKitAgentBootstrap({
-        onProgress: (data) => {
-          windowManager.mainWindow?.webContents.send('models:progress', {
-            modelName: this.name,
-            pct: data.progress,
-            status: data.status,
-            error: data.error,
-            totalBytes: 0,
-            downloadedBytes: 0
-          })
-        }
-      })
-      await livekitAgent.setup()
-    },
-    isDownloaded: function () {
-      if (process.env.VITE_DISABLE_VOICE === 'true') {
-        return true
+    } else {
+      // Fallback for missing config
+      console.warn(`Using fallback config for ${depName}`)
+      configs[depName] = {
+        url: '',
+        name: depName,
+        dir: path.join(DEPENDENCIES_DIR, depName),
+        install: async () => {
+          console.warn(`No installer available for ${depName}`)
+        },
+        isDownloaded: () => false
       }
-
-      const uvBin = process.platform === 'win32' ? 'uv.exe' : 'uv'
-      return fs.existsSync(path.join(this.dir, uvBin))
-    }
-  },
-  anonymizer: {
-    url: 'https://d3o88a4htgfnky.cloudfront.net/models/qwen3-4b_q4_k_m.zip',
-    name: 'anonymizer',
-    dir: path.join(DEPENDENCIES_DIR, 'models', 'anonymizer'),
-    install: async function () {
-      const file = await downloadFile(
-        this.url,
-        this.dir,
-        'anonymizer.zip',
-        (pct, total, downloaded) => {
-          windowManager.mainWindow?.webContents.send('models:progress', {
-            modelName: this.name,
-            pct,
-            totalBytes: total,
-            downloadedBytes: downloaded
-          })
-        }
-      )
-      await extractZip(file, this.dir)
-    },
-    isDownloaded: function () {
-      // If ANONYMIZER_TYPE is set to "no-op", consider it downloaded
-      if (process.env.ANONYMIZER_TYPE === 'no-op') {
-        return true
-      }
-
-      // For anonymizer, we need both 4b and 0.6b models
-      if (!isExtractedDirValid(this.dir)) {
-        return false
-      }
-
-      try {
-        const files = fs.readdirSync(this.dir)
-        const ggufs = files.filter((file) => file.endsWith('.gguf'))
-
-        const has4bModel = ggufs.some(
-          (file) =>
-            file.toLowerCase().includes('qwen') &&
-            (file.toLowerCase().includes('4b') || file.toLowerCase().includes('4-b'))
-        )
-
-        const has06bModel = ggufs.some(
-          (file) =>
-            file.toLowerCase().includes('qwen') &&
-            (file.toLowerCase().includes('0.6b') || file.toLowerCase().includes('0.6-b'))
-        )
-
-        return has4bModel && has06bModel
-      } catch (error) {
-        return false
-      }
-    }
-  },
-  LLAMACCP: {
-    url: 'https://github.com/ggml-org/llama.cpp/releases/download/b5916/llama-b5916-bin-macos-arm64.zip',
-    name: 'llamacpp',
-    dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib', 'llamacpp'),
-    install: async function () {
-      const file = await downloadFile(
-        this.url,
-        this.dir,
-        'llamacpp.zip',
-        (pct, total, downloaded) => {
-          windowManager.mainWindow?.webContents.send('models:progress', {
-            modelName: this.name,
-            pct,
-            totalBytes: total,
-            downloadedBytes: downloaded
-          })
-        }
-      )
-      await extractZip(file, this.dir)
-    },
-    isDownloaded: function () {
-      return isExtractedDirValid(this.dir)
-    }
-  },
-  onnx: {
-    url:
-      process.platform === 'darwin' && process.arch === 'arm64'
-        ? 'https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-osx-arm64-1.22.0.tgz'
-        : 'https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz',
-    name: 'onnx',
-    dir: path.join(DEPENDENCIES_DIR, 'shared', 'lib'),
-    install: async function () {
-      const file = await downloadFile(this.url, this.dir, 'onnx.tgz', (pct, total, downloaded) => {
-        windowManager.mainWindow?.webContents.send('models:progress', {
-          modelName: this.name,
-          pct,
-          totalBytes: total,
-          downloadedBytes: downloaded
-        })
-      })
-      await extractTarGz(file, this.dir)
-    },
-    isDownloaded: function () {
-      // Check for the extracted onnxruntime folder (platform-specific)
-      const onnxDir =
-        process.platform === 'darwin' && process.arch === 'arm64'
-          ? path.join(this.dir, 'onnxruntime-osx-arm64-1.22.0')
-          : path.join(this.dir, 'onnxruntime-linux-x64-1.22.0')
-      return isExtractedDirValid(onnxDir)
-    }
-  },
-  postgres: {
-    url: 'https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres',
-    name: 'postgres',
-    dir: path.join(DEPENDENCIES_DIR, 'postgres'),
-    install: async function () {
-      const baseUrl = this.url
-      const allFiles = [...POSTGRES_FILES.binaries, ...POSTGRES_FILES.libraries, ...POSTGRES_FILES.dataFiles]
-      let downloadedFiles = 0
-      const totalFiles = allFiles.length
-      const failedDownloads: string[] = []
-
-      for (const filePath of allFiles) {
-        const fileUrl = `${baseUrl}/${filePath}`
-        const destPath = path.join(this.dir, filePath)
-        const destDir = path.dirname(destPath)
-
-        // Create directory if it doesn't exist
-        if (!fs.existsSync(destDir)) {
-          fs.mkdirSync(destDir, { recursive: true })
-        }
-
-        try {
-          await downloadSingleFile(fileUrl, destPath)
-          downloadedFiles++
-
-          // Report progress
-          const pct = Math.round((downloadedFiles / totalFiles) * 100)
-          windowManager.mainWindow?.webContents.send('models:progress', {
-            modelName: this.name,
-            pct,
-            totalBytes: totalFiles,
-            downloadedBytes: downloadedFiles
-          })
-        } catch (error) {
-          console.error(`Failed to download ${filePath}:`, error)
-          failedDownloads.push(filePath)
-          // Continue with other files even if one fails
-        }
-      }
-
-      // Report failed downloads
-      if (failedDownloads.length > 0) {
-        console.warn(`Download completed with ${failedDownloads.length} failed files:`)
-        failedDownloads.forEach(file => console.warn(`  - ${file}`))
-      } else {
-        console.log('All PostgreSQL files downloaded successfully')
-      }
-      
-      // Set executable permissions for binaries on Unix-like systems
-      if (process.platform !== 'win32') {
-        for (const binaryPath of POSTGRES_FILES.binaries) {
-          const fullPath = path.join(this.dir, binaryPath)
-          if (fs.existsSync(fullPath)) {
-            fs.chmodSync(fullPath, 0o755)
-          }
-        }
-      }
-    },
-    isDownloaded: function () {
-      // Check for essential PostgreSQL files including required libraries and config files
-      const essentialFiles = [
-        'bin/postgres',
-        'bin/initdb',
-        'bin/pg_ctl',
-        'lib/libpq.5.dylib',
-        'lib/postgresql/vector.dylib',
-        'lib/libicuuc.75.dylib',
-        'lib/libssl.3.dylib',
-        'lib/libcrypto.3.dylib',
-        'share/postgresql/postgres.bki',
-        'share/postgresql/pg_hba.conf.sample',
-        'share/postgresql/postgresql.conf.sample',
-        'share/postgresql/extension/vector.control',
-        'share/postgresql/extension/plpgsql.control'
-      ]
-      
-      return essentialFiles.every(filePath => {
-        const fullPath = path.join(this.dir, filePath)
-        return fs.existsSync(fullPath)
-      })
     }
   }
-}
+  
+  return configs
+})()
 
 export function getDependencyPath(dependencyName: DependencyName): string {
   const cfg = DEPENDENCIES_CONFIGS[dependencyName]

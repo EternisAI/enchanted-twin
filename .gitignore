@@ -8,6 +8,9 @@ build/
 .env
 bin/
 output/
+
+# Auto-generated files
+app/src/main/embeddedDepsConfig.ts
 data_input/
 store.db*
 *.db-shm
