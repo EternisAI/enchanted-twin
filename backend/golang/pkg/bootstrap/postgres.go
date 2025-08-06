@@ -125,6 +125,12 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		password = "testpassword" // Default for embedded server only
 	}
 
+	// Get timezone from environment variable or use UTC as default
+	timezone := os.Getenv("POSTGRES_TIMEZONE")
+	if timezone == "" {
+		timezone = "UTC" // Safe default timezone
+	}
+
 	// Create embedded postgres configuration
 	config := embeddedpostgres.DefaultConfig().
 		Port(actualPort).
@@ -134,7 +140,11 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		Password(password).
 		Database("postgres").
 		Version(version). // Use specified version
-		StartTimeout(60 * time.Second)
+		StartTimeout(60 * time.Second).
+		StartParameters(map[string]string{
+			"timezone":     timezone,
+			"log_timezone": timezone,
+		})
 
 	// Use binaries if available
 	if pgvectorBinariesPath != "" {
@@ -223,7 +233,8 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		"elapsed", time.Since(startTime),
 		"port", actualPort,
 		"dataPath", dataPath,
-		"pgvector_enabled", server.hasPgvector)
+		"pgvector_enabled", server.hasPgvector,
+		"timezone", timezone)
 
 	return server, nil
 }
