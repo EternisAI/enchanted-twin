@@ -7,8 +7,7 @@ import { Button } from '../ui/button'
 import FreysaLoading from '@renderer/assets/icons/freysaLoading.png'
 import { useLlamaCpp } from '@renderer/hooks/useLlamaCpp'
 import { PrivacyButton } from '../chat/privacy/PrivacyButton'
-
-export type DependencyName = 'embeddings' | 'anonymizer' | 'onnx' | 'LLAMACCP' | 'uv' | 'postgres'
+import { DependencyName } from '../../types/dependencies'
 
 interface ModelDownloadItemProps {
   name: string
@@ -40,7 +39,8 @@ const handleDependencyDownload = (
   onError?: (error: Error) => void
 ): boolean => {
   if (!isDownloaded) {
-    window.api.models.downloadModels(dependencyName).catch((error) => {
+    // Download ALL dependencies via the frontend API
+    window.api.dependencies.download(dependencyName).catch((error: unknown) => {
       setDownloadState((prev) => ({
         ...prev,
         [dependencyName]: {
@@ -49,7 +49,7 @@ const handleDependencyDownload = (
           error: error instanceof Error ? error.message : 'Download failed'
         }
       }))
-      onError?.(error)
+      onError?.(error instanceof Error ? error : new Error('Download failed'))
     })
 
     setDownloadState((prev) => ({
@@ -109,7 +109,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     }))
 
     try {
-      await window.api.models.downloadModels(modelName)
+      await window.api.dependencies.download(modelName)
     } catch (error) {
       setDownloadState((prev) => ({
         ...prev,
@@ -183,7 +183,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
       cleanup()
       hasInitializedGoServer.current = false
     }
-  }, [])
+  }, [initializeIfNeeded])
 
   useEffect(() => {
     const allCompleted = Object.values(downloadState).every((dependency) => dependency.completed)
@@ -195,7 +195,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (!hasModelsDownloaded.LLAMACCP || !hasModelsDownloaded.anonymizer) return
+      if (!hasModelsDownloaded.llamaccp || !hasModelsDownloaded.anonymizer) return
 
       const result = await window.api.llamacpp.getStatus()
       if (result.success) {
@@ -207,7 +207,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     }, 60000)
 
     return () => clearInterval(interval)
-  }, [startLlamaCpp, hasModelsDownloaded.LLAMACCP, hasModelsDownloaded.anonymizer])
+  }, [startLlamaCpp, hasModelsDownloaded.llamaccp, hasModelsDownloaded.anonymizer])
 
   const allDependenciesCompleted =
     Object.values(hasModelsDownloaded).every((dependency) => dependency) ||
@@ -240,7 +240,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
       console.log('[DependenciesGate] Cleaning up Go server monitoring')
       clearInterval(interval)
     }
-  }, [allDependenciesCompleted])
+  }, [allDependenciesCompleted, goServerActions])
 
   if (allDependenciesCompleted && goServerState.isRunning) {
     return <>{children}</>

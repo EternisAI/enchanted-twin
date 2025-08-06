@@ -3,7 +3,10 @@ install:
 	brew install mockery
 	brew install golangci-lint
 
-run:
+run: fetch-deps
+	go run cmd/server/main.go
+
+fast-run:
 	go run cmd/server/main.go
 
 build:
@@ -67,3 +70,172 @@ sqlc-generate:
 nilcheck:
 	go run go.uber.org/nilaway/cmd/nilaway@latest -json -v -pretty-print=false ./pkg/... 
 	#replace './pkg/...' with the path to the package you want to check for faster results
+
+fetch-deps:
+	@echo "Fetching runtime dependencies..."
+	@command -v jq >/dev/null 2>&1 || { echo "jq is required but not installed. Install with: brew install jq"; exit 1; }
+	@ROOT_DIR="$(shell cd ../.. && pwd)" && \
+	ENV_FILE=".env" && \
+	if [ -f "$$ENV_FILE" ]; then \
+		echo "Loading environment from backend/golang/$$ENV_FILE"; \
+		set -a && . "$$ENV_FILE" && set +a; \
+	fi && \
+	DEPS_CONFIG="$$ROOT_DIR/runtime-dependencies.json" && \
+	if [ ! -f "$$DEPS_CONFIG" ]; then \
+		echo "Error: runtime-dependencies.json not found at $$DEPS_CONFIG"; \
+		exit 1; \
+	fi && \
+	DEPENDENCIES_DIR="$${APP_DATA_PATH:-./output}" && \
+	echo "Installing dependencies to: $$DEPENDENCIES_DIR" && \
+	mkdir -p "$$DEPENDENCIES_DIR" && \
+	\
+	for dep in $$(jq -r '.dependencies | keys[]' "$$DEPS_CONFIG"); do \
+		DEP_UPPER=$$(echo "$$dep" | tr '[:lower:]' '[:upper:]'); \
+		ENABLED_VAR="$${DEP_UPPER}_BACKEND_DOWNLOAD_ENABLED"; \
+		ENV_ENABLED=$$(eval "echo \$$$$ENABLED_VAR"); \
+		JSON_ENABLED=$$(jq -r ".dependencies.$$dep.backend_download_enabled" "$$DEPS_CONFIG"); \
+		BACKEND_DOWNLOAD_ENABLED="$${ENV_ENABLED:-$$JSON_ENABLED}"; \
+		if [ "$$BACKEND_DOWNLOAD_ENABLED" = "false" ]; then \
+			echo "⊘ Skipping $$dep (backend download disabled)"; \
+			continue; \
+		fi; \
+		\
+		DEP_DIR=$$(jq -r ".dependencies.$$dep.dir" "$$DEPS_CONFIG" | sed "s|{DEPENDENCIES_DIR}|$$DEPENDENCIES_DIR|g"); \
+		\
+		echo "→ Checking $$dep..."; \
+		ALREADY_DOWNLOADED="true"; \
+		VALIDATION_FILES_TYPE=$$(jq -r "type" <<< "$$(jq ".dependencies.$$dep.validation_files" "$$DEPS_CONFIG")"); \
+		if [ "$$VALIDATION_FILES_TYPE" = "object" ]; then \
+			PLATFORM=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
+			ARCH=$$(uname -m); \
+			if [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "arm64" ]; then \
+				PLATFORM_KEY="darwin-arm64"; \
+			elif [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "x86_64" ]; then \
+				PLATFORM_KEY="darwin-x64"; \
+			elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "x86_64" ]; then \
+				PLATFORM_KEY="linux-x64"; \
+			elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "aarch64" ]; then \
+				PLATFORM_KEY="linux-arm64"; \
+			elif [ "$$PLATFORM" = "mingw32" ] || [ "$$PLATFORM" = "msys" ] || [ "$$PLATFORM" = "cygwin" ]; then \
+				PLATFORM_KEY="win32"; \
+			else \
+				echo "Warning: Unsupported platform $$PLATFORM-$$ARCH, defaulting to linux-x64"; \
+				PLATFORM_KEY="linux-x64"; \
+			fi; \
+			for validation_file in $$(jq -r ".dependencies.$$dep.validation_files.\"$$PLATFORM_KEY\"[]?" "$$DEPS_CONFIG"); do \
+				if [ ! -e "$$DEP_DIR/$$validation_file" ]; then \
+					ALREADY_DOWNLOADED="false"; \
+					break; \
+				fi; \
+			done; \
+		else \
+			for validation_file in $$(jq -r ".dependencies.$$dep.validation_files[]?" "$$DEPS_CONFIG"); do \
+				if [ ! -e "$$DEP_DIR/$$validation_file" ]; then \
+					ALREADY_DOWNLOADED="false"; \
+					break; \
+				fi; \
+			done; \
+		fi; \
+		\
+		if [ "$$ALREADY_DOWNLOADED" = "true" ]; then \
+			echo "  ⚠️  Already downloaded, skipping"; \
+			continue; \
+		fi; \
+		\
+		echo "  Downloading $$dep..."; \
+		mkdir -p "$$DEP_DIR"; \
+		TYPE=$$(jq -r ".dependencies.$$dep.type" "$$DEPS_CONFIG"); \
+		\
+		case "$$TYPE" in \
+			"individual_files") \
+				BASE_URL=$$(jq -r ".dependencies.$$dep.url" "$$DEPS_CONFIG"); \
+				for category in binaries libraries dataFiles; do \
+					for file in $$(jq -r ".dependencies.$$dep.files.$$category[]?" "$$DEPS_CONFIG"); do \
+						echo "    $$file"; \
+						mkdir -p "$$(dirname "$$DEP_DIR/$$file")"; \
+						curl -fsSL "$$BASE_URL/$$file" -o "$$DEP_DIR/$$file" || { echo "Failed to download $$file"; exit 1; }; \
+					done; \
+				done; \
+				;; \
+			"zip") \
+				URL=$$(jq -r ".dependencies.$$dep.url" "$$DEPS_CONFIG"); \
+				curl -fsSL "$$URL" -o "$$DEP_DIR/temp.zip" || { echo "Failed to download $$URL"; exit 1; }; \
+				cd "$$DEP_DIR" && unzip -q temp.zip && rm temp.zip; \
+				;; \
+			"tar.gz") \
+				PLATFORM_KEY=$$(jq -r ".dependencies.$$dep.platform_url_key // false" "$$DEPS_CONFIG"); \
+				if [ "$$PLATFORM_KEY" = "true" ]; then \
+					PLATFORM=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
+					ARCH=$$(uname -m); \
+					if [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "arm64" ]; then \
+						PLATFORM_KEY="darwin-arm64"; \
+					elif [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "x86_64" ]; then \
+						PLATFORM_KEY="darwin-x64"; \
+					elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "x86_64" ]; then \
+						PLATFORM_KEY="linux-x64"; \
+					elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "aarch64" ]; then \
+						PLATFORM_KEY="linux-arm64"; \
+					elif [ "$$PLATFORM" = "mingw32" ] || [ "$$PLATFORM" = "msys" ] || [ "$$PLATFORM" = "cygwin" ]; then \
+						PLATFORM_KEY="win32"; \
+					else \
+						echo "Warning: Unsupported platform $$PLATFORM-$$ARCH, defaulting to linux-x64"; \
+						PLATFORM_KEY="linux-x64"; \
+					fi; \
+					URL=$$(jq -r ".dependencies.$$dep.url.\"$$PLATFORM_KEY\"" "$$DEPS_CONFIG"); \
+				else \
+					URL=$$(jq -r ".dependencies.$$dep.url" "$$DEPS_CONFIG"); \
+				fi; \
+				curl -fsSL "$$URL" -o "$$DEP_DIR/temp.tgz" || { echo "Failed to download $$URL"; exit 1; }; \
+				cd "$$DEP_DIR" && tar -xzf temp.tgz && rm temp.tgz; \
+				;; \
+			"curl_script") \
+				SCRIPT=$$(jq -r ".dependencies.$$dep.install_script" "$$DEPS_CONFIG"); \
+				eval "$$SCRIPT"; \
+				if command -v uv >/dev/null 2>&1; then \
+					cp "$$(which uv)" "$$DEP_DIR/uv" 2>/dev/null || true; \
+				fi; \
+				;; \
+		esac; \
+		\
+		if jq -e ".dependencies.$$dep.post_download.chmod" "$$DEPS_CONFIG" >/dev/null; then \
+			MODE=$$(jq -r ".dependencies.$$dep.post_download.chmod.mode" "$$DEPS_CONFIG"); \
+			for file in $$(jq -r ".dependencies.$$dep.post_download.chmod.files[]" "$$DEPS_CONFIG"); do \
+				chmod "$$MODE" "$$DEP_DIR/$$file" 2>/dev/null || true; \
+			done; \
+		fi; \
+	done && \
+	\
+	echo "✓ All dependencies processed successfully!" && \
+	echo "Dependencies installed to: $$DEPENDENCIES_DIR"
+
+clean-deps:
+	@command -v jq >/dev/null 2>&1 || { echo "jq is required but not installed. Install with: brew install jq"; exit 1; }
+	@ROOT_DIR="$(shell cd ../.. && pwd)" && \
+	ENV_FILE=".env" && \
+	if [ -f "$$ENV_FILE" ]; then \
+		echo "Loading environment from backend/golang/$$ENV_FILE"; \
+		set -a && . "$$ENV_FILE" && set +a; \
+	fi && \
+	DEPS_CONFIG="$$ROOT_DIR/runtime-dependencies.json" && \
+	if [ ! -f "$$DEPS_CONFIG" ]; then \
+		echo "Error: runtime-dependencies.json not found at $$DEPS_CONFIG"; \
+		exit 1; \
+	fi && \
+	DEPENDENCIES_DIR="$${APP_DATA_PATH:-./output}" && \
+	echo "This will remove the following dependencies from $$DEPENDENCIES_DIR:" && \
+	for dep in $$(jq -r '.dependencies | keys[]' "$$DEPS_CONFIG"); do \
+		DEP_DIR=$$(jq -r ".dependencies.$$dep.dir" "$$DEPS_CONFIG" | sed "s|{DEPENDENCIES_DIR}|$$DEPENDENCIES_DIR|g"); \
+		if [ -d "$$DEP_DIR" ]; then \
+			echo "  - $$dep ($$DEP_DIR)"; \
+		fi; \
+	done && \
+	echo "" && \
+	read -p "Are you sure? (y/N): " confirm && [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ] || { echo "Cancelled"; exit 1; } && \
+	for dep in $$(jq -r '.dependencies | keys[]' "$$DEPS_CONFIG"); do \
+		DEP_DIR=$$(jq -r ".dependencies.$$dep.dir" "$$DEPS_CONFIG" | sed "s|{DEPENDENCIES_DIR}|$$DEPENDENCIES_DIR|g"); \
+		if [ -d "$$DEP_DIR" ]; then \
+			echo "Removing $$dep from $$DEP_DIR"; \
+			rm -rf "$$DEP_DIR"; \
+		fi; \
+	done && \
+	echo "✓ Dependencies cleaned successfully"
