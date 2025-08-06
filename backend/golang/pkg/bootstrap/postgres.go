@@ -125,6 +125,12 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		password = "testpassword" // Default for embedded server only
 	}
 
+	// Get timezone from environment variable or use UTC as default
+	timezone := os.Getenv("POSTGRES_TIMEZONE")
+	if timezone == "" {
+		timezone = "UTC" // Safe default timezone
+	}
+
 	// Create embedded postgres configuration
 	config := embeddedpostgres.DefaultConfig().
 		Port(actualPort).
@@ -209,6 +215,11 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		}
 	}
 
+	// Configure timezone
+	if err := server.configureTimezone(ctx, timezone); err != nil {
+		logger.Warn("Failed to configure timezone, using default", "requested_timezone", timezone, "error", err)
+	}
+
 	// Run migrations only if pgvector is enabled (production mode)
 	if server.hasPgvector {
 		if err := server.runMigrations(ctx); err != nil {
@@ -237,6 +248,32 @@ func (s *PostgresServer) enablePgvectorExtension(ctx context.Context) error {
 	}
 
 	s.logger.Debug("pgvector extension enabled successfully")
+	return nil
+}
+
+func (s *PostgresServer) configureTimezone(ctx context.Context, timezone string) error {
+	s.logger.Debug("Configuring PostgreSQL timezone", "timezone", timezone)
+
+	// Set timezone for the current session and as default
+	queries := []string{
+		fmt.Sprintf("SET timezone = '%s'", timezone),
+		fmt.Sprintf("ALTER SYSTEM SET timezone = '%s'", timezone),
+		fmt.Sprintf("ALTER SYSTEM SET log_timezone = '%s'", timezone),
+	}
+
+	for _, query := range queries {
+		if _, err := s.db.ExecContext(ctx, query); err != nil {
+			s.logger.Warn("Failed to execute timezone configuration query", "query", query, "error", err)
+			// Continue with other queries even if one fails
+		}
+	}
+
+	// Reload configuration to apply ALTER SYSTEM changes
+	if _, err := s.db.ExecContext(ctx, "SELECT pg_reload_conf()"); err != nil {
+		s.logger.Warn("Failed to reload PostgreSQL configuration", "error", err)
+	}
+
+	s.logger.Debug("PostgreSQL timezone configured successfully", "timezone", timezone)
 	return nil
 }
 
