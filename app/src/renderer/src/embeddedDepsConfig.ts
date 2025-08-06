@@ -159,7 +159,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
         ]
       }
     },
-    "LLAMACCP": {
+    "llamaccp": {
       "backend_download_enabled": true,
       "url": "https://github.com/ggml-org/llama.cpp/releases/download/b5916/llama-b5916-bin-macos-arm64.zip",
       "name": "llamaccp",

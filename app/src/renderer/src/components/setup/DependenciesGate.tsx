@@ -195,7 +195,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (!hasModelsDownloaded.LLAMACCP || !hasModelsDownloaded.anonymizer) return
+      if (!hasModelsDownloaded.llamaccp || !hasModelsDownloaded.anonymizer) return
 
       const result = await window.api.llamacpp.getStatus()
       if (result.success) {
@@ -207,7 +207,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     }, 60000)
 
     return () => clearInterval(interval)
-  }, [startLlamaCpp, hasModelsDownloaded.LLAMACCP, hasModelsDownloaded.anonymizer])
+  }, [startLlamaCpp, hasModelsDownloaded.llamaccp, hasModelsDownloaded.anonymizer])
 
   const allDependenciesCompleted =
     Object.values(hasModelsDownloaded).every((dependency) => dependency) ||
