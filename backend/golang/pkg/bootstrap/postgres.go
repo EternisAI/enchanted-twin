@@ -140,7 +140,11 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		Password(password).
 		Database("postgres").
 		Version(version). // Use specified version
-		StartTimeout(60 * time.Second)
+		StartTimeout(60 * time.Second).
+		StartParameters(map[string]string{
+			"timezone":     timezone,
+			"log_timezone": timezone,
+		})
 
 	// Use binaries if available
 	if pgvectorBinariesPath != "" {
@@ -215,11 +219,6 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		}
 	}
 
-	// Configure timezone
-	if err := server.configureTimezone(ctx, timezone); err != nil {
-		logger.Warn("Failed to configure timezone, using default", "requested_timezone", timezone, "error", err)
-	}
-
 	// Run migrations only if pgvector is enabled (production mode)
 	if server.hasPgvector {
 		if err := server.runMigrations(ctx); err != nil {
@@ -234,7 +233,8 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		"elapsed", time.Since(startTime),
 		"port", actualPort,
 		"dataPath", dataPath,
-		"pgvector_enabled", server.hasPgvector)
+		"pgvector_enabled", server.hasPgvector,
+		"timezone", timezone)
 
 	return server, nil
 }
@@ -248,32 +248,6 @@ func (s *PostgresServer) enablePgvectorExtension(ctx context.Context) error {
 	}
 
 	s.logger.Debug("pgvector extension enabled successfully")
-	return nil
-}
-
-func (s *PostgresServer) configureTimezone(ctx context.Context, timezone string) error {
-	s.logger.Debug("Configuring PostgreSQL timezone", "timezone", timezone)
-
-	// Set timezone for the current session and as default
-	queries := []string{
-		fmt.Sprintf("SET timezone = '%s'", timezone),
-		fmt.Sprintf("ALTER SYSTEM SET timezone = '%s'", timezone),
-		fmt.Sprintf("ALTER SYSTEM SET log_timezone = '%s'", timezone),
-	}
-
-	for _, query := range queries {
-		if _, err := s.db.ExecContext(ctx, query); err != nil {
-			s.logger.Warn("Failed to execute timezone configuration query", "query", query, "error", err)
-			// Continue with other queries even if one fails
-		}
-	}
-
-	// Reload configuration to apply ALTER SYSTEM changes
-	if _, err := s.db.ExecContext(ctx, "SELECT pg_reload_conf()"); err != nil {
-		s.logger.Warn("Failed to reload PostgreSQL configuration", "error", err)
-	}
-
-	s.logger.Debug("PostgreSQL timezone configured successfully", "timezone", timezone)
 	return nil
 }
 
