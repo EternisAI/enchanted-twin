@@ -63,9 +63,9 @@ export const DEPENDENCY_CONFIG: Record<
   return config
 })()
 
-export const DEPENDENCY_NAMES: DependencyName[] = (Object.keys(
+export const DEPENDENCY_NAMES: DependencyName[] = Object.keys(
   EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies || {}
-) as string[]) as DependencyName[]
+) as string[] as DependencyName[]
 
 export const MODEL_NAMES: DependencyName[] = DEPENDENCY_NAMES.filter((name) => {
   const config = EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies?.[name]

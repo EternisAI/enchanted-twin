@@ -80,7 +80,7 @@ function createGenericInstaller(depName: DependencyName) {
           const totalFiles = allFiles.length
           const failedDownloads: string[] = []
 
-          for (const filePath of allFiles) {
+          const downloadPromises = allFiles.map(async (filePath) => {
             const fileUrl = `${baseUrl}/${filePath}`
             const destPath = path.join(depDir, filePath)
             const destDir = path.dirname(destPath)
@@ -104,7 +104,9 @@ function createGenericInstaller(depName: DependencyName) {
               console.error(`Failed to download ${filePath}:`, error)
               failedDownloads.push(filePath)
             }
-          }
+          })
+
+          await Promise.all(downloadPromises)
 
           // Set executable permissions based on post_download config
           if (config.post_download?.chmod && process.platform !== 'win32') {
@@ -152,26 +154,18 @@ function createGenericInstaller(depName: DependencyName) {
           let url: string = typeof config.url === 'string' ? config.url : ''
           if (config.platform_url_key && typeof config.url === 'object') {
             const urlObj = config.url as Record<string, string>
-            if (process.platform === 'darwin' && process.arch === 'arm64') {
-              url = urlObj['darwin-arm64'] || ''
-            } else {
-              url = urlObj['linux-x64'] || ''
-            }
+            const platformKey = getPlatformKey()
+            url = urlObj[platformKey] || ''
           }
 
-          const file = await downloadFile(
-            url,
-            depDir,
-            'temp.tgz',
-            (pct, total, downloaded) => {
-              windowManager.mainWindow?.webContents.send('models:progress', {
-                modelName: config.name,
-                pct,
-                totalBytes: total,
-                downloadedBytes: downloaded
-              })
-            }
-          )
+          const file = await downloadFile(url, depDir, 'temp.tgz', (pct, total, downloaded) => {
+            windowManager.mainWindow?.webContents.send('models:progress', {
+              modelName: config.name,
+              pct,
+              totalBytes: total,
+              downloadedBytes: downloaded
+            })
+          })
           try {
             await extractTarGz(file, depDir)
           } catch (error) {
@@ -259,7 +253,7 @@ function createGenericInstaller(depName: DependencyName) {
     isDownloaded: function () {
       const depDir = config.dir.replace('{DEPENDENCIES_DIR}', DEPENDENCIES_DIR)
 
-      // Handle special validation conditions first  
+      // Handle special validation conditions first
       if (config.validation_condition === 'has_both_models') {
         if (process.env.ANONYMIZER_TYPE === 'no-op') {
           return true
@@ -299,8 +293,9 @@ function createGenericInstaller(depName: DependencyName) {
           typeof platformValidationFiles === 'object' &&
           !Array.isArray(platformValidationFiles)
         ) {
-          const platformKey = process.platform === 'win32' ? 'win32' : 'default'
-          platformValidationFiles = platformValidationFiles[platformKey] || []
+          const platformKey = getPlatformKey()
+          platformValidationFiles =
+            platformValidationFiles[platformKey] || platformValidationFiles['default'] || []
         }
 
         if (Array.isArray(platformValidationFiles)) {
@@ -317,16 +312,7 @@ function createGenericInstaller(depName: DependencyName) {
       let validationFiles = config.validation_files || []
       if (typeof validationFiles === 'object' && !Array.isArray(validationFiles)) {
         // Platform-specific validation files
-        const platform = process.platform
-        const arch = process.arch
-        let platformKey: string
-
-        if (platform === 'darwin' && arch === 'arm64') {
-          platformKey = 'darwin-arm64'
-        } else {
-          platformKey = 'linux-x64'
-        }
-
+        const platformKey = getPlatformKey()
         validationFiles = validationFiles[platformKey] || []
       }
 
@@ -354,14 +340,19 @@ const DEPENDENCIES_CONFIGS: Record<
     isDownloaded: () => boolean
   }
 > = (() => {
-  const configs: Record<string, {
-    url: string
-    name: string
-    dir: string
-    install: () => Promise<void>
-    isDownloaded: () => boolean
-  }> = {}
-  const dependencyNames = (Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}) as string[]) as DependencyName[]
+  const configs: Record<
+    string,
+    {
+      url: string
+      name: string
+      dir: string
+      install: () => Promise<void>
+      isDownloaded: () => boolean
+    }
+  > = {}
+  const dependencyNames = Object.keys(
+    RUNTIME_DEPS_CONFIG?.dependencies || {}
+  ) as string[] as DependencyName[]
 
   for (const depName of dependencyNames) {
     const genericInstaller = createGenericInstaller(depName)
@@ -399,13 +390,16 @@ const DEPENDENCIES_CONFIGS: Record<
     }
   }
 
-  return configs as Record<DependencyName, {
-    url: string
-    name: string
-    dir: string
-    install: () => Promise<void>
-    isDownloaded: () => boolean
-  }>
+  return configs as Record<
+    DependencyName,
+    {
+      url: string
+      name: string
+      dir: string
+      install: () => Promise<void>
+      isDownloaded: () => boolean
+    }
+  >
 })()
 
 export function getDependencyPath(dependencyName: DependencyName): string {
@@ -436,7 +430,9 @@ export async function downloadDependency(dependencyName: DependencyName) {
 
 export function hasDependenciesDownloaded(): Record<DependencyName, boolean> {
   const result: Record<string, boolean> = {}
-  const dependencyNames = (Object.keys(RUNTIME_DEPS_CONFIG?.dependencies || {}) as string[]) as DependencyName[]
+  const dependencyNames = Object.keys(
+    RUNTIME_DEPS_CONFIG?.dependencies || {}
+  ) as string[] as DependencyName[]
 
   for (const depName of dependencyNames) {
     const config = DEPENDENCIES_CONFIGS[depName]

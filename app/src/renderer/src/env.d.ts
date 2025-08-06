@@ -164,7 +164,7 @@ interface IApi {
     ) => () => void
   }
   dependencies: {
-    download: (dependencyName: string) => Promise<{ success: boolean; path: string }>
+    download: (dependencyName: DependencyName) => Promise<{ success: boolean; path: string }>
   }
   goServer: {
     initialize: () => Promise<{ success: boolean; error?: string }>
