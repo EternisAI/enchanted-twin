@@ -180,7 +180,7 @@ fetch-deps:
 				PLATFORM_CONFIG=$$(jq -r ".dependencies.$$dep.platform_config.\"$$PLATFORM_KEY\"" "$$DEPS_CONFIG"); \
 				REF_PATH=$$(echo "$$PLATFORM_CONFIG" | jq -r '."$$ref" // empty'); \
 				if [ -n "$$REF_PATH" ]; then \
-					REF_KEY=$$(echo "$$REF_PATH" | sed 's|#/||'); \
+					REF_KEY=$$(echo "$$REF_PATH" | sed 's|#/||' | sed 's|/|.|g'); \
 					PLATFORM_TYPE=$$(jq -r ".$$REF_KEY.type" "$$DEPS_CONFIG"); \
 					PLATFORM_FILES=$$(jq -r ".$$REF_KEY.files" "$$DEPS_CONFIG"); \
 				else \
@@ -192,7 +192,7 @@ fetch-deps:
 					BASE_URL="$$URL"; \
 					for category in binaries libraries dataFiles; do \
 						if [ -n "$$REF_PATH" ]; then \
-							REF_KEY=$$(echo "$$REF_PATH" | sed 's|#/||'); \
+							REF_KEY=$$(echo "$$REF_PATH" | sed 's|#/||' | sed 's|/|.|g'); \
 							for file in $$(jq -r ".$$REF_KEY.files.$$category[]?" "$$DEPS_CONFIG"); do \
 								echo "    📄 $$file"; \
 								mkdir -p "$$(dirname "$$DEP_DIR/$$file")"; \
