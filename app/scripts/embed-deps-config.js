@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // Function to resolve $ref references in configuration
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 function resolveReferences(obj, rootConfig) {
   if (typeof obj !== 'object' || obj === null) {
     return obj
