@@ -260,7 +260,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "url": {
         "darwin-arm64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-osx-arm64-1.22.0.tgz",
         "linux-x64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz",
-        "linux-arm64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz"
+        "linux-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/onnxruntime-linux-arm64-1.22.0.tgz"
       },
       "name": "onnx",
       "display_name": "Inference engine",
