@@ -191,6 +191,14 @@ func getONNXLibraryPath(sharedLibraryPath string) string {
 	case "darwin":
 		libName = "libonnxruntime.dylib"
 		platformDir = "onnxruntime-osx-" + arch + "-1.22.0"
+	case "linux":
+		libName = "libonnxruntime.so"
+		if arch == "arm64" {
+			// Upstream archive uses 'aarch64' for Linux arm64 builds
+			platformDir = "onnxruntime-linux-aarch64-1.22.0"
+		} else {
+			platformDir = "onnxruntime-linux-" + arch + "-1.22.0"
+		}
 	default:
 		libName = "libonnxruntime.so"
 		platformDir = "onnxruntime-linux-" + arch + "-1.22.0"

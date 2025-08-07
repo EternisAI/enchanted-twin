@@ -6,84 +6,207 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
   "dependencies": {
     "postgres": {
       "backend_download_enabled": true,
-      "url": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres",
+      "url": {
+        "darwin-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres",
+        "darwin-x64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres",
+        "linux-x64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres-linux-debian.txz",
+        "linux-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres-linux-debian-arm64.txz"
+      },
       "name": "postgres",
       "display_name": "PostgreSQL database",
       "description": "Vector database for memory storage",
       "category": "infrastructure",
       "dir": "{DEPENDENCIES_DIR}/postgres",
-      "type": "individual_files",
-      "files": {
-        "binaries": [
+      "type": "platform_mixed",
+      "platform_url_key": true,
+      "validation_files": {
+        "darwin-arm64": [
           "bin/postgres",
           "bin/initdb",
-          "bin/pg_ctl"
-        ],
-        "libraries": [
+          "bin/pg_ctl",
           "lib/libpq.5.dylib",
-          "lib/libpq.dylib",
           "lib/postgresql/vector.dylib",
-          "lib/postgresql/dict_snowball.dylib",
-          "lib/postgresql/plpgsql.dylib",
           "lib/libicuuc.75.dylib",
-          "lib/libicui18n.75.dylib",
-          "lib/libicudata.75.dylib",
           "lib/libssl.3.dylib",
           "lib/libcrypto.3.dylib",
-          "lib/libxml2.2.dylib",
-          "lib/libzstd.1.dylib",
-          "lib/liblz4.1.dylib"
-        ],
-        "dataFiles": [
           "share/postgresql/postgres.bki",
-          "share/postgresql/errcodes.txt",
-          "share/postgresql/information_schema.sql",
           "share/postgresql/pg_hba.conf.sample",
-          "share/postgresql/pg_ident.conf.sample",
           "share/postgresql/postgresql.conf.sample",
-          "share/postgresql/pg_service.conf.sample",
-          "share/postgresql/psqlrc.sample",
-          "share/postgresql/system_constraints.sql",
-          "share/postgresql/system_functions.sql",
-          "share/postgresql/system_views.sql",
-          "share/postgresql/sql_features.txt",
-          "share/postgresql/snowball_create.sql",
-          "share/postgresql/extension/plpgsql.control",
-          "share/postgresql/extension/plpgsql--1.0.sql",
           "share/postgresql/extension/vector.control",
-          "share/postgresql/extension/vector--0.8.0.sql",
-          "share/postgresql/timezone/UTC",
-          "share/postgresql/timezonesets/Africa.txt",
-          "share/postgresql/timezonesets/America.txt",
-          "share/postgresql/timezonesets/Antarctica.txt",
-          "share/postgresql/timezonesets/Asia.txt",
-          "share/postgresql/timezonesets/Atlantic.txt",
-          "share/postgresql/timezonesets/Australia",
-          "share/postgresql/timezonesets/Australia.txt",
-          "share/postgresql/timezonesets/Default",
-          "share/postgresql/timezonesets/Etc.txt",
-          "share/postgresql/timezonesets/Europe.txt",
-          "share/postgresql/timezonesets/India",
-          "share/postgresql/timezonesets/Indian.txt",
-          "share/postgresql/timezonesets/Pacific.txt",
-          "share/postgresql/tsearch_data/english.stop"
+          "share/postgresql/extension/plpgsql.control"
+        ],
+        "darwin-x64": [
+          "bin/postgres",
+          "bin/initdb",
+          "bin/pg_ctl",
+          "lib/libpq.5.dylib",
+          "lib/postgresql/vector.dylib",
+          "lib/libicuuc.75.dylib",
+          "lib/libssl.3.dylib",
+          "lib/libcrypto.3.dylib",
+          "share/postgresql/postgres.bki",
+          "share/postgresql/pg_hba.conf.sample",
+          "share/postgresql/postgresql.conf.sample",
+          "share/postgresql/extension/vector.control",
+          "share/postgresql/extension/plpgsql.control"
+        ],
+        "linux-x64": [
+          "bin/postgres",
+          "bin/initdb",
+          "bin/pg_ctl",
+          "lib/libpq.so.5",
+          "lib/postgresql/vector.so",
+          "lib/libicuuc.so.60",
+          "lib/libssl.so.1.1",
+          "lib/libcrypto.so.1.1",
+          "share/postgresql/postgres.bki",
+          "share/postgresql/pg_hba.conf.sample",
+          "share/postgresql/postgresql.conf.sample",
+          "share/postgresql/extension/vector.control",
+          "share/postgresql/extension/plpgsql.control"
+        ],
+        "linux-arm64": [
+          "bin/postgres",
+          "bin/initdb",
+          "bin/pg_ctl",
+          "lib/libpq.so.5",
+          "lib/postgresql/vector.so",
+          "lib/libicuuc.so.60",
+          "lib/libssl.so.1.1",
+          "lib/libcrypto.so.1.1",
+          "share/postgresql/postgres.bki",
+          "share/postgresql/pg_hba.conf.sample",
+          "share/postgresql/postgresql.conf.sample",
+          "share/postgresql/extension/vector.control",
+          "share/postgresql/extension/plpgsql.control"
         ]
       },
-      "validation_files": [
-        "bin/postgres",
-        "bin/initdb",
-        "bin/pg_ctl",
-        "lib/libpq.5.dylib",
-        "lib/postgresql/vector.dylib",
-        "lib/libicuuc.75.dylib",
-        "lib/libssl.3.dylib",
-        "lib/libcrypto.3.dylib",
-        "share/postgresql/postgres.bki",
-        "share/postgresql/pg_hba.conf.sample",
-        "share/postgresql/postgresql.conf.sample",
-        "share/postgresql/extension/vector.control",
-        "share/postgresql/extension/plpgsql.control"
-      ],
+      "platform_config": {
+        "darwin-arm64": {
+          "type": "individual_files",
+          "files": {
+            "binaries": [
+              "bin/postgres",
+              "bin/initdb",
+              "bin/pg_ctl"
+            ],
+            "libraries": [
+              "lib/libpq.5.dylib",
+              "lib/libpq.dylib",
+              "lib/postgresql/vector.dylib",
+              "lib/postgresql/dict_snowball.dylib",
+              "lib/postgresql/plpgsql.dylib",
+              "lib/libicuuc.75.dylib",
+              "lib/libicui18n.75.dylib",
+              "lib/libicudata.75.dylib",
+              "lib/libssl.3.dylib",
+              "lib/libcrypto.3.dylib",
+              "lib/libxml2.2.dylib",
+              "lib/libzstd.1.dylib",
+              "lib/liblz4.1.dylib"
+            ],
+            "dataFiles": [
+              "share/postgresql/postgres.bki",
+              "share/postgresql/errcodes.txt",
+              "share/postgresql/information_schema.sql",
+              "share/postgresql/pg_hba.conf.sample",
+              "share/postgresql/pg_ident.conf.sample",
+              "share/postgresql/postgresql.conf.sample",
+              "share/postgresql/pg_service.conf.sample",
+              "share/postgresql/psqlrc.sample",
+              "share/postgresql/system_constraints.sql",
+              "share/postgresql/system_functions.sql",
+              "share/postgresql/system_views.sql",
+              "share/postgresql/sql_features.txt",
+              "share/postgresql/snowball_create.sql",
+              "share/postgresql/extension/plpgsql.control",
+              "share/postgresql/extension/plpgsql--1.0.sql",
+              "share/postgresql/extension/vector.control",
+              "share/postgresql/extension/vector--0.8.0.sql",
+              "share/postgresql/timezone/UTC",
+              "share/postgresql/timezonesets/Africa.txt",
+              "share/postgresql/timezonesets/America.txt",
+              "share/postgresql/timezonesets/Antarctica.txt",
+              "share/postgresql/timezonesets/Asia.txt",
+              "share/postgresql/timezonesets/Atlantic.txt",
+              "share/postgresql/timezonesets/Australia",
+              "share/postgresql/timezonesets/Australia.txt",
+              "share/postgresql/timezonesets/Default",
+              "share/postgresql/timezonesets/Etc.txt",
+              "share/postgresql/timezonesets/Europe.txt",
+              "share/postgresql/timezonesets/India",
+              "share/postgresql/timezonesets/Indian.txt",
+              "share/postgresql/timezonesets/Pacific.txt",
+              "share/postgresql/tsearch_data/english.stop"
+            ]
+          }
+        },
+        "darwin-x64": {
+          "type": "individual_files",
+          "files": {
+            "binaries": [
+              "bin/postgres",
+              "bin/initdb",
+              "bin/pg_ctl"
+            ],
+            "libraries": [
+              "lib/libpq.5.dylib",
+              "lib/libpq.dylib",
+              "lib/postgresql/vector.dylib",
+              "lib/postgresql/dict_snowball.dylib",
+              "lib/postgresql/plpgsql.dylib",
+              "lib/libicuuc.75.dylib",
+              "lib/libicui18n.75.dylib",
+              "lib/libicudata.75.dylib",
+              "lib/libssl.3.dylib",
+              "lib/libcrypto.3.dylib",
+              "lib/libxml2.2.dylib",
+              "lib/libzstd.1.dylib",
+              "lib/liblz4.1.dylib"
+            ],
+            "dataFiles": [
+              "share/postgresql/postgres.bki",
+              "share/postgresql/errcodes.txt",
+              "share/postgresql/information_schema.sql",
+              "share/postgresql/pg_hba.conf.sample",
+              "share/postgresql/pg_ident.conf.sample",
+              "share/postgresql/postgresql.conf.sample",
+              "share/postgresql/pg_service.conf.sample",
+              "share/postgresql/psqlrc.sample",
+              "share/postgresql/system_constraints.sql",
+              "share/postgresql/system_functions.sql",
+              "share/postgresql/system_views.sql",
+              "share/postgresql/sql_features.txt",
+              "share/postgresql/snowball_create.sql",
+              "share/postgresql/extension/plpgsql.control",
+              "share/postgresql/extension/plpgsql--1.0.sql",
+              "share/postgresql/extension/vector.control",
+              "share/postgresql/extension/vector--0.8.0.sql",
+              "share/postgresql/timezone/UTC",
+              "share/postgresql/timezonesets/Africa.txt",
+              "share/postgresql/timezonesets/America.txt",
+              "share/postgresql/timezonesets/Antarctica.txt",
+              "share/postgresql/timezonesets/Asia.txt",
+              "share/postgresql/timezonesets/Atlantic.txt",
+              "share/postgresql/timezonesets/Australia",
+              "share/postgresql/timezonesets/Australia.txt",
+              "share/postgresql/timezonesets/Default",
+              "share/postgresql/timezonesets/Etc.txt",
+              "share/postgresql/timezonesets/Europe.txt",
+              "share/postgresql/timezonesets/India",
+              "share/postgresql/timezonesets/Indian.txt",
+              "share/postgresql/timezonesets/Pacific.txt",
+              "share/postgresql/tsearch_data/english.stop"
+            ]
+          }
+        },
+        "linux-x64": {
+          "type": "tar.xz"
+        },
+        "linux-arm64": {
+          "type": "tar.xz"
+        }
+      },
       "post_download": {
         "chmod": {
           "files": [
@@ -136,7 +259,8 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "backend_download_enabled": true,
       "url": {
         "darwin-arm64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-osx-arm64-1.22.0.tgz",
-        "linux-x64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz"
+        "linux-x64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz",
+        "linux-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/onnxruntime-linux-aarch64-1.22.0.tgz"
       },
       "name": "onnx",
       "display_name": "Inference engine",
@@ -151,6 +275,9 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
         ],
         "linux-x64": [
           "onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"
+        ],
+        "linux-arm64": [
+          "onnxruntime-linux-aarch64-1.22.0/lib/libonnxruntime.so"
         ]
       },
       "post_download": {

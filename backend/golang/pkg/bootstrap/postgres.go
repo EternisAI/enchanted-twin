@@ -213,9 +213,11 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 	// Enable pgvector extension if we have pgvector binaries
 	if hasPgvector {
 		if err := server.enablePgvectorExtension(ctx); err != nil {
-			// If pgvector extension fails, warn but continue without it
-			logger.Warn("Failed to enable pgvector extension, continuing without vector support", "error", err)
-			server.hasPgvector = false
+			// Stop server and fail immediately if pgvector extension fails
+			if stopErr := server.Stop(); stopErr != nil {
+				logger.Error("Failed to stop PostgreSQL after pgvector extension failure", "error", stopErr)
+			}
+			return nil, fmt.Errorf("failed to enable pgvector extension (PostgreSQL: %s, path: %s): %w", version, pgvectorBinariesPath, err)
 		}
 	}
 
