@@ -6,7 +6,6 @@ import extract from 'extract-zip'
 import * as tar from 'tar'
 import { spawn } from 'child_process'
 import log from 'electron-log'
-import lzma from 'lzma-native'
 
 // Helper type for dependency configuration (matching the readonly generated structure)
 type DependencyConfig = {
@@ -651,36 +650,61 @@ async function extractTarGz(file: string, destDir: string) {
   fs.unlinkSync(file)
 }
 
+let lzmaModulePromise: Promise<any | null> | null = null
+function loadLzmaNative(): Promise<any | null> {
+  if (!lzmaModulePromise) {
+    // Optional dependency: suppress TS resolution error if types not installed
+    // @ts-ignore - optional dependency may be absent at build time
+    lzmaModulePromise = import('lzma-native')
+      .then((m) => (m as any)?.default ?? m)
+      .catch((err) => {
+        log.warn('lzma-native not available, falling back to system tar for .xz extraction', err?.message)
+        return null
+      })
+  }
+  return lzmaModulePromise
+}
+
 async function extractTarXz(file: string, destDir: string) {
-  return new Promise<void>((resolve, reject) => {
-    const readStream = fs.createReadStream(file)
-    const decompressStream = lzma.createDecompressor()
-    
-    const chunks: Buffer[] = []
-    
-    readStream
-      .pipe(decompressStream)
-      .on('data', (chunk: Buffer) => {
-        chunks.push(chunk)
-      })
-      .on('end', async () => {
-        try {
-          const decompressedData = Buffer.concat(chunks)
-          const tempTarFile = file.replace(/\.txz$|\.tar\.xz$/, '.tar')
-          
-          fs.writeFileSync(tempTarFile, decompressedData)
-          await tar.extract({ file: tempTarFile, cwd: destDir })
-          
-          fs.unlinkSync(tempTarFile)
-          fs.unlinkSync(file)
-          resolve()
-        } catch (error) {
+  const lzma = await loadLzmaNative()
+  if (lzma) {
+    return new Promise<void>((resolve, reject) => {
+      const readStream = fs.createReadStream(file)
+      const decompressStream = lzma.createDecompressor()
+      const chunks: Buffer[] = []
+      readStream
+        .pipe(decompressStream)
+        .on('data', (chunk: Buffer) => {
+          chunks.push(chunk)
+        })
+        .on('end', async () => {
+          try {
+            const decompressedData = Buffer.concat(chunks)
+            const tempTarFile = file.replace(/\.txz$|\.tar\.xz$/, '.tar')
+            fs.writeFileSync(tempTarFile, decompressedData)
+            await tar.extract({ file: tempTarFile, cwd: destDir })
+            fs.unlinkSync(tempTarFile)
+            fs.unlinkSync(file)
+            resolve()
+          } catch (error) {
+            reject(error)
+          }
+        })
+        .on('error', (error) => {
           reject(error)
-        }
-      })
-      .on('error', (error) => {
-        reject(error)
-      })
+        })
+    })
+  }
+  // Fallback: use system tar with -J (xz) support
+  return new Promise<void>((resolve, reject) => {
+    const tarProc = spawn('tar', ['-xJf', file, '-C', destDir])
+    let stderr = ''
+    tarProc.stderr.on('data', (d) => { stderr += d.toString() })
+    tarProc.on('close', (code) => {
+      try { fs.unlinkSync(file) } catch { /* ignore */ }
+      if (code === 0) resolve(); else reject(new Error(`tar -xJf failed (code ${code}): ${stderr}`))
+    })
+    tarProc.on('error', (err) => reject(err))
   })
 }
 
