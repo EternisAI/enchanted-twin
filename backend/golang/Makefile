@@ -110,6 +110,7 @@ fetch-deps:
 		if [ "$$VALIDATION_FILES_TYPE" = "object" ]; then \
 			PLATFORM=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
 			ARCH=$$(uname -m); \
+			echo "  🔍 Detected platform: $$PLATFORM, arch: $$ARCH"; \
 			if [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "arm64" ]; then \
 				PLATFORM_KEY="darwin-arm64"; \
 			elif [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "x86_64" ]; then \
@@ -124,6 +125,7 @@ fetch-deps:
 				echo "Warning: Unsupported platform $$PLATFORM-$$ARCH, defaulting to linux-x64"; \
 				PLATFORM_KEY="linux-x64"; \
 			fi; \
+			echo "  🎯 Using platform key: $$PLATFORM_KEY"; \
 			for validation_file in $$(jq -r ".dependencies.$$dep.validation_files.\"$$PLATFORM_KEY\"[]?" "$$DEPS_CONFIG"); do \
 				if [ ! -e "$$DEP_DIR/$$validation_file" ]; then \
 					ALREADY_DOWNLOADED="false"; \
@@ -163,6 +165,7 @@ fetch-deps:
 			"platform_mixed") \
 				PLATFORM=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
 				ARCH=$$(uname -m); \
+				echo "    🔍 [platform_mixed] Detected platform: $$PLATFORM, arch: $$ARCH"; \
 				if [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "arm64" ]; then \
 					PLATFORM_KEY="darwin-arm64"; \
 				elif [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "x86_64" ]; then \
@@ -177,6 +180,7 @@ fetch-deps:
 					echo "Warning: Unsupported platform $$PLATFORM-$$ARCH, defaulting to linux-x64"; \
 					PLATFORM_KEY="linux-x64"; \
 				fi; \
+				echo "    🎯 [platform_mixed] Using platform key: $$PLATFORM_KEY";
 				PLATFORM_CONFIG=$$(jq -r ".dependencies.$$dep.platform_config.\"$$PLATFORM_KEY\"" "$$DEPS_CONFIG"); \
 				REF_PATH=$$(echo "$$PLATFORM_CONFIG" | jq -r '."$$ref" // empty'); \
 				if [ -n "$$REF_PATH" ]; then \
@@ -188,6 +192,7 @@ fetch-deps:
 					PLATFORM_FILES=$$(echo "$$PLATFORM_CONFIG" | jq -r ".files"); \
 				fi; \
 				URL=$$(jq -r ".dependencies.$$dep.url.\"$$PLATFORM_KEY\"" "$$DEPS_CONFIG"); \
+				echo "    📡 [platform_mixed] URL for $$PLATFORM_KEY: $$URL"; \
 				if [ "$$PLATFORM_TYPE" = "individual_files" ]; then \
 					BASE_URL="$$URL"; \
 					for category in binaries libraries dataFiles; do \
