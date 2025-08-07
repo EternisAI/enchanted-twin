@@ -6,6 +6,7 @@ import extract from 'extract-zip'
 import * as tar from 'tar'
 import { spawn } from 'child_process'
 import log from 'electron-log'
+import lzma from 'lzma-native'
 
 // Helper type for dependency configuration (matching the readonly generated structure)
 type DependencyConfig = {
@@ -651,8 +652,36 @@ async function extractTarGz(file: string, destDir: string) {
 }
 
 async function extractTarXz(file: string, destDir: string) {
-  await tar.extract({ file, cwd: destDir })
-  fs.unlinkSync(file)
+  return new Promise<void>((resolve, reject) => {
+    const readStream = fs.createReadStream(file)
+    const decompressStream = lzma.createDecompressor()
+    
+    const chunks: Buffer[] = []
+    
+    readStream
+      .pipe(decompressStream)
+      .on('data', (chunk: Buffer) => {
+        chunks.push(chunk)
+      })
+      .on('end', async () => {
+        try {
+          const decompressedData = Buffer.concat(chunks)
+          const tempTarFile = file.replace(/\.txz$|\.tar\.xz$/, '.tar')
+          
+          fs.writeFileSync(tempTarFile, decompressedData)
+          await tar.extract({ file: tempTarFile, cwd: destDir })
+          
+          fs.unlinkSync(tempTarFile)
+          fs.unlinkSync(file)
+          resolve()
+        } catch (error) {
+          reject(error)
+        }
+      })
+      .on('error', (error) => {
+        reject(error)
+      })
+  })
 }
 
 function isExtractedDirValid(dir: string): boolean {

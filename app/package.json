@@ -73,6 +73,7 @@
     "katex": "^0.16.22",
     "leva": "^0.10.0",
     "lottie-react": "^2.4.1",
+    "lzma-native": "^8.0.6",
     "lucide-react": "^0.488.0",
     "node-machine-id": "^1.1.12",
     "openai": "^5.9.0",

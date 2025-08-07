@@ -177,16 +177,34 @@ fetch-deps:
 					echo "Warning: Unsupported platform $$PLATFORM-$$ARCH, defaulting to linux-x64"; \
 					PLATFORM_KEY="linux-x64"; \
 				fi; \
-				PLATFORM_TYPE=$$(jq -r ".dependencies.$$dep.platform_config.\"$$PLATFORM_KEY\".type" "$$DEPS_CONFIG"); \
+				PLATFORM_CONFIG=$$(jq -r ".dependencies.$$dep.platform_config.\"$$PLATFORM_KEY\"" "$$DEPS_CONFIG"); \
+				REF_PATH=$$(echo "$$PLATFORM_CONFIG" | jq -r '."$$ref" // empty'); \
+				if [ -n "$$REF_PATH" ]; then \
+					REF_KEY=$$(echo "$$REF_PATH" | sed 's|#/||'); \
+					PLATFORM_TYPE=$$(jq -r ".$$REF_KEY.type" "$$DEPS_CONFIG"); \
+					PLATFORM_FILES=$$(jq -r ".$$REF_KEY.files" "$$DEPS_CONFIG"); \
+				else \
+					PLATFORM_TYPE=$$(echo "$$PLATFORM_CONFIG" | jq -r ".type"); \
+					PLATFORM_FILES=$$(echo "$$PLATFORM_CONFIG" | jq -r ".files"); \
+				fi; \
 				URL=$$(jq -r ".dependencies.$$dep.url.\"$$PLATFORM_KEY\"" "$$DEPS_CONFIG"); \
 				if [ "$$PLATFORM_TYPE" = "individual_files" ]; then \
 					BASE_URL="$$URL"; \
 					for category in binaries libraries dataFiles; do \
-						for file in $$(jq -r ".dependencies.$$dep.platform_config.\"$$PLATFORM_KEY\".files.$$category[]?" "$$DEPS_CONFIG"); do \
-							echo "    📄 $$file"; \
-							mkdir -p "$$(dirname "$$DEP_DIR/$$file")"; \
-							curl -# -fSL "$$BASE_URL/$$file" -o "$$DEP_DIR/$$file" || { echo "❌ Failed to download $$file"; exit 1; }; \
-						done; \
+						if [ -n "$$REF_PATH" ]; then \
+							REF_KEY=$$(echo "$$REF_PATH" | sed 's|#/||'); \
+							for file in $$(jq -r ".$$REF_KEY.files.$$category[]?" "$$DEPS_CONFIG"); do \
+								echo "    📄 $$file"; \
+								mkdir -p "$$(dirname "$$DEP_DIR/$$file")"; \
+								curl -# -fSL "$$BASE_URL/$$file" -o "$$DEP_DIR/$$file" || { echo "❌ Failed to download $$file"; exit 1; }; \
+							done; \
+						else \
+							for file in $$(jq -r ".dependencies.$$dep.platform_config.\"$$PLATFORM_KEY\".files.$$category[]?" "$$DEPS_CONFIG"); do \
+								echo "    📄 $$file"; \
+								mkdir -p "$$(dirname "$$DEP_DIR/$$file")"; \
+								curl -# -fSL "$$BASE_URL/$$file" -o "$$DEP_DIR/$$file" || { echo "❌ Failed to download $$file"; exit 1; }; \
+							done; \
+						fi; \
 					done; \
 				elif [ "$$PLATFORM_TYPE" = "tar.gz" ]; then \
 					echo "    📦 Downloading archive for $$PLATFORM_KEY..."; \
