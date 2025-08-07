@@ -42,6 +42,7 @@ import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { formatShortcutForDisplay } from '@renderer/lib/utils/shortcuts'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import { checkHolonsDisabled, checkTasksDisabled } from '@renderer/lib/utils'
+import { ChatListRefreshButton } from './ChatListRefreshButton'
 
 interface SidebarProps {
   chats: Chat[]
@@ -313,6 +314,32 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
               )}
             </Tooltip>
           </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip delayDuration={collapsed ? 300 : 1000}>
+              <TooltipTrigger asChild>
+                <div className={cn(collapsed ? 'flex justify-center' : 'flex justify-start px-2')}>
+                  <ChatListRefreshButton
+                    variant="ghost"
+                    size={collapsed ? 'icon' : 'default'}
+                    showText={!collapsed}
+                    className={cn(
+                      'group transition-all',
+                      collapsed
+                        ? 'p-0 w-10 h-10 text-foreground/60 hover:text-foreground hover:bg-accent'
+                        : 'w-full justify-start text-sidebar-foreground/60 hover:text-sidebar-foreground h-9'
+                    )}
+                  />
+                </div>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right" align="center">
+                  <span>Refresh chat list</span>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+
           {!isTasksDisabled && (
             <TooltipProvider>
               <Tooltip delayDuration={collapsed ? 300 : 1000}>
