@@ -650,15 +650,31 @@ async function extractTarGz(file: string, destDir: string) {
   fs.unlinkSync(file)
 }
 
-let lzmaModulePromise: Promise<any | null> | null = null
-function loadLzmaNative(): Promise<any | null> {
+// Type definition for optional lzma-native module
+interface LzmaModule {
+  createDecompressor: () => NodeJS.ReadWriteStream
+}
+
+let lzmaModulePromise: Promise<LzmaModule | null> | null = null
+function loadLzmaNative(): Promise<LzmaModule | null> {
   if (!lzmaModulePromise) {
-    // Optional dependency: suppress TS resolution error if types not installed
-    // @ts-ignore - optional dependency may be absent at build time
+    // @ts-ignore - optional dependency may be absent; dynamic import guarded
     lzmaModulePromise = import('lzma-native')
-      .then((m) => (m as any)?.default ?? m)
-      .catch((err) => {
-        log.warn('lzma-native not available, falling back to system tar for .xz extraction', err?.message)
+      .then((m): LzmaModule | null => {
+        const mod: unknown = (m as any)?.default ?? m // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (
+          mod &&
+          typeof mod === 'object' &&
+          'createDecompressor' in mod &&
+          typeof (mod as { createDecompressor?: unknown }).createDecompressor === 'function'
+        ) {
+          return mod as LzmaModule
+        }
+        return null
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        log.warn('lzma-native not available, falling back to system tar for .xz extraction', message)
         return null
       })
   }
