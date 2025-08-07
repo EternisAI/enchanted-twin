@@ -204,7 +204,7 @@
       "validation_files": {
         "darwin-arm64": ["onnxruntime-osx-arm64-1.22.0/lib/libonnxruntime.dylib"],
         "linux-x64": ["onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"],
-        "linux-arm64": ["onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"]
+        "linux-arm64": ["onnxruntime-linux-arm64-1.22.0/lib/libonnxruntime.so"]
       },
       "post_download": {
         "cleanup": ["*.tgz"]

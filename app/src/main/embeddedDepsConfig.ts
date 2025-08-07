@@ -277,7 +277,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
           "onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"
         ],
         "linux-arm64": [
-          "onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"
+          "onnxruntime-linux-arm64-1.22.0/lib/libonnxruntime.so"
         ]
       },
       "post_download": {
