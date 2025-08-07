@@ -180,7 +180,7 @@ fetch-deps:
 					echo "Warning: Unsupported platform $$PLATFORM-$$ARCH, defaulting to linux-x64"; \
 					PLATFORM_KEY="linux-x64"; \
 				fi; \
-				echo "    🎯 [platform_mixed] Using platform key: $$PLATFORM_KEY";
+				echo "    🎯 [platform_mixed] Using platform key: $$PLATFORM_KEY"; \
 				PLATFORM_CONFIG=$$(jq -r ".dependencies.$$dep.platform_config.\"$$PLATFORM_KEY\"" "$$DEPS_CONFIG"); \
 				REF_PATH=$$(echo "$$PLATFORM_CONFIG" | jq -r '."$$ref" // empty'); \
 				if [ -n "$$REF_PATH" ]; then \
