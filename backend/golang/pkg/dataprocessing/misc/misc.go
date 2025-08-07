@@ -68,7 +68,7 @@ func (s *TextDocumentProcessor) Name() string {
 
 func (s *TextDocumentProcessor) Close() error {
 	if s.pdfiumPool != nil {
-		s.pdfiumPool.Close()
+		return s.pdfiumPool.Close()
 	}
 	return nil
 }
