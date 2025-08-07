@@ -67,7 +67,7 @@
         "darwin-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres",
         "darwin-x64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres",
         "linux-x64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres-linux-debian.txz",
-        "linux-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres-linux-debian.txz"
+        "linux-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres-linux-debian-arm64.txz"
       },
       "name": "postgres",
       "display_name": "PostgreSQL database",

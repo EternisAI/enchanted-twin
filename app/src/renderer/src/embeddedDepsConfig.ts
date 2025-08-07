@@ -9,7 +9,8 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "url": {
         "darwin-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres",
         "darwin-x64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres",
-        "linux-x64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres-linux-debian.txz"
+        "linux-x64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres-linux-debian.txz",
+        "linux-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres-linux-debian-arm64.txz"
       },
       "name": "postgres",
       "display_name": "PostgreSQL database",
@@ -50,6 +51,21 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
           "share/postgresql/extension/plpgsql.control"
         ],
         "linux-x64": [
+          "bin/postgres",
+          "bin/initdb",
+          "bin/pg_ctl",
+          "lib/libpq.so.5",
+          "lib/postgresql/vector.so",
+          "lib/libicuuc.so.60",
+          "lib/libssl.so.1.1",
+          "lib/libcrypto.so.1.1",
+          "share/postgresql/postgres.bki",
+          "share/postgresql/pg_hba.conf.sample",
+          "share/postgresql/postgresql.conf.sample",
+          "share/postgresql/extension/vector.control",
+          "share/postgresql/extension/plpgsql.control"
+        ],
+        "linux-arm64": [
           "bin/postgres",
           "bin/initdb",
           "bin/pg_ctl",
@@ -186,6 +202,9 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
         },
         "linux-x64": {
           "type": "tar.xz"
+        },
+        "linux-arm64": {
+          "type": "tar.xz"
         }
       },
       "post_download": {
@@ -240,7 +259,8 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "backend_download_enabled": true,
       "url": {
         "darwin-arm64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-osx-arm64-1.22.0.tgz",
-        "linux-x64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz"
+        "linux-x64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz",
+        "linux-arm64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz"
       },
       "name": "onnx",
       "display_name": "Inference engine",
@@ -254,6 +274,9 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
           "onnxruntime-osx-arm64-1.22.0/lib/libonnxruntime.dylib"
         ],
         "linux-x64": [
+          "onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"
+        ],
+        "linux-arm64": [
           "onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"
         ]
       },
