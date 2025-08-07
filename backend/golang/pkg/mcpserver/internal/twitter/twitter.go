@@ -14,7 +14,15 @@ import (
 )
 
 type TwitterClient struct {
-	Store *db.Store
+	Store  *db.Store
+	Logger *log.Logger
+}
+
+func NewClient(store *db.Store, logger *log.Logger) *TwitterClient {
+	return &TwitterClient{
+		Store:  store,
+		Logger: logger,
+	}
 }
 
 func (c *TwitterClient) ListTools(
@@ -81,10 +89,9 @@ func (c *TwitterClient) CallTool(
 		return nil, err
 	}
 
-	logger := log.Default()
 	if oauthTokens.ExpiresAt.Before(time.Now()) || oauthTokens.Error {
-		logger.Debug("Refreshing token for twitter")
-		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "twitter")
+		c.Logger.Debug("Refreshing token for twitter")
+		_, err = auth.RefreshOAuthToken(ctx, c.Logger, c.Store, "twitter")
 		if err != nil {
 			return mcp_golang.NewToolResultError("Twitter authentication expired. Please reconnect your Twitter account in settings to continue."), err
 		}

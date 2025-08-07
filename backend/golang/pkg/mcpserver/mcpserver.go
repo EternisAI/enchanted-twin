@@ -114,17 +114,11 @@ func (s *service) ConnectMCPServer(
 
 		switch input.Type {
 		case model.MCPServerTypeTwitter:
-			client = &twitter.TwitterClient{
-				Store: s.store,
-			}
+			client = twitter.NewClient(s.store, s.logger)
 		case model.MCPServerTypeGoogle:
-			client = &google.GoogleClient{
-				Store: s.store,
-			}
+			client = google.NewClient(s.store, s.logger)
 		case model.MCPServerTypeSLACk:
-			client = &slack.SlackClient{
-				Store: s.store,
-			}
+			client = slack.NewClient(s.store, s.logger)
 		case model.MCPServerTypeScreenpipe:
 			client = screenpipe.NewClient()
 		case model.MCPServerTypeEnchanted:
@@ -420,18 +414,12 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		if server.Type != model.MCPServerTypeOther && server.Type != model.MCPServerTypeFreysa {
 			switch server.Type {
 			case model.MCPServerTypeTwitter:
-				client = &twitter.TwitterClient{
-					Store: s.store,
-				}
+				client = twitter.NewClient(s.store, s.logger)
 			// TODO: Re-enable after fixing compilation issues
 			case model.MCPServerTypeGoogle:
-				client = &google.GoogleClient{
-					Store: s.store,
-				}
+				client = google.NewClient(s.store, s.logger)
 			case model.MCPServerTypeSLACk:
-				client = &slack.SlackClient{
-					Store: s.store,
-				}
+				client = slack.NewClient(s.store, s.logger)
 			case model.MCPServerTypeScreenpipe:
 				client = screenpipe.NewClient()
 			case model.MCPServerTypeEnchanted:

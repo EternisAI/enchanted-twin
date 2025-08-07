@@ -95,7 +95,7 @@ func TestUsernameExtraction(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	store, err := db.NewStore(ctx, dbFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestUsernameExtractionFallback(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	store, err := db.NewStore(ctx, dbFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -296,7 +296,7 @@ func TestProcessFileWithStoreExample(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	store, err := db.NewStore(ctx, dbFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -416,7 +416,7 @@ func TestUsernameExtractionAndDocumentGeneration(t *testing.T) {
 	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
-	store, err := db.NewStore(ctx, dbFile.Name())
+	store, err := db.NewStore(ctx, dbFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}

@@ -881,7 +881,7 @@ func GetTelegramEnabled(ctx context.Context, store *configtable.Queries) (string
 func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *TelegramService, logger *log.Logger, toolRegistry *tools.ToolMapRegistry, store *configtable.Queries, envs *config.Config) {
 	logger.Info("Starting Telegram tool monitor and registration")
 
-	keys, err := store.GetAllConfigKeys(context.Background())
+	keys, err := store.GetAllConfigKeys(ctx)
 	if err != nil {
 		logger.Error("Error getting all config keys", "error", err)
 		return
@@ -892,7 +892,7 @@ func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *Telegr
 	if !slices.Contains(keys, "telegram_chat_id") {
 		logger.Info("Setting up initial Telegram configuration")
 
-		err = store.SetConfigValue(context.Background(), configtable.SetConfigValueParams{
+		err = store.SetConfigValue(ctx, configtable.SetConfigValueParams{
 			Key: "telegram_chat_id",
 		})
 		if err != nil {
@@ -903,7 +903,7 @@ func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *Telegr
 		chatUUID := uuid.New().String()
 		logger.Info("Generated new chat UUID", "chatUUID", chatUUID)
 
-		err = store.SetConfigValue(context.Background(), configtable.SetConfigValueParams{
+		err = store.SetConfigValue(ctx, configtable.SetConfigValueParams{
 			Key:   TelegramChatUUIDKey,
 			Value: sql.NullString{String: chatUUID, Valid: true},
 		})
@@ -921,7 +921,7 @@ func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *Telegr
 	for {
 		monitorCount++
 
-		telegramEnabled, errTelegramEnabled := GetTelegramEnabled(context.Background(), store)
+		telegramEnabled, errTelegramEnabled := GetTelegramEnabled(ctx, store)
 		_, exists := toolRegistry.Get("telegram_send_message")
 
 		if errTelegramEnabled == nil && telegramEnabled == "true" && !exists {
@@ -945,12 +945,18 @@ func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *Telegr
 			return
 		}
 
-		time.Sleep(2 * time.Second)
+		select {
+		case <-time.After(2 * time.Second):
+			continue
+		case <-ctx.Done():
+			logger.Info("Stopping Telegram tool monitor due to context cancellation")
+			return
+		}
 	}
 }
 
-func SubscribePoller(telegramService *TelegramService, logger *log.Logger) {
-	appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+func SubscribePoller(ctx context.Context, telegramService *TelegramService, logger *log.Logger) {
+	appCtx, appCancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer appCancel()
 
 	subscriptionCount := 0

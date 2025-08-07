@@ -13,7 +13,15 @@ import (
 )
 
 type GoogleClient struct {
-	Store *db.Store
+	Store  *db.Store
+	Logger *log.Logger
+}
+
+func NewClient(store *db.Store, logger *log.Logger) *GoogleClient {
+	return &GoogleClient{
+		Store:  store,
+		Logger: logger,
+	}
 }
 
 func (c *GoogleClient) ListTools(
@@ -21,7 +29,7 @@ func (c *GoogleClient) ListTools(
 	request mcp_golang.ListToolsRequest,
 ) (*mcp_golang.ListToolsResult, error) {
 	tools := []mcp_golang.Tool{}
-	log.Info("Listing tools in google mcp server")
+	c.Logger.Info("Listing tools in google mcp server")
 	gmailTools, err := GenerateGmailTools()
 	if err != nil {
 		return nil, err
@@ -40,7 +48,7 @@ func (c *GoogleClient) ListTools(
 	}
 	tools = append(tools, googleDriveTools...)
 	for _, tool := range tools {
-		log.Info("Google tool", "name", tool.Name)
+		c.Logger.Info("Google tool", "name", tool.Name)
 	}
 	return &mcp_golang.ListToolsResult{
 		Tools: tools,
@@ -60,12 +68,10 @@ func (c *GoogleClient) CallTool(
 		return nil, err
 	}
 
-	// TODO: @pottekkat Pass loggers properly.
 	// Refresh the token, it is actually retrieved by individual tools.
-	logger := log.Default()
 	if oauthTokens.ExpiresAt.Before(time.Now()) || oauthTokens.Error {
-		logger.Debug("Refreshing token for google")
-		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "google")
+		c.Logger.Debug("Refreshing token for google")
+		_, err = auth.RefreshOAuthToken(ctx, c.Logger, c.Store, "google")
 		if err != nil {
 			return nil, err
 		}

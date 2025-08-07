@@ -13,7 +13,15 @@ import (
 )
 
 type SlackClient struct {
-	Store *db.Store
+	Store  *db.Store
+	Logger *log.Logger
+}
+
+func NewClient(store *db.Store, logger *log.Logger) *SlackClient {
+	return &SlackClient{
+		Store:  store,
+		Logger: logger,
+	}
 }
 
 func (c *SlackClient) ListTools(
@@ -42,10 +50,9 @@ func (c *SlackClient) CallTool(
 		return nil, err
 	}
 
-	logger := log.Default()
 	if oauthTokens.ExpiresAt.Before(time.Now()) || oauthTokens.Error {
-		logger.Debug("Refreshing token for slack")
-		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "slack")
+		c.Logger.Debug("Refreshing token for slack")
+		_, err = auth.RefreshOAuthToken(ctx, c.Logger, c.Store, "slack")
 		if err != nil {
 			return nil, err
 		}

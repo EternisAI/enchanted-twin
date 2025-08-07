@@ -70,4 +70,7 @@ type Interface interface {
 
 	// Batch fact retrieval for intelligent querying
 	GetFactsByIDs(ctx context.Context, factIDs []string) ([]*memory.MemoryFact, error)
+
+	// Close releases any underlying resources (connections, servers, pools, etc.)
+	Close(ctx context.Context) error
 }
