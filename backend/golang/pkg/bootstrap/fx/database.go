@@ -89,6 +89,12 @@ func ProvideMemoryStorage(
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
 			logger.Info("Cleaning up memory storage", "backend", envs.MemoryBackend)
+			if storageInterface != nil {
+				if err := storageInterface.Close(ctx); err != nil {
+					logger.Error("Failed to close memory storage", "error", err)
+					return err
+				}
+			}
 			return nil
 		},
 	})

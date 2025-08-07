@@ -71,10 +71,16 @@ func isSensitiveKey(key string) bool {
 
 // maskSensitiveValue masks sensitive values for logging.
 func maskSensitiveValue(value string) string {
-	if len(value) <= 8 {
+	l := len(value)
+	if l <= 8 {
 		return "***masked***"
 	}
-	return value[:4] + "***masked***" + value[len(value)-4:]
+	// For short tokens (9-12 chars), reveal only first and last character.
+	if l <= 12 {
+		return value[:1] + "***masked***" + value[l-1:]
+	}
+	// For longer tokens, reveal only the first 4 and last 4 characters.
+	return value[:4] + "***masked***" + value[l-4:]
 }
 
 func getEnvOrPanic(key string, printEnv bool) string {

@@ -290,9 +290,9 @@ func ProvideHolonService(params HolonServiceParams) HolonServiceResult {
 			// Start holon manager
 			if err := holonManager.Start(); err != nil {
 				params.Logger.Error("Failed to start HolonZero fetcher service", "error", err)
-			} else {
-				params.Logger.Info("HolonZero API fetcher service started successfully")
+				return err
 			}
+			params.Logger.Info("HolonZero API fetcher service started successfully")
 
 			return nil
 		},
@@ -319,6 +319,7 @@ type MCPServiceResult struct {
 // MCPServiceParams holds parameters for MCP service.
 type MCPServiceParams struct {
 	fx.In
+	Lifecycle    fx.Lifecycle
 	Logger       *log.Logger
 	Store        *db.Store
 	ToolRegistry *tools.ToolMapRegistry
@@ -326,7 +327,18 @@ type MCPServiceParams struct {
 
 // ProvideMCPService creates MCP service.
 func ProvideMCPService(params MCPServiceParams) MCPServiceResult {
-	mcpService := mcpserver.NewService(context.Background(), params.Logger, params.Store, params.ToolRegistry)
+	ctx, cancel := context.WithCancel(context.Background())
+	mcpService := mcpserver.NewService(ctx, params.Logger, params.Store, params.ToolRegistry)
+
+	// Ensure cancellation on application stop
+	params.Lifecycle.Append(fx.Hook{
+		OnStop: func(stopCtx context.Context) error {
+			params.Logger.Info("Stopping MCP service")
+			cancel()
+			return nil
+		},
+	})
+
 	return MCPServiceResult{MCPService: mcpService}
 }
 
