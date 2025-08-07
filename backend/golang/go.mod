@@ -9,7 +9,6 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.31.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/g8rswimmer/go-twitter/v2 v2.1.5
-	github.com/gen2brain/go-fitz v1.24.15
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -45,6 +44,8 @@ require (
 	google.golang.org/grpc v1.73.0
 )
 
+require github.com/klippa-app/go-pdfium v1.17.1
+
 require (
 	al.essio.dev/pkg/shellescape v1.5.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
@@ -66,8 +67,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-test/deep v1.1.1 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
-	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
-	github.com/jupiterrider/ffi v0.5.0 // indirect
+	github.com/jolestar/go-commons-pool/v2 v2.1.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
@@ -107,6 +107,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.5 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
+	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect

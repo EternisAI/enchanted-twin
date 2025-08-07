@@ -10,11 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/KSpaceer/goppt"
 	"github.com/charmbracelet/log"
-	"github.com/gen2brain/go-fitz"
 	"github.com/guylaor/goword"
+	"github.com/klippa-app/go-pdfium"
+	"github.com/klippa-app/go-pdfium/requests"
+	"github.com/klippa-app/go-pdfium/webassembly"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/constants"
@@ -26,9 +29,10 @@ const (
 )
 
 type TextDocumentProcessor struct {
-	chunkSize int
-	store     *db.Store
-	logger    *log.Logger
+	chunkSize  int
+	store      *db.Store
+	logger     *log.Logger
+	pdfiumPool pdfium.Pool
 }
 
 func NewTextDocumentProcessor(store *db.Store, logger *log.Logger) (*TextDocumentProcessor, error) {
@@ -40,15 +44,33 @@ func NewTextDocumentProcessor(store *db.Store, logger *log.Logger) (*TextDocumen
 		return nil, fmt.Errorf("logger is nil")
 	}
 
+	// Initialize PDFium pool
+	pool, err := webassembly.Init(webassembly.Config{
+		MinIdle:  1,
+		MaxIdle:  2,
+		MaxTotal: 3,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize PDFium pool: %w", err)
+	}
+
 	return &TextDocumentProcessor{
-		chunkSize: DefaultChunkSize,
-		store:     store,
-		logger:    logger,
+		chunkSize:  DefaultChunkSize,
+		store:      store,
+		logger:     logger,
+		pdfiumPool: pool,
 	}, nil
 }
 
 func (s *TextDocumentProcessor) Name() string {
 	return constants.ProcessorSyncedDocument.String()
+}
+
+func (s *TextDocumentProcessor) Close() error {
+	if s.pdfiumPool != nil {
+		s.pdfiumPool.Close()
+	}
+	return nil
 }
 
 // IsHumanReadableContent determines if the content is human-readable text.
@@ -203,27 +225,63 @@ func (s *TextDocumentProcessor) IsHumanReadableContent(ctx context.Context, cont
 
 // ExtractTextFromPDF extracts text content from a PDF file.
 func (s *TextDocumentProcessor) ExtractTextFromPDF(filePath string) (string, error) {
-	doc, err := fitz.New(filePath)
+	// Get a PDFium instance from the pool
+	instance, err := s.pdfiumPool.GetInstance(30 * time.Second)
 	if err != nil {
-		return "", fmt.Errorf("failed to open PDF file %s: %w", filePath, err)
+		return "", fmt.Errorf("failed to get PDFium instance: %w", err)
 	}
+
+	// Read the PDF file
+	pdfBytes, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read PDF file %s: %w", filePath, err)
+	}
+
+	// Open the PDF document
+	doc, err := instance.OpenDocument(&requests.OpenDocument{
+		File: &pdfBytes,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to open PDF document %s: %w", filePath, err)
+	}
+
+	// Always close the document to release resources
 	defer func() {
-		if err := doc.Close(); err != nil {
-			s.logger.Warn("failed to close PDF file", "filePath", filePath, "error", err)
+		if _, err := instance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{
+			Document: doc.Document,
+		}); err != nil {
+			s.logger.Warn("failed to close PDF document", "filePath", filePath, "error", err)
 		}
 	}()
 
-	var textBuilder strings.Builder
-	totalPages := doc.NumPage()
+	// Get the page count
+	pageCountResp, err := instance.FPDF_GetPageCount(&requests.FPDF_GetPageCount{
+		Document: doc.Document,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get page count for PDF %s: %w", filePath, err)
+	}
 
-	for pageIndex := 0; pageIndex < totalPages; pageIndex++ {
-		text, err := doc.Text(pageIndex)
+	var textBuilder strings.Builder
+
+	// Extract text from each page
+	for pageIndex := 0; pageIndex < pageCountResp.PageCount; pageIndex++ {
+		// Get plain text for the page
+		textResp, err := instance.GetPageText(&requests.GetPageText{
+			Page: requests.Page{
+				ByIndex: &requests.PageByIndex{
+					Document: doc.Document,
+					Index:    pageIndex,
+				},
+			},
+		})
 		if err != nil {
 			s.logger.Warn("failed to extract text from page",
 				"page", pageIndex, "filePath", filePath, "error", err)
 			continue
 		}
-		textBuilder.WriteString(text)
+
+		textBuilder.WriteString(textResp.Text)
 		textBuilder.WriteString("\n\n")
 	}
 
