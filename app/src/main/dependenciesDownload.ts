@@ -199,18 +199,35 @@ function createGenericInstaller(depName: DependencyName) {
             })
             
             try {
-              // Handle both .txz and .tgz files
-              if (url.endsWith('.txz')) {
-                await extractTarXz(file, depDir)
-              } else {
-                await extractTarGz(file, depDir)
-              }
+              await extractTarGz(file, depDir)
             } catch (error) {
-              log.error(`Failed to extract archive for ${config.name}:`, error)
+              log.error(`Failed to extract TAR.GZ archive for ${config.name}:`, error)
               windowManager.mainWindow?.webContents.send('models:progress', {
                 modelName: config.name,
                 pct: 0,
-                error: `Failed to extract archive: ${error instanceof Error ? error.message : 'Unknown error'}`
+                error: `Failed to extract TAR.GZ archive: ${error instanceof Error ? error.message : 'Unknown error'}`
+              })
+              throw error
+            }
+          } else if (platformType === 'tar.xz') {
+            // Handle XZ archive download for Linux
+            const file = await downloadFile(url, depDir, 'temp.txz', (pct, total, downloaded) => {
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct,
+                totalBytes: total,
+                downloadedBytes: downloaded
+              })
+            })
+            
+            try {
+              await extractTarXz(file, depDir)
+            } catch (error) {
+              log.error(`Failed to extract TAR.XZ archive for ${config.name}:`, error)
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct: 0,
+                error: `Failed to extract TAR.XZ archive: ${error instanceof Error ? error.message : 'Unknown error'}`
               })
               throw error
             }
@@ -284,6 +301,36 @@ function createGenericInstaller(depName: DependencyName) {
               modelName: config.name,
               pct: 0,
               error: `Failed to extract TAR.GZ file: ${error instanceof Error ? error.message : 'Unknown error'}`
+            })
+            throw error
+          }
+          break
+        }
+
+        case 'tar.xz': {
+          let url: string = typeof config.url === 'string' ? config.url : ''
+          if (config.platform_url_key && typeof config.url === 'object') {
+            const urlObj = config.url as Record<string, string>
+            const platformKey = getPlatformKey()
+            url = urlObj[platformKey] || ''
+          }
+
+          const file = await downloadFile(url, depDir, 'temp.txz', (pct, total, downloaded) => {
+            windowManager.mainWindow?.webContents.send('models:progress', {
+              modelName: config.name,
+              pct,
+              totalBytes: total,
+              downloadedBytes: downloaded
+            })
+          })
+          try {
+            await extractTarXz(file, depDir)
+          } catch (error) {
+            log.error(`Failed to extract TAR.XZ file for ${config.name}:`, error)
+            windowManager.mainWindow?.webContents.send('models:progress', {
+              modelName: config.name,
+              pct: 0,
+              error: `Failed to extract TAR.XZ file: ${error instanceof Error ? error.message : 'Unknown error'}`
             })
             throw error
           }

@@ -181,7 +181,7 @@
           }
         },
         "linux-x64": {
-          "type": "tar.gz"
+          "type": "tar.xz"
         }
       },
       "post_download": {

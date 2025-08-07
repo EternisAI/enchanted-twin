@@ -185,7 +185,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
           }
         },
         "linux-x64": {
-          "type": "tar.gz"
+          "type": "tar.xz"
         }
       },
       "post_download": {

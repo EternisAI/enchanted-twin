@@ -242,6 +242,34 @@ fetch-deps:
 					(cd "$$DEP_DIR" && tar -xzf temp.tgz && rm temp.tgz) || { echo "❌ Failed to extract $$dep"; rm -f "$$DEP_DIR/temp.tgz"; exit 1; }; \
 				fi; \
 				;; \
+			"tar.xz") \
+				PLATFORM_KEY=$$(jq -r ".dependencies.$$dep.platform_url_key // false" "$$DEPS_CONFIG"); \
+				if [ "$$PLATFORM_KEY" = "true" ]; then \
+					PLATFORM=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
+					ARCH=$$(uname -m); \
+					if [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "arm64" ]; then \
+						PLATFORM_KEY="darwin-arm64"; \
+					elif [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "x86_64" ]; then \
+						PLATFORM_KEY="darwin-x64"; \
+					elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "x86_64" ]; then \
+						PLATFORM_KEY="linux-x64"; \
+					elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "aarch64" ]; then \
+						PLATFORM_KEY="linux-arm64"; \
+					elif [ "$$PLATFORM" = "mingw32" ] || [ "$$PLATFORM" = "msys" ] || [ "$$PLATFORM" = "cygwin" ]; then \
+						PLATFORM_KEY="win32"; \
+					else \
+						echo "Warning: Unsupported platform $$PLATFORM-$$ARCH, defaulting to linux-x64"; \
+						PLATFORM_KEY="linux-x64"; \
+					fi; \
+					URL=$$(jq -r ".dependencies.$$dep.url.\"$$PLATFORM_KEY\"" "$$DEPS_CONFIG"); \
+				else \
+					URL=$$(jq -r ".dependencies.$$dep.url" "$$DEPS_CONFIG"); \
+				fi; \
+				echo "    📦 Downloading tar.xz archive..."; \
+				curl -# -fSL "$$URL" -o "$$DEP_DIR/temp.txz" || { echo "❌ Failed to download $$URL"; rm -f "$$DEP_DIR/temp.txz"; exit 1; }; \
+				echo "    📂 Extracting XZ archive..."; \
+				(cd "$$DEP_DIR" && tar -xJf temp.txz && rm temp.txz) || { echo "❌ Failed to extract $$dep"; rm -f "$$DEP_DIR/temp.txz"; exit 1; }; \
+				;; \
 			"curl_script") \
 				echo "    🔧 Running install script..."; \
 				SCRIPT=$$(jq -r ".dependencies.$$dep.install_script" "$$DEPS_CONFIG"); \
