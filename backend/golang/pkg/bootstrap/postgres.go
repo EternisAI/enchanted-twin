@@ -183,6 +183,11 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		logger.Warn("Failed to kill existing PostgreSQL processes", "error", err)
 	}
 
+	// Proactively clean leftover shared memory segments for this port (previous crashes, SIGKILL etc.)
+	if err := cleanupPostgresSharedMemoryByPort(logger, actualPort); err != nil {
+		logger.Warn("Failed to proactively cleanup shared memory segments", "port", actualPort, "error", err)
+	}
+
 	if err := postgres.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start PostgreSQL: %w", err)
 	}
@@ -531,6 +536,63 @@ func cleanupPostgresSharedMemory(logger *log.Logger, dataPath string) error {
 		logger.Debug("No PostgreSQL shared memory segments found to clean up")
 	}
 
+	return nil
+}
+
+func cleanupPostgresSharedMemoryByPort(logger *log.Logger, port uint32) error {
+	// Only attempt cleanup on Unix-like systems (macOS, Linux)
+	if runtime.GOOS == "windows" {
+		logger.Debug("Skipping shared memory cleanup by port on Windows")
+		return nil
+	}
+
+	if _, err := exec.LookPath("ipcs"); err != nil {
+		return nil
+	}
+	if _, err := exec.LookPath("ipcrm"); err != nil {
+		return nil
+	}
+
+	// PostgreSQL calculates shared memory key base as: 0x2000000 + port*0x10000
+	shmKey := 0x2000000 + int(port)*0x10000
+
+	cmd := exec.Command("ipcs", "-m")
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Debug("Failed to list shared memory segments for proactive cleanup", "error", err)
+		return nil
+	}
+
+	lines := strings.Split(string(output), "\n")
+	removed := 0
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		keyStr := fields[1]
+		if !strings.HasPrefix(keyStr, "0x") {
+			continue
+		}
+		key, err := strconv.ParseInt(keyStr, 0, 64)
+		if err != nil {
+			continue
+		}
+		if key >= int64(shmKey) && key < int64(shmKey+0x10000) { // range for this port
+			shmid := fields[0]
+			logger.Info("Proactively removing leftover PostgreSQL shared memory segment", "port", port, "key", keyStr, "shmid", shmid)
+			if err := exec.Command("ipcrm", "-m", shmid).Run(); err != nil {
+				logger.Warn("Failed to remove shared memory segment", "shmid", shmid, "error", err)
+			} else {
+				removed++
+			}
+		}
+	}
+	if removed > 0 {
+		logger.Info("Proactive shared memory cleanup completed", "port", port, "segments_removed", removed)
+	} else {
+		logger.Debug("No leftover shared memory segments found for port", "port", port)
+	}
 	return nil
 }
 

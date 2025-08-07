@@ -112,6 +112,8 @@ func (m *MockStorage) QueryDocumentChunks(ctx context.Context, queryText string,
 	return chunks, args.Error(1)
 }
 
+func (m *MockStorage) Close(ctx context.Context) error { return nil }
+
 // Ensure MockStorage implements the storage interface.
 var _ storage.Interface = (*MockStorage)(nil)
 
