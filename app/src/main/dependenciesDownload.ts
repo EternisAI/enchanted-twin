@@ -26,6 +26,14 @@ type DependencyConfig = {
     readonly libraries?: readonly string[]
     readonly dataFiles?: readonly string[]
   }
+  readonly platform_config?: Record<string, {
+    readonly type: string
+    readonly files?: {
+      readonly binaries?: readonly string[]
+      readonly libraries?: readonly string[]
+      readonly dataFiles?: readonly string[]
+    }
+  }>
   readonly post_download?: {
     readonly chmod?: {
       readonly files: readonly string[]
@@ -107,6 +115,108 @@ function createGenericInstaller(depName: DependencyName) {
           })
 
           await Promise.all(downloadPromises)
+
+          // Set executable permissions based on post_download config
+          if (config.post_download?.chmod && process.platform !== 'win32') {
+            const mode = config.post_download.chmod.mode
+            const files = config.post_download.chmod.files || []
+            for (const filePath of files) {
+              const fullPath = path.join(depDir, filePath)
+              if (fs.existsSync(fullPath)) {
+                fs.chmodSync(fullPath, parseInt(mode, 8))
+              }
+            }
+          }
+          break
+        }
+
+        case 'platform_mixed': {
+          const platformKey = getPlatformKey()
+          const platformConfig = config.platform_config?.[platformKey]
+          
+          if (!platformConfig) {
+            throw new Error(`No platform configuration found for ${platformKey} in dependency ${config.name}`)
+          }
+
+          const platformType = platformConfig.type
+          let url: string = typeof config.url === 'string' ? config.url : ''
+          
+          if (typeof config.url === 'object' && config.url) {
+            url = config.url[platformKey] || ''
+          }
+
+          if (!url) {
+            throw new Error(`No URL found for platform ${platformKey} in dependency ${config.name}`)
+          }
+
+          if (platformType === 'individual_files') {
+            // Handle individual files download for macOS
+            const baseUrl = url
+            const allFiles = [
+              ...(platformConfig.files?.binaries || []),
+              ...(platformConfig.files?.libraries || []),
+              ...(platformConfig.files?.dataFiles || [])
+            ]
+            let downloadedFiles = 0
+            const totalFiles = allFiles.length
+
+            const downloadPromises = allFiles.map(async (filePath) => {
+              const fileUrl = `${baseUrl}/${filePath}`
+              const destPath = path.join(depDir, filePath)
+              const destDir = path.dirname(destPath)
+
+              if (!fs.existsSync(destDir)) {
+                fs.mkdirSync(destDir, { recursive: true })
+              }
+
+              try {
+                await downloadSingleFile(fileUrl, destPath)
+                downloadedFiles++
+
+                const pct = Math.round((downloadedFiles / totalFiles) * 100)
+                windowManager.mainWindow?.webContents.send('models:progress', {
+                  modelName: config.name,
+                  pct,
+                  totalBytes: totalFiles,
+                  downloadedBytes: downloadedFiles
+                })
+              } catch (error) {
+                console.error(`Failed to download ${filePath}:`, error)
+                throw error
+              }
+            })
+
+            await Promise.all(downloadPromises)
+          } else if (platformType === 'tar.gz') {
+            // Handle archive download for Linux
+            const file = await downloadFile(url, depDir, 'temp.tgz', (pct, total, downloaded) => {
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct,
+                totalBytes: total,
+                downloadedBytes: downloaded
+              })
+            })
+            
+            try {
+              // Handle both .txz and .tgz files
+              if (url.endsWith('.txz')) {
+                await extractTarXz(file, depDir)
+              } else {
+                await extractTarGz(file, depDir)
+              }
+            } catch (error) {
+              log.error(`Failed to extract archive for ${config.name}:`, error)
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct: 0,
+                error: `Failed to extract archive: ${error instanceof Error ? error.message : 'Unknown error'}`
+              })
+              throw error
+            }
+          } else {
+            throw new Error(`Unsupported platform type '${platformType}' for platform_mixed dependency ${config.name}`)
+          }
 
           // Set executable permissions based on post_download config
           if (config.post_download?.chmod && process.platform !== 'win32') {
@@ -489,6 +599,11 @@ async function extractZip(file: string, destDir: string) {
 }
 
 async function extractTarGz(file: string, destDir: string) {
+  await tar.extract({ file, cwd: destDir })
+  fs.unlinkSync(file)
+}
+
+async function extractTarXz(file: string, destDir: string) {
   await tar.extract({ file, cwd: destDir })
   fs.unlinkSync(file)
 }

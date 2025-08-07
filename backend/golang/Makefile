@@ -160,6 +160,47 @@ fetch-deps:
 					done; \
 				done; \
 				;; \
+			"platform_mixed") \
+				PLATFORM=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
+				ARCH=$$(uname -m); \
+				if [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "arm64" ]; then \
+					PLATFORM_KEY="darwin-arm64"; \
+				elif [ "$$PLATFORM" = "darwin" ] && [ "$$ARCH" = "x86_64" ]; then \
+					PLATFORM_KEY="darwin-x64"; \
+				elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "x86_64" ]; then \
+					PLATFORM_KEY="linux-x64"; \
+				elif [ "$$PLATFORM" = "linux" ] && [ "$$ARCH" = "aarch64" ]; then \
+					PLATFORM_KEY="linux-arm64"; \
+				elif [ "$$PLATFORM" = "mingw32" ] || [ "$$PLATFORM" = "msys" ] || [ "$$PLATFORM" = "cygwin" ]; then \
+					PLATFORM_KEY="win32"; \
+				else \
+					echo "Warning: Unsupported platform $$PLATFORM-$$ARCH, defaulting to linux-x64"; \
+					PLATFORM_KEY="linux-x64"; \
+				fi; \
+				PLATFORM_TYPE=$$(jq -r ".dependencies.$$dep.platform_config.\"$$PLATFORM_KEY\".type" "$$DEPS_CONFIG"); \
+				URL=$$(jq -r ".dependencies.$$dep.url.\"$$PLATFORM_KEY\"" "$$DEPS_CONFIG"); \
+				if [ "$$PLATFORM_TYPE" = "individual_files" ]; then \
+					BASE_URL="$$URL"; \
+					for category in binaries libraries dataFiles; do \
+						for file in $$(jq -r ".dependencies.$$dep.platform_config.\"$$PLATFORM_KEY\".files.$$category[]?" "$$DEPS_CONFIG"); do \
+							echo "    📄 $$file"; \
+							mkdir -p "$$(dirname "$$DEP_DIR/$$file")"; \
+							curl -# -fSL "$$BASE_URL/$$file" -o "$$DEP_DIR/$$file" || { echo "❌ Failed to download $$file"; exit 1; }; \
+						done; \
+					done; \
+				elif [ "$$PLATFORM_TYPE" = "tar.gz" ]; then \
+					echo "    📦 Downloading archive for $$PLATFORM_KEY..."; \
+					if echo "$$URL" | grep -q "\.txz$$"; then \
+						curl -# -fSL "$$URL" -o "$$DEP_DIR/temp.txz" || { echo "❌ Failed to download $$URL"; rm -f "$$DEP_DIR/temp.txz"; exit 1; }; \
+						echo "    📂 Extracting XZ archive..."; \
+						(cd "$$DEP_DIR" && tar -xJf temp.txz && rm temp.txz) || { echo "❌ Failed to extract $$dep"; rm -f "$$DEP_DIR/temp.txz"; exit 1; }; \
+					else \
+						curl -# -fSL "$$URL" -o "$$DEP_DIR/temp.tgz" || { echo "❌ Failed to download $$URL"; rm -f "$$DEP_DIR/temp.tgz"; exit 1; }; \
+						echo "    📂 Extracting..."; \
+						(cd "$$DEP_DIR" && tar -xzf temp.tgz && rm temp.tgz) || { echo "❌ Failed to extract $$dep"; rm -f "$$DEP_DIR/temp.tgz"; exit 1; }; \
+					fi; \
+				fi; \
+				;; \
 			"zip") \
 				URL=$$(jq -r ".dependencies.$$dep.url" "$$DEPS_CONFIG"); \
 				echo "    📦 Downloading zip archive..."; \
