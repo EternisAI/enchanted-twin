@@ -217,6 +217,11 @@ fetch-deps:
 						echo "    📂 Extracting..."; \
 						(cd "$$DEP_DIR" && tar -xzf temp.tgz && rm temp.tgz) || { echo "❌ Failed to extract $$dep"; rm -f "$$DEP_DIR/temp.tgz"; exit 1; }; \
 					fi; \
+				elif [ "$$PLATFORM_TYPE" = "tar.xz" ]; then \
+					echo "    📦 Downloading XZ archive for $$PLATFORM_KEY..."; \
+					curl -# -fSL "$$URL" -o "$$DEP_DIR/temp.txz" || { echo "❌ Failed to download $$URL"; rm -f "$$DEP_DIR/temp.txz"; exit 1; }; \
+					echo "    📂 Extracting XZ archive..."; \
+					(cd "$$DEP_DIR" && tar -xJf temp.txz && rm temp.txz) || { echo "❌ Failed to extract $$dep"; rm -f "$$DEP_DIR/temp.txz"; exit 1; }; \
 				fi; \
 				;; \
 			"zip") \
