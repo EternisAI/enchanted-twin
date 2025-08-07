@@ -253,17 +253,13 @@ func (s *PostgresStorage) StoreBatch(ctx context.Context, objects []*StorageObje
 		return nil
 	}
 
-	conn, err := pgx.Connect(ctx, s.connString)
-	if err != nil {
-		return fmt.Errorf("connecting to database: %w", err)
+	txBegin, ok := s.db.(interface {
+		Begin(ctx context.Context) (pgx.Tx, error)
+	})
+	if !ok {
+		return fmt.Errorf("database does not support transactions")
 	}
-	defer func() {
-		if err := conn.Close(ctx); err != nil {
-			s.logger.Error("Failed to close database connection", "error", err)
-		}
-	}()
-
-	tx, err := conn.Begin(ctx)
+	tx, err := txBegin.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
@@ -798,17 +794,13 @@ func (s *PostgresStorage) Query(ctx context.Context, queryText string, filter *m
 
 // DeleteAll removes all memory facts (used for testing).
 func (s *PostgresStorage) DeleteAll(ctx context.Context) error {
-	conn, err := pgx.Connect(ctx, s.connString)
-	if err != nil {
-		return fmt.Errorf("connecting to database: %w", err)
+	txBegin, ok := s.db.(interface {
+		Begin(ctx context.Context) (pgx.Tx, error)
+	})
+	if !ok {
+		return fmt.Errorf("database does not support transactions")
 	}
-	defer func() {
-		if err := conn.Close(ctx); err != nil {
-			s.logger.Error("Failed to close database connection", "error", err)
-		}
-	}()
-
-	tx, err := conn.Begin(ctx)
+	tx, err := txBegin.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
@@ -1106,17 +1098,13 @@ func (s *PostgresStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 		return nil
 	}
 
-	conn, err := pgx.Connect(ctx, s.connString)
-	if err != nil {
-		return fmt.Errorf("connecting to database: %w", err)
+	txBegin, ok := s.db.(interface {
+		Begin(ctx context.Context) (pgx.Tx, error)
+	})
+	if !ok {
+		return fmt.Errorf("database does not support transactions")
 	}
-	defer func() {
-		if err := conn.Close(ctx); err != nil {
-			s.logger.Error("Failed to close database connection", "error", err)
-		}
-	}()
-
-	tx, err := conn.Begin(ctx)
+	tx, err := txBegin.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}

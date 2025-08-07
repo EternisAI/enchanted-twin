@@ -186,8 +186,11 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 
 	db := stdlib.OpenDB(*pgxConfig)
 
-	// Test connection with retry
+	// Test connection with exponential backoff retry
 	maxRetries := 30
+	backoffDelay := 100 * time.Millisecond
+	maxBackoff := 2 * time.Second
+
 	for i := 0; i < maxRetries; i++ {
 		if err := db.Ping(); err == nil {
 			break
@@ -198,7 +201,12 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 			}
 			return nil, fmt.Errorf("failed to connect to PostgreSQL after %d attempts", maxRetries)
 		}
-		time.Sleep(100 * time.Millisecond)
+
+		time.Sleep(backoffDelay)
+		backoffDelay = time.Duration(float64(backoffDelay) * 1.2)
+		if backoffDelay > maxBackoff {
+			backoffDelay = maxBackoff
+		}
 	}
 
 	server := &PostgresServer{
