@@ -156,10 +156,6 @@ func (s *TelegramProcessor) extractUsername(ctx context.Context, telegramData Te
 	return extractedUsername, nil
 }
 
-func (s *TelegramProcessor) ProcessDirectory(ctx context.Context, filepath string) ([]types.Record, error) {
-	return nil, fmt.Errorf("process directory not supported for Telegram")
-}
-
 func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([]memory.ConversationDocument, error) {
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {

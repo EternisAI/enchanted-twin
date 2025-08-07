@@ -138,6 +138,12 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		password = "testpassword" // Default for embedded server only
 	}
 
+	// Get timezone from environment variable or use UTC as default
+	timezone := os.Getenv("POSTGRES_TIMEZONE")
+	if timezone == "" {
+		timezone = "UTC" // Safe default timezone
+	}
+
 	// Create embedded postgres configuration
 	config := embeddedpostgres.DefaultConfig().
 		Port(actualPort).
@@ -148,7 +154,11 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		Database("postgres").
 		Version(version). // Use specified version
 		StartTimeout(60 * time.Second).
-		Logger(&postgresLogWriter{logger: logger})
+		Logger(&postgresLogWriter{logger: logger}).
+		StartParameters(map[string]string{
+			"timezone":     timezone,
+			"log_timezone": timezone,
+		})
 
 	// Use binaries if available
 	if pgvectorBinariesPath != "" {
@@ -217,9 +227,11 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 	// Enable pgvector extension if we have pgvector binaries
 	if hasPgvector {
 		if err := server.enablePgvectorExtension(ctx); err != nil {
-			// If pgvector extension fails, warn but continue without it
-			logger.Warn("Failed to enable pgvector extension, continuing without vector support", "error", err)
-			server.hasPgvector = false
+			// Stop server and fail immediately if pgvector extension fails
+			if stopErr := server.Stop(); stopErr != nil {
+				logger.Error("Failed to stop PostgreSQL after pgvector extension failure", "error", stopErr)
+			}
+			return nil, fmt.Errorf("failed to enable pgvector extension (PostgreSQL: %s, path: %s): %w", version, pgvectorBinariesPath, err)
 		}
 	}
 
@@ -237,7 +249,8 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 		"elapsed", time.Since(startTime),
 		"port", actualPort,
 		"dataPath", dataPath,
-		"pgvector_enabled", server.hasPgvector)
+		"pgvector_enabled", server.hasPgvector,
+		"timezone", timezone)
 
 	return server, nil
 }
@@ -544,6 +557,16 @@ func findPgCtlPath(logger *log.Logger) string {
 
 	logger.Debug("pg_ctl not found in local binaries or system PATH")
 	return ""
+}
+
+// isPortInUse checks if a port is already in use by attempting to bind to it.
+func isPortInUse(port int) bool {
+	conn, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return true
+	}
+	_ = conn.Close()
+	return false
 }
 
 func findAvailablePostgresPort(preferredPort uint32, logger *log.Logger) uint32 {

@@ -1,16 +1,16 @@
 {
   "name": "enchanted",
   "version": "0.0.1",
-  "description": "An Electron application with React and TypeScript",
+  "description": "A personal AI interface focused on balancing privacy with state-of-the-art reasoning models.",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "Eternis Labs, Inc",
+  "homepage": "https://eternis.ai",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
-    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "typecheck": "node scripts/embed-deps-config.js && npm run typecheck:node && npm run typecheck:web",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
@@ -18,7 +18,7 @@
     "test:coverage": "vitest run --coverage",
     "codegen": "graphql-codegen --config src/renderer/src/graphql/codegen.ts",
     "start": "electron-vite preview",
-    "dev": "electron-vite dev",
+    "dev": "node scripts/embed-deps-config.js && electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
@@ -73,6 +73,7 @@
     "katex": "^0.16.22",
     "leva": "^0.10.0",
     "lottie-react": "^2.4.1",
+    "lzma-native": "^8.0.6",
     "lucide-react": "^0.488.0",
     "node-machine-id": "^1.1.12",
     "openai": "^5.9.0",
@@ -135,6 +136,7 @@
   "build": {
     "productName": "Enchanted",
     "appId": "com.eternis.enchanted",
+    "copyright": "© 2025 Eternis Labs Inc.\nEnchanted • Freysa",
     "extraResources": [
       {
         "from": "./resources",

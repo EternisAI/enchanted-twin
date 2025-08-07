@@ -99,7 +99,7 @@ export class LlamaCppServerManager {
   }
 
   private findLlamaServerExecutable(): string | null {
-    const llamaCppPath = getDependencyPath('LLAMACCP')
+    const llamaCppPath = getDependencyPath('llamaccp')
     const possibleExecutables = [
       path.join(llamaCppPath, 'llama-server'),
       path.join(llamaCppPath, 'llama-server.exe'),
@@ -163,7 +163,7 @@ export async function startLlamaCppSetup(): Promise<void> {
 
     const dependencies = hasDependenciesDownloaded()
 
-    if (!dependencies.LLAMACCP) {
+    if (!dependencies.llamaccp) {
       log.warn('[LlamaCpp] LLAMACCP binaries not yet downloaded, skipping setup')
       return
     }

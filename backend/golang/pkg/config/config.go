@@ -27,7 +27,6 @@ type Config struct {
 	PostgresPort       string
 	PostgresDataPath   string // Deprecated: PostgreSQL data is now always stored in AppDataPath/postgres-data
 	MemoryBackend      string
-	WeaviatePort       string
 	EnchantedMcpURL    string
 	ProxyTeeURL        string
 	UseLocalEmbedding  string
@@ -120,7 +119,6 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 		PostgresPort:       getEnv("POSTGRES_PORT", "5432", printEnv),
 		MemoryBackend:      getEnv("MEMORY_BACKEND", "postgresql", printEnv),
-		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
 		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
 		UseLocalEmbedding:  getEnv("USE_LOCAL_EMBEDDINGS", "", printEnv),

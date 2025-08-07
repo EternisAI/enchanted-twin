@@ -98,20 +98,6 @@ func StoreConsolidationReports(ctx context.Context, reports []*ConsolidationRepo
 	return memoryStorage.StoreFactsDirectly(ctx, allFacts, progressCallback)
 }
 
-// ExportToJSON writes the consolidation report to a JSON file.
-func (r *ConsolidationReport) ExportToJSON(filepath string) error {
-	data, err := json.MarshalIndent(r, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling JSON: %w", err)
-	}
-
-	if err := os.WriteFile(filepath, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write JSON file: %w", err)
-	}
-
-	return nil
-}
-
 // ConsolidationStorage abstracts storage operations for consolidations.
 type ConsolidationStorage interface {
 	StoreSummary(ctx context.Context, topic, summary string, generatedAt time.Time) error

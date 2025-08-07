@@ -8,6 +8,7 @@ import { windowManager } from './windows'
 import { openOAuthWindow, startFirebaseOAuth, cleanupOAuthServer } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
 import { keyboardShortcutsStore, screenpipeStore } from './stores'
+import { EMBEDDED_RUNTIME_DEPS_CONFIG } from './embeddedDepsConfig'
 import { updateMenu } from './menuSetup'
 import {
   startLiveKitAgent,
@@ -698,7 +699,19 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('models:download', async (_, modelName: DependencyName) => {
+    // Validate that the requested dependency is actually a model
+    const config = EMBEDDED_RUNTIME_DEPS_CONFIG?.dependencies?.[modelName]
+    if (!config || config.category !== 'model') {
+      throw new Error(
+        `Cannot download ${String(modelName)}: only models can be downloaded via this API`
+      )
+    }
+
     return downloadDependency(modelName)
+  })
+
+  ipcMain.handle('dependencies:download', async (_, dependencyName: DependencyName) => {
+    return downloadDependency(dependencyName)
   })
 
   ipcMain.handle('llamacpp:start', async () => {

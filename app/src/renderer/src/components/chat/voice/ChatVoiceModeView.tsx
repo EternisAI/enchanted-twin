@@ -101,7 +101,7 @@ export default function VoiceModeChatView({
 
           <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
 
-          <div className="flex-1 w-full flex flex-col items-center gap-6 z-10 min-h-[66%] max-h-[66%] overflow-y-auto voice-chat-scrollbar">
+          <div className="flex-1 w-full flex flex-col items-center gap-6 z-10 min-h-[66%] max-h-[66%] overflow-y-auto">
             {agentState === 'thinking' && <TypingIndicator />}
             {lastAgentMessage && agentState !== 'thinking' && (
               <motion.div
@@ -144,22 +144,6 @@ export default function VoiceModeChatView({
           </AnimatePresence>
         </div>
       </div>
-      <style>{`
-        .voice-chat-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .voice-chat-scrollbar::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 4px;
-        }
-        .voice-chat-scrollbar::-webkit-scrollbar-thumb {
-          background: #888;
-          border-radius: 4px;
-        }
-        .voice-chat-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #555;
-        }
-      `}</style>
     </div>
   )
 }

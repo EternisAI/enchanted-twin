@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { AppNotification } from '../renderer/src/graphql/generated/graphql'
 import { MediaType } from '../main/mediaPermissions'
 import { voiceStore, screenpipeStore } from '../main/stores'
+import { ModelName } from '../main/types/models'
 
 const api = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -188,8 +189,7 @@ const api = {
   },
   models: {
     hasModelsDownloaded: () => ipcRenderer.invoke('models:has-models-downloaded'),
-    downloadModels: (modelName: 'embeddings' | 'anonymizer') =>
-      ipcRenderer.invoke('models:download', modelName),
+    downloadModels: (modelName: ModelName) => ipcRenderer.invoke('models:download', modelName),
     onProgress: (
       callback: (data: {
         modelName: string
@@ -210,6 +210,10 @@ const api = {
       ipcRenderer.on('models:progress', listener)
       return () => ipcRenderer.removeListener('models:progress', listener)
     }
+  },
+  dependencies: {
+    download: (dependencyName: string) =>
+      ipcRenderer.invoke('dependencies:download', dependencyName)
   },
   goServer: {
     initialize: () => ipcRenderer.invoke('go-server:initialize'),

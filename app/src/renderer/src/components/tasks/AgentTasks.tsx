@@ -41,25 +41,27 @@ export default function AgentTasks() {
   const agentTasks = [...(data?.getAgentTasks || [])]
 
   return (
-    <div className="p-4 w-full overflow-y-auto">
+    <div className="w-full h-full max-w-4xl mx-auto px-4">
       {loading && <div className="py-4 text-center">Loading tasks...</div>}
       {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>}
 
       <div className="flex flex-col gap-4 pb-6">
-        <div className="flex items-center justify-between gap-2">
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <AlarmClockCheckIcon className="w-6 h-6" />
-            Tasks
-          </h1>
-          <Button
-            onClick={() => openOmnibar('Create a task to automate recurring activities')}
-            variant="default"
-            size="sm"
-          >
-            <Plus className="w-4 h-4" />
-            Create task
-          </Button>
-        </div>
+        {agentTasks.length > 0 && (
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-2xl font-semibold flex items-center gap-2">
+              <AlarmClockCheckIcon className="w-6 h-6" />
+              Tasks
+            </h1>
+            <Button
+              onClick={() => openOmnibar('Create a task to automate recurring activities')}
+              variant="default"
+              size="sm"
+            >
+              <Plus className="w-4 h-4" />
+              Create task
+            </Button>
+          </div>
+        )}
         {agentTasks.length === 0 ? (
           <EmptyTasksState />
         ) : (
@@ -119,7 +121,7 @@ function EmptyTasksState() {
             </Button>
           ))}
           <Button
-            variant="outline"
+            variant="default"
             size="lg"
             className="w-full"
             onClick={() => handleSuggestionClick('')}
