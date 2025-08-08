@@ -176,7 +176,8 @@ func (s *service) ConnectMCPServer(
 
 	var mcpClient *mcpclient.Client
 
-	if command == "url-http" {
+	switch command {
+	case "url-http":
 		// Create MCP token store that manages both tokens and client credentials.
 		mcpTokenStore := NewTokenStore(s.store, input.Args[0])
 
@@ -280,7 +281,7 @@ func (s *service) ConnectMCPServer(
 		// Get the actual name of the MCP server
 		// This shows up in the UI now
 		input.Name = r.ServerInfo.Name
-	} else if command == "url" {
+	case "url":
 		mcpClient, err = mcpclient.NewStreamableHttpClient(input.Args[0])
 		if err != nil {
 			return nil, fmt.Errorf("failed to create HTTP MCP client: %w", err)
@@ -304,7 +305,7 @@ func (s *service) ConnectMCPServer(
 		}
 
 		input.Name = r.ServerInfo.Name
-	} else {
+	default:
 		// Convert envs to string slice
 		envStrings := make([]string, len(transportEnvs))
 		for i, env := range transportEnvs {
@@ -500,7 +501,9 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		}
 
 		var mcpClient *mcpclient.Client
-		if command == "url-http" {
+
+		switch command {
+		case "url-http":
 			mcpTokenStore := NewTokenStore(s.store, server.Args[0])
 
 			if existingToken, err := mcpTokenStore.GetToken(); err == nil {
@@ -584,7 +587,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 				s.logger.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
 				continue
 			}
-		} else if command == "url" {
+		case "url":
 			mcpClient, err = mcpclient.NewStreamableHttpClient(server.Args[0])
 			if err != nil {
 				s.logger.Error("Error creating HTTP MCP client", "server", server.Name, "error", err)
@@ -608,7 +611,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 				s.logger.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
 				continue
 			}
-		} else {
+		default:
 			// Convert envs to string slice
 			envStrings := make([]string, len(server.Envs))
 			for i, env := range server.Envs {
