@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version number (e.g. v1.2.3)"
+        description: 'Version number (e.g. v1.2.3)'
         required: true
-        default: "v0.0.0"
+        default: 'v0.0.0'
   release:
     types: [prereleased]
 
@@ -25,20 +25,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Set up Python 3.11 (needed by node-gyp < 10)
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Export NODE_GYP_FORCE_PYTHON
+        run: echo "NODE_GYP_FORCE_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
 
-      - name: Install pnpm
+      - name: Install pnpm 8 (lockfile-compatible)
         uses: pnpm/action-setup@v2
         with:
           version: 8
+          run_install: false
 
-      - name: Set up Go
+      - name: Show key toolchain versions
+        run: |
+          echo "Python         $(python -V)"
+          echo "Node           $(node -v)"
+          echo "pnpm           $(pnpm -v)"
+          npx --yes node-gyp --version || true
+
+      - name: Set up Go 1.24.2
         uses: actions/setup-go@v4
         with:
-          go-version: "1.24.2"
+          go-version: '1.24.2'
 
       - name: Check secrets are injected
         env:
@@ -46,7 +63,7 @@ jobs:
           EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
         run: |
           echo "COMPLETIONS_API_KEY length: ${#COMPLETIONS_API_KEY}"
-          echo "EMBEDDINGS_API_KEY length: ${#EMBEDDINGS_API_KEY}"
+          echo "EMBEDDINGS_API_KEY length:  ${#EMBEDDINGS_API_KEY}"
 
       - name: Install dependencies
         working-directory: app
@@ -69,28 +86,27 @@ jobs:
             VERSION="${{ github.event.inputs.version }}"
           fi
           VERSION_NUMBER="${VERSION#v}"
-          # Update version in package.json
           jq ".version = \"$VERSION_NUMBER\"" package.json > package.json.tmp
           mv package.json.tmp package.json
           echo "Updated package.json version to $VERSION_NUMBER"
 
       - name: Build & notarize macOS dev app
         env:
-          COMPLETIONS_API_URL: "https://openrouter.ai/api/v1"
-          COMPLETIONS_MODEL: "openai/gpt-5-chat"
-          REASONING_MODEL: "openai/gpt-5"
-          EMBEDDINGS_API_URL: "https://api.openai.com/v1"
-          EMBEDDINGS_MODEL: "text-embedding-3-small"
-          IS_PROD_BUILD: "true"
+          COMPLETIONS_API_URL: 'https://openrouter.ai/api/v1'
+          COMPLETIONS_MODEL: 'openai/gpt-5-chat'
+          REASONING_MODEL: 'openai/gpt-5'
+          EMBEDDINGS_API_URL: 'https://api.openai.com/v1'
+          EMBEDDINGS_MODEL: 'text-embedding-3-small'
+          IS_PROD_BUILD: 'true'
           NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
           NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
-          OLLAMA_BASE_URL: "https://enchanted.ngrok.pro"
-          TELEGRAM_CHAT_SERVER: "https://enchanted-proxy-telegram-dev.up.railway.app/query"
+          OLLAMA_BASE_URL: 'https://enchanted.ngrok.pro'
+          TELEGRAM_CHAT_SERVER: 'https://enchanted-proxy-telegram-dev.up.railway.app/query'
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ENCHANTED_MCP_URL: https://proxy-api-dev.ep-use1.ghostagent.org/mcp
-          POSTHOG_API_KEY: ""
+          POSTHOG_API_KEY: ''
           TTS_MODEL: kokoro
           TTS_URL: https://inference.tinfoil.sh/v1/
           STT_MODEL: whisper-large-v3-turbo
@@ -100,23 +116,22 @@ jobs:
           VITE_FIREBASE_AUTH_DOMAIN: freysa-prod.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: freysa-prod
           HOLON_API_URL: http://23.22.67.228:8123
-          ANONYMIZER_TYPE: "no-op"
-          USE_LOCAL_EMBEDDINGS: "true"
-          TTS_ENDPOINT: "https://inference.tinfoil.sh/v1/audio/speech"
-          BUILD_CHANNEL: "dev"
-          VITE_DISABLE_ONBOARDING: "false"
-          VITE_DISABLE_HOLONS: "false"
-          VITE_DISABLE_TASKS: "false"
-          VITE_DISABLE_CONNECTORS: "false"
-          VITE_DISABLE_VOICE: "false"
-
+          ANONYMIZER_TYPE: 'no-op'
+          USE_LOCAL_EMBEDDINGS: 'true'
+          TTS_ENDPOINT: 'https://inference.tinfoil.sh/v1/audio/speech'
+          BUILD_CHANNEL: 'dev'
+          VITE_DISABLE_ONBOARDING: 'false'
+          VITE_DISABLE_HOLONS: 'false'
+          VITE_DISABLE_TASKS: 'false'
+          VITE_DISABLE_CONNECTORS: 'false'
+          VITE_DISABLE_VOICE: 'false'
         run: make build-dev-mac-silicon
 
       - name: Create dev release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.version }}
-          name: "Dev Release"
+          name: 'Dev Release'
           body: |
             ## Dev Release
             Triggered by: `${{ github.event_name }}`

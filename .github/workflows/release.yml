@@ -26,6 +26,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Python 3.11 (needed by node-gyp < 10)
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Export NODE_GYP_FORCE_PYTHON
+        run: echo "NODE_GYP_FORCE_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -40,6 +49,14 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: "1.24.2"
+
+      - name: Show key toolchain versions
+        run: |
+          echo "Python         $(python -V)"
+          echo "Node           $(node -v)"
+          echo "pnpm           $(pnpm -v)"
+          npx --yes node-gyp --version || true
+
 
       - name: Check secrets are injected
         env:
