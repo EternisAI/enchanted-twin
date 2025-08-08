@@ -176,7 +176,8 @@ func (s *service) ConnectMCPServer(
 
 	var mcpClient *mcpclient.Client
 
-	if command == "url" {
+	switch command {
+	case "url-http":
 		// Create MCP token store that manages both tokens and client credentials.
 		mcpTokenStore := NewTokenStore(s.store, input.Args[0])
 
@@ -280,7 +281,31 @@ func (s *service) ConnectMCPServer(
 		// Get the actual name of the MCP server
 		// This shows up in the UI now
 		input.Name = r.ServerInfo.Name
-	} else {
+	case "url":
+		mcpClient, err = mcpclient.NewStreamableHttpClient(input.Args[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HTTP MCP client: %w", err)
+		}
+
+		err = mcpClient.Start(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to start HTTP MCP client: %w", err)
+		}
+
+		initRequest := mcp.InitializeRequest{}
+		initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initRequest.Params.ClientInfo = mcp.Implementation{
+			Name:    "enchanted-twin-mcp-client",
+			Version: "1.0.0",
+		}
+
+		r, err := mcpClient.Initialize(ctx, initRequest)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize HTTP MCP client: %w", err)
+		}
+
+		input.Name = r.ServerInfo.Name
+	default:
 		// Convert envs to string slice
 		envStrings := make([]string, len(transportEnvs))
 		for i, env := range transportEnvs {
@@ -476,7 +501,9 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		}
 
 		var mcpClient *mcpclient.Client
-		if command == "url" {
+
+		switch command {
+		case "url-http":
 			mcpTokenStore := NewTokenStore(s.store, server.Args[0])
 
 			if existingToken, err := mcpTokenStore.GetToken(); err == nil {
@@ -560,7 +587,31 @@ func (s *service) LoadMCP(ctx context.Context) error {
 				s.logger.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
 				continue
 			}
-		} else {
+		case "url":
+			mcpClient, err = mcpclient.NewStreamableHttpClient(server.Args[0])
+			if err != nil {
+				s.logger.Error("Error creating HTTP MCP client", "server", server.Name, "error", err)
+				continue
+			}
+
+			err = mcpClient.Start(ctx)
+			if err != nil {
+				s.logger.Error("Error starting HTTP MCP client", "server", server.Name, "error", err)
+				continue
+			}
+
+			initRequest := mcp.InitializeRequest{}
+			initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+			initRequest.Params.ClientInfo = mcp.Implementation{
+				Name:    "enchanted-twin-mcp-client",
+				Version: "1.0.0",
+			}
+			_, err = mcpClient.Initialize(ctx, initRequest)
+			if err != nil {
+				s.logger.Error("Error initializing HTTP MCP client", "server", server.Name, "error", err)
+				continue
+			}
+		default:
 			// Convert envs to string slice
 			envStrings := make([]string, len(server.Envs))
 			for i, env := range server.Envs {

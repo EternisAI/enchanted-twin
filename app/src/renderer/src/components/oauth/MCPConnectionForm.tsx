@@ -13,7 +13,8 @@ interface MCPConnectionFormProps {
 
 enum MCPConnection {
   STDIO = 'stdio',
-  STREAMBLE_HTTP = 'streamable-http'
+  STREAMBLE_HTTP = 'streamable-http',
+  STREAMBLE_HTTP_OAUTH = 'streamable-http-oauth'
 }
 
 export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps) {
@@ -49,10 +50,11 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
       const mcpName = new URL(command).hostname.replace('www.', '').split('.')[0]
       console.log('mcpName', mcpName)
 
+      // Streamable HTTP
       connectMcpServer({
         variables: {
           input: {
-            name: mcpName || 'Streamble HTTP',
+            name: mcpName || 'HTTP',
             command: 'url',
             args: [command],
             type: McpServerType.Other
@@ -62,6 +64,23 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
       return
     }
 
+    // OAuth Streamable HTTP
+    if (connection === MCPConnection.STREAMBLE_HTTP_OAUTH) {
+      const mcpName = new URL(command).hostname.replace('www.', '').split('.')[0]
+      connectMcpServer({
+        variables: {
+          input: {
+            name: mcpName || 'OAuth HTTP',
+            command: 'url-http',
+            args: [command],
+            type: McpServerType.Other
+          }
+        }
+      })
+      return
+    }
+
+    // STDIO
     connectMcpServer({
       variables: {
         input: {
@@ -84,6 +103,11 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
         setConnection(MCPConnection.STREAMBLE_HTTP)
         setCommand(json.url)
         toast.success(`Prefilled with streamable HTTP server "${json.url}"`)
+        return
+      } else if (json.type === MCPConnection.STREAMBLE_HTTP_OAUTH) {
+        setConnection(MCPConnection.STREAMBLE_HTTP_OAUTH)
+        setCommand(json.url)
+        toast.success(`Prefilled with streamable OAuth HTTP server "${json.url}"`)
         return
       } else {
         const serverEntries = Object.entries(json?.mcpServers || {})
@@ -121,7 +145,8 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
           className="h-10 w-full rounded-md border border-border bg-card pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzM3NDE1MSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')] bg-no-repeat bg-[center_right_0.75rem]"
         >
           <option value={MCPConnection.STDIO}>STDIO</option>
-          <option value={MCPConnection.STREAMBLE_HTTP}>Streamble HTTP</option>
+          <option value={MCPConnection.STREAMBLE_HTTP}>HTTP</option>
+          <option value={MCPConnection.STREAMBLE_HTTP_OAUTH}>OAuth HTTP</option>
         </select>
       </div>
       <div className="flex flex-col gap-2">
