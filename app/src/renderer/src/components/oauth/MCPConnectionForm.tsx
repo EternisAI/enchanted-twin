@@ -104,6 +104,11 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
         setCommand(json.url)
         toast.success(`Prefilled with streamable HTTP server "${json.url}"`)
         return
+      } else if (json.type === MCPConnection.STREAMBLE_HTTP_OAUTH) {
+        setConnection(MCPConnection.STREAMBLE_HTTP_OAUTH)
+        setCommand(json.url)
+        toast.success(`Prefilled with streamable OAuth HTTP server "${json.url}"`)
+        return
       } else {
         const serverEntries = Object.entries(json?.mcpServers || {})
         if (serverEntries.length === 0) {
