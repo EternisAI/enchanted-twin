@@ -25,17 +25,34 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Set up Python 3.11 (needed by node-gyp < 10)
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Export NODE_GYP_FORCE_PYTHON
+        run: echo "NODE_GYP_FORCE_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Install pnpm
+      - name: Install pnpm 8 (lockfile-compatible)
         uses: pnpm/action-setup@v2
         with:
           version: 8
+          run_install: false
 
-      - name: Set up Go
+      - name: Show key toolchain versions
+        run: |
+          echo "Python         $(python -V)"
+          echo "Node           $(node -v)"
+          echo "pnpm           $(pnpm -v)"
+          npx --yes node-gyp --version || true
+
+      - name: Set up Go 1.24.2
         uses: actions/setup-go@v4
         with:
           go-version: "1.24.2"
@@ -46,7 +63,7 @@ jobs:
           EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
         run: |
           echo "COMPLETIONS_API_KEY length: ${#COMPLETIONS_API_KEY}"
-          echo "EMBEDDINGS_API_KEY length: ${#EMBEDDINGS_API_KEY}"
+          echo "EMBEDDINGS_API_KEY length:  ${#EMBEDDINGS_API_KEY}"
 
       - name: Install dependencies
         working-directory: app
@@ -69,7 +86,6 @@ jobs:
             VERSION="${{ github.event.inputs.version }}"
           fi
           VERSION_NUMBER="${VERSION#v}"
-          # Update version in package.json
           jq ".version = \"$VERSION_NUMBER\"" package.json > package.json.tmp
           mv package.json.tmp package.json
           echo "Updated package.json version to $VERSION_NUMBER"
@@ -109,7 +125,6 @@ jobs:
           VITE_DISABLE_TASKS: "false"
           VITE_DISABLE_CONNECTORS: "false"
           VITE_DISABLE_VOICE: "false"
-
         run: make build-dev-mac-silicon
 
       - name: Create dev release
