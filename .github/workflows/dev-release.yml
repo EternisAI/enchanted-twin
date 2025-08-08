@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version number (e.g. v1.2.3)"
+        description: 'Version number (e.g. v1.2.3)'
         required: true
-        default: "v0.0.0"
+        default: 'v0.0.0'
   release:
     types: [prereleased]
 
@@ -20,25 +20,43 @@ jobs:
       CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      NODE_GYP_FORCE_PYTHON: ${{ env.pythonLocation }}/bin/python
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Set up Python 3.11 (needed by node-gyp < 10)
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Export pythonLocation to env
+        run: echo "pythonLocation=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
 
-      - name: Install pnpm
+      - name: Install pnpm 8 (lockfile-compatible)
         uses: pnpm/action-setup@v2
         with:
           version: 8
+          run_install: false
 
-      - name: Set up Go
+      - name: Show key toolchain versions
+        run: |
+          echo "Python         $(python -V)"
+          echo "Node           $(node -v)"
+          echo "pnpm           $(pnpm -v)"
+          npx --yes node-gyp --version || true
+
+      - name: Set up Go 1.24.2
         uses: actions/setup-go@v4
         with:
-          go-version: "1.24.2"
+          go-version: '1.24.2'
 
       - name: Check secrets are injected
         env:
@@ -46,11 +64,11 @@ jobs:
           EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
         run: |
           echo "COMPLETIONS_API_KEY length: ${#COMPLETIONS_API_KEY}"
-          echo "EMBEDDINGS_API_KEY length: ${#EMBEDDINGS_API_KEY}"
+          echo "EMBEDDINGS_API_KEY length:  ${#EMBEDDINGS_API_KEY}"
 
       - name: Install dependencies
         working-directory: app
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Write Apple API key (.p8) to disk
         run: |
@@ -69,7 +87,6 @@ jobs:
             VERSION="${{ github.event.inputs.version }}"
           fi
           VERSION_NUMBER="${VERSION#v}"
-          # Update version in package.json
           jq ".version = \"$VERSION_NUMBER\"" package.json > package.json.tmp
           mv package.json.tmp package.json
           echo "Updated package.json version to $VERSION_NUMBER"
@@ -109,14 +126,13 @@ jobs:
           VITE_DISABLE_TASKS: "false"
           VITE_DISABLE_CONNECTORS: "false"
           VITE_DISABLE_VOICE: "false"
-
         run: make build-dev-mac-silicon
 
       - name: Create dev release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.version }}
-          name: "Dev Release"
+          name: 'Dev Release'
           body: |
             ## Dev Release
             Triggered by: `${{ github.event_name }}`
