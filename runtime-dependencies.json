@@ -1,13 +1,6 @@
 {
-  "dependencies": {
-    "postgres": {
-      "backend_download_enabled": true,
-      "url": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres",
-      "name": "postgres",
-      "display_name": "PostgreSQL database",
-      "description": "Vector database for memory storage",
-      "category": "infrastructure",
-      "dir": "{DEPENDENCIES_DIR}/postgres",
+  "shared_configs": {
+    "darwin_postgres": {
       "type": "individual_files",
       "files": {
         "binaries": [
@@ -64,22 +57,101 @@
           "share/postgresql/timezonesets/Pacific.txt",
           "share/postgresql/tsearch_data/english.stop"
         ]
+      }
+    }
+  },
+  "dependencies": {
+    "postgres": {
+      "backend_download_enabled": true,
+      "url": {
+        "darwin-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres",
+        "darwin-x64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres",
+        "linux-x64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres-linux-debian.txz",
+        "linux-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/postgres-linux-debian-arm64.txz"
       },
-      "validation_files": [
-        "bin/postgres",
-        "bin/initdb",
-        "bin/pg_ctl",
-        "lib/libpq.5.dylib",
-        "lib/postgresql/vector.dylib",
-        "lib/libicuuc.75.dylib",
-        "lib/libssl.3.dylib",
-        "lib/libcrypto.3.dylib",
-        "share/postgresql/postgres.bki",
-        "share/postgresql/pg_hba.conf.sample",
-        "share/postgresql/postgresql.conf.sample",
-        "share/postgresql/extension/vector.control",
-        "share/postgresql/extension/plpgsql.control"
-      ],
+      "name": "postgres",
+      "display_name": "PostgreSQL database",
+      "description": "Vector database for memory storage",
+      "category": "infrastructure",
+      "dir": "{DEPENDENCIES_DIR}/postgres",
+      "type": "platform_mixed",
+      "platform_url_key": true,
+      "validation_files": {
+        "darwin-arm64": [
+          "bin/postgres",
+          "bin/initdb",
+          "bin/pg_ctl",
+          "lib/libpq.5.dylib",
+          "lib/postgresql/vector.dylib",
+          "lib/libicuuc.75.dylib",
+          "lib/libssl.3.dylib",
+          "lib/libcrypto.3.dylib",
+          "share/postgresql/postgres.bki",
+          "share/postgresql/pg_hba.conf.sample",
+          "share/postgresql/postgresql.conf.sample",
+          "share/postgresql/extension/vector.control",
+          "share/postgresql/extension/plpgsql.control"
+        ],
+        "darwin-x64": [
+          "bin/postgres",
+          "bin/initdb",
+          "bin/pg_ctl",
+          "lib/libpq.5.dylib",
+          "lib/postgresql/vector.dylib",
+          "lib/libicuuc.75.dylib",
+          "lib/libssl.3.dylib",
+          "lib/libcrypto.3.dylib",
+          "share/postgresql/postgres.bki",
+          "share/postgresql/pg_hba.conf.sample",
+          "share/postgresql/postgresql.conf.sample",
+          "share/postgresql/extension/vector.control",
+          "share/postgresql/extension/plpgsql.control"
+        ],
+        "linux-x64": [
+          "bin/postgres",
+          "bin/initdb",
+          "bin/pg_ctl",
+          "lib/libpq.so.5",
+          "lib/postgresql/vector.so",
+          "lib/libicuuc.so.60",
+          "lib/libssl.so.1.1",
+          "lib/libcrypto.so.1.1",
+          "share/postgresql/postgres.bki",
+          "share/postgresql/pg_hba.conf.sample",
+          "share/postgresql/postgresql.conf.sample",
+          "share/postgresql/extension/vector.control",
+          "share/postgresql/extension/plpgsql.control"
+        ],
+        "linux-arm64": [
+          "bin/postgres",
+          "bin/initdb",
+          "bin/pg_ctl",
+          "lib/libpq.so.5",
+          "lib/postgresql/vector.so",
+          "lib/libicuuc.so.60",
+          "lib/libssl.so.1.1",
+          "lib/libcrypto.so.1.1",
+          "share/postgresql/postgres.bki",
+          "share/postgresql/pg_hba.conf.sample",
+          "share/postgresql/postgresql.conf.sample",
+          "share/postgresql/extension/vector.control",
+          "share/postgresql/extension/plpgsql.control"
+        ]
+      },
+      "platform_config": {
+        "darwin-arm64": {
+          "$ref": "#/shared_configs/darwin_postgres"
+        },
+        "darwin-x64": {
+          "$ref": "#/shared_configs/darwin_postgres"
+        },
+        "linux-x64": {
+          "type": "tar.xz"
+        },
+        "linux-arm64": {
+          "type": "tar.xz"
+        }
+      },
       "post_download": {
         "chmod": {
           "files": ["bin/postgres", "bin/initdb", "bin/pg_ctl"],
@@ -119,7 +191,8 @@
       "backend_download_enabled": true,
       "url": {
         "darwin-arm64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-osx-arm64-1.22.0.tgz",
-        "linux-x64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz"
+        "linux-x64": "https://d3o88a4htgfnky.cloudfront.net/assets/onnxruntime-linux-x64-1.22.0.tgz",
+        "linux-arm64": "https://d1vu5azmz7om3b.cloudfront.net/enchanted_data/onnxruntime-linux-aarch64-1.22.0.tgz"
       },
       "name": "onnx",
       "display_name": "Inference engine",
@@ -130,7 +203,8 @@
       "platform_url_key": true,
       "validation_files": {
         "darwin-arm64": ["onnxruntime-osx-arm64-1.22.0/lib/libonnxruntime.dylib"],
-        "linux-x64": ["onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"]
+        "linux-x64": ["onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"],
+        "linux-arm64": ["onnxruntime-linux-aarch64-1.22.0/lib/libonnxruntime.so"]
       },
       "post_download": {
         "cleanup": ["*.tgz"]

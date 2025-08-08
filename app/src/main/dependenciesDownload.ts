@@ -26,6 +26,14 @@ type DependencyConfig = {
     readonly libraries?: readonly string[]
     readonly dataFiles?: readonly string[]
   }
+  readonly platform_config?: Record<string, {
+    readonly type: string
+    readonly files?: {
+      readonly binaries?: readonly string[]
+      readonly libraries?: readonly string[]
+      readonly dataFiles?: readonly string[]
+    }
+  }>
   readonly post_download?: {
     readonly chmod?: {
       readonly files: readonly string[]
@@ -122,6 +130,125 @@ function createGenericInstaller(depName: DependencyName) {
           break
         }
 
+        case 'platform_mixed': {
+          const platformKey = getPlatformKey()
+          const platformConfig = config.platform_config?.[platformKey]
+          
+          if (!platformConfig) {
+            throw new Error(`No platform configuration found for ${platformKey} in dependency ${config.name}`)
+          }
+
+          const platformType = platformConfig.type
+          let url: string = typeof config.url === 'string' ? config.url : ''
+          
+          if (typeof config.url === 'object' && config.url) {
+            url = config.url[platformKey] || ''
+          }
+
+          if (!url) {
+            throw new Error(`No URL found for platform ${platformKey} in dependency ${config.name}`)
+          }
+
+          if (platformType === 'individual_files') {
+            // Handle individual files download for macOS
+            const baseUrl = url
+            const allFiles = [
+              ...(platformConfig.files?.binaries || []),
+              ...(platformConfig.files?.libraries || []),
+              ...(platformConfig.files?.dataFiles || [])
+            ]
+            let downloadedFiles = 0
+            const totalFiles = allFiles.length
+
+            const downloadPromises = allFiles.map(async (filePath) => {
+              const fileUrl = `${baseUrl}/${filePath}`
+              const destPath = path.join(depDir, filePath)
+              const destDir = path.dirname(destPath)
+
+              if (!fs.existsSync(destDir)) {
+                fs.mkdirSync(destDir, { recursive: true })
+              }
+
+              try {
+                await downloadSingleFile(fileUrl, destPath)
+                downloadedFiles++
+
+                const pct = Math.round((downloadedFiles / totalFiles) * 100)
+                windowManager.mainWindow?.webContents.send('models:progress', {
+                  modelName: config.name,
+                  pct,
+                  totalBytes: totalFiles,
+                  downloadedBytes: downloadedFiles
+                })
+              } catch (error) {
+                console.error(`Failed to download ${filePath}:`, error)
+                throw error
+              }
+            })
+
+            await Promise.all(downloadPromises)
+          } else if (platformType === 'tar.gz') {
+            // Handle archive download for Linux
+            const file = await downloadFile(url, depDir, 'temp.tgz', (pct, total, downloaded) => {
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct,
+                totalBytes: total,
+                downloadedBytes: downloaded
+              })
+            })
+            
+            try {
+              await extractTarGz(file, depDir)
+            } catch (error) {
+              log.error(`Failed to extract TAR.GZ archive for ${config.name}:`, error)
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct: 0,
+                error: `Failed to extract TAR.GZ archive: ${error instanceof Error ? error.message : 'Unknown error'}`
+              })
+              throw error
+            }
+          } else if (platformType === 'tar.xz') {
+            // Handle XZ archive download for Linux
+            const file = await downloadFile(url, depDir, 'temp.txz', (pct, total, downloaded) => {
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct,
+                totalBytes: total,
+                downloadedBytes: downloaded
+              })
+            })
+            
+            try {
+              await extractTarXz(file, depDir)
+            } catch (error) {
+              log.error(`Failed to extract TAR.XZ archive for ${config.name}:`, error)
+              windowManager.mainWindow?.webContents.send('models:progress', {
+                modelName: config.name,
+                pct: 0,
+                error: `Failed to extract TAR.XZ archive: ${error instanceof Error ? error.message : 'Unknown error'}`
+              })
+              throw error
+            }
+          } else {
+            throw new Error(`Unsupported platform type '${platformType}' for platform_mixed dependency ${config.name}`)
+          }
+
+          // Set executable permissions based on post_download config
+          if (config.post_download?.chmod && process.platform !== 'win32') {
+            const mode = config.post_download.chmod.mode
+            const files = config.post_download.chmod.files || []
+            for (const filePath of files) {
+              const fullPath = path.join(depDir, filePath)
+              if (fs.existsSync(fullPath)) {
+                fs.chmodSync(fullPath, parseInt(mode, 8))
+              }
+            }
+          }
+          break
+        }
+
         case 'zip': {
           const file = await downloadFile(
             config.url as string,
@@ -174,6 +301,36 @@ function createGenericInstaller(depName: DependencyName) {
               modelName: config.name,
               pct: 0,
               error: `Failed to extract TAR.GZ file: ${error instanceof Error ? error.message : 'Unknown error'}`
+            })
+            throw error
+          }
+          break
+        }
+
+        case 'tar.xz': {
+          let url: string = typeof config.url === 'string' ? config.url : ''
+          if (config.platform_url_key && typeof config.url === 'object') {
+            const urlObj = config.url as Record<string, string>
+            const platformKey = getPlatformKey()
+            url = urlObj[platformKey] || ''
+          }
+
+          const file = await downloadFile(url, depDir, 'temp.txz', (pct, total, downloaded) => {
+            windowManager.mainWindow?.webContents.send('models:progress', {
+              modelName: config.name,
+              pct,
+              totalBytes: total,
+              downloadedBytes: downloaded
+            })
+          })
+          try {
+            await extractTarXz(file, depDir)
+          } catch (error) {
+            log.error(`Failed to extract TAR.XZ file for ${config.name}:`, error)
+            windowManager.mainWindow?.webContents.send('models:progress', {
+              modelName: config.name,
+              pct: 0,
+              error: `Failed to extract TAR.XZ file: ${error instanceof Error ? error.message : 'Unknown error'}`
             })
             throw error
           }
@@ -491,6 +648,80 @@ async function extractZip(file: string, destDir: string) {
 async function extractTarGz(file: string, destDir: string) {
   await tar.extract({ file, cwd: destDir })
   fs.unlinkSync(file)
+}
+
+// Type definition for optional lzma-native module
+interface LzmaModule {
+  createDecompressor: () => NodeJS.ReadWriteStream
+}
+
+let lzmaModulePromise: Promise<LzmaModule | null> | null = null
+function loadLzmaNative(): Promise<LzmaModule | null> {
+  if (!lzmaModulePromise) {
+    // @ts-ignore - optional dependency may be absent; dynamic import guarded
+    lzmaModulePromise = import('lzma-native')
+      .then((m): LzmaModule | null => {
+        const mod: unknown = (m as any)?.default ?? m // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (
+          mod &&
+          typeof mod === 'object' &&
+          'createDecompressor' in mod &&
+          typeof (mod as { createDecompressor?: unknown }).createDecompressor === 'function'
+        ) {
+          return mod as LzmaModule
+        }
+        return null
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        log.warn('lzma-native not available, falling back to system tar for .xz extraction', message)
+        return null
+      })
+  }
+  return lzmaModulePromise
+}
+
+async function extractTarXz(file: string, destDir: string) {
+  const lzma = await loadLzmaNative()
+  if (lzma) {
+    return new Promise<void>((resolve, reject) => {
+      const readStream = fs.createReadStream(file)
+      const decompressStream = lzma.createDecompressor()
+      const chunks: Buffer[] = []
+      readStream
+        .pipe(decompressStream)
+        .on('data', (chunk: Buffer) => {
+          chunks.push(chunk)
+        })
+        .on('end', async () => {
+          try {
+            const decompressedData = Buffer.concat(chunks)
+            const tempTarFile = file.replace(/\.txz$|\.tar\.xz$/, '.tar')
+            fs.writeFileSync(tempTarFile, decompressedData)
+            await tar.extract({ file: tempTarFile, cwd: destDir })
+            fs.unlinkSync(tempTarFile)
+            fs.unlinkSync(file)
+            resolve()
+          } catch (error) {
+            reject(error)
+          }
+        })
+        .on('error', (error) => {
+          reject(error)
+        })
+    })
+  }
+  // Fallback: use system tar with -J (xz) support
+  return new Promise<void>((resolve, reject) => {
+    const tarProc = spawn('tar', ['-xJf', file, '-C', destDir])
+    let stderr = ''
+    tarProc.stderr.on('data', (d) => { stderr += d.toString() })
+    tarProc.on('close', (code) => {
+      try { fs.unlinkSync(file) } catch { /* ignore */ }
+      if (code === 0) resolve(); else reject(new Error(`tar -xJf failed (code ${code}): ${stderr}`))
+    })
+    tarProc.on('error', (err) => reject(err))
+  })
 }
 
 function isExtractedDirValid(dir: string): boolean {

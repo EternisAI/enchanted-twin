@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
@@ -24,7 +25,7 @@ type Store struct {
 }
 
 // NewStore creates a new SQLite-backed store.
-func NewStore(ctx context.Context, dbPath string) (*Store, error) {
+func NewStore(ctx context.Context, dbPath string, logger *log.Logger) (*Store, error) {
 	// Create the parent directory if it doesn't exist
 	dir := filepath.Dir(dbPath)
 	if dir != "." {
@@ -57,8 +58,16 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	}
 
 	// Run migrations to ensure all tables exist
-	if err := RunMigrations(db.DB); err != nil {
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
+	if logger != nil {
+		if err := RunMigrations(db.DB, logger); err != nil {
+			return nil, fmt.Errorf("failed to run migrations: %w", err)
+		}
+	} else {
+		// Create a default logger for backward compatibility
+		defaultLogger := log.New(os.Stderr)
+		if err := RunMigrations(db.DB, defaultLogger); err != nil {
+			return nil, fmt.Errorf("failed to run migrations: %w", err)
+		}
 	}
 
 	// Generate UUID for telegram integration if not exists

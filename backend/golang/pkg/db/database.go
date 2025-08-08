@@ -6,7 +6,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	_ "github.com/mattn/go-sqlite3"
-	"go.uber.org/zap"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/holons"
@@ -32,12 +31,9 @@ func New(sqlDB *sql.DB, logger *log.Logger) (*DB, error) {
 	logger.Info("Successfully connected to database")
 
 	// Run migrations automatically
-	logger.Info("Running database migrations...")
-	if err := RunMigrations(sqlDB); err != nil {
-		logger.Error("Failed to run database migrations", zap.Error(err))
+	if err := RunMigrations(sqlDB, logger); err != nil {
 		return nil, fmt.Errorf("failed to run database migrations: %w", err)
 	}
-	logger.Info("Database migrations completed successfully")
 
 	// Create queries instances
 	configQueries := config.New(sqlDB)

@@ -195,8 +195,8 @@ interface ReasoningButtonProps {
   disabled?: boolean
 }
 
-const REASONING_MODEL = 'o3'
-const NOT_REASONING_MODEL = 'gpt-4.1'
+const REASONING_MODEL = 'gpt-5-think'
+const NOT_REASONING_MODEL = 'gpt-5'
 
 export function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps) {
   const [open, setOpen] = useState(false)

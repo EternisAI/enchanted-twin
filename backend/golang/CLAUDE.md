@@ -94,7 +94,29 @@ This is a Go backend for an AI agent system called "Enchanted Twin" that process
 
 - `MEMORY_BACKEND` - Memory storage backend: `postgresql` (default)
 - `POSTGRES_PORT` - Port for embedded PostgreSQL server (default: 5432)
+- `DEBUG_CONFIG_PRINT` - Enable environment variable logging during config load (default: false)
 - Various OAuth and API credentials for external services
+
+#### Configuration Debugging
+
+The application supports detailed logging of environment variables during configuration loading for debugging purposes:
+
+- **Enable**: Set `DEBUG_CONFIG_PRINT=true` to enable environment variable logging
+- **Security**: Sensitive values (API keys, tokens, passwords) are automatically masked in logs
+- **Format**: Logs show `ENV: VARIABLE_NAME = value` for set variables and `ENV: VARIABLE_NAME = default_value (default)` for defaults
+- **Purpose**: Useful for troubleshooting configuration issues in development and deployment
+
+Example:
+```bash
+# Enable config debugging
+export DEBUG_CONFIG_PRINT=true
+make run
+
+# Output will include:
+# ENV: COMPLETIONS_API_URL = https://api.openai.com/v1
+# ENV: COMPLETIONS_API_KEY = sk-p***masked***xyz7 
+# ENV: GRAPHQL_PORT = 44999 (default)
+```
 
 ### Code Style Notes
 

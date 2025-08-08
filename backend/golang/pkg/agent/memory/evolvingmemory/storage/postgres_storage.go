@@ -1418,3 +1418,17 @@ func (s *PostgresStorage) convertSQLCRowToMemoryFact(row sqlc.QueryMemoryFactsBy
 
 	return s.convertSQLCToMemoryFact(fact)
 }
+
+func (s *PostgresStorage) Close(ctx context.Context) error {
+	// We assume underlying db implements Close if it's a *pgxpool.Pool; use type assertion
+	if pool, ok := s.db.(interface{ Close() }); ok {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			pool.Close()
+			s.logger.Info("PostgresStorage connection pool closed")
+		}
+	}
+	return nil
+}

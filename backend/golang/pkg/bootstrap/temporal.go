@@ -90,7 +90,7 @@ func CreateTemporalClient(logger *log.Logger, address string, namespace string, 
 }
 
 // CreateTemporalServer starts a Temporal server and signals readiness on the ready channel.
-func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath string) {
+func CreateTemporalServer(ctx context.Context, logger *log.Logger, ready chan<- struct{}, dbPath string) {
 	ip := TemporalServerIP
 	port := TemporalServerPort
 	historyPort := port + 1
@@ -116,7 +116,8 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 	}))
 	go func() {
 		if err := ui.Start(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("UI server error: %s", err)
+			logger.Error("UI server error", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -205,7 +206,8 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 
 	err := sqliteschema.SetupSchema(sqlConfig)
 	if err != nil && !strings.Contains(err.Error(), "table namespaces already exists") {
-		log.Fatalf("failed to setup SQLite schema: %v", err)
+		logger.Error("failed to setup SQLite schema", "error", err)
+		os.Exit(1)
 	}
 
 	namespaceConfig, err := sqliteschema.NewNamespaceConfig(
@@ -215,15 +217,18 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 		nil,
 	)
 	if err != nil {
-		log.Fatalf("unable to create namespace config: %s", err)
+		logger.Error("unable to create namespace config", "error", err)
+		os.Exit(1)
 	}
 	if err := sqliteschema.CreateNamespaces(sqlConfig, namespaceConfig); err != nil {
-		log.Fatalf("unable to create namespace: %s", err)
+		logger.Error("unable to create namespace", "error", err)
+		os.Exit(1)
 	}
 
 	authorizer, err := authorization.GetAuthorizerFromConfig(&conf.Global.Authorization)
 	if err != nil {
-		log.Fatalf("unable to create authorizer: %s", err)
+		logger.Error("unable to create authorizer", "error", err)
+		os.Exit(1)
 	}
 	temporalLogger := temporallog.NewNoopLogger()
 	claimMapper, err := authorization.GetClaimMapperFromConfig(
@@ -231,7 +236,8 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 		temporalLogger,
 	)
 	if err != nil {
-		log.Fatalf("unable to create claim mapper: %s", err)
+		logger.Error("unable to create claim mapper", "error", err)
+		os.Exit(1)
 	}
 
 	dynConf := make(dynamicconfig.StaticClient)
@@ -260,11 +266,13 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 		temporal.WithDynamicConfigClient(dynConf),
 	)
 	if err != nil {
-		log.Fatalf("unable to start server: %s", err)
+		logger.Error("unable to create server", "error", err)
+		os.Exit(1)
 	}
 
 	if err := server.Start(); err != nil {
-		log.Fatalf("unable to start server: %s", err)
+		logger.Error("unable to start server", "error", err)
+		os.Exit(1)
 	}
 
 	// Set up signal handling for graceful shutdown
@@ -276,9 +284,13 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 	logger.Info("Temporal server", "ip", ip, "port", port)
 	logger.Info("Temporal UI", "address", fmt.Sprintf("http://%s:%d", ip, uiPort))
 
-	// Wait for shutdown signal
-	<-sigChan
-	logger.Info("Shutting down Temporal server...")
+	// Wait for shutdown signal (either OS signal or context cancellation)
+	select {
+	case <-sigChan:
+		logger.Info("Received OS signal, shutting down Temporal server...")
+	case <-ctx.Done():
+		logger.Info("Context canceled, shutting down Temporal server...")
+	}
 
 	// Stop the server gracefully
 	if err := server.Stop(); err != nil {

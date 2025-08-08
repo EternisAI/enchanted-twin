@@ -600,6 +600,11 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
+		defer func() {
+			if err := source.Close(); err != nil {
+				s.logger.Warn("failed to close TextDocumentProcessor", "error", err)
+			}
+		}()
 		fileDocuments, err := source.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err

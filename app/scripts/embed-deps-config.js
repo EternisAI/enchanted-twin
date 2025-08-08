@@ -7,12 +7,56 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// Function to resolve $ref references in configuration
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function resolveReferences(obj, rootConfig) {
+  if (typeof obj !== 'object' || obj === null) {
+    return obj
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => resolveReferences(item, rootConfig))
+  }
+
+  const result = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === '$ref' && typeof value === 'string') {
+      // Parse JSON Pointer reference (e.g., "#/shared_configs/darwin_postgres")
+      const refPath = value.replace(/^#\//, '').split('/')
+      let referencedValue = rootConfig
+      
+      for (const pathSegment of refPath) {
+        if (referencedValue && typeof referencedValue === 'object' && pathSegment in referencedValue) {
+          referencedValue = referencedValue[pathSegment]
+        } else {
+          throw new Error(`Cannot resolve reference: ${value}`)
+        }
+      }
+      
+      // Return the resolved reference, also resolving any nested references
+      return resolveReferences(referencedValue, rootConfig)
+    } else {
+      result[key] = resolveReferences(value, rootConfig)
+    }
+  }
+  
+  return result
+}
+
 // Read the runtime dependencies config
 const configPath = path.join(__dirname, '..', '..', 'runtime-dependencies.json')
 let config
 try {
   const configData = fs.readFileSync(configPath, 'utf8')
-  config = JSON.parse(configData)
+  const rawConfig = JSON.parse(configData)
+  
+  // Resolve all $ref references
+  config = resolveReferences(rawConfig, rawConfig)
+  
+  // Remove the shared_configs section from the final output as it's no longer needed
+  if (config.shared_configs) {
+    delete config.shared_configs
+  }
 } catch (error) {
   if (error.code === 'ENOENT') {
     console.error(`❌ Failed to read runtime-dependencies.json: File not found at ${configPath}`)
