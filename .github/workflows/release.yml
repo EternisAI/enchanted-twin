@@ -79,7 +79,7 @@ jobs:
       - name: Build & notarize macOS app
         env:
           COMPLETIONS_API_URL: "https://openrouter.ai/api/v1"
-          COMPLETIONS_MODEL: "openai/gpt-5-chat"
+          COMPLETIONS_MODEL: "openai/gpt-4.1"
           REASONING_MODEL: "openai/gpt-5"
           EMBEDDINGS_API_URL: "https://api.openai.com/v1"
           EMBEDDINGS_MODEL: "text-embedding-3-small"
