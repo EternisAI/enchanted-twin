@@ -54,7 +54,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
       connectMcpServer({
         variables: {
           input: {
-            name: mcpName || 'Streamable HTTP',
+            name: mcpName || 'HTTP',
             command: 'url',
             args: [command],
             type: McpServerType.Other
@@ -70,7 +70,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
       connectMcpServer({
         variables: {
           input: {
-            name: mcpName || 'OAuth Streamable HTTP',
+            name: mcpName || 'OAuth HTTP',
             command: 'url-http',
             args: [command],
             type: McpServerType.Other
