@@ -99,12 +99,21 @@ func (cr *ComponentRegistry) RegisterComponent(id string, componentType Componen
 		return fmt.Errorf("component already registered: %s", id)
 	}
 
+	// Make a shallow copy of metadata to prevent race conditions
+	var metadataCopy map[string]interface{}
+	if metadata != nil {
+		metadataCopy = make(map[string]interface{}, len(metadata))
+		for k, v := range metadata {
+			metadataCopy[k] = v
+		}
+	}
+
 	info := &ComponentInfo{
 		ID:        id,
 		Type:      componentType,
 		LogLevel:  log.InfoLevel, // Default log level
 		Enabled:   true,
-		Metadata:  metadata,
+		Metadata:  metadataCopy,
 		CreatedAt: getCurrentTimestamp(),
 	}
 
@@ -144,11 +153,20 @@ func (cr *ComponentRegistry) LoadLogLevelsFromEnv() {
 			parts := strings.SplitN(env, "=", 2)
 			if len(parts) == 2 {
 				key := parts[0]
-				value := parts[1]
+				value := strings.TrimSpace(parts[1])
 
 				// Extract component identifier from LOG_LEVEL_<COMPONENT_ID>
-				componentID := strings.TrimPrefix(key, "LOG_LEVEL_")
-				cr.logLevels[componentID] = parseLogLevel(value)
+				envVarComponent := strings.TrimPrefix(key, "LOG_LEVEL_")
+				// Convert uppercase env var format to component ID (AI_HOLON -> ai.holon)
+				componentID := envVarToComponentID(envVarComponent)
+
+				level := parseLogLevel(value)
+				cr.logLevels[componentID] = level
+
+				// Update ComponentInfo.LogLevel if component is registered
+				if info, exists := cr.components[componentID]; exists {
+					info.LogLevel = level
+				}
 			}
 		}
 	}
@@ -160,8 +178,14 @@ func (cr *ComponentRegistry) LoadLogLevelsFromConfig(componentLogLevels map[stri
 	defer cr.mu.Unlock()
 
 	for componentID, levelStr := range componentLogLevels {
+		levelStr = strings.TrimSpace(levelStr)
 		level := parseLogLevel(levelStr)
 		cr.logLevels[componentID] = level
+
+		// Update ComponentInfo.LogLevel if component is registered
+		if info, exists := cr.components[componentID]; exists {
+			info.LogLevel = level
+		}
 	}
 }
 
@@ -174,6 +198,11 @@ func (cr *ComponentRegistry) GetComponentLogLevel(id string) log.Level {
 		return level
 	}
 
+	// Check if component has a stored LogLevel as fallback
+	if info, exists := cr.components[id]; exists {
+		return info.LogLevel
+	}
+
 	// Return default level if not configured
 	return log.InfoLevel
 }
@@ -184,7 +213,29 @@ func (cr *ComponentRegistry) GetComponentInfo(id string) (*ComponentInfo, bool) 
 	defer cr.mu.RUnlock()
 
 	info, exists := cr.components[id]
-	return info, exists
+	if !exists {
+		return nil, false
+	}
+
+	// Return a defensive copy to prevent external mutation
+	var metadataCopy map[string]interface{}
+	if info.Metadata != nil {
+		metadataCopy = make(map[string]interface{}, len(info.Metadata))
+		for k, v := range info.Metadata {
+			metadataCopy[k] = v
+		}
+	}
+
+	copy := &ComponentInfo{
+		ID:        info.ID,
+		Type:      info.Type,
+		LogLevel:  info.LogLevel,
+		Enabled:   info.Enabled,
+		Metadata:  metadataCopy,
+		CreatedAt: info.CreatedAt,
+	}
+
+	return copy, true
 }
 
 // ListComponents returns all registered components.
@@ -194,7 +245,25 @@ func (cr *ComponentRegistry) ListComponents() []*ComponentInfo {
 
 	components := make([]*ComponentInfo, 0, len(cr.components))
 	for _, info := range cr.components {
-		components = append(components, info)
+		// Create a defensive copy to prevent external mutation
+		var metadataCopy map[string]interface{}
+		if info.Metadata != nil {
+			metadataCopy = make(map[string]interface{}, len(info.Metadata))
+			for k, v := range info.Metadata {
+				metadataCopy[k] = v
+			}
+		}
+
+		copy := &ComponentInfo{
+			ID:        info.ID,
+			Type:      info.Type,
+			LogLevel:  info.LogLevel,
+			Enabled:   info.Enabled,
+			Metadata:  metadataCopy,
+			CreatedAt: info.CreatedAt,
+		}
+
+		components = append(components, copy)
 	}
 	return components
 }
@@ -207,7 +276,25 @@ func (cr *ComponentRegistry) ListComponentsByType(componentType ComponentType) [
 	var components []*ComponentInfo
 	for _, info := range cr.components {
 		if info.Type == componentType {
-			components = append(components, info)
+			// Create a defensive copy to prevent external mutation
+			var metadataCopy map[string]interface{}
+			if info.Metadata != nil {
+				metadataCopy = make(map[string]interface{}, len(info.Metadata))
+				for k, v := range info.Metadata {
+					metadataCopy[k] = v
+				}
+			}
+
+			copy := &ComponentInfo{
+				ID:        info.ID,
+				Type:      info.Type,
+				LogLevel:  info.LogLevel,
+				Enabled:   info.Enabled,
+				Metadata:  metadataCopy,
+				CreatedAt: info.CreatedAt,
+			}
+
+			components = append(components, copy)
 		}
 	}
 	return components
@@ -297,6 +384,12 @@ func (cr *ComponentRegistry) GetLoggerForComponent(baseLogger *log.Logger, id st
 	}
 
 	return logger
+}
+
+// envVarToComponentID converts environment variable format back to component ID.
+// Example: "AI_HOLON" -> "ai.holon".
+func envVarToComponentID(envVar string) string {
+	return strings.ToLower(strings.ReplaceAll(envVar, "_", "."))
 }
 
 // parseLogLevel safely parses a log level string.

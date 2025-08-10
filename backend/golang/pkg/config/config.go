@@ -160,7 +160,10 @@ func (c *Config) LoadComponentLogLevels() {
 				key := parts[0]
 				value := parts[1]
 
-				componentID := strings.TrimPrefix(key, "LOG_LEVEL_")
+				// Extract component identifier from LOG_LEVEL_<COMPONENT_ID>
+				envVarComponent := strings.TrimPrefix(key, "LOG_LEVEL_")
+				// Convert uppercase env var format to component ID (AI_HOLON -> ai.holon)
+				componentID := strings.ToLower(strings.ReplaceAll(envVarComponent, "_", "."))
 				c.ComponentLogLevels[componentID] = value
 			}
 		}

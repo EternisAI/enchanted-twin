@@ -25,6 +25,9 @@ func showComponents() {
 	baseLogger := bootstrap.NewBootstrapLogger()
 	loggerFactory := bootstrap.NewLoggerFactory(baseLogger)
 
+	// Load environment-based log level overrides
+	loggerFactory.LoadLogLevelsFromEnv()
+
 	// Simulate registration of common components by creating loggers for them
 	// This ensures they get registered in the component registry
 	commonComponents := []string{
@@ -79,7 +82,7 @@ func showComponents() {
 	fmt.Printf("\nTotal: %d components\n", len(components))
 	fmt.Println("\nTo set component log levels:")
 	fmt.Println("  export LOG_LEVEL_<COMPONENT_NAME>=<LEVEL>")
-	fmt.Println("  Example: export LOG_LEVEL_holon_manager=debug")
+	fmt.Println("  Example: export LOG_LEVEL_HOLON_MANAGER=debug")
 }
 
 func main() {

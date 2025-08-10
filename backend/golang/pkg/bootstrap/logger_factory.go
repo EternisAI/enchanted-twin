@@ -285,3 +285,8 @@ func (lf *LoggerFactory) ListComponentTypes() []ComponentType {
 func (lf *LoggerFactory) ListComponentsByType(componentType ComponentType) []*ComponentInfo {
 	return lf.componentRegistry.ListComponentsByType(componentType)
 }
+
+// LoadLogLevelsFromEnv loads component-specific log levels from environment variables.
+func (lf *LoggerFactory) LoadLogLevelsFromEnv() {
+	lf.componentRegistry.LoadLogLevelsFromEnv()
+}
