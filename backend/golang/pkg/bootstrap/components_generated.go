@@ -9,6 +9,9 @@ func RegisterAllKnownComponents(loggerFactory *LoggerFactory) {
 	loggerFactory.ForAI("ai.completions") // pkg/bootstrap/fx/ai.go:60
 	loggerFactory.ForAI("ai.embeddings")  // pkg/bootstrap/fx/ai.go:85
 
+	// Anonymizer components
+	loggerFactory.ForAnonymizer("anonymizer.manager") // pkg/ai/anonymizer_manager.go:85
+
 	// Database components
 	loggerFactory.ForDatabase("sqlite.queries") // pkg/bootstrap/fx/infrastructure.go:155
 	loggerFactory.ForDatabase("sqlite.store")   // pkg/bootstrap/fx/infrastructure.go:126
@@ -73,6 +76,7 @@ func RegisterAllKnownComponents(loggerFactory *LoggerFactory) {
 var ComponentCatalog = map[string]ComponentType{
 	"ai.completions":        ComponentTypeAI,
 	"ai.embeddings":         ComponentTypeAI,
+	"anonymizer.manager":    ComponentTypeAnonymizer,
 	"chat.repository":       ComponentTypeRepository,
 	"directory.watcher":     ComponentTypeDirectory,
 	"embedding.wrapper":     ComponentTypeEmbedding,
@@ -106,6 +110,7 @@ var ComponentCatalog = map[string]ComponentType{
 var ComponentSources = map[string]string{
 	"ai.completions":        "pkg/bootstrap/fx/ai.go:60",
 	"ai.embeddings":         "pkg/bootstrap/fx/ai.go:85",
+	"anonymizer.manager":    "pkg/ai/anonymizer_manager.go:85",
 	"chat.repository":       "pkg/bootstrap/fx/services.go:59",
 	"directory.watcher":     "pkg/bootstrap/fx/services.go:369",
 	"embedding.wrapper":     "pkg/bootstrap/fx/database.go:36",

@@ -29,193 +29,183 @@ func NewFactoryWithConfig(baseLogger *log.Logger, componentLogLevels map[string]
 	}
 }
 
+// getLoggerForComponent is a private helper that centralizes component registration
+// and logger retrieval logic, ensuring consistent error handling.
+func (lf *Factory) getLoggerForComponent(id string, componentType ComponentType, metadata map[string]interface{}) *log.Logger {
+	if err := lf.componentRegistry.RegisterComponent(id, componentType, metadata); err != nil {
+		// Log the registration error but continue to provide a logger
+		// This ensures the application doesn't crash due to registration issues
+		lf.baseLogger.Error("failed to register component", "component_id", id, "component_type", componentType, "error", err)
+	}
+
+	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+}
+
 // ForComponent creates a logger for a specific component.
 func (lf *Factory) ForComponent(id string) *log.Logger {
-	// Register the component if not already registered
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeUtility, nil)
+	return lf.getLoggerForComponent(id, ComponentTypeUtility, nil)
+}
 
-	// Get logger with proper level and context
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+// ForComponentWithMetadata creates a logger for a specific component with metadata.
+func (lf *Factory) ForComponentWithMetadata(id string, metadata map[string]interface{}) *log.Logger {
+	return lf.getLoggerForComponent(id, ComponentTypeUtility, metadata)
 }
 
 // ForService creates a logger for service components.
 func (lf *Factory) ForService(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeService, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeService, nil)
+}
+
+// ForServiceWithMetadata creates a logger for service components with metadata.
+func (lf *Factory) ForServiceWithMetadata(id string, metadata map[string]interface{}) *log.Logger {
+	return lf.getLoggerForComponent(id, ComponentTypeService, metadata)
 }
 
 // ForManager creates a logger for manager components.
 func (lf *Factory) ForManager(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeManager, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeManager, nil)
+}
+
+// ForManagerWithMetadata creates a logger for manager components with metadata.
+func (lf *Factory) ForManagerWithMetadata(id string, metadata map[string]interface{}) *log.Logger {
+	return lf.getLoggerForComponent(id, ComponentTypeManager, metadata)
 }
 
 // ForHandler creates a logger for handler components.
 func (lf *Factory) ForHandler(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeHandler, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeHandler, nil)
 }
 
 // ForResolver creates a logger for GraphQL resolver components.
 func (lf *Factory) ForResolver(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeResolver, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeResolver, nil)
 }
 
 // ForRepository creates a logger for repository components.
 func (lf *Factory) ForRepository(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeRepository, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeRepository, nil)
 }
 
 // ForWorker creates a logger for worker components.
 func (lf *Factory) ForWorker(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeWorker, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeWorker, nil)
 }
 
 // ForClient creates a logger for client components.
 func (lf *Factory) ForClient(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeClient, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeClient, nil)
 }
 
 // ForServer creates a logger for server components.
 func (lf *Factory) ForServer(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeServer, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeServer, nil)
 }
 
 // ForMiddleware creates a logger for middleware components.
 func (lf *Factory) ForMiddleware(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeMiddleware, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeMiddleware, nil)
 }
 
 // AI and ML specific loggers.
 func (lf *Factory) ForAI(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeAI, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeAI, nil)
 }
 
 func (lf *Factory) ForAnonymizer(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeAnonymizer, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeAnonymizer, nil)
 }
 
 func (lf *Factory) ForEmbedding(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeEmbedding, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeEmbedding, nil)
 }
 
 func (lf *Factory) ForCompletions(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeCompletions, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeCompletions, nil)
 }
 
 // Data processing specific loggers.
 func (lf *Factory) ForProcessor(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeProcessor, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeProcessor, nil)
 }
 
 func (lf *Factory) ForWorkflow(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeWorkflow, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeWorkflow, nil)
 }
 
 func (lf *Factory) ForIntegration(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeIntegration, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeIntegration, nil)
 }
 
 func (lf *Factory) ForParser(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeParser, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeParser, nil)
 }
 
 // Communication specific loggers.
 func (lf *Factory) ForTelegram(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeTelegram, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeTelegram, nil)
 }
 
 func (lf *Factory) ForWhatsApp(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeWhatsApp, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeWhatsApp, nil)
 }
 
 func (lf *Factory) ForSlack(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeSlack, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeSlack, nil)
 }
 
 func (lf *Factory) ForGmail(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeGmail, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeGmail, nil)
 }
 
 func (lf *Factory) ForMCP(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeMCP, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeMCP, nil)
 }
 
 // Infrastructure specific loggers.
 func (lf *Factory) ForDatabase(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeDatabase, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeDatabase, nil)
 }
 
 func (lf *Factory) ForNATS(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeNATS, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeNATS, nil)
 }
 
 func (lf *Factory) ForTemporal(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeTemporal, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeTemporal, nil)
 }
 
 func (lf *Factory) ForDirectory(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeDirectory, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeDirectory, nil)
 }
 
 // Identity and auth specific loggers.
 func (lf *Factory) ForIdentity(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeIdentity, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeIdentity, nil)
 }
 
 func (lf *Factory) ForAuth(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeAuth, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeAuth, nil)
 }
 
 func (lf *Factory) ForOAuth(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeOAuth, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeOAuth, nil)
 }
 
 // Chat and memory specific loggers.
 func (lf *Factory) ForChat(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeChat, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeChat, nil)
 }
 
 func (lf *Factory) ForMemory(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeMemory, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeMemory, nil)
 }
 
 func (lf *Factory) ForTwinChat(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeTwinChat, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeTwinChat, nil)
 }
 
 func (lf *Factory) ForTTS(id string) *log.Logger {
-	_ = lf.componentRegistry.RegisterComponent(id, ComponentTypeTTS, nil)
-	return lf.componentRegistry.GetLoggerForComponent(lf.baseLogger, id)
+	return lf.getLoggerForComponent(id, ComponentTypeTTS, nil)
 }
 
 // WithContext adds additional context to a logger.
