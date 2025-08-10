@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	clog "github.com/charmbracelet/log"
+	"github.com/charmbracelet/log"
 	"go.temporal.io/sdk/worker"
 )
 
@@ -26,12 +26,12 @@ type HolonSyncWorkflowOutput struct {
 
 // HolonSyncActivities defines the activities for syncing holons.
 type HolonSyncActivities struct {
-	logger  *clog.Logger
+	logger  *log.Logger
 	manager *Manager
 }
 
 // NewHolonSyncActivities creates a new instance of holon sync activities.
-func NewHolonSyncActivities(logger *clog.Logger, manager *Manager) *HolonSyncActivities {
+func NewHolonSyncActivities(logger *log.Logger, manager *Manager) *HolonSyncActivities {
 	return &HolonSyncActivities{
 		logger:  logger,
 		manager: manager,

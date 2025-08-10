@@ -1,13 +1,13 @@
 package fx
 
 import (
-	"github.com/charmbracelet/log"
 	"go.temporal.io/sdk/client"
 	"go.uber.org/fx"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	schedulerTools "github.com/EternisAI/enchanted-twin/pkg/agent/scheduler/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
@@ -38,7 +38,7 @@ func ProvideToolRegistry() ToolRegistryResult {
 // CoreToolsParams holds parameters for core tools registration.
 type CoreToolsParams struct {
 	fx.In
-	Logger         *log.Logger
+	LoggerFactory  *bootstrap.LoggerFactory
 	Config         *config.Config
 	Store          *db.Store
 	ToolRegistry   *tools.ToolMapRegistry
@@ -48,36 +48,37 @@ type CoreToolsParams struct {
 
 // RegisterCoreTools registers core tools that don't depend on application services.
 func RegisterCoreTools(params CoreToolsParams) error {
-	params.Logger.Info("Registering core tools")
+	logger := params.LoggerFactory.ForComponent("tools.core")
+	logger.Info("Registering core tools")
 
 	// Register memory search tool
-	if err := params.ToolRegistry.Register(memory.NewMemorySearchTool(params.Logger, params.Memory)); err != nil {
-		params.Logger.Error("Failed to register memory search tool", "error", err)
+	if err := params.ToolRegistry.Register(memory.NewMemorySearchTool(logger, params.Memory)); err != nil {
+		logger.Error("Failed to register memory search tool", "error", err)
 		return err
 	}
 
 	// Register schedule task tool
 	if err := params.ToolRegistry.Register(&schedulerTools.ScheduleTask{
-		Logger:         params.Logger,
+		Logger:         logger,
 		TemporalClient: params.TemporalClient,
 		ToolsRegistry:  params.ToolRegistry,
 	}); err != nil {
-		params.Logger.Error("Failed to register schedule task tool", "error", err)
+		logger.Error("Failed to register schedule task tool", "error", err)
 		return err
 	}
 
 	// Register telegram setup tool
-	telegramTool, err := telegram.NewTelegramSetupTool(params.Logger, params.Store, params.Config.TelegramChatServer, params.Config.TelegramBotName)
+	telegramTool, err := telegram.NewTelegramSetupTool(logger, params.Store, params.Config.TelegramChatServer, params.Config.TelegramBotName)
 	if err != nil {
-		params.Logger.Error("Failed to create telegram setup tool", "error", err)
+		logger.Error("Failed to create telegram setup tool", "error", err)
 		return err
 	}
 
 	if err := params.ToolRegistry.Register(telegramTool); err != nil {
-		params.Logger.Error("Failed to register telegram tool", "error", err)
+		logger.Error("Failed to register telegram tool", "error", err)
 		return err
 	}
 
-	params.Logger.Info("Core tools registered successfully", "count", len(params.ToolRegistry.List()))
+	logger.Info("Core tools registered successfully", "count", len(params.ToolRegistry.List()))
 	return nil
 }

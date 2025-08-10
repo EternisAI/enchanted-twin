@@ -18,6 +18,48 @@ The Go backend uses **embedded PostgreSQL with pgvector** for vector storage and
 
 • It serves on the port defined by the `POSTGRES_PORT` environment variable (defaults to `5432`).
 
+### Logging
+
+JSON structured logging is enabled by default. Configure logging with environment variables:
+
+#### Global Configuration
+```bash
+export LOG_FORMAT=json          # json, text, or logfmt
+export LOG_LEVEL=info          # debug, info, warn, error
+```
+
+#### Component-Specific Log Levels
+```bash
+# Set log levels per component
+export LOG_LEVEL_holon_manager=debug
+export LOG_LEVEL_ai_anonymizer=warn
+export LOG_LEVEL_whatsapp_service=error
+```
+
+#### Available Components
+To see all registered components, use:
+```bash
+./bin/enchanted-twin --list-components
+```
+
+#### Filtering Logs with jq
+```bash
+# Filter by specific component
+jq 'select(.component == "holon.manager")' logs.json
+
+# Filter by log level  
+jq 'select(.level == "error")' logs.json
+
+# Filter by component prefix (e.g., all AI components)
+jq 'select(.component | startswith("ai."))' logs.json
+
+# Multiple filters
+jq 'select(.component == "ai.service" and .level == "error")' logs.json
+
+# Find all components with prefix
+jq -r 'select(.component | startswith("holon.")) | .component' logs.json | sort | uniq
+```
+
 ### Integration tests memory 
 
 Command exmaple 
