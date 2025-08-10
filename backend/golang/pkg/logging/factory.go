@@ -1,6 +1,8 @@
 package logging
 
 import (
+	"reflect"
+
 	"github.com/charmbracelet/log"
 )
 
@@ -226,7 +228,13 @@ func (lf *Factory) WithUserID(logger *log.Logger, userID string) *log.Logger {
 // WithError adds error context to a logger.
 func (lf *Factory) WithError(logger *log.Logger, err error) *log.Logger {
 	if err != nil {
-		return logger.With("error", err.Error(), "error_type", "error")
+		// Get the actual type of the error using reflection
+		errorType := "error"
+		if t := reflect.TypeOf(err); t != nil {
+			errorType = t.String()
+		}
+
+		return logger.With("error", err, "error_type", errorType)
 	}
 	return logger
 }

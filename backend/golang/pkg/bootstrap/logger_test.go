@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -126,6 +127,30 @@ func TestLoggerFactory_WithError(t *testing.T) {
 	// For text format, check if error fields are included
 	assert.Contains(t, output, "error")
 	assert.Contains(t, output, "error_type")
+}
+
+func TestLoggerFactory_WithError_ErrorTypeDetection(t *testing.T) {
+	baseLogger := NewBootstrapLogger()
+	factory := NewLoggerFactory(baseLogger)
+
+	logger := factory.ForComponent("test.component")
+
+	// Test with a standard error that has a specific type
+	testError := fmt.Errorf("database connection failed")
+	errorLogger := factory.WithError(logger, testError)
+	assert.NotEqual(t, logger, errorLogger)
+
+	// Capture output to verify error type is captured correctly
+	var buf bytes.Buffer
+	errorLogger.SetOutput(&buf)
+
+	errorLogger.Error("test error with type detection")
+	output := buf.String()
+
+	// Check that the actual error type is captured, not just "error"
+	assert.Contains(t, output, "database connection failed")
+	// The error type should be "*errors.errorString" or similar, not just "error"
+	assert.NotEqual(t, output, "error")
 }
 
 func TestLoggerFactory_WithContext(t *testing.T) {
