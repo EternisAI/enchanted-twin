@@ -7,32 +7,27 @@ func RegisterAllKnownComponents(loggerFactory *LoggerFactory) {
 
 	// AI components
 	loggerFactory.ForAI("ai.completions") // pkg/bootstrap/fx/ai.go:60
-	loggerFactory.ForAI("ai.embeddings") // pkg/bootstrap/fx/ai.go:85
-	loggerFactory.ForAI("ai.service") // pkg/bootstrap/components_generated.go:11
-
-	// Anonymizer components
-	loggerFactory.ForAnonymizer("ai.anonymizer") // pkg/bootstrap/components_generated.go:14
+	loggerFactory.ForAI("ai.embeddings")  // pkg/bootstrap/fx/ai.go:85
 
 	// Database components
-	loggerFactory.ForDatabase("database.postgresql") // pkg/bootstrap/components_generated.go:17
 	loggerFactory.ForDatabase("sqlite.queries") // pkg/bootstrap/fx/infrastructure.go:155
-	loggerFactory.ForDatabase("sqlite.store") // pkg/bootstrap/fx/infrastructure.go:126
+	loggerFactory.ForDatabase("sqlite.store")   // pkg/bootstrap/fx/infrastructure.go:126
 
 	// Directory components
-	loggerFactory.ForDirectory("directory.watcher") // pkg/bootstrap/components_generated.go:22
+	loggerFactory.ForDirectory("directory.watcher") // pkg/bootstrap/fx/services.go:369
 
 	// Embedding components
 	loggerFactory.ForEmbedding("embedding.wrapper") // pkg/bootstrap/fx/database.go:36
 
 	// MCP components
-	loggerFactory.ForMCP("mcp.service") // pkg/bootstrap/components_generated.go:28
+	loggerFactory.ForMCP("mcp.service") // pkg/bootstrap/fx/services.go:335
 
 	// Manager components
 	loggerFactory.ForManager("holon.manager") // pkg/holon/manager.go:79
 
 	// Memory components
 	loggerFactory.ForMemory("evolving.memory") // pkg/bootstrap/fx/memory.go:36
-	loggerFactory.ForMemory("memory.storage") // pkg/bootstrap/fx/database.go:62
+	loggerFactory.ForMemory("memory.storage")  // pkg/bootstrap/fx/database.go:62
 
 	// NATS components
 	loggerFactory.ForNATS("nats.client") // pkg/bootstrap/fx/infrastructure.go:99
@@ -42,106 +37,100 @@ func RegisterAllKnownComponents(loggerFactory *LoggerFactory) {
 	loggerFactory.ForRepository("chat.repository") // pkg/bootstrap/fx/services.go:59
 
 	// Server components
-	loggerFactory.ForServer("graphql.server") // pkg/bootstrap/components_generated.go:45
+	loggerFactory.ForServer("graphql.http")   // pkg/bootstrap/fx/server.go:160
+	loggerFactory.ForServer("graphql.server") // pkg/bootstrap/fx/server.go:68
 
 	// Service components
-	loggerFactory.ForService("holon.service.main") // pkg/holon/service.go:46
+	loggerFactory.ForService("holon.service.main") // pkg/bootstrap/fx/services.go:308
 
 	// TTS components
 	loggerFactory.ForTTS("tts.service") // pkg/bootstrap/fx/services.go:124
 
 	// Telegram components
-	loggerFactory.ForTelegram("telegram.service") // pkg/bootstrap/components_generated.go:54
+	loggerFactory.ForTelegram("telegram.service") // pkg/bootstrap/fx/services.go:231
 
 	// Temporal components
-	loggerFactory.ForTemporal("temporal.client") // pkg/bootstrap/fx/temporal.go:53
-	loggerFactory.ForTemporal("temporal.scheduler") // pkg/bootstrap/components_generated.go:58
-	loggerFactory.ForTemporal("temporal.worker") // pkg/bootstrap/components_generated.go:59
+	loggerFactory.ForTemporal("temporal.client")    // pkg/bootstrap/fx/temporal.go:53
+	loggerFactory.ForTemporal("temporal.scheduler") // pkg/bootstrap/fx/temporal.go:194
+	loggerFactory.ForTemporal("temporal.worker")    // pkg/bootstrap/fx/temporal.go:110
 
 	// TwinChat components
-	loggerFactory.ForTwinChat("twinchat.service") // pkg/bootstrap/components_generated.go:62
+	loggerFactory.ForTwinChat("twinchat.service") // pkg/bootstrap/fx/services.go:98
 
 	// Utility components
-	loggerFactory.ForComponent("fx.framework") // pkg/bootstrap/components_generated.go:65
 	loggerFactory.ForComponent("infrastructure.config") // pkg/bootstrap/fx/infrastructure.go:59
-	loggerFactory.ForComponent("infrastructure.main") // pkg/bootstrap/components_generated.go:67
-	loggerFactory.ForComponent("main.startup") // pkg/bootstrap/components_generated.go:68
-	loggerFactory.ForComponent("services.background") // pkg/bootstrap/components_generated.go:69
-	loggerFactory.ForComponent("tools.application") // pkg/bootstrap/components_generated.go:70
-	loggerFactory.ForComponent("tools.registry") // pkg/bootstrap/components_generated.go:71
+	loggerFactory.ForComponent("infrastructure.main")   // pkg/bootstrap/fx/infrastructure.go:42
+	loggerFactory.ForComponent("main.startup")          // cmd/server/main.go:90
+	loggerFactory.ForComponent("services.background")   // pkg/bootstrap/fx/services.go:418
+	loggerFactory.ForComponent("tools.application")     // pkg/bootstrap/fx/services.go:458
+	loggerFactory.ForComponent("tools.core")            // pkg/bootstrap/fx/tools.go:51
 
 	// WhatsApp components
-	loggerFactory.ForWhatsApp("whatsapp.service") // pkg/bootstrap/components_generated.go:74
+	loggerFactory.ForWhatsApp("whatsapp.service") // pkg/bootstrap/fx/services.go:178
 }
 
 // ComponentCatalog provides metadata about all known components
 var ComponentCatalog = map[string]ComponentType{
-	"ai.anonymizer": ComponentTypeAnonymizer,
-	"ai.completions": ComponentTypeAI,
-	"ai.embeddings": ComponentTypeAI,
-	"ai.service": ComponentTypeAI,
-	"chat.repository": ComponentTypeRepository,
-	"database.postgresql": ComponentTypeDatabase,
-	"directory.watcher": ComponentTypeDirectory,
-	"embedding.wrapper": ComponentTypeEmbedding,
-	"evolving.memory": ComponentTypeMemory,
-	"fx.framework": ComponentTypeUtility,
-	"graphql.server": ComponentTypeServer,
-	"holon.manager": ComponentTypeManager,
-	"holon.service.main": ComponentTypeService,
+	"ai.completions":        ComponentTypeAI,
+	"ai.embeddings":         ComponentTypeAI,
+	"chat.repository":       ComponentTypeRepository,
+	"directory.watcher":     ComponentTypeDirectory,
+	"embedding.wrapper":     ComponentTypeEmbedding,
+	"evolving.memory":       ComponentTypeMemory,
+	"graphql.http":          ComponentTypeServer,
+	"graphql.server":        ComponentTypeServer,
+	"holon.manager":         ComponentTypeManager,
+	"holon.service.main":    ComponentTypeService,
 	"infrastructure.config": ComponentTypeUtility,
-	"infrastructure.main": ComponentTypeUtility,
-	"main.startup": ComponentTypeUtility,
-	"mcp.service": ComponentTypeMCP,
-	"memory.storage": ComponentTypeMemory,
-	"nats.client": ComponentTypeNATS,
-	"nats.server": ComponentTypeNATS,
-	"services.background": ComponentTypeUtility,
-	"sqlite.queries": ComponentTypeDatabase,
-	"sqlite.store": ComponentTypeDatabase,
-	"telegram.service": ComponentTypeTelegram,
-	"temporal.client": ComponentTypeTemporal,
-	"temporal.scheduler": ComponentTypeTemporal,
-	"temporal.worker": ComponentTypeTemporal,
-	"tools.application": ComponentTypeUtility,
-	"tools.registry": ComponentTypeUtility,
-	"tts.service": ComponentTypeTTS,
-	"twinchat.service": ComponentTypeTwinChat,
-	"whatsapp.service": ComponentTypeWhatsApp,
+	"infrastructure.main":   ComponentTypeUtility,
+	"main.startup":          ComponentTypeUtility,
+	"mcp.service":           ComponentTypeMCP,
+	"memory.storage":        ComponentTypeMemory,
+	"nats.client":           ComponentTypeNATS,
+	"nats.server":           ComponentTypeNATS,
+	"services.background":   ComponentTypeUtility,
+	"sqlite.queries":        ComponentTypeDatabase,
+	"sqlite.store":          ComponentTypeDatabase,
+	"telegram.service":      ComponentTypeTelegram,
+	"temporal.client":       ComponentTypeTemporal,
+	"temporal.scheduler":    ComponentTypeTemporal,
+	"temporal.worker":       ComponentTypeTemporal,
+	"tools.application":     ComponentTypeUtility,
+	"tools.core":            ComponentTypeUtility,
+	"tts.service":           ComponentTypeTTS,
+	"twinchat.service":      ComponentTypeTwinChat,
+	"whatsapp.service":      ComponentTypeWhatsApp,
 }
 
 // ComponentSources maps component IDs to their source locations
 var ComponentSources = map[string]string{
-	"ai.anonymizer": "pkg/bootstrap/components_generated.go:14",
-	"ai.completions": "pkg/bootstrap/fx/ai.go:60",
-	"ai.embeddings": "pkg/bootstrap/fx/ai.go:85",
-	"ai.service": "pkg/bootstrap/components_generated.go:11",
-	"chat.repository": "pkg/bootstrap/fx/services.go:59",
-	"database.postgresql": "pkg/bootstrap/components_generated.go:17",
-	"directory.watcher": "pkg/bootstrap/components_generated.go:22",
-	"embedding.wrapper": "pkg/bootstrap/fx/database.go:36",
-	"evolving.memory": "pkg/bootstrap/fx/memory.go:36",
-	"fx.framework": "pkg/bootstrap/components_generated.go:65",
-	"graphql.server": "pkg/bootstrap/components_generated.go:45",
-	"holon.manager": "pkg/holon/manager.go:79",
-	"holon.service.main": "pkg/holon/service.go:46",
+	"ai.completions":        "pkg/bootstrap/fx/ai.go:60",
+	"ai.embeddings":         "pkg/bootstrap/fx/ai.go:85",
+	"chat.repository":       "pkg/bootstrap/fx/services.go:59",
+	"directory.watcher":     "pkg/bootstrap/fx/services.go:369",
+	"embedding.wrapper":     "pkg/bootstrap/fx/database.go:36",
+	"evolving.memory":       "pkg/bootstrap/fx/memory.go:36",
+	"graphql.http":          "pkg/bootstrap/fx/server.go:160",
+	"graphql.server":        "pkg/bootstrap/fx/server.go:68",
+	"holon.manager":         "pkg/holon/manager.go:79",
+	"holon.service.main":    "pkg/bootstrap/fx/services.go:308",
 	"infrastructure.config": "pkg/bootstrap/fx/infrastructure.go:59",
-	"infrastructure.main": "pkg/bootstrap/components_generated.go:67",
-	"main.startup": "pkg/bootstrap/components_generated.go:68",
-	"mcp.service": "pkg/bootstrap/components_generated.go:28",
-	"memory.storage": "pkg/bootstrap/fx/database.go:62",
-	"nats.client": "pkg/bootstrap/fx/infrastructure.go:99",
-	"nats.server": "pkg/bootstrap/fx/infrastructure.go:78",
-	"services.background": "pkg/bootstrap/components_generated.go:69",
-	"sqlite.queries": "pkg/bootstrap/fx/infrastructure.go:155",
-	"sqlite.store": "pkg/bootstrap/fx/infrastructure.go:126",
-	"telegram.service": "pkg/bootstrap/components_generated.go:54",
-	"temporal.client": "pkg/bootstrap/fx/temporal.go:53",
-	"temporal.scheduler": "pkg/bootstrap/components_generated.go:58",
-	"temporal.worker": "pkg/bootstrap/components_generated.go:59",
-	"tools.application": "pkg/bootstrap/components_generated.go:70",
-	"tools.registry": "pkg/bootstrap/components_generated.go:71",
-	"tts.service": "pkg/bootstrap/fx/services.go:124",
-	"twinchat.service": "pkg/bootstrap/components_generated.go:62",
-	"whatsapp.service": "pkg/bootstrap/components_generated.go:74",
+	"infrastructure.main":   "pkg/bootstrap/fx/infrastructure.go:42",
+	"main.startup":          "cmd/server/main.go:90",
+	"mcp.service":           "pkg/bootstrap/fx/services.go:335",
+	"memory.storage":        "pkg/bootstrap/fx/database.go:62",
+	"nats.client":           "pkg/bootstrap/fx/infrastructure.go:99",
+	"nats.server":           "pkg/bootstrap/fx/infrastructure.go:78",
+	"services.background":   "pkg/bootstrap/fx/services.go:418",
+	"sqlite.queries":        "pkg/bootstrap/fx/infrastructure.go:155",
+	"sqlite.store":          "pkg/bootstrap/fx/infrastructure.go:126",
+	"telegram.service":      "pkg/bootstrap/fx/services.go:231",
+	"temporal.client":       "pkg/bootstrap/fx/temporal.go:53",
+	"temporal.scheduler":    "pkg/bootstrap/fx/temporal.go:194",
+	"temporal.worker":       "pkg/bootstrap/fx/temporal.go:110",
+	"tools.application":     "pkg/bootstrap/fx/services.go:458",
+	"tools.core":            "pkg/bootstrap/fx/tools.go:51",
+	"tts.service":           "pkg/bootstrap/fx/services.go:124",
+	"twinchat.service":      "pkg/bootstrap/fx/services.go:98",
+	"whatsapp.service":      "pkg/bootstrap/fx/services.go:178",
 }

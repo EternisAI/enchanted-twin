@@ -1,18 +1,20 @@
-// Component Generator - Automatically discovers and generates component registration code
 package main
 
 import (
 	"fmt"
 	"go/ast"
+	"go/format"
+	"go/importer"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
-// ComponentInfo represents a discovered component.
 type ComponentInfo struct {
 	ID         string
 	Type       string
@@ -21,7 +23,6 @@ type ComponentInfo struct {
 	LineNumber int
 }
 
-// ComponentType mappings from method names to component types.
 var methodToType = map[string]string{
 	"ForComponent":   "ComponentTypeUtility",
 	"ForService":     "ComponentTypeService",
@@ -82,65 +83,61 @@ func main() {
 	fmt.Printf("Generated %d components in %s\n", len(components), outputFile)
 }
 
-// discoverComponents walks the project directory and finds all loggerFactory calls.
 func discoverComponents(projectRoot string) ([]ComponentInfo, error) {
 	var components []ComponentInfo
-	componentSet := make(map[string]ComponentInfo) // Use map to avoid duplicates
+	componentSet := make(map[string]ComponentInfo)
+	packages := make(map[string][]*ast.File)
+	fileMap := make(map[*ast.File]string)
+	fset := token.NewFileSet()
 
 	err := filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Skip non-Go files and vendor directories
 		if !strings.HasSuffix(path, ".go") ||
-			strings.Contains(path, "/vendor/") ||
-			strings.Contains(path, "/.git/") ||
-			strings.Contains(path, "/node_modules/") {
+			strings.Contains(path, filepath.FromSlash("vendor")) ||
+			strings.Contains(path, filepath.FromSlash(".git")) ||
+			strings.Contains(path, filepath.FromSlash("node_modules")) {
 			return nil
 		}
 
-		// Parse the Go file
-		fset := token.NewFileSet()
-		node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-		if err != nil {
-			// Skip files that can't be parsed (might be invalid Go code)
+		if strings.HasSuffix(path, "_test.go") ||
+			strings.Contains(filepath.Base(path), "generated") ||
+			strings.Contains(filepath.Base(path), "gen_") ||
+			strings.Contains(filepath.Base(path), "_gen") ||
+			strings.Contains(path, "components_generated.go") {
 			return nil
 		}
 
-		// Walk the AST to find loggerFactory calls
-		ast.Inspect(node, func(n ast.Node) bool {
-			if call, ok := n.(*ast.CallExpr); ok {
-				if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-					// Check if it's a loggerFactory method call
-					if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "loggerFactory" {
-						methodName := sel.Sel.Name
-						if strings.HasPrefix(methodName, "For") && len(call.Args) > 0 {
-							// Extract the component ID from the first argument
-							if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-								componentID := strings.Trim(lit.Value, `"`)
-
-								// Get line number
-								position := fset.Position(call.Pos())
-
-								// Create component info
-								component := ComponentInfo{
-									ID:         componentID,
-									Type:       getComponentType(methodName),
-									MethodName: methodName,
-									SourceFile: strings.TrimPrefix(path, projectRoot+"/"),
-									LineNumber: position.Line,
-								}
-
-								// Use component ID as key to avoid duplicates
-								componentSet[componentID] = component
-							}
-						}
+		if info.Size() > 0 {
+			file, err := os.Open(path)
+			if err == nil {
+				defer func() {
+					if closeErr := file.Close(); closeErr != nil {
+						// Log close error but don't fail the operation
+						fmt.Fprintf(os.Stderr, "Warning: failed to close file %s: %v\n", path, closeErr)
 					}
+				}()
+				buffer := make([]byte, 1024)
+				n, _ := file.Read(buffer)
+				if n > 0 && strings.Contains(string(buffer[:n]), "Code generated") {
+					return nil
 				}
 			}
-			return true
-		})
+		}
+
+		node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		if err != nil {
+			return nil
+		}
+
+		pkgName := node.Name.Name
+		if packages[pkgName] == nil {
+			packages[pkgName] = make([]*ast.File, 0)
+		}
+		packages[pkgName] = append(packages[pkgName], node)
+		fileMap[node] = path
 
 		return nil
 	})
@@ -148,7 +145,54 @@ func discoverComponents(projectRoot string) ([]ComponentInfo, error) {
 		return nil, err
 	}
 
-	// Convert map to slice and sort by component ID
+	for pkgName, files := range packages {
+		conf := types.Config{
+			Importer: importer.Default(),
+			Error:    func(err error) {},
+		}
+
+		info := &types.Info{
+			Types: make(map[ast.Expr]types.TypeAndValue),
+		}
+
+		// Check package types - errors are handled by the Error function in conf
+		_, _ = conf.Check(pkgName, fset, files, info)
+
+		for _, file := range files {
+			ast.Inspect(file, func(n ast.Node) bool {
+				if call, ok := n.(*ast.CallExpr); ok {
+					if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+						methodName := sel.Sel.Name
+						if strings.HasPrefix(methodName, "For") && len(call.Args) > 0 {
+							if isLoggerFactoryType(sel.X, info) {
+								if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+									componentID, err := strconv.Unquote(lit.Value)
+									if err != nil {
+										return true
+									}
+
+									position := fset.Position(call.Pos())
+									relPath := strings.TrimPrefix(fileMap[file], projectRoot+string(filepath.Separator))
+
+									component := ComponentInfo{
+										ID:         componentID,
+										Type:       getComponentType(methodName),
+										MethodName: methodName,
+										SourceFile: relPath,
+										LineNumber: position.Line,
+									}
+
+									componentSet[componentID] = component
+								}
+							}
+						}
+					}
+				}
+				return true
+			})
+		}
+	}
+
 	for _, component := range componentSet {
 		components = append(components, component)
 	}
@@ -160,55 +204,66 @@ func discoverComponents(projectRoot string) ([]ComponentInfo, error) {
 	return components, nil
 }
 
-// getComponentType returns the ComponentType constant for a given method name.
+func isLoggerFactoryType(expr ast.Expr, info *types.Info) bool {
+	if typeAndValue, exists := info.Types[expr]; exists {
+		typeStr := typeAndValue.Type.String()
+		if strings.Contains(typeStr, "LoggerFactory") ||
+			strings.HasSuffix(typeStr, "bootstrap.LoggerFactory") ||
+			strings.HasSuffix(typeStr, "*LoggerFactory") {
+			return true
+		}
+	}
+
+	switch x := expr.(type) {
+	case *ast.Ident:
+		return strings.Contains(x.Name, "LoggerFactory") ||
+			x.Name == "loggerFactory" ||
+			x.Name == "factory"
+	case *ast.SelectorExpr:
+		return x.Sel.Name == "LoggerFactory"
+	}
+
+	return false
+}
+
 func getComponentType(methodName string) string {
 	if componentType, exists := methodToType[methodName]; exists {
 		return componentType
 	}
-	return "ComponentTypeUtility" // Default fallback
+	return "ComponentTypeUtility"
 }
 
-// generateComponentsFile creates the generated Go file with all discovered components.
 func generateComponentsFile(outputFile string, components []ComponentInfo) error {
-	// Ensure the directory exists
 	err := os.MkdirAll(filepath.Dir(outputFile), 0o755)
 	if err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Generate file content
 	var builder strings.Builder
 
-	// File header
 	builder.WriteString("// Code generated by component-generator. DO NOT EDIT.\n\n")
 	builder.WriteString("package bootstrap\n\n")
 
-	// Generate RegisterAllKnownComponents function
 	builder.WriteString("// RegisterAllKnownComponents registers all components discovered in the codebase\n")
 	builder.WriteString("func RegisterAllKnownComponents(loggerFactory *LoggerFactory) {\n")
 
-	// Group components by type for better organization
 	componentsByType := make(map[string][]ComponentInfo)
 	for _, component := range components {
 		componentsByType[component.Type] = append(componentsByType[component.Type], component)
 	}
 
-	// Sort types for consistent output
 	var types []string
 	for componentType := range componentsByType {
 		types = append(types, componentType)
 	}
 	sort.Strings(types)
 
-	// Generate registration calls grouped by type
 	for _, componentType := range types {
 		typeComponents := componentsByType[componentType]
 
-		// Add comment for component type
 		typeName := strings.TrimPrefix(componentType, "ComponentType")
 		builder.WriteString(fmt.Sprintf("\n\t// %s components\n", typeName))
 
-		// Sort components within type
 		sort.Slice(typeComponents, func(i, j int) bool {
 			return typeComponents[i].ID < typeComponents[j].ID
 		})
@@ -221,7 +276,6 @@ func generateComponentsFile(outputFile string, components []ComponentInfo) error
 
 	builder.WriteString("}\n\n")
 
-	// Generate ComponentCatalog map
 	builder.WriteString("// ComponentCatalog provides metadata about all known components\n")
 	builder.WriteString("var ComponentCatalog = map[string]ComponentType{\n")
 
@@ -231,7 +285,6 @@ func generateComponentsFile(outputFile string, components []ComponentInfo) error
 
 	builder.WriteString("}\n\n")
 
-	// Generate ComponentSources map for debugging
 	builder.WriteString("// ComponentSources maps component IDs to their source locations\n")
 	builder.WriteString("var ComponentSources = map[string]string{\n")
 
@@ -242,8 +295,12 @@ func generateComponentsFile(outputFile string, components []ComponentInfo) error
 
 	builder.WriteString("}\n")
 
-	// Write to file
-	err = os.WriteFile(outputFile, []byte(builder.String()), 0o644)
+	formattedCode, err := format.Source([]byte(builder.String()))
+	if err != nil {
+		return fmt.Errorf("failed to format generated code: %w", err)
+	}
+
+	err = os.WriteFile(outputFile, formattedCode, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}

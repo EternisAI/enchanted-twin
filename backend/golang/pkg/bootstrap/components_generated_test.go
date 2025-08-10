@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/log"
@@ -45,6 +46,8 @@ func TestRegisterAllKnownComponents(t *testing.T) {
 			t.Errorf("Component %s not found in ComponentSources", comp.ID)
 		} else if source == "" {
 			t.Errorf("Component %s has empty source location", comp.ID)
+		} else if strings.Contains(source, "components_generated.go") {
+			t.Errorf("Component %s source location points to generated file: %s", comp.ID, source)
 		}
 
 		// Validate component is enabled by default
