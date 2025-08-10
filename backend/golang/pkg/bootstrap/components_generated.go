@@ -41,7 +41,7 @@ func RegisterAllKnownComponents(loggerFactory *LoggerFactory) {
 	loggerFactory.ForServer("graphql.server") // pkg/bootstrap/fx/server.go:68
 
 	// Service components
-	loggerFactory.ForService("holon.service.main") // pkg/bootstrap/fx/services.go:308
+	loggerFactory.ForService("holon.service.main") // pkg/holon/service.go:46
 
 	// TTS components
 	loggerFactory.ForTTS("tts.service") // pkg/bootstrap/fx/services.go:124
@@ -113,7 +113,7 @@ var ComponentSources = map[string]string{
 	"graphql.http":          "pkg/bootstrap/fx/server.go:160",
 	"graphql.server":        "pkg/bootstrap/fx/server.go:68",
 	"holon.manager":         "pkg/holon/manager.go:79",
-	"holon.service.main":    "pkg/bootstrap/fx/services.go:308",
+	"holon.service.main":    "pkg/holon/service.go:46",
 	"infrastructure.config": "pkg/bootstrap/fx/infrastructure.go:59",
 	"infrastructure.main":   "pkg/bootstrap/fx/infrastructure.go:42",
 	"main.startup":          "cmd/server/main.go:90",

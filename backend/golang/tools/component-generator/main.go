@@ -145,7 +145,15 @@ func discoverComponents(projectRoot string) ([]ComponentInfo, error) {
 		return nil, err
 	}
 
-	for pkgName, files := range packages {
+	// Sort package names for deterministic processing
+	var pkgNames []string
+	for pkgName := range packages {
+		pkgNames = append(pkgNames, pkgName)
+	}
+	sort.Strings(pkgNames)
+
+	for _, pkgName := range pkgNames {
+		files := packages[pkgName]
 		conf := types.Config{
 			Importer: importer.Default(),
 			Error:    func(err error) {},
@@ -157,6 +165,11 @@ func discoverComponents(projectRoot string) ([]ComponentInfo, error) {
 
 		// Check package types - errors are handled by the Error function in conf
 		_, _ = conf.Check(pkgName, fset, files, info)
+
+		// Sort files within the package for deterministic processing
+		sort.Slice(files, func(i, j int) bool {
+			return fileMap[files[i]] < fileMap[files[j]]
+		})
 
 		for _, file := range files {
 			ast.Inspect(file, func(n ast.Node) bool {
