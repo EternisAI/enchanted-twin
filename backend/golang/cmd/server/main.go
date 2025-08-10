@@ -28,26 +28,8 @@ func showComponents() {
 	// Load environment-based log level overrides
 	loggerFactory.LoadLogLevelsFromEnv()
 
-	// Simulate registration of common components by creating loggers for them
-	// This ensures they get registered in the component registry
-	commonComponents := []string{
-		"holon.manager",
-		"holon.service",
-		"ai.service",
-		"ai.anonymizer",
-		"whatsapp.service",
-		"telegram.service",
-		"twinchat.service",
-		"memory.storage",
-		"database.store",
-		"nats.client",
-		"temporal.client",
-		"temporal.worker",
-	}
-
-	for _, component := range commonComponents {
-		loggerFactory.ForComponent(component)
-	}
+	// Register actual components discovered from the codebase
+	bootstrap.RegisterAllKnownComponents(loggerFactory)
 
 	// Get all registered components
 	registry := loggerFactory.GetComponentRegistry()
@@ -61,22 +43,21 @@ func showComponents() {
 		return
 	}
 
-	// Sort components by ID
-	componentNames := make([]string, len(components))
-	for i, comp := range components {
-		componentNames[i] = comp.ID
-	}
-	sort.Strings(componentNames)
+	// Sort components by ID for consistent output
+	sort.Slice(components, func(i, j int) bool {
+		return components[i].ID < components[j].ID
+	})
 
-	// Display components with their types and current log levels
-	for _, name := range componentNames {
-		level := registry.GetComponentLogLevel(name)
-		enabled := registry.IsComponentEnabled(name)
+	// Display all components in a simple list
+	for _, comp := range components {
+		level := registry.GetComponentLogLevel(comp.ID)
+		enabled := registry.IsComponentEnabled(comp.ID)
 		status := "enabled"
 		if !enabled {
 			status = "disabled"
 		}
-		fmt.Printf("  %-25s level=%s (%s)\n", name, level.String(), status)
+		fmt.Printf("  %-30s level=%s (%s) [%s]\n",
+			comp.ID, level.String(), status, comp.Type)
 	}
 
 	fmt.Printf("\nTotal: %d components\n", len(components))
