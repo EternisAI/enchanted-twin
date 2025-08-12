@@ -12,6 +12,7 @@ const (
 	ProcessorWhatsapp       ProcessorType = "whatsapp"
 	ProcessorGmail          ProcessorType = "gmail"
 	ProcessorChatGPT        ProcessorType = "chatgpt"
+	ProcessorLongMemEval    ProcessorType = "longmemeval"
 	ProcessorSyncedDocument ProcessorType = "synced-document"
 	ProcessorSlack          ProcessorType = "slack"
 	ProcessorX              ProcessorType = "x"
@@ -25,7 +26,7 @@ func (p ProcessorType) String() string {
 // IsNewFormatProcessor checks if a processor uses the new format (direct memory storage).
 func IsNewFormatProcessor(processorName string) bool {
 	switch ProcessorType(strings.ToLower(processorName)) {
-	case ProcessorTelegram, ProcessorWhatsapp, ProcessorGmail, ProcessorChatGPT, ProcessorSyncedDocument, ProcessorSlack, ProcessorX:
+	case ProcessorTelegram, ProcessorWhatsapp, ProcessorGmail, ProcessorChatGPT, ProcessorLongMemEval, ProcessorSyncedDocument, ProcessorSlack, ProcessorX:
 		return true
 	default:
 		return false

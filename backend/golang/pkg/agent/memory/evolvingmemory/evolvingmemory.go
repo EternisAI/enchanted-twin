@@ -28,6 +28,14 @@ const (
 	ExtractFactsToolName = "EXTRACT_FACTS"
 )
 
+// minInt returns the minimum of two integers
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // Document types.
 type DocumentType string
 
@@ -406,21 +414,56 @@ func (s *StorageImpl) StoreFactsDirectly(ctx context.Context, facts []*memory.Me
 	var objects []*models.Object
 	processed := 0
 
-	// Batch generate embeddings for efficiency
+	// Batch generate embeddings for efficiency with validation
 	var factContents []string
-	for _, fact := range facts {
-		factContents = append(factContents, fact.GenerateContent())
-	}
-
-	// Generate ALL embeddings in batch - MUCH FASTER! 🚀
-	s.logger.Info("Generating embeddings in batch", "count", len(factContents))
-	embeddings, err := s.engine.EmbeddingsWrapper.Embeddings(ctx, factContents)
-	if err != nil {
-		return fmt.Errorf("failed to generate batch embeddings: %w", err)
-	}
-
-	// Create Weaviate objects with pre-generated embeddings
+	var validFactIndices []int
 	for i, fact := range facts {
+		content := fact.GenerateContent()
+		// Validate content before sending to embeddings API
+		if content != "" && len(strings.TrimSpace(content)) > 0 && len(content) <= 8000 { // OpenAI limit is ~8k tokens
+			factContents = append(factContents, content)
+			validFactIndices = append(validFactIndices, i)
+		} else {
+			s.logger.Warn("Skipping fact with invalid content for embeddings", 
+				"fact_id", fact.ID, 
+				"content_length", len(content),
+				"content_preview", content[:minInt(50, len(content))])
+		}
+	}
+
+	if len(factContents) == 0 {
+		s.logger.Warn("No valid facts to generate embeddings for")
+		return nil
+	}
+
+	// Generate embeddings in smaller batches to avoid API issues
+	s.logger.Info("Generating embeddings in batches", "count", len(factContents), "skipped", len(facts)-len(factContents))
+	
+	batchSize := 100 // Process in smaller batches
+	var embeddings [][]float32
+	
+	for i := 0; i < len(factContents); i += batchSize {
+		end := minInt(i+batchSize, len(factContents))
+		batch := factContents[i:end]
+		
+		s.logger.Info("Processing embeddings batch", "batch", i/batchSize+1, "start", i, "end", end, "size", len(batch))
+		
+		batchEmbeddings, err := s.engine.EmbeddingsWrapper.Embeddings(ctx, batch)
+		if err != nil {
+			s.logger.Error("Failed to generate embeddings for batch", "batch_start", i, "batch_size", len(batch), "error", err)
+			// Log the problematic content
+			for j, content := range batch {
+				s.logger.Error("Problematic content", "index", i+j, "content_preview", content[:minInt(100, len(content))])
+			}
+			return fmt.Errorf("failed to generate batch embeddings at batch %d: %w", i/batchSize+1, err)
+		}
+		
+		embeddings = append(embeddings, batchEmbeddings...)
+	}
+
+	// Create Weaviate objects with pre-generated embeddings (only for valid facts)
+	for i, factIndex := range validFactIndices {
+		fact := facts[factIndex]
 		// Build tags
 		tags := fact.Tags
 		if len(tags) == 0 {

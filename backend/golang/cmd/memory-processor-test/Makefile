@@ -6,6 +6,7 @@
 #   make whatsapp      - Convert WhatsApp SQLite to ConversationDocument (X_0)
 #   make telegram      - Convert Telegram JSON to ConversationDocument (X_0)
 #   make chatgpt       - Convert ChatGPT JSON to ConversationDocument (X_0)
+#   make longmemeval   - Convert LongMemEval JSON to ConversationDocument (X_0)
 #   make gmail         - Convert Gmail MBOX to ConversationDocument (X_0)
 #   make gmail-senders - Analyze Gmail senders to include/exclude them from the ConversationDocument (X_0)
 #   make chunks        - Convert ConversationDocument (X_0) to chunks (X_1)
@@ -112,6 +113,35 @@ else
 	fi
 endif
 
+# Convert LongMemEval JSON to ConversationDocument (X_0)
+# Usage: make longmemeval [FILE=path/to/longmemeval.json]
+longmemeval:
+	@echo "🧠 Converting LongMemEval JSON to ConversationDocument (X_0)..."
+	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
+ifdef FILE
+	@echo "📁 Using specified file: $(FILE)"
+	@if [ ! -f "$(FILE)" ]; then \
+		echo "❌ File not found: $(FILE)"; \
+		exit 1; \
+	fi
+	@go run . longmemeval "$(FILE)"
+	@echo "✅ LongMemEval X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_longmemeval.jsonl"
+else
+	@echo "🔍 Auto-detecting LongMemEval JSON files..."
+	@if [ ! -f "$(INPUT_DIR)"/longmemeval*.json ] && [ ! -f "$(INPUT_DIR)"/*.json ]; then \
+		echo "❌ No LongMemEval JSON files found in $(INPUT_DIR)/"; \
+		echo "💡 Place your LongMemEval JSON file in $(INPUT_DIR)/"; \
+		echo "💡 Or use: make longmemeval FILE=path/to/your/longmemeval.json"; \
+		exit 1; \
+	fi
+	@JSON_FILE=$$(ls $(INPUT_DIR)/longmemeval*.json $(INPUT_DIR)/*.json 2>/dev/null | head -1); \
+	if [ -n "$$JSON_FILE" ]; then \
+		echo "✅ Found LongMemEval export: $$JSON_FILE"; \
+		go run . longmemeval "$$JSON_FILE"; \
+		echo "✅ LongMemEval X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_longmemeval.jsonl"; \
+	fi
+endif
+
 # Convert Gmail MBOX to ConversationDocument (X_0)
 gmail:
 	@echo "📧 Converting Gmail MBOX to ConversationDocument (X_0)..."
@@ -159,7 +189,7 @@ chunks:
 		fi; \
 		echo "✅ X_1 chunks created in $(OUTPUT_DIR)/"; \
 	else \
-		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp', 'make telegram', 'make chatgpt', or 'make gmail' first."; \
+		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp', 'make telegram', 'make chatgpt', 'make longmemeval', or 'make gmail' first."; \
 		exit 1; \
 	fi
 
@@ -353,6 +383,7 @@ help:
 	@echo "  make whatsapp   - Convert WhatsApp SQLite to X_0 ConversationDocument"
 	@echo "  make telegram   - Convert Telegram JSON to X_0 ConversationDocument"
 	@echo "  make chatgpt    - Convert ChatGPT JSON to X_0 ConversationDocument"
+	@echo "  make longmemeval - Convert LongMemEval JSON to X_0 ConversationDocument"
 	@echo "  make gmail      - Convert Gmail MBOX to X_0 ConversationDocument"
 	@echo
 	@echo "🧠 Atomic Memory Pipeline (X_i → X_{i+1}):"
@@ -403,6 +434,14 @@ help:
 	@echo "  make store      # X_3 → Weaviate database"
 	@echo "  make consolidation # Weaviate → X_4 report"
 	@echo
+	@echo "For LongMemEval:"
+	@echo "  make longmemeval # JSON → X_0 ConversationDocument"
+	@echo "  make chunks     # X_0 → X_1 chunks"
+	@echo "  make prompts    # X_1 → X_2 prompts"
+	@echo "  make facts      # X_2 → X_3 facts"
+	@echo "  make store      # X_3 → Weaviate database"
+	@echo "  make consolidation # Weaviate → X_4 report"
+	@echo
 	@echo "For Gmail:"
 	@echo "  make gmail      # MBOX → X_0 ConversationDocument"
 	@echo "  make chunks     # X_0 → X_1 chunks"
@@ -417,4 +456,4 @@ help:
 	@echo "  make consolidation  # Runs consolidation for all 20 canonical subjects"
 	@echo "                      # Creates comprehensive X_3 report with all subject insights"
 
-.PHONY: build whatsapp telegram chatgpt gmail gmail-senders chunks facts store consolidation store-consolidations query-consolidations query all clean status help 
+.PHONY: build whatsapp telegram chatgpt longmemeval gmail gmail-senders chunks facts store consolidation store-consolidations query-consolidations query all clean status help 

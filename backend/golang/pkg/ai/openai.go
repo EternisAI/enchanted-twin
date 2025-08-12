@@ -213,6 +213,16 @@ func (s *Service) Embeddings(ctx context.Context, inputs []string, model string)
 		opts = append(opts, option.WithHeader("Authorization", "Bearer "+firebaseToken))
 	}
 
+	// Debug: Check for problematic inputs
+	s.logger.Debug("Preparing embeddings request", "count", len(inputs), "model", model)
+	for i, input := range inputs {
+		if input == "" {
+			s.logger.Error("Empty input detected", "index", i)
+		} else if len(input) > 8000 {
+			s.logger.Warn("Very long input detected", "index", i, "length", len(input))
+		}
+	}
+
 	embedding, err := s.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
 		Model: model,
 		Input: openai.EmbeddingNewParamsInputUnion{
@@ -220,6 +230,7 @@ func (s *Service) Embeddings(ctx context.Context, inputs []string, model string)
 		},
 	}, opts...)
 	if err != nil {
+		s.logger.Error("Embeddings API error", "error", err, "inputs_count", len(inputs), "model", model)
 		return nil, err
 	}
 	var embeddings [][]float64

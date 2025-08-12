@@ -22,13 +22,17 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/longmemeval"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 var logger = log.NewWithOptions(os.Stderr, log.Options{
-	ReportCaller: true, Level: log.InfoLevel, TimeFormat: time.Kitchen,
+	ReportCaller: true,
+	Level: log.DebugLevel,
+	TimeFormat: time.Kitchen,
+	ReportTimestamp: true,
 })
 
 type WeaviateInfrastructure struct {
@@ -169,6 +173,8 @@ func main() {
 		runTelegram()
 	case "chatgpt":
 		runChatGPT()
+	case "longmemeval":
+		runLongMemEval()
 	case "gmail":
 		runGmail()
 	case "chunks":
@@ -240,7 +246,7 @@ func runDataProcessor(name string, filePatterns []string, outputFile string, pro
 	// Process file
 	documents, err := processor.ProcessFile(ctx, inputFile)
 	if err != nil {
-		logger.Error("Processing failed", "error", err)
+		logger.Error("Processing failed", "error", err, "error_type", fmt.Sprintf("%T", err))
 		os.Exit(1)
 	}
 
@@ -414,6 +420,17 @@ func runChatGPT() {
 		"pipeline_output/X_0_chatgpt.jsonl",
 		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
 			return chatgpt.NewChatGPTProcessor(store, logger)
+		},
+	)
+}
+
+func runLongMemEval() {
+	runDataProcessor(
+		"LongMemEval",
+		[]string{"pipeline_input/*.json", "pipeline_input/longmemeval*.json"},
+		"pipeline_output/X_0_longmemeval.jsonl",
+		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
+			return longmemeval.NewLongMemEvalProcessor(store, logger)
 		},
 	)
 }
@@ -691,21 +708,7 @@ func runPrompts() {
 	logger.Info("Prompt formatting done", "documents", len(conversationDocs), "output", outputFile)
 }
 
-// FormattedPromptDocument wraps a pre-formatted prompt to implement the Document interface.
-type FormattedPromptDocument struct {
-	id      string
-	source  string
-	content string
-}
-
-func (fpd *FormattedPromptDocument) ID() string                  { return fpd.id }
-func (fpd *FormattedPromptDocument) Content() string             { return fpd.content }
-func (fpd *FormattedPromptDocument) Timestamp() *time.Time       { return nil }
-func (fpd *FormattedPromptDocument) Tags() []string              { return []string{} }
-func (fpd *FormattedPromptDocument) Metadata() map[string]string { return make(map[string]string) }
-func (fpd *FormattedPromptDocument) Source() string              { return fpd.source }
-func (fpd *FormattedPromptDocument) FilePath() string            { return "" }
-func (fpd *FormattedPromptDocument) Chunk() []memory.Document    { return []memory.Document{} }
+// Removed FormattedPromptDocument - using memory.TextDocument instead
 
 func runFacts() {
 	if os.Getenv("COMPLETIONS_API_KEY") == "" {
@@ -754,13 +757,13 @@ func runFacts() {
 		prompts = append(prompts, prompt)
 	}
 
-	// Convert formatted prompts to Document interface
+	// Convert formatted prompts to memory.TextDocument
 	var documents []memory.Document
 	for _, prompt := range prompts {
-		documents = append(documents, &FormattedPromptDocument{
-			id:      prompt.ID,
-			source:  prompt.Source,
-			content: prompt.Content, // Pre-formatted content with ||| delimiters and primaryUser
+		documents = append(documents, &memory.TextDocument{
+			FieldID:      prompt.ID,
+			FieldSource:  prompt.Source,
+			FieldContent: prompt.Content, // Pre-formatted content with ||| delimiters and primaryUser
 		})
 	}
 
@@ -798,10 +801,10 @@ func runFacts() {
 func runStore() {
 	logger.Info("Storing facts using production storage module")
 
-	// Find X_2 facts file
-	inputFile := findInputFile("pipeline_output/X_2_*.jsonl")
+	// Find X_3 facts file
+	inputFile := findInputFile("pipeline_output/X_3_*.jsonl")
 	if inputFile == "" {
-		logger.Error("No X_2 facts JSONL file found")
+		logger.Error("No X_3 facts JSONL file found")
 		os.Exit(1)
 	}
 

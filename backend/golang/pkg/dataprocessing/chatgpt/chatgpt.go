@@ -16,10 +16,30 @@ import (
 )
 
 type ChatGPTConversation struct {
-	Title      string                        `json:"title"`
-	CreateTime float64                       `json:"create_time"`
-	UpdateTime float64                       `json:"update_time"`
-	Mapping    map[string]ChatGPTMessageNode `json:"mapping"`
+	Title                  string                        `json:"title"`
+	CreateTime            float64                       `json:"create_time"`
+	UpdateTime            float64                       `json:"update_time"`
+	Mapping               map[string]ChatGPTMessageNode `json:"mapping"`
+	ModerationResults     []interface{}                 `json:"moderation_results"`
+	CurrentNode          string                        `json:"current_node"`
+	PluginIds            interface{}                   `json:"plugin_ids"`
+	ConversationId       string                        `json:"conversation_id"`
+	ConversationTemplateId interface{}                 `json:"conversation_template_id"`
+	GizmoId              interface{}                   `json:"gizmo_id"`
+	GizmoType            interface{}                   `json:"gizmo_type"`
+	IsArchived           bool                          `json:"is_archived"`
+	IsStarred            interface{}                   `json:"is_starred"`
+	SafeUrls             []string                      `json:"safe_urls"`
+	BlockedUrls          []string                      `json:"blocked_urls"`
+	DefaultModelSlug     string                        `json:"default_model_slug"`
+	ConversationOrigin   interface{}                   `json:"conversation_origin"`
+	Voice                interface{}                   `json:"voice"`
+	AsyncStatus          interface{}                   `json:"async_status"`
+	DisabledToolIds      []string                      `json:"disabled_tool_ids"`
+	IsDoNotRemember      bool                          `json:"is_do_not_remember"`
+	MemoryScope          string                        `json:"memory_scope"`
+	SugarItemId          interface{}                   `json:"sugar_item_id"`
+	Id                   string                        `json:"id"`
 }
 
 type ChatGPTMessageNode struct {

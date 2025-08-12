@@ -1719,21 +1719,37 @@ func (s *WeaviateStorage) StoreDocumentChunksBatch(ctx context.Context, chunks [
 		return nil
 	}
 
-	// Generate embeddings for all chunks
+	// Generate embeddings for all chunks with validation
 	var chunkContents []string
-	for _, chunk := range chunks {
-		chunkContents = append(chunkContents, chunk.Content)
+	var validChunkIndices []int
+	for i, chunk := range chunks {
+		content := chunk.Content
+		// Validate content before sending to embeddings API
+		if content != "" && len(strings.TrimSpace(content)) > 0 && len(content) <= 8000 { // OpenAI limit
+			chunkContents = append(chunkContents, content)
+			validChunkIndices = append(validChunkIndices, i)
+		} else {
+			s.logger.Warn("Skipping chunk with invalid content for embeddings", 
+				"chunk_id", chunk.ID, 
+				"content_length", len(content))
+		}
 	}
 
-	s.logger.Info("Generating embeddings for document chunks", "count", len(chunkContents))
+	if len(chunkContents) == 0 {
+		s.logger.Warn("No valid chunks to generate embeddings for")
+		return nil
+	}
+
+	s.logger.Info("Generating embeddings for document chunks", "count", len(chunkContents), "skipped", len(chunks)-len(chunkContents))
 	embeddings, err := s.embeddingsWrapper.Embeddings(ctx, chunkContents)
 	if err != nil {
 		return fmt.Errorf("failed to generate embeddings for document chunks: %w", err)
 	}
 
-	// Create Weaviate objects for chunks
+	// Create Weaviate objects for chunks (only for valid chunks)
 	var objects []*models.Object
-	for i, chunk := range chunks {
+	for i, chunkIndex := range validChunkIndices {
+		chunk := chunks[chunkIndex]
 		// Marshal metadata
 		metadataJSON, err := json.Marshal(chunk.Metadata)
 		if err != nil {
