@@ -109,8 +109,8 @@ Replace PII entities with semantically equivalent alternatives that preserve the
 If no PII is found or replacement is not needed, return an empty replacements list.
 
 REPLACEMENT RULES:
-• Personal names: Replace private or small-group individuals. Pick same culture + gender + era; keep surnames aligned across family members. DO NOT replace globally recognised public figures (heads of state, Nobel laureates, A-list entertainers, Fortune-500 CEOs, etc.).
-• Companies / organisations: Replace private, niche, employer & partner orgs. Invent a fictitious org in the same industry & size tier; keep legal suffix. Keep major public companies (anonymity set ≥ 1,000,000).
+• Personal names: Replace private or small-group individuals. Pick same culture + gender + era; keep surnames aligned across family members. DO NOT replace globally recognized public figures (heads of state, Nobel laureates, A-list entertainers, Fortune-500 CEOs, etc.).
+• Companies / organizations: Replace private, niche, employer & partner orgs. Invent a fictitious org in the same industry & size tier; keep legal suffix. Keep major public companies (anonymity set ≥ 1,000,000).
 • Projects / codenames / internal tools: Always replace with a neutral two-word alias of similar length.
 • Locations: Replace street addresses, buildings, villages & towns < 100k pop with a same-level synthetic location inside the same state/country. Keep big cities (≥ 1M), states, provinces, countries, iconic landmarks.
 • Dates & times: Replace birthdays, meeting invites, exact timestamps. Shift all dates in the prompt by one deterministic Δdays so ordering is preserved. DO NOT shift public holidays or famous historic dates ("July 4 1776", "Christmas Day", "9/11/2001", etc.). Keep years, fiscal quarters, decade references.
