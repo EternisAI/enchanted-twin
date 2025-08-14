@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "A personal AI interface focused on balancing privacy with state-of-the-art reasoning models.",
   "main": "./out/main/index.js",
-  "author": "Eternis Labs, Inc",
+  "author": "Eternis Lab Inc. | Enchanted • Freysa",
   "homepage": "https://eternis.ai",
   "scripts": {
     "format": "prettier --write .",

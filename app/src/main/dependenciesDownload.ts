@@ -6,6 +6,9 @@ import extract from 'extract-zip'
 import * as tar from 'tar'
 import { spawn } from 'child_process'
 import log from 'electron-log'
+import { windowManager } from './windows'
+import { DependencyName } from './types/dependencies'
+import { EMBEDDED_RUNTIME_DEPS_CONFIG } from './embeddedDepsConfig'
 
 // Helper type for dependency configuration (matching the readonly generated structure)
 type DependencyConfig = {
@@ -26,14 +29,17 @@ type DependencyConfig = {
     readonly libraries?: readonly string[]
     readonly dataFiles?: readonly string[]
   }
-  readonly platform_config?: Record<string, {
-    readonly type: string
-    readonly files?: {
-      readonly binaries?: readonly string[]
-      readonly libraries?: readonly string[]
-      readonly dataFiles?: readonly string[]
+  readonly platform_config?: Record<
+    string,
+    {
+      readonly type: string
+      readonly files?: {
+        readonly binaries?: readonly string[]
+        readonly libraries?: readonly string[]
+        readonly dataFiles?: readonly string[]
+      }
     }
-  }>
+  >
   readonly post_download?: {
     readonly chmod?: {
       readonly files: readonly string[]
@@ -43,9 +49,6 @@ type DependencyConfig = {
     readonly copy_from_global?: boolean
   }
 }
-import { windowManager } from './windows'
-import { DependencyName } from './types/dependencies'
-import { EMBEDDED_RUNTIME_DEPS_CONFIG } from './embeddedDepsConfig'
 
 const DEPENDENCIES_DIR = path.join(app.getPath('appData'), 'enchanted')
 
@@ -133,14 +136,16 @@ function createGenericInstaller(depName: DependencyName) {
         case 'platform_mixed': {
           const platformKey = getPlatformKey()
           const platformConfig = config.platform_config?.[platformKey]
-          
+
           if (!platformConfig) {
-            throw new Error(`No platform configuration found for ${platformKey} in dependency ${config.name}`)
+            throw new Error(
+              `No platform configuration found for ${platformKey} in dependency ${config.name}`
+            )
           }
 
           const platformType = platformConfig.type
           let url: string = typeof config.url === 'string' ? config.url : ''
-          
+
           if (typeof config.url === 'object' && config.url) {
             url = config.url[platformKey] || ''
           }
@@ -197,7 +202,7 @@ function createGenericInstaller(depName: DependencyName) {
                 downloadedBytes: downloaded
               })
             })
-            
+
             try {
               await extractTarGz(file, depDir)
             } catch (error) {
@@ -219,7 +224,7 @@ function createGenericInstaller(depName: DependencyName) {
                 downloadedBytes: downloaded
               })
             })
-            
+
             try {
               await extractTarXz(file, depDir)
             } catch (error) {
@@ -232,7 +237,9 @@ function createGenericInstaller(depName: DependencyName) {
               throw error
             }
           } else {
-            throw new Error(`Unsupported platform type '${platformType}' for platform_mixed dependency ${config.name}`)
+            throw new Error(
+              `Unsupported platform type '${platformType}' for platform_mixed dependency ${config.name}`
+            )
           }
 
           // Set executable permissions based on post_download config
@@ -674,7 +681,10 @@ function loadLzmaNative(): Promise<LzmaModule | null> {
       })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err)
-        log.warn('lzma-native not available, falling back to system tar for .xz extraction', message)
+        log.warn(
+          'lzma-native not available, falling back to system tar for .xz extraction',
+          message
+        )
         return null
       })
   }
@@ -715,10 +725,17 @@ async function extractTarXz(file: string, destDir: string) {
   return new Promise<void>((resolve, reject) => {
     const tarProc = spawn('tar', ['-xJf', file, '-C', destDir])
     let stderr = ''
-    tarProc.stderr.on('data', (d) => { stderr += d.toString() })
+    tarProc.stderr.on('data', (d) => {
+      stderr += d.toString()
+    })
     tarProc.on('close', (code) => {
-      try { fs.unlinkSync(file) } catch { /* ignore */ }
-      if (code === 0) resolve(); else reject(new Error(`tar -xJf failed (code ${code}): ${stderr}`))
+      try {
+        fs.unlinkSync(file)
+      } catch {
+        /* ignore */
+      }
+      if (code === 0) resolve()
+      else reject(new Error(`tar -xJf failed (code ${code}): ${stderr}`))
     })
     tarProc.on('error', (err) => reject(err))
   })

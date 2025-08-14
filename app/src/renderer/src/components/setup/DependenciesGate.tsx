@@ -190,6 +190,10 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
     if (allCompleted && !hasInitializedGoServer.current) {
       hasInitializedGoServer.current = true
       initializeIfNeeded()
+
+      if (process.env.NODE_ENV === 'development') {
+        startLlamaCpp()
+      }
     }
   }, [downloadState, initializeIfNeeded])
 
@@ -204,7 +208,7 @@ export default function DependenciesGate({ children }: { children: React.ReactNo
           startLlamaCpp()
         }
       }
-    }, 60000)
+    }, 30000)
 
     return () => clearInterval(interval)
   }, [startLlamaCpp, hasModelsDownloaded.llamaccp, hasModelsDownloaded.anonymizer])

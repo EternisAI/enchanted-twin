@@ -238,7 +238,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
     },
     "anonymizer": {
       "backend_download_enabled": true,
-      "url": "https://d3o88a4htgfnky.cloudfront.net/models/qwen3-4b_q4_k_m.zip",
+      "url": "https://dgbaewh9qedok.cloudfront.net/models/qwen3-06b-q4_K_M-2025-08-04.zip",
       "name": "anonymizer",
       "display_name": "Anonymizer model",
       "description": "Enchanted keeps your data private",
@@ -246,8 +246,7 @@ export const EMBEDDED_RUNTIME_DEPS_CONFIG = {
       "dir": "{DEPENDENCIES_DIR}/models/anonymizer",
       "type": "zip",
       "validation_files": [
-        "qwen3-0.6b-q4_k_m.gguf",
-        "qwen3-4b_q4_k_m.gguf"
+        "qwen3-06b-q4_K_M-2025-080-04.gguf"
       ],
       "post_download": {
         "cleanup": [

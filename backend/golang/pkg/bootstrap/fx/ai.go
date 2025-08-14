@@ -3,6 +3,7 @@ package fx
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/charmbracelet/log"
@@ -25,6 +26,9 @@ var AIModule = fx.Module("ai",
 		ProvideAnonymizerManager,
 		ProvidePrivateCompletionsService,
 	),
+    fx.Invoke(LogAnonymizerStartupBanner),
+    fx.Invoke(ActivateAnonymizerManager),
+    fx.Invoke(ActivatePrivateCompletionsService),
 )
 
 // FirebaseTokenGetter provides token retrieval function.
@@ -120,7 +124,15 @@ func ProvideAnonymizerManager(
 	store *db.Store,
 	completionsService *ai.Service,
 ) AnonymizerManagerResult {
-	logger.Info("Initializing anonymizer", "type", envs.AnonymizerType)
+	// High-visibility banner for anonymizer configuration
+	logger.Info("==================== ANONYMIZER ====================")
+	if val, ok := os.LookupEnv("ANONYMIZER_TYPE"); ok {
+		logger.Info("Environment variable", "ANONYMIZER_TYPE", val)
+	} else {
+		logger.Info("Environment variable", "ANONYMIZER_TYPE", "(unset)")
+	}
+	logger.Info("Effective anonymizer type", "type", envs.AnonymizerType)
+	logger.Info("=====================================================")
 
 	var anonymizerManager *ai.AnonymizerManager
 	var localAnonymizer *ollama.OllamaClient
@@ -129,6 +141,11 @@ func ProvideAnonymizerManager(
 	case "local":
 		logger.Info("Using local anonymizer model")
 		localAnonymizer = ollama.NewOllamaClient("http://localhost:11435", "qwen3-0.6b-q4_k_m", logger)
+		if err := localAnonymizer.Ping(context.Background()); err != nil {
+			logger.Error("Local anonymizer health check failed", "error", err)
+		} else {
+			logger.Info("Local anonymizer is reachable")
+		}
 		logger.Info("Local anonymizer model initialized successfully")
 		anonymizerManager = ai.NewLocalAnonymizerManager(localAnonymizer, store.DB().DB, logger)
 
@@ -175,6 +192,18 @@ func ProvideAnonymizerManager(
 		AnonymizerManager: anonymizerManager,
 		LocalAnonymizer:   localAnonymizer,
 	}
+}
+
+// LogAnonymizerStartupBanner prints a clear, early banner with anonymizer config.
+func LogAnonymizerStartupBanner(logger *log.Logger, envs *config.Config) {
+    logger.Info("==================== ANONYMIZER ====================")
+    if val, ok := os.LookupEnv("ANONYMIZER_TYPE"); ok {
+        logger.Info("Environment variable", "ANONYMIZER_TYPE", val)
+    } else {
+        logger.Info("Environment variable", "ANONYMIZER_TYPE", "(unset)")
+    }
+    logger.Info("Effective anonymizer type", "type", envs.AnonymizerType)
+    logger.Info("=====================================================")
 }
 
 // PrivateCompletionsServiceResult provides private completions service.
@@ -227,4 +256,22 @@ func ProvidePrivateCompletionsService(params PrivateCompletionsServiceParams) (P
 	}
 
 	return PrivateCompletionsServiceResult{PrivateCompletionsService: privateCompletionsService}, nil
+}
+
+// ActivateAnonymizerManager forces construction of the anonymizer manager and logs its status.
+func ActivateAnonymizerManager(logger *log.Logger, manager *ai.AnonymizerManager) {
+    if manager != nil {
+        logger.Info("Anonymizer manager initialized and active")
+    } else {
+        logger.Info("Anonymizer manager not initialized (no-op mode)")
+    }
+}
+
+// ActivatePrivateCompletionsService forces construction of the private completions service and logs its status.
+func ActivatePrivateCompletionsService(logger *log.Logger, service *ai.PrivateCompletionsService) {
+    if service != nil {
+        logger.Info("Private completions service enabled (activation log)")
+    } else {
+        logger.Info("Private completions service disabled (activation log)")
+    }
 }

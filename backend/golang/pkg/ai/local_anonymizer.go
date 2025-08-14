@@ -55,7 +55,7 @@ func (l *LocalAnonymizer) anonymizeInMemory(ctx context.Context, messages []open
 	anonymizedMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
 	newRules := make(map[string]string)
 
-	for i, message := range messages {
+    for i, message := range messages {
 		// Check for interruption
 		select {
 		case <-ctx.Done():
@@ -76,13 +76,15 @@ func (l *LocalAnonymizer) anonymizeInMemory(ctx context.Context, messages []open
 		shouldAnonymize := l.shouldAnonymizeContent(content, workingDict)
 
 		var nameReplacements map[string]string
-		if shouldAnonymize {
+        if shouldAnonymize {
+            l.logger.Info("[Privacy] Anonymizing message locally")
 			// Use local LLM to find new names/entities
 			var err error
 			nameReplacements, err = l.llama.Anonymize(ctx, content)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to anonymize message content: %w", err)
 			}
+            l.logger.Info("[Privacy] Anonymizer replacements", "count", len(nameReplacements))
 		} else {
 			nameReplacements = make(map[string]string)
 		}
@@ -113,7 +115,12 @@ func (l *LocalAnonymizer) anonymizeInMemory(ctx context.Context, messages []open
 		}
 
 		// Apply all known replacements to the message
-		anonymizedContent := l.applyReplacements(content, workingDict)
+        anonymizedContent := l.applyReplacements(content, workingDict)
+        if anonymizedContent != content {
+            l.logger.Info("[Privacy] Applied anonymization to message")
+        } else {
+            l.logger.Info("[Privacy] No changes after anonymization (content unchanged)")
+        }
 		anonymizedMessages[i] = l.replaceMessageContent(message, anonymizedContent)
 	}
 
@@ -126,7 +133,7 @@ func (l *LocalAnonymizer) anonymizeInMemory(ctx context.Context, messages []open
 	// Resolve any chain mappings in the dictionary
 	updatedDict = l.resolveChainMappings(updatedDict)
 
-	l.logger.Debug("Memory-only local anonymization complete", "messageCount", len(messages), "newRulesCount", len(newRules))
+    l.logger.Info("[Privacy] Local anonymization complete", "messageCount", len(messages), "newRulesCount", len(newRules))
 	return anonymizedMessages, updatedDict, newRules, nil
 }
 
