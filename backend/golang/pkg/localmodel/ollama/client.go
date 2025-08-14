@@ -54,10 +54,10 @@ var replaceEntitiesTool = openai.ChatCompletionToolParam{
 }
 
 type OllamaClient struct {
-	client *openai.Client
-	model  string
-	logger *log.Logger
-    baseURL string
+	client  *openai.Client
+	model   string
+	logger  *log.Logger
+	baseURL string
 }
 
 func NewOllamaClient(baseURL string, model string, logger *log.Logger) *OllamaClient {
@@ -92,13 +92,13 @@ func prettifyConnectionError(err error) error {
 		}
 	}
 
-    if strings.Contains(err.Error(), "connection refused") {
+	if strings.Contains(err.Error(), "connection refused") {
 		return errors.New("anonymiser is not running")
 	}
 
-    if strings.Contains(strings.ToLower(err.Error()), "404") || strings.Contains(strings.ToLower(err.Error()), "not found") {
-        return errors.New("anonymiser endpoint not found (did you include '/v1' in the base URL?)")
-    }
+	if strings.Contains(strings.ToLower(err.Error()), "404") || strings.Contains(strings.ToLower(err.Error()), "not found") {
+		return errors.New("anonymiser endpoint not found (did you include '/v1' in the base URL?)")
+	}
 
 	return err
 }
