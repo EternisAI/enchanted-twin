@@ -81,14 +81,14 @@ func (s *PrivateCompletionsService) Completions(ctx context.Context, messages []
 }
 
 func (s *PrivateCompletionsService) CompletionsWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
-	s.logger.Debug("Starting private completion processing", "model", model, "conversationID", conversationID, "messageCount", len(messages), "toolCount", len(tools), "priority", priority)
+	s.logger.Info("[Privacy] Starting private completion", "model", model, "conversationID", conversationID, "messageCount", len(messages), "toolCount", len(tools), "priority", priority)
 
 	anonymizedMessages, allRules, err := s.scheduleAnonymization(ctx, conversationID, messages, priority)
 	if err != nil {
 		return PrivateCompletionResult{}, fmt.Errorf("failed to anonymize messages: %w", err)
 	}
 
-	s.logger.Debug("Calling underlying completions service with anonymized content")
+	s.logger.Info("[Privacy] Calling completions with anonymized content")
 
 	var completionMessage openai.ChatCompletionMessage
 
@@ -110,7 +110,7 @@ func (s *PrivateCompletionsService) CompletionsWithContext(ctx context.Context, 
 
 	deAnonymizedMessage := s.deAnonymizeMessage(completionMessage, allRules)
 
-	s.logger.Debug("Private completion processing complete", "originalRulesCount", len(allRules))
+	s.logger.Info("[Privacy] Private completion done", "rulesCount", len(allRules))
 
 	return PrivateCompletionResult{
 		Message:          deAnonymizedMessage,

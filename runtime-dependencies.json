@@ -3,11 +3,7 @@
     "darwin_postgres": {
       "type": "individual_files",
       "files": {
-        "binaries": [
-          "bin/postgres",
-          "bin/initdb", 
-          "bin/pg_ctl"
-        ],
+        "binaries": ["bin/postgres", "bin/initdb", "bin/pg_ctl"],
         "libraries": [
           "lib/libpq.5.dylib",
           "lib/libpq.dylib",
@@ -33,7 +29,7 @@
           "share/postgresql/pg_service.conf.sample",
           "share/postgresql/psqlrc.sample",
           "share/postgresql/system_constraints.sql",
-          "share/postgresql/system_functions.sql", 
+          "share/postgresql/system_functions.sql",
           "share/postgresql/system_views.sql",
           "share/postgresql/sql_features.txt",
           "share/postgresql/snowball_create.sql",
@@ -175,14 +171,14 @@
     },
     "anonymizer": {
       "backend_download_enabled": true,
-      "url": "https://d3o88a4htgfnky.cloudfront.net/models/qwen3-4b_q4_k_m.zip",
+      "url": "https://dgbaewh9qedok.cloudfront.net/models/qwen3-06b-q4_K_M-2025-08-04.zip",
       "name": "anonymizer",
       "display_name": "Anonymizer model",
       "description": "Enchanted keeps your data private",
       "category": "model",
       "dir": "{DEPENDENCIES_DIR}/models/anonymizer",
       "type": "zip",
-      "validation_files": ["qwen3-0.6b-q4_k_m.gguf", "qwen3-4b_q4_k_m.gguf"],
+      "validation_files": ["qwen3-06b-q4_K_M-2025-080-04.gguf"],
       "post_download": {
         "cleanup": ["*.zip"]
       }
@@ -202,9 +198,13 @@
       "type": "tar.gz",
       "platform_url_key": true,
       "validation_files": {
-        "darwin-arm64": ["onnxruntime-osx-arm64-1.22.0/lib/libonnxruntime.dylib"],
+        "darwin-arm64": [
+          "onnxruntime-osx-arm64-1.22.0/lib/libonnxruntime.dylib"
+        ],
         "linux-x64": ["onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so"],
-        "linux-arm64": ["onnxruntime-linux-aarch64-1.22.0/lib/libonnxruntime.so"]
+        "linux-arm64": [
+          "onnxruntime-linux-aarch64-1.22.0/lib/libonnxruntime.so"
+        ]
       },
       "post_download": {
         "cleanup": ["*.tgz"]
@@ -217,7 +217,7 @@
       "display_name": "LLM engine",
       "description": "",
       "category": "infrastructure",
-      "dir": "{DEPENDENCIES_DIR}/shared/lib/llamaccp", 
+      "dir": "{DEPENDENCIES_DIR}/shared/lib/llamaccp",
       "type": "zip",
       "validation_files": ["build"],
       "post_download": {
@@ -235,7 +235,7 @@
       "type": "curl_script",
       "install_script": "curl -LsSf https://astral.sh/uv/install.sh | sh",
       "validation_files": {
-        "win32": ["uv.exe"],  
+        "win32": ["uv.exe"],
         "default": ["uv"]
       },
       "validation_condition": "platform_specific_binary",
@@ -249,7 +249,7 @@
   },
   "platform_mappings": {
     "darwin": "macos",
-    "linux": "linux", 
+    "linux": "linux",
     "win32": "windows"
   }
 }

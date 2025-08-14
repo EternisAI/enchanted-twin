@@ -40,31 +40,39 @@ export class LlamaCppServerManager {
       this.model4bPath,
       '--flash-attn',
       '--ctx-size',
-      '8192',
+      '4096',
       '--cache-type-k',
-      'q4_0',
+      'q8_0',
       '--cache-type-v',
-      'q4_0',
+      'q8_0',
       '-ngl',
       '99',
+      '--draft-max',
+      '12',
+      '--draft-min',
+      '8',
+      '--draft-p-min',
+      '0.5',
+      '-b',
+      '4096',
+      '--ubatch-size',
+      '1536',
+      '--reasoning-format',
+      'none',
+      '--reasoning-budget',
+      '0',
+      '--kv-unified',
+      '--mlock',
       '-t',
       '-1',
-      '-b',
-      '2048',
-      '--mlock',
+      '-tb',
+      '4',
+      '--poll',
+      '0',
       '--port',
       this.port.toString(),
       '--jinja'
     ]
-
-    // Add 0.6b model arguments if 0.6b model is available
-    if (this.model06bPath) {
-      args.push('-md', this.model06bPath)
-      args.push('-ngld', '99')
-      args.push('--draft-max', '12')
-      args.push('--draft-min', '1')
-      args.push('--draft-p-min', '0.9')
-    }
 
     this.childProcess = spawn(llamaServerPath, args, {
       cwd: path.dirname(llamaServerPath),
@@ -174,15 +182,15 @@ export async function startLlamaCppSetup(): Promise<void> {
     }
 
     const modelDir = getDependencyPath('anonymizer')
-    const { model4b, model06b } = findModelFiles(modelDir)
+    const { model06b } = findModelFiles(modelDir)
 
-    if (!model4b) {
-      log.warn('[LlamaCpp] No 4b GGUF model file found in anonymizer directory, skipping setup')
+    if (!model06b) {
+      log.warn('[LlamaCpp] No 6gb GGUF model file found in anonymizer directory, skipping setup')
       return
     }
 
     if (!llamaCppInstance) {
-      llamaCppInstance = new LlamaCppServerManager(model4b, model06b, 11435)
+      llamaCppInstance = new LlamaCppServerManager(model06b, null, 11435)
     }
 
     await llamaCppInstance.run()
@@ -228,25 +236,17 @@ function findModelFiles(modelDir: string): { model4b: string | null; model06b: s
       return { model4b: null, model06b: null }
     }
 
-    const model4b = ggufs.find(
-      (file) =>
-        file.toLowerCase().includes('qwen') &&
-        (file.toLowerCase().includes('4b') || file.toLowerCase().includes('4-b'))
-    )
+    const model17b = ggufs.find((file) => file.toLowerCase().includes('qwen3-17b'))
 
-    const model06b = ggufs.find(
-      (file) =>
-        file.toLowerCase().includes('qwen') &&
-        (file.toLowerCase().includes('0.6b') || file.toLowerCase().includes('0.6-b'))
-    )
+    const model06b = ggufs.find((file) => file.toLowerCase().includes('qwen3-06b'))
 
-    const model4bPath = model4b ? path.join(modelDir, model4b) : null
+    const model17bPath = model17b ? path.join(modelDir, model17b) : null
     const model06bPath = model06b ? path.join(modelDir, model06b) : null
 
-    log.info(`[LlamaCpp] Found 4b model: ${model4bPath}`)
+    log.info(`[LlamaCpp] Found 17b model: ${model17bPath}`)
     log.info(`[LlamaCpp] Found 0.6b model: ${model06bPath}`)
 
-    return { model4b: model4bPath, model06b: model06bPath }
+    return { model4b: model17bPath, model06b: model06bPath }
   } catch (error) {
     log.error(`[LlamaCpp] Error searching for model files in ${modelDir}:`, error)
     return { model4b: null, model06b: null }
