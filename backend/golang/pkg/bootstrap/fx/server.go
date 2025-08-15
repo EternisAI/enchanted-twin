@@ -10,7 +10,6 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/directorywatcher"
@@ -49,7 +49,7 @@ type GraphQLServerResult struct {
 // GraphQLServerParams holds parameters for GraphQL server.
 type GraphQLServerParams struct {
 	fx.In
-	Logger             *log.Logger
+	LoggerFactory      *bootstrap.LoggerFactory
 	Config             *config.Config
 	TemporalClient     client.Client
 	TwinChatService    *twinchat.Service
@@ -65,7 +65,8 @@ type GraphQLServerParams struct {
 
 // ProvideGraphQLServer creates GraphQL server with all dependencies.
 func ProvideGraphQLServer(params GraphQLServerParams) GraphQLServerResult {
-	params.Logger.Info("Creating GraphQL server")
+	logger := params.LoggerFactory.ForServer("graphql.server")
+	logger.Info("Creating GraphQL server")
 
 	router := chi.NewRouter()
 	router.Use(cors.New(cors.Options{
@@ -76,7 +77,7 @@ func ProvideGraphQLServer(params GraphQLServerParams) GraphQLServerResult {
 	}).Handler)
 
 	resolver := &graph.Resolver{
-		Logger:                 params.Logger,
+		Logger:                 logger,
 		TemporalClient:         params.TemporalClient,
 		TwinChatService:        params.TwinChatService,
 		Nc:                     params.NATSConn,
@@ -114,7 +115,7 @@ func ProvideGraphQLServer(params GraphQLServerParams) GraphQLServerResult {
 
 		if resp != nil && resp.Errors != nil && len(resp.Errors) > 0 {
 			oc := graphql.GetOperationContext(ctx)
-			params.Logger.Error(
+			logger.Error(
 				"gql error",
 				"operation_name",
 				oc.OperationName,
@@ -133,7 +134,7 @@ func ProvideGraphQLServer(params GraphQLServerParams) GraphQLServerResult {
 	router.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	router.Handle("/query", srv)
 
-	params.Logger.Info("GraphQL server created successfully")
+	logger.Info("GraphQL server created successfully")
 	return GraphQLServerResult{Router: router}
 }
 
@@ -148,14 +149,15 @@ func gqlSchema(resolver *graph.Resolver) graphql.ExecutableSchema {
 // StartGraphQLServerParams holds parameters for starting GraphQL server.
 type StartGraphQLServerParams struct {
 	fx.In
-	Lifecycle fx.Lifecycle
-	Logger    *log.Logger
-	Config    *config.Config
-	Router    *chi.Mux
+	Lifecycle     fx.Lifecycle
+	LoggerFactory *bootstrap.LoggerFactory
+	Config        *config.Config
+	Router        *chi.Mux
 }
 
 // StartGraphQLServer starts the HTTP server.
 func StartGraphQLServer(params StartGraphQLServerParams) {
+	logger := params.LoggerFactory.ForServer("graphql.http")
 	var server *http.Server
 
 	params.Lifecycle.Append(fx.Hook{
@@ -166,16 +168,16 @@ func StartGraphQLServer(params StartGraphQLServerParams) {
 			}
 
 			go func() {
-				params.Logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+params.Config.GraphqlPort)
+				logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+params.Config.GraphqlPort)
 				err := server.ListenAndServe()
 				if err != nil && err != http.ErrServerClosed {
-					params.Logger.Error("HTTP server error", "error", err)
+					logger.Error("HTTP server error", "error", err)
 				}
 			}()
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			params.Logger.Info("Shutting down GraphQL HTTP server")
+			logger.Info("Shutting down GraphQL HTTP server")
 			if server != nil {
 				return server.Shutdown(ctx)
 			}

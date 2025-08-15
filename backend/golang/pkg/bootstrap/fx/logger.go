@@ -13,9 +13,10 @@ type CharmLogger struct {
 	logger *log.Logger
 }
 
-// NewCharmLogger creates a new fx logger that uses charmbracelet logger.
-func NewCharmLogger(logger *log.Logger) fxevent.Logger {
-	return &CharmLogger{logger: logger}
+// NewCharmLoggerWithComponent creates a new fx logger with a specific component.
+func NewCharmLoggerWithComponent(logger *log.Logger, component string) fxevent.Logger {
+	componentLogger := logger.With("component", component)
+	return &CharmLogger{logger: componentLogger}
 }
 
 // LogEvent implements fxevent.Logger interface.

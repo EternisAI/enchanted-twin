@@ -55,6 +55,21 @@ jobs:
           args: --timeout=10m
           only-new-issues: true
 
+      - name: Generate components
+        run: make components-generate
+
+      - name: Check for uncommitted changes
+        run: |
+          if ! git diff --exit-code pkg/bootstrap/components_generated.go; then
+            echo "❌ Generated components file is out of date! Run 'make components-generate' and commit the changes."
+            echo ""
+            echo "Diff:"
+            git diff pkg/bootstrap/components_generated.go
+            exit 1
+          else
+            echo "✅ Generated components file is up to date"
+          fi
+
       - name: Build
         run: make build
 

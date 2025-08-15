@@ -1,13 +1,13 @@
 package fx
 
 import (
-	"github.com/charmbracelet/log"
 	"go.uber.org/fx"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 )
 
@@ -27,12 +27,13 @@ type EvolvingMemoryResult struct {
 
 // ProvideEvolvingMemory creates evolving memory with all dependencies.
 func ProvideEvolvingMemory(
-	logger *log.Logger,
+	loggerFactory *bootstrap.LoggerFactory,
 	envs *config.Config,
 	completionsService *ai.Service,
 	embeddingWrapper *storage.EmbeddingWrapper,
 	storageInterface storage.Interface,
 ) (EvolvingMemoryResult, error) {
+	logger := loggerFactory.ForMemory("evolving.memory")
 	logger.Info("Creating evolving memory", "backend", envs.MemoryBackend)
 
 	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{

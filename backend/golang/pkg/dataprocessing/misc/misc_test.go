@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	testutils "github.com/EternisAI/enchanted-twin/pkg/testing"
 )
 
 func TestWordDocumentExtraction(t *testing.T) {
@@ -27,7 +29,7 @@ func TestWordDocumentExtraction(t *testing.T) {
 		t.Skip("Integration test file not found, skipping Word document extraction test")
 	}
 
-	logger := log.New(os.Stderr)
+	logger := testutils.GetTestLogger("misc.test")
 	logger.SetLevel(log.DebugLevel)
 
 	textProcessor := &TextDocumentProcessor{

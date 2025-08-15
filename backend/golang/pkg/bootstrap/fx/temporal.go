@@ -47,9 +47,10 @@ type TemporalClientResult struct {
 // ProvideTemporalClient creates and starts Temporal server and client.
 func ProvideTemporalClient(
 	lc fx.Lifecycle,
-	logger *log.Logger,
+	loggerFactory *bootstrap.LoggerFactory,
 	envs *config.Config,
 ) (TemporalClientResult, error) {
+	logger := loggerFactory.ForTemporal("temporal.client")
 	logger.Info("Starting Temporal server")
 
 	// Create a cancellable context for the Temporal server
@@ -93,6 +94,7 @@ type TemporalWorkerParams struct {
 	fx.In
 	Lifecycle            fx.Lifecycle
 	Logger               *log.Logger
+	LoggerFactory        *bootstrap.LoggerFactory
 	Config               *config.Config
 	TemporalClient       client.Client
 	Store                *db.Store
@@ -105,7 +107,8 @@ type TemporalWorkerParams struct {
 
 // ProvideTemporalWorker creates and starts Temporal worker with all activities.
 func ProvideTemporalWorker(params TemporalWorkerParams) (TemporalWorkerResult, error) {
-	params.Logger.Info("Creating Temporal worker")
+	logger := params.LoggerFactory.ForTemporal("temporal.worker")
+	logger.Info("Creating Temporal worker")
 
 	w := worker.New(params.TemporalClient, "default", worker.Options{
 		MaxConcurrentActivityExecutionSize: 3,
@@ -113,7 +116,7 @@ func ProvideTemporalWorker(params TemporalWorkerParams) (TemporalWorkerResult, e
 
 	// Register data processing workflow
 	dataProcessingWorkflow := workflows.DataProcessingWorkflows{
-		Logger:        params.Logger,
+		Logger:        logger,
 		Config:        params.Config,
 		Store:         params.Store,
 		Nc:            params.NATSConn,
@@ -141,29 +144,29 @@ func ProvideTemporalWorker(params TemporalWorkerParams) (TemporalWorkerResult, e
 	schedulerActivities.RegisterWorkflowsAndActivities(w)
 
 	// Register identity activities
-	identityActivities := identity.NewIdentityActivities(params.Logger, params.Memory, params.CompletionsService, params.Config.CompletionsModel)
+	identityActivities := identity.NewIdentityActivities(logger, params.Memory, params.CompletionsService, params.Config.CompletionsModel)
 	identityActivities.RegisterWorkflowsAndActivities(w)
 
 	// Register holon sync activities
-	holonManager := holon.NewManager(params.Store, holon.DefaultManagerConfig(), params.Logger, params.TemporalClient, w)
-	holonSyncActivities := holon.NewHolonSyncActivities(params.Logger, holonManager)
+	holonManager := holon.NewManager(params.Store, holon.DefaultManagerConfig(), params.LoggerFactory, params.TemporalClient, w)
+	holonSyncActivities := holon.NewHolonSyncActivities(logger, holonManager)
 	holonSyncActivities.RegisterWorkflowsAndActivities(w)
 
 	err := w.Start()
 	if err != nil {
-		params.Logger.Error("Error starting worker", "error", err)
+		logger.Error("Error starting worker", "error", err)
 		return TemporalWorkerResult{}, err
 	}
 
 	params.Lifecycle.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			params.Logger.Info("Stopping Temporal worker")
+			logger.Info("Stopping Temporal worker")
 			w.Stop()
 			return nil
 		},
 	})
 
-	params.Logger.Info("Temporal worker started successfully")
+	logger.Info("Temporal worker started successfully")
 	return TemporalWorkerResult{TemporalWorker: w}, nil
 }
 
@@ -182,23 +185,24 @@ func ProvideNotificationsService(nc *nats.Conn) NotificationsServiceResult {
 // PeriodicWorkflowsParams holds parameters for periodic workflows setup.
 type PeriodicWorkflowsParams struct {
 	fx.In
-	Logger         *log.Logger
+	LoggerFactory  *bootstrap.LoggerFactory
 	TemporalClient client.Client
 }
 
 // SetupPeriodicWorkflows sets up periodic Temporal workflows.
 func SetupPeriodicWorkflows(params PeriodicWorkflowsParams) error {
-	params.Logger.Info("Setting up periodic workflows")
+	logger := params.LoggerFactory.ForTemporal("temporal.scheduler")
+	logger.Info("Setting up periodic workflows")
 
-	err := helpers.DeleteScheduleIfExists(params.Logger, params.TemporalClient, identity.PersonalityWorkflowID)
+	err := helpers.DeleteScheduleIfExists(logger, params.TemporalClient, identity.PersonalityWorkflowID)
 	if err != nil {
 		// Log as warning and continue - schedule deletion is not critical for setup
-		params.Logger.Warn("Failed to delete identity personality workflow - continuing without it", "error", err)
+		logger.Warn("Failed to delete identity personality workflow - continuing without it", "error", err)
 	}
 
 	// Create holon sync schedule with override flag to ensure it uses the updated 30-second interval
 	err = helpers.CreateOrUpdateSchedule(
-		params.Logger,
+		logger,
 		params.TemporalClient,
 		"holon-sync-schedule",
 		30*time.Second, // Use updated 30-second interval
@@ -208,10 +212,10 @@ func SetupPeriodicWorkflows(params PeriodicWorkflowsParams) error {
 	)
 	if err != nil {
 		// Return error immediately - schedule creation is critical for periodic workflows
-		params.Logger.Error("Failed to create holon sync schedule", "error", err)
+		logger.Error("Failed to create holon sync schedule", "error", err)
 		return err
 	}
 
-	params.Logger.Info("Periodic workflows setup completed")
+	logger.Info("Periodic workflows setup completed")
 	return nil
 }

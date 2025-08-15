@@ -12,6 +12,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -37,14 +38,16 @@ type Service struct {
 	completionsModel    string
 }
 
-// NewServiceWithLogger creates a new holon service with a logger.
 func NewServiceWithLogger(store *db.Store, logger *clog.Logger) *Service {
 	return NewServiceWithConfig(store, logger, "")
 }
 
-// NewServiceWithConfig creates a new holon service with logger and API URL.
+func NewServiceWithLoggerFactory(store *db.Store, loggerFactory *bootstrap.LoggerFactory) *Service {
+	logger := loggerFactory.ForService("holon.service.main")
+	return NewServiceWithConfig(store, logger, "")
+}
+
 func NewServiceWithConfig(store *db.Store, logger *clog.Logger, holonAPIURL string) *Service {
-	// Use default URL if not provided
 	if holonAPIURL == "" {
 		if value := os.Getenv("HOLON_API_URL"); value != "" {
 			holonAPIURL = value
@@ -60,35 +63,28 @@ func NewServiceWithConfig(store *db.Store, logger *clog.Logger, holonAPIURL stri
 		holonAPIURL: holonAPIURL,
 	}
 
-	// Attempt remote authentication during initialization if Google OAuth token is available
 	ctx := context.Background()
 	if err := service.performRemoteAuth(ctx); err != nil {
 		if logger != nil {
 			logger.Debug("Remote authentication not performed during service initialization", "error", err)
 		}
-		// Don't fail service creation if remote auth fails
 	}
 
 	return service
 }
 
-// performRemoteAuth attempts to authenticate with the holon network using Google OAuth token.
 func (s *Service) performRemoteAuth(ctx context.Context) error {
-	// Check if we already have authentication info
 	if s.isAuthenticated {
 		return nil
 	}
 
-	// Use configured API URL
 	apiURL := s.holonAPIURL
 
-	// Attempt to authenticate with HolonZero API
 	authResp, err := AuthenticateWithHolonZero(ctx, apiURL, s.store, s.logger)
 	if err != nil {
 		return fmt.Errorf("failed to authenticate with holon network: %w", err)
 	}
 
-	// Store authentication info
 	s.participantID = &authResp.ID
 	s.displayName = &authResp.DisplayName
 	s.isAuthenticated = true
@@ -103,12 +99,10 @@ func (s *Service) performRemoteAuth(ctx context.Context) error {
 	return nil
 }
 
-// GetParticipantInfo returns the authenticated participant information.
 func (s *Service) GetParticipantInfo() (participantID *int, displayName *string, isAuthenticated bool) {
 	return s.participantID, s.displayName, s.isAuthenticated
 }
 
-// EnsureAuthenticated attempts to authenticate if not already done.
 func (s *Service) EnsureAuthenticated(ctx context.Context) error {
 	if s.isAuthenticated {
 		return nil
@@ -136,7 +130,9 @@ func (s *Service) GetThread(ctx context.Context, threadID string) (*model.Thread
 	}
 
 	if err := s.repo.IncrementThreadViews(ctx, threadID); err != nil {
-		fmt.Println("failed to increment thread views", err)
+		if s.logger != nil {
+			s.logger.Error("failed to increment thread views", "thread_id", threadID, "error", err)
+		}
 	}
 
 	return thread, nil

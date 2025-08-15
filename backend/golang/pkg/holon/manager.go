@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	clog "github.com/charmbracelet/log"
+	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -30,7 +30,7 @@ type Manager struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	wg              sync.WaitGroup
-	logger          *clog.Logger
+	logger          *log.Logger
 	temporalClient  client.Client
 	scheduleEnabled bool
 	natsClient      *nats.Conn
@@ -73,17 +73,16 @@ func DefaultManagerConfig() ManagerConfig {
 }
 
 // NewManager creates a new holon manager with the given configuration.
-func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temporalClient client.Client, worker worker.Worker) *Manager {
+func NewManager(store *db.Store, config ManagerConfig, loggerFactory *bootstrap.LoggerFactory, temporalClient client.Client, worker worker.Worker) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Create a child logger to avoid modifying the shared logger instance
-	effectiveLogger := logger.With("component", "holon-manager")
+	logger := loggerFactory.ForManager("holon.manager")
+
 	if !config.EnableLogging {
-		// Set the child logger to only show errors and above
-		effectiveLogger.SetLevel(clog.ErrorLevel)
+		logger.SetLevel(log.ErrorLevel)
 	}
 
-	service := NewServiceWithLogger(store, effectiveLogger)
+	service := NewServiceWithLogger(store, logger)
 
 	var fetcherService *FetcherService
 	if config.HolonAPIURL != "" {
@@ -95,22 +94,21 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 			RetryDelay:    config.RetryDelay,
 			EnableLogging: config.EnableLogging,
 		}
-		fetcherService = NewFetcherService(store, fetcherConfig, effectiveLogger)
+		fetcherService = NewFetcherService(store, fetcherConfig, logger)
 		if fetcherService == nil {
-			effectiveLogger.Error("Failed to create FetcherService - store is nil")
+			logger.Error("Failed to create FetcherService - store is nil")
 			cancel()
 			return nil
 		}
 	}
 
-	// Initialize NATS client
 	var natsClient *nats.Conn
 	nc, err := bootstrap.NewNatsClient()
 	if err != nil {
-		effectiveLogger.Error("Failed to create NATS client for holon manager", "error", err)
+		logger.Error("Failed to create NATS client for holon manager", "error", err)
 	} else {
 		natsClient = nc
-		effectiveLogger.Debug("NATS client initialized for holon manager")
+		logger.Debug("NATS client initialized for holon manager")
 	}
 
 	manager := &Manager{
@@ -120,15 +118,14 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 		config:          config,
 		ctx:             ctx,
 		cancel:          cancel,
-		logger:          effectiveLogger, // Use the effective logger (filtered if needed)
+		logger:          logger,
 		temporalClient:  temporalClient,
 		scheduleEnabled: temporalClient != nil,
 		natsClient:      natsClient,
 	}
 
-	// Create sync activities if Temporal is enabled
 	if manager.scheduleEnabled {
-		manager.syncActivities = NewHolonSyncActivities(effectiveLogger, manager)
+		manager.syncActivities = NewHolonSyncActivities(logger, manager)
 	}
 
 	return manager
@@ -136,45 +133,39 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 
 // Start initializes and starts all holon services.
 func (m *Manager) Start() error {
-	m.logger.Debug("Starting Holon Manager...")
+	m.logger.Debug("Starting Holon Manager...", "operation", "start")
 
-	// Setup NATS subscription for OAuth refresh events
 	if err := m.setupNATSSubscription(); err != nil {
-		m.logger.Error("Failed to setup NATS subscription", "error", err)
-		// Don't fail completely, just log the error
+		m.logger.Error("Failed to setup NATS subscription", "operation", "setup_nats", "error", err)
 	}
 
-	// Setup Temporal schedule if enabled
 	if m.scheduleEnabled {
 		if err := m.setupTemporalSchedule(); err != nil {
-			m.logger.Error("Failed to setup Temporal schedule", "error", err)
-			// Don't fail completely, fall back to ticker-based sync
+			m.logger.Error("Failed to setup Temporal schedule", "operation", "setup_temporal", "error", err)
 			m.scheduleEnabled = false
 		} else {
-			m.logger.Debug("Holon Temporal schedule configured successfully")
+			m.logger.Debug("Holon Temporal schedule configured successfully", "operation", "setup_temporal")
 		}
 	}
 
-	// Start the fetcher service if enabled and Temporal schedule is not used
 	if m.fetcherService != nil && !m.scheduleEnabled {
 		m.wg.Add(1)
 		go func() {
 			defer m.wg.Done()
 			if err := m.fetcherService.Start(m.ctx); err != nil && err != context.Canceled {
-				m.logger.Error("Fetcher service error", "error", err)
+				m.logger.Error("Fetcher service error", "operation", "fetcher_start", "error", err)
 			}
 		}()
-		m.logger.Debug("HolonZero API fetcher service started (ticker-based)")
+		m.logger.Debug("HolonZero API fetcher service started (ticker-based)", "operation", "fetcher_start")
 	} else if m.scheduleEnabled {
-		m.logger.Debug("HolonZero API sync using Temporal schedule")
+		m.logger.Debug("HolonZero API sync using Temporal schedule", "operation", "temporal_sync")
 	} else {
-		m.logger.Debug("HolonZero API fetcher service disabled or not configured")
+		m.logger.Debug("HolonZero API fetcher service disabled or not configured", "operation", "fetcher_disabled")
 	}
 
-	// Set up graceful shutdown
 	go m.handleShutdown()
 
-	m.logger.Debug("Holon Manager started successfully")
+	m.logger.Debug("Holon Manager started successfully", "operation", "start")
 	return nil
 }
 
@@ -205,16 +196,16 @@ func (m *Manager) setupNATSSubscription() error {
 	sub, err := m.natsClient.Subscribe("oauth.google.token.refreshed", func(msg *nats.Msg) {
 		var refreshEvent map[string]interface{}
 		if err := json.Unmarshal(msg.Data, &refreshEvent); err != nil {
-			m.logger.Error("Failed to unmarshal OAuth refresh event", "error", err)
+			m.logger.Error("Failed to unmarshal OAuth refresh event", "operation", "oauth_event_parse", "error", err)
 			return
 		}
 
-		m.logger.Debug("Received OAuth token refresh event", "event", refreshEvent)
+		m.logger.Debug("Received OAuth token refresh event", "operation", "oauth_event_received", "event", refreshEvent)
 
 		// Extract token information from the event
 		provider, _ := refreshEvent["provider"].(string)
 		if provider != "google" {
-			m.logger.Debug("Ignoring non-Google OAuth refresh event", "provider", provider)
+			m.logger.Debug("Ignoring non-Google OAuth refresh event", "operation", "oauth_event_filter", "provider", provider)
 			return
 		}
 
@@ -225,11 +216,12 @@ func (m *Manager) setupNATSSubscription() error {
 		expiresAtStr, _ := refreshEvent["expires_at"].(string)
 
 		if accessToken == "" {
-			m.logger.Error("Received OAuth refresh event without access token")
+			m.logger.Error("Received OAuth refresh event without access token", "operation", "oauth_token_validation")
 			return
 		}
 
 		m.logger.Info("Processing OAuth token refresh for holon clients",
+			"operation", "oauth_token_refresh",
 			"provider", provider,
 			"username", username,
 			"expires_at", expiresAtStr)
