@@ -30,6 +30,7 @@ import {
   ChevronUp,
   Globe,
   AlarmCheckIcon,
+  FolderIcon,
   HistoryIcon,
   SquarePen
 } from 'lucide-react'
@@ -347,6 +348,38 @@ export function Sidebar({ chats, setSidebarOpen, shortcuts, collapsed = false }:
               </Tooltip>
             </TooltipProvider>
           )}
+          <TooltipProvider>
+            <Tooltip delayDuration={collapsed ? 300 : 1000}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  data-active={location.pathname === '/files'}
+                  className={cn(
+                    'group h-9 transition-all',
+                    collapsed
+                      ? 'w-10 p-0 justify-center text-foreground hover:bg-accent [&[data-active=true]]:text-foreground [&[data-active=true]]:bg-accent'
+                      : 'w-full justify-start px-2 text-sidebar-foreground hover:text-sidebar-accent-foreground [&[data-active=true]]:text-sidebar-accent-foreground [&[data-active=true]]:bg-sidebar-accent'
+                  )}
+                  onClick={() => navigate({ to: '/files' })}
+                >
+                  <FolderIcon
+                    className={cn(
+                      'w-4 h-4 transition-colors duration-100',
+                      collapsed
+                        ? 'w-5 h-5 text-foreground/60 group-hover:text-foreground'
+                        : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'
+                    )}
+                  />
+                  {!collapsed && <span className="text-sm">Files</span>}
+                </Button>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right" align="center">
+                  <span>Tasks</span>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
 
           {!isHolonsDisabled && (
             <TooltipProvider>

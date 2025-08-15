@@ -17,6 +17,7 @@ import { Route as OnboardingImport } from './routes/onboarding'
 import { Route as AdminImport } from './routes/admin'
 import { Route as IndexImport } from './routes/index'
 import { Route as HolonIndexImport } from './routes/holon/index'
+import { Route as FilesIndexImport } from './routes/files/index'
 import { Route as SettingsPermissionsImport } from './routes/settings.permissions'
 import { Route as SettingsDataSourcesImport } from './routes/settings.data-sources'
 import { Route as SettingsCustomizeImport } from './routes/settings.customize'
@@ -60,6 +61,12 @@ const IndexRoute = IndexImport.update({
 const HolonIndexRoute = HolonIndexImport.update({
   id: '/holon/',
   path: '/holon/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const FilesIndexRoute = FilesIndexImport.update({
+  id: '/files/',
+  path: '/files/',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -193,6 +200,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsPermissionsImport
       parentRoute: typeof SettingsImport
     }
+    '/files/': {
+      id: '/files/'
+      path: '/files'
+      fullPath: '/files'
+      preLoaderRoute: typeof FilesIndexImport
+      parentRoute: typeof rootRoute
+    }
     '/holon/': {
       id: '/holon/'
       path: '/holon'
@@ -238,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/settings/customize': typeof SettingsCustomizeRoute
   '/settings/data-sources': typeof SettingsDataSourcesRoute
   '/settings/permissions': typeof SettingsPermissionsRoute
+  '/files': typeof FilesIndexRoute
   '/holon': typeof HolonIndexRoute
 }
 
@@ -254,6 +269,7 @@ export interface FileRoutesByTo {
   '/settings/customize': typeof SettingsCustomizeRoute
   '/settings/data-sources': typeof SettingsDataSourcesRoute
   '/settings/permissions': typeof SettingsPermissionsRoute
+  '/files': typeof FilesIndexRoute
   '/holon': typeof HolonIndexRoute
 }
 
@@ -271,6 +287,7 @@ export interface FileRoutesById {
   '/settings/customize': typeof SettingsCustomizeRoute
   '/settings/data-sources': typeof SettingsDataSourcesRoute
   '/settings/permissions': typeof SettingsPermissionsRoute
+  '/files/': typeof FilesIndexRoute
   '/holon/': typeof HolonIndexRoute
 }
 
@@ -289,6 +306,7 @@ export interface FileRouteTypes {
     | '/settings/customize'
     | '/settings/data-sources'
     | '/settings/permissions'
+    | '/files'
     | '/holon'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -304,6 +322,7 @@ export interface FileRouteTypes {
     | '/settings/customize'
     | '/settings/data-sources'
     | '/settings/permissions'
+    | '/files'
     | '/holon'
   id:
     | '__root__'
@@ -319,6 +338,7 @@ export interface FileRouteTypes {
     | '/settings/customize'
     | '/settings/data-sources'
     | '/settings/permissions'
+    | '/files/'
     | '/holon/'
   fileRoutesById: FileRoutesById
 }
@@ -331,6 +351,7 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRoute
   ChatChatIdRoute: typeof ChatChatIdRoute
   HolonThreadIdRoute: typeof HolonThreadIdRoute
+  FilesIndexRoute: typeof FilesIndexRoute
   HolonIndexRoute: typeof HolonIndexRoute
 }
 
@@ -342,6 +363,7 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   ChatChatIdRoute: ChatChatIdRoute,
   HolonThreadIdRoute: HolonThreadIdRoute,
+  FilesIndexRoute: FilesIndexRoute,
   HolonIndexRoute: HolonIndexRoute,
 }
 
@@ -362,6 +384,7 @@ export const routeTree = rootRoute
         "/tasks",
         "/chat/$chatId",
         "/holon/$threadId",
+        "/files/",
         "/holon/"
       ]
     },
@@ -412,6 +435,9 @@ export const routeTree = rootRoute
     "/settings/permissions": {
       "filePath": "settings.permissions.tsx",
       "parent": "/settings"
+    },
+    "/files/": {
+      "filePath": "files/index.tsx"
     },
     "/holon/": {
       "filePath": "holon/index.tsx"
