@@ -43,6 +43,7 @@ func NewOpenAIServiceProxy(logger *log.Logger, getFirebaseToken func() (string, 
 	opts := []option.RequestOption{
 		option.WithBaseURL(proxyUrl),
 		option.WithHeader("X-BASE-URL", baseUrl),
+		option.WithHeader("X-Client-Platform", "desktop"),
 	}
 
 	client := openai.NewClient(opts...)
