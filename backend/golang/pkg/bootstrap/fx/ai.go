@@ -10,6 +10,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/localmodel/jinaaiembedding"
@@ -56,10 +57,11 @@ type AICompletionsServiceResult struct {
 
 // ProvideAICompletionsService creates AI completions service based on configuration.
 func ProvideAICompletionsService(
-	logger *log.Logger,
+	loggerFactory *bootstrap.LoggerFactory,
 	envs *config.Config,
 	getFirebaseToken FirebaseTokenGetter,
 ) AICompletionsServiceResult {
+	logger := loggerFactory.ForAI("ai.completions")
 	var aiCompletionsService *ai.Service
 
 	if envs.ProxyTeeURL != "" {
@@ -80,10 +82,11 @@ type AIEmbeddingsServiceResult struct {
 
 // ProvideAIEmbeddingsService creates AI embeddings service (local or remote).
 func ProvideAIEmbeddingsService(
-	logger *log.Logger,
+	loggerFactory *bootstrap.LoggerFactory,
 	envs *config.Config,
 	getFirebaseToken FirebaseTokenGetter,
 ) (AIEmbeddingsServiceResult, error) {
+	logger := loggerFactory.ForAI("ai.embeddings")
 	var aiEmbeddingsService ai.Embedding
 
 	if envs.UseLocalEmbedding == "true" {

@@ -1,28 +1,18 @@
 package bootstrap
 
 import (
-	"os"
-	"time"
-
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
+
+	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/logging"
 )
 
-type customLogWriter struct{}
-
-func (w *customLogWriter) Write(p []byte) (n int, err error) {
-	return os.Stdout.Write(p)
+// NewBootstrapLogger creates a bootstrap logger for early application startup.
+func NewBootstrapLogger() *log.Logger {
+	return logging.NewBootstrapLogger()
 }
 
-func NewLogger() *log.Logger {
-	logger := log.NewWithOptions(&customLogWriter{}, log.Options{
-		ReportCaller:    true,
-		ReportTimestamp: true,
-		Level:           log.DebugLevel,
-		TimeFormat:      time.Kitchen,
-	})
-
-	logger.SetColorProfile(lipgloss.ColorProfile())
-
-	return logger
+// NewLogger creates a configured logger based on the provided configuration.
+func NewLogger(cfg *config.Config) *log.Logger {
+	return logging.NewLogger(cfg)
 }

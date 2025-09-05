@@ -9,6 +9,7 @@ import (
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	testutils "github.com/EternisAI/enchanted-twin/pkg/testing"
 )
 
 func TestAIServiceInterface_Compatibility(t *testing.T) {
@@ -20,7 +21,7 @@ func TestAIServiceInterface_Compatibility(t *testing.T) {
 }
 
 func TestAgentWithAIServiceInterface(t *testing.T) {
-	logger := log.New(nil)
+	logger := testutils.GetTestLogger("agent.interface.test")
 
 	// Test that Agent can be created with AIService interface
 	mockAI := &mockAIService{

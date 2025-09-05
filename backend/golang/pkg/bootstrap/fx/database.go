@@ -32,7 +32,8 @@ type EmbeddingWrapperResult struct {
 }
 
 // ProvideEmbeddingWrapper creates embedding wrapper for memory operations.
-func ProvideEmbeddingWrapper(logger *log.Logger, aiEmbeddingsService ai.Embedding, envs *config.Config) (EmbeddingWrapperResult, error) {
+func ProvideEmbeddingWrapper(loggerFactory *bootstrap.LoggerFactory, aiEmbeddingsService ai.Embedding, envs *config.Config) (EmbeddingWrapperResult, error) {
+	logger := loggerFactory.ForEmbedding("embedding.wrapper")
 	logger.Info("Creating embedding wrapper", "model", envs.EmbeddingsModel)
 
 	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, envs.EmbeddingsModel)
@@ -53,11 +54,12 @@ type MemoryStorageResult struct {
 // ProvideMemoryStorage creates memory storage based on configured backend.
 func ProvideMemoryStorage(
 	lc fx.Lifecycle,
-	logger *log.Logger,
+	loggerFactory *bootstrap.LoggerFactory,
 	envs *config.Config,
 	aiEmbeddingsService ai.Embedding,
 	embeddingWrapper *storage.EmbeddingWrapper,
 ) (MemoryStorageResult, error) {
+	logger := loggerFactory.ForMemory("memory.storage")
 	logger.Info("Initializing memory storage", "backend", envs.MemoryBackend)
 	memoryCreateStart := time.Now()
 

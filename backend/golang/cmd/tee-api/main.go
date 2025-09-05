@@ -37,7 +37,7 @@ func main() {
 		// Check if base URL is in our allowed dictionary
 		apiKey, exists := allowedBaseURLs[baseURL]
 		if !exists {
-			logger.Error("Unauthorized base URL", "base_url", baseURL)
+			logger.Error("Unauthorized base URL", "component", "tee-api.proxy", "base_url", baseURL)
 			http.Error(w, "Unauthorized base URL", http.StatusForbidden)
 			return
 		}
@@ -45,7 +45,7 @@ func main() {
 		// Parse the target URL
 		target, err := url.Parse(baseURL)
 		if err != nil {
-			logger.Error("Invalid URL format", "base_url", baseURL)
+			logger.Error("Invalid URL format", "component", "tee-api.proxy", "base_url", baseURL)
 			http.Error(w, "Invalid URL format", http.StatusBadRequest)
 			return
 		}
@@ -56,7 +56,7 @@ func main() {
 		orig := p.Director
 		p.Director = func(r *http.Request) {
 			orig(r)
-			logger.Info("📤 Forwarding request", "method", r.Method, "host", r.Host, "uri", r.RequestURI, "target", target.String()+r.RequestURI)
+			logger.Info("📤 Forwarding request", "component", "tee-api.proxy", "method", r.Method, "host", r.Host, "uri", r.RequestURI, "target", target.String()+r.RequestURI)
 
 			r.Host = target.Host
 
@@ -83,8 +83,8 @@ func main() {
 		Handler: handler,
 	}
 
-	logger.Info("🔁  proxy listening on :12000")
-	logger.Info("✅  allowed base URLs", "paths", getKeys(allowedBaseURLs))
+	logger.Info("🔁  proxy listening on :12000", "component", "tee-api.proxy")
+	logger.Info("✅  allowed base URLs", "component", "tee-api.proxy", "paths", getKeys(allowedBaseURLs))
 	log.Fatal(srv.ListenAndServe())
 }
 

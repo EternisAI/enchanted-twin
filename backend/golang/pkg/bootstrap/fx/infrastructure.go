@@ -17,6 +17,7 @@ import (
 var InfrastructureModule = fx.Module("infrastructure",
 	fx.Provide(
 		ProvideLogger,
+		ProvideLoggerFactory,
 		ProvideConfig,
 		ProvideNATSServer,
 		ProvideNATSClient,
@@ -25,23 +26,44 @@ var InfrastructureModule = fx.Module("infrastructure",
 	),
 )
 
-// ProvideLogger creates a shared logger instance.
-func ProvideLogger() *log.Logger {
-	return bootstrap.NewLogger()
+func ProvideLogger() (*log.Logger, error) {
+	// Load config first to determine logging settings
+	cfg, err := config.LoadConfigWithAutoDetection()
+	if err != nil {
+		// If config loading fails, use bootstrap logger to report error
+		bootstrapLogger := bootstrap.NewBootstrapLogger()
+		bootstrapLogger.Error("Failed to load config", "error", err)
+		return nil, err
+	}
+
+	logger := bootstrap.NewLogger(cfg)
+	// Create a factory temporarily to get a component-aware logger for infrastructure
+	factory := bootstrap.NewLoggerFactoryWithConfig(logger, cfg.ComponentLogLevels)
+	infraLogger := factory.ForComponent("infrastructure.main")
+	infraLogger.Info("Using database path", "path", cfg.DBPath)
+
+	return logger, nil
 }
 
-// ProvideConfig loads application configuration.
-// Environment variable logging is controlled by the DEBUG_CONFIG_PRINT environment variable.
-// Set DEBUG_CONFIG_PRINT=true to enable detailed logging of all environment variables
-// during configuration loading (sensitive values like API keys will be masked).
-func ProvideConfig(logger *log.Logger) (*config.Config, error) {
+func ProvideLoggerFactory(logger *log.Logger) (*bootstrap.LoggerFactory, error) {
+	// We need config again for component log levels, but can't create circular dependency
+	// So we'll load it again here - this is acceptable since it's cached
+	cfg, err := config.LoadConfigWithAutoDetection()
+	if err != nil {
+		return nil, err
+	}
+	return bootstrap.NewLoggerFactoryWithConfig(logger, cfg.ComponentLogLevels), nil
+}
+
+func ProvideConfig(loggerFactory *bootstrap.LoggerFactory) (*config.Config, error) {
+	logger := loggerFactory.ForComponent("infrastructure.config")
+	// Config is already loaded in ProvideLogger, load it again
+	// This avoids circular dependencies and is acceptable since config loading is fast
 	envs, err := config.LoadConfigWithAutoDetection()
 	if err != nil {
 		logger.Error("Failed to load config", "error", err)
 		return nil, err
 	}
-	logger.Debug("Config loaded", "envs", envs)
-	logger.Info("Using database path", "path", envs.DBPath)
 	return envs, nil
 }
 
@@ -52,7 +74,8 @@ type NATSServerResult struct {
 }
 
 // ProvideNATSServer creates and starts embedded NATS server.
-func ProvideNATSServer(lc fx.Lifecycle, logger *log.Logger) (NATSServerResult, error) {
+func ProvideNATSServer(lc fx.Lifecycle, loggerFactory *bootstrap.LoggerFactory) (NATSServerResult, error) {
+	logger := loggerFactory.ForNATS("nats.server")
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
 		logger.Error("Unable to start nats server", "error", err)
@@ -72,7 +95,8 @@ func ProvideNATSServer(lc fx.Lifecycle, logger *log.Logger) (NATSServerResult, e
 }
 
 // ProvideNATSClient creates NATS client connection.
-func ProvideNATSClient(lc fx.Lifecycle, logger *log.Logger, natsServer *server.Server) (*nats.Conn, error) {
+func ProvideNATSClient(lc fx.Lifecycle, loggerFactory *bootstrap.LoggerFactory, natsServer *server.Server) (*nats.Conn, error) {
+	logger := loggerFactory.ForNATS("nats.client")
 	nc, err := bootstrap.NewNatsClient()
 	if err != nil {
 		logger.Error("Unable to create nats client", "error", err)
@@ -98,7 +122,8 @@ type StoreResult struct {
 }
 
 // ProvideStore creates and initializes database store.
-func ProvideStore(lc fx.Lifecycle, logger *log.Logger, envs *config.Config) (StoreResult, error) {
+func ProvideStore(lc fx.Lifecycle, loggerFactory *bootstrap.LoggerFactory, envs *config.Config) (StoreResult, error) {
+	logger := loggerFactory.ForDatabase("sqlite.store")
 	store, err := db.NewStore(context.Background(), envs.DBPath, logger)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
@@ -126,7 +151,8 @@ type SQLCDatabaseResult struct {
 }
 
 // ProvideSQLCDatabase creates type-safe database queries.
-func ProvideSQLCDatabase(logger *log.Logger, store *db.Store) (SQLCDatabaseResult, error) {
+func ProvideSQLCDatabase(loggerFactory *bootstrap.LoggerFactory, store *db.Store) (SQLCDatabaseResult, error) {
+	logger := loggerFactory.ForDatabase("sqlite.queries")
 	dbsqlc, err := db.New(store.DB().DB, logger)
 	if err != nil {
 		logger.Error("Error creating database", "error", err)

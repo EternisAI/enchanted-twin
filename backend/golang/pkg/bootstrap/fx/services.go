@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -16,6 +15,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/directorywatcher"
@@ -55,7 +55,8 @@ type ChatStorageResult struct {
 }
 
 // ProvideChatStorage creates chat storage repository.
-func ProvideChatStorage(logger *log.Logger, store *db.Store) ChatStorageResult {
+func ProvideChatStorage(loggerFactory *bootstrap.LoggerFactory, store *db.Store) ChatStorageResult {
+	logger := loggerFactory.ForRepository("chat.repository")
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 	return ChatStorageResult{ChatStorage: chatStorage}
 }
@@ -81,7 +82,7 @@ type TwinChatServiceResult struct {
 // TwinChatServiceParams holds parameters for twin chat service.
 type TwinChatServiceParams struct {
 	fx.In
-	Logger             *log.Logger
+	LoggerFactory      *bootstrap.LoggerFactory
 	Config             *config.Config
 	CompletionsService *ai.Service
 	ChatStorage        *chatrepository.Repository
@@ -94,8 +95,9 @@ type TwinChatServiceParams struct {
 
 // ProvideTwinChatService creates twin chat service.
 func ProvideTwinChatService(params TwinChatServiceParams) TwinChatServiceResult {
+	logger := params.LoggerFactory.ForTwinChat("twinchat.service")
 	twinChatService := twinchat.NewService(
-		params.Logger,
+		logger,
 		params.CompletionsService,
 		params.ChatStorage,
 		params.NATSConn,
@@ -118,7 +120,8 @@ type TTSServiceResult struct {
 }
 
 // ProvideTTSService creates and configures TTS service.
-func ProvideTTSService(lc fx.Lifecycle, logger *log.Logger, envs *config.Config) (TTSServiceResult, error) {
+func ProvideTTSService(lc fx.Lifecycle, loggerFactory *bootstrap.LoggerFactory, envs *config.Config) (TTSServiceResult, error) {
+	logger := loggerFactory.ForTTS("tts.service")
 	const (
 		kokoroPort = 45000
 		ttsWsPort  = 45001
@@ -161,7 +164,7 @@ type WhatsAppServiceResult struct {
 type WhatsAppServiceParams struct {
 	fx.In
 	Lifecycle          fx.Lifecycle
-	Logger             *log.Logger
+	LoggerFactory      *bootstrap.LoggerFactory
 	Config             *config.Config
 	NATSConn           *nats.Conn
 	Database           *db.DB
@@ -172,8 +175,9 @@ type WhatsAppServiceParams struct {
 
 // ProvideWhatsAppService creates WhatsApp service.
 func ProvideWhatsAppService(params WhatsAppServiceParams) (WhatsAppServiceResult, error) {
+	logger := params.LoggerFactory.ForWhatsApp("whatsapp.service")
 	whatsappService := whatsapp.NewService(whatsapp.ServiceConfig{
-		Logger:        params.Logger,
+		Logger:        logger,
 		NatsClient:    params.NATSConn,
 		Database:      params.Database,
 		MemoryStorage: params.Memory,
@@ -184,17 +188,17 @@ func ProvideWhatsAppService(params WhatsAppServiceParams) (WhatsAppServiceResult
 
 	params.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			params.Logger.Info("Starting WhatsApp service")
+			logger.Info("Starting WhatsApp service")
 			if err := whatsappService.Start(ctx); err != nil {
-				params.Logger.Error("Failed to start WhatsApp service", "error", err)
+				logger.Error("Failed to start WhatsApp service", "error", err)
 				return err
 			}
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			params.Logger.Info("Stopping WhatsApp service")
+			logger.Info("Stopping WhatsApp service")
 			if err := whatsappService.Stop(ctx); err != nil {
-				params.Logger.Error("Failed to stop WhatsApp service", "error", err)
+				logger.Error("Failed to stop WhatsApp service", "error", err)
 				return err
 			}
 			return nil
@@ -213,7 +217,7 @@ type TelegramServiceResult struct {
 // TelegramServiceParams holds parameters for Telegram service.
 type TelegramServiceParams struct {
 	fx.In
-	Logger             *log.Logger
+	LoggerFactory      *bootstrap.LoggerFactory
 	Config             *config.Config
 	Store              *db.Store
 	CompletionsService *ai.Service
@@ -224,8 +228,9 @@ type TelegramServiceParams struct {
 
 // ProvideTelegramService creates Telegram service.
 func ProvideTelegramService(params TelegramServiceParams) TelegramServiceResult {
+	logger := params.LoggerFactory.ForTelegram("telegram.service")
 	telegramServiceInput := telegram.TelegramServiceInput{
-		Logger:           params.Logger,
+		Logger:           logger,
 		Client:           &http.Client{},
 		Store:            params.Store,
 		AiService:        params.CompletionsService,
@@ -251,7 +256,7 @@ type HolonServiceResult struct {
 type HolonServiceParams struct {
 	fx.In
 	Lifecycle          fx.Lifecycle
-	Logger             *log.Logger
+	LoggerFactory      *bootstrap.LoggerFactory
 	Config             *config.Config
 	Store              *db.Store
 	CompletionsService *ai.Service
@@ -263,10 +268,10 @@ type HolonServiceParams struct {
 // ProvideHolonService creates Holon service with background processing.
 func ProvideHolonService(params HolonServiceParams) HolonServiceResult {
 	holonConfig := holon.DefaultManagerConfig()
-	holonService := holon.NewServiceWithConfig(params.Store, params.Logger, holonConfig.HolonAPIURL)
+	holonService := holon.NewServiceWithLoggerFactory(params.Store, params.LoggerFactory)
 
 	// Initialize thread processor with AI and memory services for LLM-based filtering
-	params.Logger.Info("Initializing thread processor with LLM-based evaluation")
+	params.LoggerFactory.ForService("holon.service.main").Info("Initializing thread processor with LLM-based evaluation")
 	holonService.InitializeThreadProcessor(params.CompletionsService, params.Config.CompletionsModel, params.Memory)
 
 	// Initialize and start background processor for automatic thread processing
@@ -274,33 +279,33 @@ func ProvideHolonService(params HolonServiceParams) HolonServiceResult {
 	holonService.InitializeBackgroundProcessor(processingInterval)
 
 	// Initialize HolonZero API fetcher service with the main logger
-	holonManager := holon.NewManager(params.Store, holonConfig, params.Logger, params.TemporalClient, params.TemporalWorker)
+	holonManager := holon.NewManager(params.Store, holonConfig, params.LoggerFactory, params.TemporalClient, params.TemporalWorker)
 
 	params.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			params.Logger.Info("Starting Holon services")
+			params.LoggerFactory.ForService("holon.service.main").Info("Starting Holon services")
 
 			// Start background processing
 			if err := holonService.StartBackgroundProcessing(ctx); err != nil {
-				params.Logger.Error("Failed to start background thread processing", "error", err)
+				params.LoggerFactory.ForService("holon.service.main").Error("Failed to start background thread processing", "error", err)
 				return err
 			}
-			params.Logger.Info("Background thread processing started successfully")
+			params.LoggerFactory.ForService("holon.service.main").Info("Background thread processing started successfully")
 
 			// Start holon manager
 			if err := holonManager.Start(); err != nil {
-				params.Logger.Error("Failed to start HolonZero fetcher service", "error", err)
+				params.LoggerFactory.ForService("holon.service.main").Error("Failed to start HolonZero fetcher service", "error", err)
 				return err
 			}
-			params.Logger.Info("HolonZero API fetcher service started successfully")
+			params.LoggerFactory.ForService("holon.service.main").Info("HolonZero API fetcher service started successfully")
 
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			params.Logger.Info("Stopping Holon services")
+			params.LoggerFactory.ForService("holon.service.main").Info("Stopping Holon services")
 			holonService.StopBackgroundProcessing()
 			if err := holonManager.Stop(); err != nil {
-				params.Logger.Error("Failed to stop holon manager", "error", err)
+				params.LoggerFactory.ForService("holon.service.main").Error("Failed to stop holon manager", "error", err)
 				return err
 			}
 			return nil
@@ -319,21 +324,22 @@ type MCPServiceResult struct {
 // MCPServiceParams holds parameters for MCP service.
 type MCPServiceParams struct {
 	fx.In
-	Lifecycle    fx.Lifecycle
-	Logger       *log.Logger
-	Store        *db.Store
-	ToolRegistry *tools.ToolMapRegistry
+	Lifecycle     fx.Lifecycle
+	LoggerFactory *bootstrap.LoggerFactory
+	Store         *db.Store
+	ToolRegistry  *tools.ToolMapRegistry
 }
 
 // ProvideMCPService creates MCP service.
 func ProvideMCPService(params MCPServiceParams) MCPServiceResult {
+	logger := params.LoggerFactory.ForMCP("mcp.service")
 	ctx, cancel := context.WithCancel(context.Background())
-	mcpService := mcpserver.NewService(ctx, params.Logger, params.Store, params.ToolRegistry)
+	mcpService := mcpserver.NewService(ctx, logger, params.Store, params.ToolRegistry)
 
 	// Ensure cancellation on application stop
 	params.Lifecycle.Append(fx.Hook{
 		OnStop: func(stopCtx context.Context) error {
-			params.Logger.Info("Stopping MCP service")
+			logger.Info("Stopping MCP service")
 			cancel()
 			return nil
 		},
@@ -352,7 +358,7 @@ type DirectoryWatcherResult struct {
 type DirectoryWatcherParams struct {
 	fx.In
 	Lifecycle      fx.Lifecycle
-	Logger         *log.Logger
+	LoggerFactory  *bootstrap.LoggerFactory
 	Store          *db.Store
 	Memory         evolvingmemory.MemoryStorage
 	TemporalClient client.Client
@@ -360,34 +366,35 @@ type DirectoryWatcherParams struct {
 
 // ProvideDirectoryWatcher creates directory watcher.
 func ProvideDirectoryWatcher(params DirectoryWatcherParams) (DirectoryWatcherResult, error) {
+	logger := params.LoggerFactory.ForDirectory("directory.watcher")
 	directoryWatcher, err := directorywatcher.NewDirectoryWatcher(
 		params.Store,
 		params.Memory,
-		params.Logger,
+		logger,
 		params.TemporalClient,
 	)
 	if err != nil {
-		params.Logger.Error("Failed to create directory watcher", "error", err)
+		logger.Error("Failed to create directory watcher", "error", err)
 		return DirectoryWatcherResult{}, err
 	}
 
 	params.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			params.Logger.Info("Starting directory watcher")
+			logger.Info("Starting directory watcher")
 			if err := directoryWatcher.Start(ctx); err != nil {
-				params.Logger.Error("Failed to start directory watcher", "error", err)
+				logger.Error("Failed to start directory watcher", "error", err)
 				return err
 			}
-			params.Logger.Info("Directory watcher started")
+			logger.Info("Directory watcher started")
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			params.Logger.Info("Stopping directory watcher")
+			logger.Info("Stopping directory watcher")
 			if err := directoryWatcher.Stop(); err != nil {
-				params.Logger.Error("Error stopping directory watcher", "error", err)
+				logger.Error("Error stopping directory watcher", "error", err)
 				return err
 			}
-			params.Logger.Info("Directory watcher stopped")
+			logger.Info("Directory watcher stopped")
 			return nil
 		},
 	})
@@ -399,7 +406,7 @@ func ProvideDirectoryWatcher(params DirectoryWatcherParams) (DirectoryWatcherRes
 type BackgroundServicesParams struct {
 	fx.In
 	Lifecycle       fx.Lifecycle
-	Logger          *log.Logger
+	LoggerFactory   *bootstrap.LoggerFactory
 	Config          *config.Config
 	TelegramService *telegram.TelegramService
 	ToolRegistry    *tools.ToolMapRegistry
@@ -408,26 +415,27 @@ type BackgroundServicesParams struct {
 
 // StartBackgroundServices starts services that need background goroutines.
 func StartBackgroundServices(params BackgroundServicesParams) {
+	logger := params.LoggerFactory.ForComponent("services.background")
 	params.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			params.Logger.Info("Starting background services")
+			logger.Info("Starting background services")
 
 			// Start telegram background services
-			go telegram.SubscribePoller(ctx, params.TelegramService, params.Logger)
+			go telegram.SubscribePoller(ctx, params.TelegramService, logger)
 			go telegram.MonitorAndRegisterTelegramTool(
 				ctx,
 				params.TelegramService,
-				params.Logger,
+				logger,
 				params.ToolRegistry,
 				params.Database.ConfigQueries,
 				params.Config,
 			)
 
-			params.Logger.Info("Background services started")
+			logger.Info("Background services started")
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			params.Logger.Info("Stopping background services")
+			logger.Info("Stopping background services")
 			// Context cancellation will automatically stop the background goroutines
 			return nil
 		},
@@ -437,53 +445,54 @@ func StartBackgroundServices(params BackgroundServicesParams) {
 // ApplicationToolsParams holds parameters for application tools registration.
 type ApplicationToolsParams struct {
 	fx.In
-	Logger       *log.Logger
-	ToolRegistry *tools.ToolMapRegistry
-	ChatStorage  *chatrepository.Repository
-	NATSConn     *nats.Conn
-	HolonService *holon.Service
-	MCPService   mcpserver.MCPService
+	LoggerFactory *bootstrap.LoggerFactory
+	ToolRegistry  *tools.ToolMapRegistry
+	ChatStorage   *chatrepository.Repository
+	NATSConn      *nats.Conn
+	HolonService  *holon.Service
+	MCPService    mcpserver.MCPService
 }
 
 // RegisterApplicationTools registers tools that depend on application services.
 func RegisterApplicationTools(params ApplicationToolsParams) error {
-	params.Logger.Info("Registering application tools")
+	logger := params.LoggerFactory.ForComponent("tools.application")
+	logger.Info("Registering application tools")
 
 	// Register send to chat tool
 	sendToChatTool := twinchat.NewSendToChatTool(params.ChatStorage, params.NATSConn)
 	if err := params.ToolRegistry.Register(sendToChatTool); err != nil {
-		params.Logger.Error("Failed to register send to chat tool", "error", err)
+		logger.Error("Failed to register send to chat tool", "error", err)
 		return err
 	}
 
 	// Register holon tools
 	threadPreviewTool := holon.NewThreadPreviewTool(params.HolonService)
 	if err := params.ToolRegistry.Register(threadPreviewTool); err != nil {
-		params.Logger.Error("Failed to register thread preview tool", "error", err)
+		logger.Error("Failed to register thread preview tool", "error", err)
 		return err
 	}
 
 	sendToHolonTool := holon.NewSendToHolonTool(params.HolonService)
 	if err := params.ToolRegistry.Register(sendToHolonTool); err != nil {
-		params.Logger.Error("Failed to register send to holon tool", "error", err)
+		logger.Error("Failed to register send to holon tool", "error", err)
 		return err
 	}
 
 	sendMessageToHolonTool := holon.NewAddMessageToThreadTool(params.HolonService)
 	if err := params.ToolRegistry.Register(sendMessageToHolonTool); err != nil {
-		params.Logger.Error("Failed to register send message to holon tool", "error", err)
+		logger.Error("Failed to register send message to holon tool", "error", err)
 		return err
 	}
 
 	// MCP tools are automatically registered by the MCP service
 	mcpTools, err := params.MCPService.GetInternalTools(context.Background())
 	if err == nil {
-		params.Logger.Info("MCP tools available", "count", len(mcpTools))
+		logger.Info("MCP tools available", "count", len(mcpTools))
 	} else {
-		params.Logger.Warn("Failed to get MCP tools", "error", err)
+		logger.Warn("Failed to get MCP tools", "error", err)
 	}
 
-	params.Logger.Info("Application tools registered successfully",
+	logger.Info("Application tools registered successfully",
 		"total_count", len(params.ToolRegistry.List()),
 		"tools", params.ToolRegistry.List())
 
