@@ -93,8 +93,8 @@ jobs:
       - name: Build & notarize macOS dev app
         env:
           COMPLETIONS_API_URL: 'https://openrouter.ai/api/v1'
-          COMPLETIONS_MODEL: 'openai/gpt-4.1'
-          REASONING_MODEL: 'openai/gpt-5'
+          COMPLETIONS_MODEL: 'openai/gpt-5.1'
+          REASONING_MODEL: 'openai/gpt-5.1'
           EMBEDDINGS_API_URL: 'https://api.openai.com/v1'
           EMBEDDINGS_MODEL: 'text-embedding-3-small'
           IS_PROD_BUILD: 'true'
@@ -116,7 +116,7 @@ jobs:
           VITE_FIREBASE_AUTH_DOMAIN: freysa-prod.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: freysa-prod
           HOLON_API_URL: http://23.22.67.228:8123
-          ANONYMIZER_TYPE: 'local'
+          ANONYMIZER_TYPE: 'no-op'
           USE_LOCAL_EMBEDDINGS: 'true'
           TTS_ENDPOINT: 'https://inference.tinfoil.sh/v1/audio/speech'
           BUILD_CHANNEL: 'dev'
