@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+
+	"github.com/EternisAI/enchanted-twin/pkg/logging"
 )
 
 type AnonymizerType int
@@ -19,10 +21,11 @@ const (
 )
 
 type AnonymizerConfig struct {
-	Type    AnonymizerType
-	Enabled bool
-	Delay   time.Duration
-	Logger  *log.Logger
+	Type          AnonymizerType
+	Enabled       bool
+	Delay         time.Duration
+	Logger        *log.Logger
+	LoggerFactory *logging.Factory
 
 	// For PersistentAnonymizer
 	Database *sql.DB
@@ -78,7 +81,11 @@ func (m *AnonymizerManager) Shutdown() {
 func (m *AnonymizerManager) createAnonymizer() (Anonymizer, func()) {
 	logger := m.config.Logger
 	if logger == nil {
-		logger = log.New(nil)
+		if m.config.LoggerFactory != nil {
+			logger = m.config.LoggerFactory.ForAnonymizer("anonymizer.manager")
+		} else {
+			logger = log.New(nil)
+		}
 	}
 
 	switch m.config.Type {

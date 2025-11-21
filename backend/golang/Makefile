@@ -9,7 +9,7 @@ run: fetch-deps
 fast-run:
 	go run cmd/server/main.go
 
-build:
+build: components-generate
 	go build -o bin/enchanted-twin cmd/server/main.go
 
 fresh-db:
@@ -66,6 +66,10 @@ deadcode:
 
 sqlc-generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc generate
+
+components-generate:
+	@echo "Generating component registry from codebase..."
+	go run tools/component-generator/main.go .
 
 nilcheck:
 	go run go.uber.org/nilaway/cmd/nilaway@latest -json -v -pretty-print=false ./pkg/... 

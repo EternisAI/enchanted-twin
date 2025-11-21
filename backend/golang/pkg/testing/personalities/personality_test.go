@@ -17,10 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/testing"
 )
 
 func TestPersonalityThreadProcessingIntegration(t *testing.T) {
-	logger := log.New(os.Stdout)
+	logger := testing.GetTestLogger("personality.test")
 	logger.SetLevel(log.InfoLevel)
 
 	// Load environment variables for tests that might need API access

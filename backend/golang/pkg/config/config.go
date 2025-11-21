@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -33,6 +34,12 @@ type Config struct {
 	AnonymizerType     string
 	TelegramBotName    string
 	TTSEndpoint        string
+	// Logging configuration
+	LogFormat string
+	LogLevel  string
+	LogOutput string
+	// Component-specific log levels
+	ComponentLogLevels map[string]string `yaml:"component_log_levels" json:"component_log_levels"`
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -100,9 +107,6 @@ func LoadConfigWithAutoDetection() (*Config, error) {
 	return LoadConfig(printEnv)
 }
 
-// LoadConfig loads configuration with explicit printEnv control.
-// When printEnv is true, all environment variables and their values (with sensitive masking)
-// will be logged during configuration loading for debugging purposes.
 func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
 
@@ -131,10 +135,51 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		AnonymizerType:     getEnv("ANONYMIZER_TYPE", "llm", printEnv),
 		TelegramBotName:    getEnv("TELEGRAM_BOT_NAME", "TalkEnchantedBot", printEnv),
 		TTSEndpoint:        getEnv("TTS_ENDPOINT", "https://inference.tinfoil.sh/v1/audio/speech", printEnv),
+		LogFormat:          getEnv("LOG_FORMAT", "json", printEnv),
+		LogLevel:           getEnv("LOG_LEVEL", "info", printEnv),
+		LogOutput:          getEnv("LOG_OUTPUT", "stdout", printEnv),
+		ComponentLogLevels: make(map[string]string),
 	}
 
-	// Set PostgresDataPath using AppDataPath as base
-	conf.PostgresDataPath = getEnv("POSTGRES_DATA_PATH", filepath.Join(conf.AppDataPath, "postgres-data"), printEnv)
+	conf.PostgresDataPath = filepath.Join(conf.AppDataPath, "postgres-data")
+
+	conf.LoadComponentLogLevels()
 
 	return conf, nil
+}
+
+func (c *Config) LoadComponentLogLevels() {
+	if c.ComponentLogLevels == nil {
+		c.ComponentLogLevels = make(map[string]string)
+	}
+
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "LOG_LEVEL_") {
+			parts := strings.SplitN(env, "=", 2)
+			if len(parts) == 2 {
+				key := parts[0]
+				value := parts[1]
+
+				// Extract component identifier from LOG_LEVEL_<COMPONENT_ID>
+				envVarComponent := strings.TrimPrefix(key, "LOG_LEVEL_")
+				// Convert uppercase env var format to component ID (AI_HOLON -> ai.holon)
+				componentID := strings.ToLower(strings.ReplaceAll(envVarComponent, "_", "."))
+				c.ComponentLogLevels[componentID] = value
+			}
+		}
+	}
+}
+
+func (c *Config) GetComponentLogLevel(componentID string) string {
+	if level, exists := c.ComponentLogLevels[componentID]; exists {
+		return level
+	}
+	return "info"
+}
+
+func (c *Config) SetComponentLogLevel(componentID string, level string) {
+	if c.ComponentLogLevels == nil {
+		c.ComponentLogLevels = make(map[string]string)
+	}
+	c.ComponentLogLevels[componentID] = level
 }
