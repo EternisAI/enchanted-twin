@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -65,7 +65,7 @@ func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (s
 		openai.UserMessage(strings.Join(memoryDocuments, "\n")),
 	}
 
-	result, err := a.ai.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, a.completionsModel, ai.Background)
+	result, err := a.ai.Completions(ctx, messages, []openai.ChatCompletionToolUnionParam{}, a.completionsModel, ai.Background)
 	if err != nil {
 		return "", err
 	}

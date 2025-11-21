@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 )
 
 // TestPrivateCompletionsWithMCPToolCalling tests that MCP-style tool calling
@@ -24,11 +24,11 @@ func TestPrivateCompletionsWithMCPToolCalling(t *testing.T) {
 	mockLLM := &capturingMockCompletionsService{
 		response: openai.ChatCompletionMessage{
 			Content: "I'll help you with that task using the available tools.",
-			ToolCalls: []openai.ChatCompletionMessageToolCall{
+			ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 				{
 					ID:   "call_mcp_001",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "google_search",
 						Arguments: `{"query": "PERSON_001 at COMPANY_001", "max_results": 5}`,
 					},
@@ -36,7 +36,7 @@ func TestPrivateCompletionsWithMCPToolCalling(t *testing.T) {
 				{
 					ID:   "call_mcp_002",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "gmail_send",
 						Arguments: `{"to": "PERSON_001@COMPANY_001.com", "subject": "Meeting with PERSON_003", "body": "Hi PERSON_001, can we schedule a meeting about the project at COMPANY_001?"}`,
 					},
@@ -62,53 +62,47 @@ func TestPrivateCompletionsWithMCPToolCalling(t *testing.T) {
 	originalMessage := "Search for information about John Smith at OpenAI and send him an email about meeting with Alice Johnson"
 
 	// Define MCP-style tools (Google search and Gmail)
-	tools := []openai.ChatCompletionToolParam{
-		{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
-				Name:        "google_search",
-				Description: param.Opt[string]{Value: "Search Google for information"},
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"query": map[string]interface{}{
-							"type":        "string",
-							"description": "Search query",
-						},
-						"max_results": map[string]interface{}{
-							"type":        "integer",
-							"description": "Maximum number of results",
-						},
+	tools := []openai.ChatCompletionToolUnionParam{
+		openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        "google_search",
+			Description: param.Opt[string]{Value: "Search Google for information"},
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{
+						"type":        "string",
+						"description": "Search query",
 					},
-					"required": []string{"query"},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
-				Name:        "gmail_send",
-				Description: param.Opt[string]{Value: "Send an email via Gmail"},
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"to": map[string]interface{}{
-							"type":        "string",
-							"description": "Recipient email address",
-						},
-						"subject": map[string]interface{}{
-							"type":        "string",
-							"description": "Email subject",
-						},
-						"body": map[string]interface{}{
-							"type":        "string",
-							"description": "Email body",
-						},
+					"max_results": map[string]interface{}{
+						"type":        "integer",
+						"description": "Maximum number of results",
 					},
-					"required": []string{"to", "subject", "body"},
 				},
+				"required": []string{"query"},
 			},
-		},
+		}),
+		openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        "gmail_send",
+			Description: param.Opt[string]{Value: "Send an email via Gmail"},
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"to": map[string]interface{}{
+						"type":        "string",
+						"description": "Recipient email address",
+					},
+					"subject": map[string]interface{}{
+						"type":        "string",
+						"description": "Email subject",
+					},
+					"body": map[string]interface{}{
+						"type":        "string",
+						"description": "Email body",
+					},
+				},
+				"required": []string{"to", "subject", "body"},
+			},
+		}),
 	}
 
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -257,11 +251,11 @@ func TestPrivateCompletionsWithComplexMCPScenario(t *testing.T) {
 	mockLLM := &capturingMockCompletionsService{
 		response: openai.ChatCompletionMessage{
 			Content: "I'll help you manage your tasks across multiple platforms.",
-			ToolCalls: []openai.ChatCompletionMessageToolCall{
+			ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 				{
 					ID:   "call_slack_001",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "slack_send_message",
 						Arguments: `{"channel": "#general", "text": "Meeting with PERSON_001 from COMPANY_001 scheduled for tomorrow at LOCATION_006"}`,
 					},
@@ -269,7 +263,7 @@ func TestPrivateCompletionsWithComplexMCPScenario(t *testing.T) {
 				{
 					ID:   "call_calendar_001",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "calendar_create_event",
 						Arguments: `{"title": "Meeting with PERSON_001", "location": "LOCATION_006", "attendees": ["PERSON_001@COMPANY_001.com", "PERSON_003@COMPANY_002.com"]}`,
 					},
@@ -277,7 +271,7 @@ func TestPrivateCompletionsWithComplexMCPScenario(t *testing.T) {
 				{
 					ID:   "call_twitter_001",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "twitter_post",
 						Arguments: `{"text": "Excited to meet with PERSON_001 from COMPANY_001 tomorrow! #networking"}`,
 					},
@@ -303,73 +297,64 @@ func TestPrivateCompletionsWithComplexMCPScenario(t *testing.T) {
 	originalMessage := "Schedule a meeting with John Smith from OpenAI tomorrow at San Francisco office. Also send a Slack message to the team and post about it on Twitter. Include Alice Johnson from Microsoft in the calendar invite."
 
 	// Define multiple MCP-style tools
-	tools := []openai.ChatCompletionToolParam{
-		{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
-				Name:        "slack_send_message",
-				Description: param.Opt[string]{Value: "Send a message to Slack channel"},
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"channel": map[string]interface{}{
-							"type":        "string",
-							"description": "Slack channel name",
-						},
-						"text": map[string]interface{}{
-							"type":        "string",
-							"description": "Message text",
+	tools := []openai.ChatCompletionToolUnionParam{
+		openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        "slack_send_message",
+			Description: param.Opt[string]{Value: "Send a message to Slack channel"},
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"channel": map[string]interface{}{
+						"type":        "string",
+						"description": "Slack channel name",
+					},
+					"text": map[string]interface{}{
+						"type":        "string",
+						"description": "Message text",
+					},
+				},
+				"required": []string{"channel", "text"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        "calendar_create_event",
+			Description: param.Opt[string]{Value: "Create a calendar event"},
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"title": map[string]interface{}{
+						"type":        "string",
+						"description": "Event title",
+					},
+					"location": map[string]interface{}{
+						"type":        "string",
+						"description": "Event location",
+					},
+					"attendees": map[string]interface{}{
+						"type":        "array",
+						"description": "List of attendee emails",
+						"items": map[string]interface{}{
+							"type": "string",
 						},
 					},
-					"required": []string{"channel", "text"},
 				},
+				"required": []string{"title", "location"},
 			},
-		},
-		{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
-				Name:        "calendar_create_event",
-				Description: param.Opt[string]{Value: "Create a calendar event"},
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"title": map[string]interface{}{
-							"type":        "string",
-							"description": "Event title",
-						},
-						"location": map[string]interface{}{
-							"type":        "string",
-							"description": "Event location",
-						},
-						"attendees": map[string]interface{}{
-							"type":        "array",
-							"description": "List of attendee emails",
-							"items": map[string]interface{}{
-								"type": "string",
-							},
-						},
+		}),
+		openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        "twitter_post",
+			Description: param.Opt[string]{Value: "Post a tweet on Twitter"},
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"text": map[string]interface{}{
+						"type":        "string",
+						"description": "Tweet text",
 					},
-					"required": []string{"title", "location"},
 				},
+				"required": []string{"text"},
 			},
-		},
-		{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
-				Name:        "twitter_post",
-				Description: param.Opt[string]{Value: "Post a tweet on Twitter"},
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"text": map[string]interface{}{
-							"type":        "string",
-							"description": "Tweet text",
-						},
-					},
-					"required": []string{"text"},
-				},
-			},
-		},
+		}),
 	}
 
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -521,11 +506,11 @@ func TestPrivateCompletionsToolCallingFailure(t *testing.T) {
 	mockLLM := &capturingMockCompletionsService{
 		response: openai.ChatCompletionMessage{
 			Content: "I'll help you with that.",
-			ToolCalls: []openai.ChatCompletionMessageToolCall{
+			ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 				{
 					ID:   "call_broken_001",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "test_tool",
 						Arguments: `{"name": "PERSON_001", "invalid_json": }`, // Malformed JSON
 					},
@@ -547,23 +532,20 @@ func TestPrivateCompletionsToolCallingFailure(t *testing.T) {
 
 	ctx := context.Background()
 
-	tools := []openai.ChatCompletionToolParam{
-		{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
-				Name:        "test_tool",
-				Description: param.Opt[string]{Value: "Test tool"},
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"name": map[string]interface{}{
-							"type": "string",
-						},
+	tools := []openai.ChatCompletionToolUnionParam{
+		openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        "test_tool",
+			Description: param.Opt[string]{Value: "Test tool"},
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name": map[string]interface{}{
+						"type": "string",
 					},
-					"required": []string{"name"},
 				},
+				"required": []string{"name"},
 			},
-		},
+		}),
 	}
 
 	messages := []openai.ChatCompletionMessageParamUnion{

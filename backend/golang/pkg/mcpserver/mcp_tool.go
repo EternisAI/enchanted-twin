@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 
 	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
@@ -89,7 +89,7 @@ func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (agenttype
 
 type EmptyParams struct{}
 
-func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
+func (t *MCPTool) Definition() openai.ChatCompletionToolUnionParam {
 	params := make(openai.FunctionParameters)
 
 	// Some tools use raw input schema
@@ -121,14 +121,11 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 		description = fmt.Sprintf("[%s] %s", t.ServerName, t.Tool.Description)
 	}
 
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        t.Tool.GetName(),
-			Description: param.NewOpt(description),
-			Parameters:  params,
-		},
-	}
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        t.Tool.GetName(),
+		Description: param.NewOpt(description),
+		Parameters:  params,
+	})
 }
 
 // isAPIError checks if the response content indicates an API error

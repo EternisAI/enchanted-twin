@@ -3,7 +3,7 @@ package twinchat
 import (
 	"testing"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
@@ -121,7 +121,7 @@ func TestMessageContentHandling_MultipleToolResults(t *testing.T) {
 // Mock agent response for testing.
 type mockAgentResponse struct {
 	Content          string
-	ToolCalls        []openai.ChatCompletionMessageToolCall
+	ToolCalls        []openai.ChatCompletionMessageToolCallUnion
 	ToolResults      []types.ToolResult
 	ImageURLs        []string
 	ReplacementRules map[string]string

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 
 	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
@@ -86,42 +86,39 @@ func (t *ThreadPreviewTool) Execute(ctx context.Context, inputs map[string]any) 
 	}, nil
 }
 
-func (t *ThreadPreviewTool) Definition() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        "preview_thread",
-			Description: param.NewOpt("Should be used whenever user mentions holon or network. Create content for a holon network including threads, posts, invitations, announcements, or any network communication. Use this tool when users want to interact with the holon network, send invitations, create posts, share content, or communicate within the network. Title is required and content is optional for additional description."),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"title": map[string]any{
-						"type":        "string",
-						"description": "The title/subject of the thread, post, or invitation",
-					},
-					"content": map[string]any{
-						"type":        "string",
-						"description": "Optional additional content/description for the thread",
-					},
-					"author_identity": map[string]any{
-						"type":        "string",
-						"description": "The identity of the thread author (must be a valid user ID from the authors table)",
-					},
-					"image_urls": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Optional array of image URLs to include with the thread",
-					},
-					"actions": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Optional array of actions for the thread (defaults to ['like', 'reply', 'share'])",
-					},
+func (t *ThreadPreviewTool) Definition() openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        "preview_thread",
+		Description: param.NewOpt("Should be used whenever user mentions holon or network. Create content for a holon network including threads, posts, invitations, announcements, or any network communication. Use this tool when users want to interact with the holon network, send invitations, create posts, share content, or communicate within the network. Title is required and content is optional for additional description."),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"title": map[string]any{
+					"type":        "string",
+					"description": "The title/subject of the thread, post, or invitation",
 				},
-				"required": []string{"title", "author_identity"},
+				"content": map[string]any{
+					"type":        "string",
+					"description": "Optional additional content/description for the thread",
+				},
+				"author_identity": map[string]any{
+					"type":        "string",
+					"description": "The identity of the thread author (must be a valid user ID from the authors table)",
+				},
+				"image_urls": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "Optional array of image URLs to include with the thread",
+				},
+				"actions": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "Optional array of actions for the thread (defaults to ['like', 'reply', 'share'])",
+				},
 			},
+			"required": []string{"title", "author_identity"},
 		},
-	}
+	})
 }
 
 type SendToHolonTool struct {
@@ -134,46 +131,43 @@ func NewSendToHolonTool(service *Service) *SendToHolonTool {
 	}
 }
 
-func (t *SendToHolonTool) Definition() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        "send_to_holon",
-			Description: param.NewOpt("Publish a previewed thread to a holon network. This will make the thread live and visible to other holon members. CRITICAL: Only call this tool when the user has explicitly confirmed they want to publish the preview. Look for confirmation phrases like 'yes', 'good to go', 'publish it', 'looks good', 'send it', 'go ahead', or similar. Do NOT call this tool unless the user has clearly indicated they approve of the preview. If preview tool is already called, do not call this tool again."),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"id": map[string]any{
-						"type":        "string",
-						"description": "The ID of the thread preview to publish (from preview_thread tool)",
-					},
-					"title": map[string]any{
-						"type":        "string",
-						"description": "The title of the thread",
-					},
-					"content": map[string]any{
-						"type":        "string",
-						"description": "The main content/body of the thread",
-					},
-					"author_identity": map[string]any{
-						"type":        "string",
-						"description": "The identity of the thread author (must be a valid user ID from the authors table)",
-					},
-					"image_urls": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Optional array of image URLs to include with the thread",
-					},
-					"actions": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Available actions for the thread. For normal posts: ['Reply']. For invitations: ['Accept the invitation', 'Reply']. Defaults to ['Reply']",
-					},
+func (t *SendToHolonTool) Definition() openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        "send_to_holon",
+		Description: param.NewOpt("Publish a previewed thread to a holon network. This will make the thread live and visible to other holon members. CRITICAL: Only call this tool when the user has explicitly confirmed they want to publish the preview. Look for confirmation phrases like 'yes', 'good to go', 'publish it', 'looks good', 'send it', 'go ahead', or similar. Do NOT call this tool unless the user has clearly indicated they approve of the preview. If preview tool is already called, do not call this tool again."),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"id": map[string]any{
+					"type":        "string",
+					"description": "The ID of the thread preview to publish (from preview_thread tool)",
 				},
-				"required": []string{"id", "title", "content", "author_identity"},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "The title of the thread",
+				},
+				"content": map[string]any{
+					"type":        "string",
+					"description": "The main content/body of the thread",
+				},
+				"author_identity": map[string]any{
+					"type":        "string",
+					"description": "The identity of the thread author (must be a valid user ID from the authors table)",
+				},
+				"image_urls": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "Optional array of image URLs to include with the thread",
+				},
+				"actions": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "Available actions for the thread. For normal posts: ['Reply']. For invitations: ['Accept the invitation', 'Reply']. Defaults to ['Reply']",
+				},
 			},
+			"required": []string{"id", "title", "content", "author_identity"},
 		},
-	}
+	})
 }
 
 func (t *SendToHolonTool) Execute(ctx context.Context, inputs map[string]any) (agenttypes.ToolResult, error) {
@@ -366,35 +360,32 @@ func (t *AddMessageToThreadTool) Execute(ctx context.Context, inputs map[string]
 	}, nil
 }
 
-func (t *AddMessageToThreadTool) Definition() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        "add_message_to_thread",
-			Description: param.NewOpt("Add a message (reply) to an existing thread in the holon network. This allows for threaded conversations and replies."),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"thread_id": map[string]any{
-						"type":        "string",
-						"description": "The ID of the existing thread to add the message to",
-					},
-					"message": map[string]any{
-						"type":        "string",
-						"description": "The message content to add to the thread",
-					},
-					"author_identity": map[string]any{
-						"type":        "string",
-						"description": "The identity of the message author (must be a valid user ID from the authors table)",
-					},
-					"image_urls": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Optional array of image URLs to include with the message",
-					},
+func (t *AddMessageToThreadTool) Definition() openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        "add_message_to_thread",
+		Description: param.NewOpt("Add a message (reply) to an existing thread in the holon network. This allows for threaded conversations and replies."),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"thread_id": map[string]any{
+					"type":        "string",
+					"description": "The ID of the existing thread to add the message to",
 				},
-				"required": []string{"thread_id", "message", "author_identity"},
+				"message": map[string]any{
+					"type":        "string",
+					"description": "The message content to add to the thread",
+				},
+				"author_identity": map[string]any{
+					"type":        "string",
+					"description": "The identity of the message author (must be a valid user ID from the authors table)",
+				},
+				"image_urls": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "Optional array of image URLs to include with the message",
+				},
 			},
+			"required": []string{"thread_id", "message", "author_identity"},
 		},
-	}
+	})
 }

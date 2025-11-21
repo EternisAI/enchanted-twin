@@ -5,26 +5,26 @@ import (
 	"context"
 	"time"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
 
 // StreamDelta is now defined in private.go to include anonymization fields
 
 type Stream struct {
 	Content   <-chan StreamDelta
-	ToolCalls <-chan openai.ChatCompletionMessageToolCall
+	ToolCalls <-chan openai.ChatCompletionMessageToolCallUnion
 	Err       <-chan error
 }
 
 func (s *Service) CompletionsStream(
 	ctx context.Context,
 	messages []openai.ChatCompletionMessageParamUnion,
-	tools []openai.ChatCompletionToolParam,
+	tools []openai.ChatCompletionToolUnionParam,
 	model string,
 ) Stream {
 	contentCh := make(chan StreamDelta, 64)
-	toolCh := make(chan openai.ChatCompletionMessageToolCall, 8)
+	toolCh := make(chan openai.ChatCompletionMessageToolCallUnion, 8)
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -69,10 +69,10 @@ func (s *Service) CompletionsStream(
 
 			if tc, ok := acc.JustFinishedToolCall(); ok {
 				s.logger.Debug("Tool call completed", "tool_call_id", tc.ID, "tool_name", tc.Name, "arguments", tc.Arguments)
-				toolCh <- openai.ChatCompletionMessageToolCall{
+				toolCh <- openai.ChatCompletionMessageToolCallUnion{
 					ID:   tc.ID,
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      tc.Name,
 						Arguments: tc.Arguments,
 						JSON:      tc.JSON,

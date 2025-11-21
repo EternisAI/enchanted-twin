@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ type MockCompletionsService struct {
 	mock.Mock
 }
 
-func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+func (m *MockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	args := m.Called(ctx, messages, tools, model, priority)
 	if result, ok := args.Get(0).(PrivateCompletionResult); ok {
 		return result, args.Error(1)
@@ -41,12 +41,12 @@ func (m *MockCompletionsService) Completions(ctx context.Context, messages []ope
 	return PrivateCompletionResult{}, args.Error(1)
 }
 
-func (m *MockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream {
+func (m *MockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) Stream {
 	args := m.Called(ctx, messages, tools, model)
 	return args.Get(0).(Stream) //nolint:errcheck
 }
 
-func (m *MockCompletionsService) RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error) {
+func (m *MockCompletionsService) RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) (PrivateCompletionResult, error) {
 	args := m.Called(ctx, messages, tools, model)
 	if result, ok := args.Get(0).(PrivateCompletionResult); ok {
 		return result, args.Error(1)

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 )
 
 // StripThinkingTags removes thinking tags and their content from AI responses
@@ -29,6 +29,6 @@ func StripThinkingTags(content string) string {
 }
 
 // UnmarshalToolCall unmarshals a tool call's arguments into a struct.
-func UnmarshalToolCall(toolCall openai.ChatCompletionMessageToolCall, v interface{}) error {
+func UnmarshalToolCall(toolCall openai.ChatCompletionMessageToolCallUnion, v interface{}) error {
 	return json.Unmarshal([]byte(toolCall.Function.Arguments), v)
 }

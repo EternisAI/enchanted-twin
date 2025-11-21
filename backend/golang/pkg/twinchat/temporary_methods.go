@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
@@ -122,7 +122,7 @@ func (s *Service) ProcessMessageHistoryStream(
 	// Create streaming channel
 	streamChan := make(chan model.MessageStreamPayload, 10)
 
-	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
+	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCallUnion) {
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:          toolCall.ID,
 			Name:        toolCall.Function.Name,
@@ -142,7 +142,7 @@ func (s *Service) ProcessMessageHistoryStream(
 
 	toolCallResultsMap := make(map[string]model.ToolCallResult)
 	toolCallErrorsMap := make(map[string]string)
-	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
+	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCallUnion, toolResult types.ToolResult) {
 		var errorField *string
 		if toolResult.Error() != "" {
 			errorField = helpers.Ptr(toolResult.Error())

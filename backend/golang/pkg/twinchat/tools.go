@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/pkg/errors"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -108,35 +108,32 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 	}, nil
 }
 
-func (e *sendToChat) Definition() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        "send_to_chat",
-			Description: param.NewOpt("This tool sends a message to the user's chat"),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"message": map[string]string{
-						"type":        "string",
-						"description": "The message to send to the user's chat",
-					},
-					"chat_id": map[string]string{
-						"type":        "string",
-						"description": "The ID of the chat to send the message to. No chat_id specified would send the message to a new chat.",
-					},
-					"image_urls": map[string]any{
-						"type":        "array",
-						"description": "Optional list of image URLs to include with the message",
-						"items": map[string]any{
-							"type": "string",
-						},
+func (e *sendToChat) Definition() openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        "send_to_chat",
+		Description: param.NewOpt("This tool sends a message to the user's chat"),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"message": map[string]any{
+					"type":        "string",
+					"description": "The message to send to the user's chat",
+				},
+				"chat_id": map[string]any{
+					"type":        "string",
+					"description": "The ID of the chat to send the message to. No chat_id specified would send the message to a new chat.",
+				},
+				"image_urls": map[string]any{
+					"type":        "array",
+					"description": "Optional list of image URLs to include with the message",
+					"items": map[string]any{
+						"type": "string",
 					},
 				},
-				"required": []string{"message", "chat_id"},
 			},
+			"required": []string{"message", "chat_id"},
 		},
-	}
+	})
 }
 
 type finalizeOnboarding struct{}
@@ -183,26 +180,23 @@ func (f *finalizeOnboarding) Execute(ctx context.Context, inputs map[string]any)
 	}, nil
 }
 
-func (f *finalizeOnboarding) Definition() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        "finalize_onboarding",
-			Description: param.NewOpt("Call this tool to finalize the onboarding process after collecting the user's name and other information. Extract the name and any additional context (like favorite color, animal, etc.) from the conversation."),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"name": map[string]any{
-						"type":        "string",
-						"description": "The user's name that they provided during onboarding",
-					},
-					"context": map[string]any{
-						"type":        "string",
-						"description": "Additional information the user shared (e.g., 'favorite color: blue, favorite animal: cat')",
-					},
+func (f *finalizeOnboarding) Definition() openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        "finalize_onboarding",
+		Description: param.NewOpt("Call this tool to finalize the onboarding process after collecting the user's name and other information. Extract the name and any additional context (like favorite color, animal, etc.) from the conversation."),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{
+					"type":        "string",
+					"description": "The user's name that they provided during onboarding",
 				},
-				"required": []string{"name"},
+				"context": map[string]any{
+					"type":        "string",
+					"description": "Additional information the user shared (e.g., 'favorite color: blue, favorite animal: cat')",
+				},
 			},
+			"required": []string{"name"},
 		},
-	}
+	})
 }

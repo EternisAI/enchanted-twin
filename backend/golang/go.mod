@@ -23,7 +23,7 @@ require (
 	github.com/mnako/letters v0.2.5
 	github.com/nats-io/nats-server/v2 v2.11.3
 	github.com/nats-io/nats.go v1.42.0
-	github.com/openai/openai-go v1.11.0
+	github.com/openai/openai-go/v3 v3.8.1
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/pion/webrtc/v4 v4.1.3
 	github.com/pkg/errors v0.9.1
@@ -238,7 +238,7 @@ require (
 	github.com/temporalio/sqlparser v0.0.0-20231115171017-f4060bcfa6cb // indirect
 	github.com/temporalio/tchannel-go v1.22.1-0.20240528171429-1db37fdea938 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
-	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
@@ -294,7 +294,5 @@ require (
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.71.1
-
-replace github.com/openai/openai-go => github.com/EternisAI/openai-go v0.0.0-20250606184246-5a5e4fffe44c
 
 // replace github.com/mark3labs/mcp-go => github.com/pottekkat/mcp-go v0.26.1-0.20250717054748-800e5297e1c6

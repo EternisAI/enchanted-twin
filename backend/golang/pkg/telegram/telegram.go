@@ -25,7 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	agent "github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"

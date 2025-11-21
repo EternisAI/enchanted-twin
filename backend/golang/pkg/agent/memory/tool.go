@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
-	openai "github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	openai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
@@ -223,33 +223,30 @@ func (t *MemorySearchTool) formatIntelligentResults(result *IntelligentQueryResu
 }
 
 // Definition returns the OpenAI tool definition.
-func (t *MemorySearchTool) Definition() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name: "memory_tool",
-			Description: param.NewOpt(
-				"Search the user's memory for relevant information. Uses intelligent 3-stage querying that prioritizes consolidated insights over raw facts. Returns structured results: insights (synthesized knowledge), evidence (supporting facts), and context (related information).",
-			),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"query": map[string]string{
-						"type":        "string",
-						"description": "The query to search for in the memory",
-					},
-					"source": map[string]any{
-						"type":        "string",
-						"enum":        []string{"chat", "telegram", "whatsapp", "gmail", "x"},
-						"description": "The source to search for in the memory",
-					},
-					"subject": map[string]string{
-						"type":        "string",
-						"description": "The subject to search for in the memory",
-					},
+func (t *MemorySearchTool) Definition() openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name: "memory_tool",
+		Description: param.NewOpt(
+			"Search the user's memory for relevant information. Uses intelligent 3-stage querying that prioritizes consolidated insights over raw facts. Returns structured results: insights (synthesized knowledge), evidence (supporting facts), and context (related information).",
+		),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"query": map[string]string{
+					"type":        "string",
+					"description": "The query to search for in the memory",
 				},
-				"required": []string{"query"},
+				"source": map[string]any{
+					"type":        "string",
+					"enum":        []string{"chat", "telegram", "whatsapp", "gmail", "x"},
+					"description": "The source to search for in the memory",
+				},
+				"subject": map[string]string{
+					"type":        "string",
+					"description": "The subject to search for in the memory",
+				},
 			},
+			"required": []string{"query"},
 		},
-	}
+	})
 }

@@ -10,7 +10,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -126,7 +126,7 @@ func ExtractFactsFromDocument(ctx context.Context, doc memory.Document, completi
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
 func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document, logger *log.Logger) ([]*memory.MemoryFact, error) {
-	factExtractionToolsList := []openai.ChatCompletionToolParam{
+	factExtractionToolsList := []openai.ChatCompletionToolUnionParam{
 		extractFactsTool,
 	}
 
@@ -252,7 +252,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 // extractFactsFromTextDocument extracts facts from text documents.
 func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document, logger *log.Logger) ([]*memory.MemoryFact, error) {
-	factExtractionToolsList := []openai.ChatCompletionToolParam{
+	factExtractionToolsList := []openai.ChatCompletionToolUnionParam{
 		extractFactsTool,
 	}
 

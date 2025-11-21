@@ -10,8 +10,8 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
-	openai "github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	openai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 
@@ -32,7 +32,10 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		for i, toolName := range availableTools {
 			if tool, exists := e.ToolsRegistry.Get(toolName); exists {
 				def := tool.Definition()
-				e.Logger.Debug("Tool details", "index", i+1, "name", toolName, "description", def.Function.Description)
+				function := def.GetFunction()
+				if function != nil {
+					e.Logger.Debug("Tool details", "index", i+1, "name", toolName, "description", function.Description)
+				}
 			}
 		}
 	} else {
@@ -187,55 +190,52 @@ func (e *ScheduleTask) validateRequiredTools(requiredTools []string) []string {
 	return unavailableTools
 }
 
-func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        "schedule_task",
-			Description: param.NewOpt("Schedule a task to be executed once or on a recurring basis. The system will automatically detect required tools from the task content and validate their availability."),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"name": map[string]string{
-						"type":        "string",
-						"description": "The name of the task, should be witty and under 30 characters. Use spaces to separate words.",
-					},
-					"task": map[string]string{
-						"type":        "string",
-						"description": "The task that agent should execute. It should contain all information nescessary to accomplish the task and be as detailed as user provided. Task must not include cron, delay or name of your human.",
-					},
-					"delay": map[string]string{
-						"type":        "number",
-						"description": "The delay in seconds before the task is executed.",
-					},
-					"cron": map[string]string{
-						"type":        "string",
-						"description": "Cron expression for the task to be executed periodically. Uses standard 5-field format: minute hour day-of-month month day-of-week. Examples: `*/30 * * * *` (every 30 minutes), `15 10 * * *` (daily at 10:15 AM), `*/5 9-17 * * 1-5` (every 5 minutes, 9 AM to 5 PM, weekdays only).",
-					},
-					"chat_id": map[string]string{
-						"type":        "string",
-						"description": "The ID of the chat to send the message to. No chat_id specified would send the message to a new chat.",
-					},
-					"required_tools": map[string]any{
-						"type": "array",
-						"items": map[string]string{
-							"type": "string",
-						},
-						"description": "Optional list of tools required for this task. If not specified, the system will auto-detect from task content. Common tools: telegram_send_message, twitter, whatsapp, gmail, slack, screenpipe.",
-					},
-					"is_possible": map[string]string{
-						"type":        "boolean",
-						"description": "Whether the task is possible to be executed",
-					},
-					"is_possible_reasoning": map[string]string{
-						"type":        "string",
-						"description": "Reasoning about why the task is possible to be executed given available tools",
-					},
+func (e *ScheduleTask) Definition() openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        "schedule_task",
+		Description: param.NewOpt("Schedule a task to be executed once or on a recurring basis. The system will automatically detect required tools from the task content and validate their availability."),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]string{
+					"type":        "string",
+					"description": "The name of the task, should be witty and under 30 characters. Use spaces to separate words.",
 				},
-				"required": []string{"task", "delay", "name", "chat_id", "required_tools", "is_possible", "is_possible_reasoning"},
+				"task": map[string]string{
+					"type":        "string",
+					"description": "The task that agent should execute. It should contain all information nescessary to accomplish the task and be as detailed as user provided. Task must not include cron, delay or name of your human.",
+				},
+				"delay": map[string]string{
+					"type":        "number",
+					"description": "The delay in seconds before the task is executed.",
+				},
+				"cron": map[string]string{
+					"type":        "string",
+					"description": "Cron expression for the task to be executed periodically. Uses standard 5-field format: minute hour day-of-month month day-of-week. Examples: `*/30 * * * *` (every 30 minutes), `15 10 * * *` (daily at 10:15 AM), `*/5 9-17 * * 1-5` (every 5 minutes, 9 AM to 5 PM, weekdays only).",
+				},
+				"chat_id": map[string]string{
+					"type":        "string",
+					"description": "The ID of the chat to send the message to. No chat_id specified would send the message to a new chat.",
+				},
+				"required_tools": map[string]any{
+					"type": "array",
+					"items": map[string]string{
+						"type": "string",
+					},
+					"description": "Optional list of tools required for this task. If not specified, the system will auto-detect from task content. Common tools: telegram_send_message, twitter, whatsapp, gmail, slack, screenpipe.",
+				},
+				"is_possible": map[string]string{
+					"type":        "boolean",
+					"description": "Whether the task is possible to be executed",
+				},
+				"is_possible_reasoning": map[string]string{
+					"type":        "string",
+					"description": "Reasoning about why the task is possible to be executed given available tools",
+				},
 			},
+			"required": []string{"task", "delay", "name", "chat_id", "required_tools", "is_possible", "is_possible_reasoning"},
 		},
-	}
+	})
 }
 
 var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)

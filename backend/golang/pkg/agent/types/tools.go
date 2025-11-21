@@ -3,7 +3,7 @@ package types
 import (
 	"context"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 )
 
 // ToolResult defines the interface for results returned by tools.
@@ -89,7 +89,10 @@ func SimpleToolResult(content string) *StructuredToolResult {
 // Tool defines the interface for all executable tools.
 type Tool interface {
 	// Definition returns the tool metadata
-	Definition() openai.ChatCompletionToolParam
+	Definition() openai.ChatCompletionToolUnionParam
+
+	// Name returns the tool's name
+	Name() string
 
 	// Execute runs the tool with given inputs
 	Execute(ctx context.Context, inputs map[string]any) (ToolResult, error)

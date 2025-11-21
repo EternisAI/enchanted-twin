@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 )
 
 type EntityReplacement struct {
@@ -29,37 +29,34 @@ type LLMAnonymizer struct {
 	hasher    *MessageHasher
 }
 
-var anonymizationTool = openai.ChatCompletionToolParam{
-	Type: "function",
-	Function: openai.FunctionDefinitionParam{
-		Name:        "replace_entities",
-		Description: param.NewOpt("Replace personally identifiable information (PII) entities in text with anonymized values while preserving semantic meaning and context."),
-		Parameters: openai.FunctionParameters{
-			"type": "object",
-			"properties": map[string]any{
-				"replacements": map[string]any{
-					"type":        "array",
-					"description": "List of entity replacements to apply",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"original": map[string]any{
-								"type":        "string",
-								"description": "The original text to be replaced",
-							},
-							"replacement": map[string]any{
-								"type":        "string",
-								"description": "The anonymized replacement text",
-							},
+var anonymizationTool = openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+	Name:        "replace_entities",
+	Description: param.NewOpt("Replace personally identifiable information (PII) entities in text with anonymized values while preserving semantic meaning and context."),
+	Parameters: openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]any{
+			"replacements": map[string]any{
+				"type":        "array",
+				"description": "List of entity replacements to apply",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"original": map[string]any{
+							"type":        "string",
+							"description": "The original text to be replaced",
 						},
-						"required": []string{"original", "replacement"},
+						"replacement": map[string]any{
+							"type":        "string",
+							"description": "The anonymized replacement text",
+						},
 					},
+					"required": []string{"original", "replacement"},
 				},
 			},
-			"required": []string{"replacements"},
 		},
+		"required": []string{"replacements"},
 	},
-}
+})
 
 func NewLLMAnonymizer(aiService CompletionsService, model string, db *sql.DB, logger *log.Logger) *LLMAnonymizer {
 	return &LLMAnonymizer{
@@ -154,10 +151,10 @@ Use the replace_entities tool to provide your response. The content you're anony
 
 	if service, ok := l.aiService.(*Service); ok {
 		// Use RawCompletions to bypass private completions and avoid circular dependency
-		result, err = service.RawCompletions(ctx, llmMessages, []openai.ChatCompletionToolParam{anonymizationTool}, l.model)
+		result, err = service.RawCompletions(ctx, llmMessages, []openai.ChatCompletionToolUnionParam{anonymizationTool}, l.model)
 	} else {
 		// Fallback to regular completions for other implementations
-		result, err = l.aiService.Completions(ctx, llmMessages, []openai.ChatCompletionToolParam{anonymizationTool}, l.model, Background)
+		result, err = l.aiService.Completions(ctx, llmMessages, []openai.ChatCompletionToolUnionParam{anonymizationTool}, l.model, Background)
 	}
 
 	if err != nil {

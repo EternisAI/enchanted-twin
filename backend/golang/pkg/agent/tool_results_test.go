@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -29,11 +29,11 @@ func TestExecuteStreamWithPrivacy_ToolResultsCollection(t *testing.T) {
 		Message: openai.ChatCompletionMessage{
 			Role:    "assistant",
 			Content: "I'll execute the test tool.",
-			ToolCalls: []openai.ChatCompletionMessageToolCall{
+			ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 				{
 					ID:   "call_001",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "test_tool",
 						Arguments: `{"param": "PERSON_001"}`,
 					},
@@ -144,11 +144,11 @@ func TestExecuteStreamWithPrivacy_MultipleToolResults(t *testing.T) {
 	}
 
 	// Mock multiple tool calls
-	toolCalls := []openai.ChatCompletionMessageToolCall{
+	toolCalls := []openai.ChatCompletionMessageToolCallUnion{
 		{
 			ID:   "call_001",
 			Type: "function",
-			Function: openai.ChatCompletionMessageToolCallFunction{
+			Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 				Name:      "tool1",
 				Arguments: `{"param": "test1"}`,
 			},
@@ -156,7 +156,7 @@ func TestExecuteStreamWithPrivacy_MultipleToolResults(t *testing.T) {
 		{
 			ID:   "call_002",
 			Type: "function",
-			Function: openai.ChatCompletionMessageToolCallFunction{
+			Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 				Name:      "tool2",
 				Arguments: `{"param": "test2"}`,
 			},

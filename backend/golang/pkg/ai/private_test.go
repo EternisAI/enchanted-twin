@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 )
 
 func TestPrivateCompletionsMockAnonymizer(t *testing.T) {
@@ -255,7 +255,7 @@ type mockCompletionsService struct {
 	err      error
 }
 
-func (m *mockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+func (m *mockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	if m.err != nil {
 		return PrivateCompletionResult{}, m.err
 	}
@@ -265,9 +265,9 @@ func (m *mockCompletionsService) Completions(ctx context.Context, messages []ope
 	}, nil
 }
 
-func (m *mockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream {
+func (m *mockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) Stream {
 	contentCh := make(chan StreamDelta, 1)
-	toolCh := make(chan openai.ChatCompletionMessageToolCall)
+	toolCh := make(chan openai.ChatCompletionMessageToolCallUnion)
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -301,7 +301,7 @@ type capturingMockCompletionsService struct {
 	capturedMessages []openai.ChatCompletionMessageParamUnion
 }
 
-func (m *capturingMockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+func (m *capturingMockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	// Capture what was sent to the LLM for verification
 	m.capturedMessages = make([]openai.ChatCompletionMessageParamUnion, len(messages))
 	copy(m.capturedMessages, messages)
@@ -315,13 +315,13 @@ func (m *capturingMockCompletionsService) Completions(ctx context.Context, messa
 	}, nil
 }
 
-func (m *capturingMockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream {
+func (m *capturingMockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) Stream {
 	// Capture what was sent to the LLM for verification
 	m.capturedMessages = make([]openai.ChatCompletionMessageParamUnion, len(messages))
 	copy(m.capturedMessages, messages)
 
 	contentCh := make(chan StreamDelta, 1)
-	toolCh := make(chan openai.ChatCompletionMessageToolCall)
+	toolCh := make(chan openai.ChatCompletionMessageToolCallUnion)
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -555,11 +555,11 @@ func TestPrivateCompletionsE2EWithToolCalls(t *testing.T) {
 	mockLLM := &capturingMockCompletionsService{
 		response: openai.ChatCompletionMessage{
 			Content: "I'll help you find information about PERSON_001 at COMPANY_001.",
-			ToolCalls: []openai.ChatCompletionMessageToolCall{
+			ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 				{
 					ID:   "call_001",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "search_employee",
 						Arguments: `{"name": "PERSON_001", "company": "COMPANY_001", "location": "LOCATION_006"}`,
 					},
@@ -586,32 +586,29 @@ func TestPrivateCompletionsE2EWithToolCalls(t *testing.T) {
 	originalMessage := "Please search for John Smith who works at OpenAI in San Francisco"
 
 	// Define tool that LLM can use - with sensitive info in the tool definition
-	tools := []openai.ChatCompletionToolParam{
-		{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
-				Name:        "search_employee",
-				Description: param.Opt[string]{Value: "Search for employee information"},
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"name": map[string]interface{}{
-							"type":        "string",
-							"description": "Employee name (e.g., John Smith)",
-						},
-						"company": map[string]interface{}{
-							"type":        "string",
-							"description": "Company name (e.g., OpenAI)",
-						},
-						"location": map[string]interface{}{
-							"type":        "string",
-							"description": "Location (e.g., San Francisco)",
-						},
+	tools := []openai.ChatCompletionToolUnionParam{
+		openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        "search_employee",
+			Description: param.Opt[string]{Value: "Search for employee information"},
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "Employee name (e.g., John Smith)",
 					},
-					"required": []string{"name", "company"},
+					"company": map[string]interface{}{
+						"type":        "string",
+						"description": "Company name (e.g., OpenAI)",
+					},
+					"location": map[string]interface{}{
+						"type":        "string",
+						"description": "Location (e.g., San Francisco)",
+					},
 				},
+				"required": []string{"name", "company"},
 			},
-		},
+		}),
 	}
 
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -1016,7 +1013,7 @@ type streamingMockCompletionsService struct {
 	err              error
 }
 
-func (m *streamingMockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+func (m *streamingMockCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	// Capture what was sent to the LLM for verification
 	m.capturedMessages = make([]string, len(messages))
 	for i, msg := range messages {
@@ -1044,7 +1041,7 @@ func (m *streamingMockCompletionsService) Completions(ctx context.Context, messa
 	}, nil
 }
 
-func (m *streamingMockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream {
+func (m *streamingMockCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) Stream {
 	// Capture what was sent to the LLM for verification
 	m.capturedMessages = make([]string, len(messages))
 	for i, msg := range messages {
@@ -1054,7 +1051,7 @@ func (m *streamingMockCompletionsService) CompletionsStream(ctx context.Context,
 	}
 
 	contentCh := make(chan StreamDelta, len(m.chunks))
-	toolCh := make(chan openai.ChatCompletionMessageToolCall)
+	toolCh := make(chan openai.ChatCompletionMessageToolCallUnion)
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -1328,7 +1325,7 @@ func TestStreamingContextCancellation(t *testing.T) {
 // infiniteStreamingMock simulates a streaming service that never completes.
 type infiniteStreamingMock struct{}
 
-func (m *infiniteStreamingMock) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+func (m *infiniteStreamingMock) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	return PrivateCompletionResult{
 		Message: openai.ChatCompletionMessage{
 			Content: "Test response",
@@ -1337,9 +1334,9 @@ func (m *infiniteStreamingMock) Completions(ctx context.Context, messages []open
 	}, nil
 }
 
-func (m *infiniteStreamingMock) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream {
+func (m *infiniteStreamingMock) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) Stream {
 	contentCh := make(chan StreamDelta)
-	toolCh := make(chan openai.ChatCompletionMessageToolCall)
+	toolCh := make(chan openai.ChatCompletionMessageToolCallUnion)
 	errCh := make(chan error)
 
 	go func() {
@@ -1372,7 +1369,7 @@ type circularDependencyTracker struct {
 	t         *testing.T
 }
 
-func (c *circularDependencyTracker) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+func (c *circularDependencyTracker) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	c.callCount++
 	// If this gets called more than once, we have a circular dependency
 	if c.callCount > 1 {
@@ -1466,7 +1463,7 @@ func TestPrivateCompletionsWithRealService(t *testing.T) {
 	// Verify that the service has the RawCompletions method available
 	// This ensures our fix for circular dependency is in place
 	_, hasRawCompletions := any(aiService).(interface {
-		RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error)
+		RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) (PrivateCompletionResult, error)
 	})
 
 	if !hasRawCompletions {

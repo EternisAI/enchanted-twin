@@ -11,8 +11,8 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/pkg/errors"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -88,8 +88,8 @@ func NewService(
 func (s *Service) Execute(
 	ctx context.Context,
 	messageHistory []openai.ChatCompletionMessageParamUnion,
-	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
-	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
+	preToolCallback func(toolCall openai.ChatCompletionMessageToolCallUnion),
+	postToolCallback func(toolCall openai.ChatCompletionMessageToolCallUnion, toolResult types.ToolResult),
 	onDelta func(agent.StreamDelta),
 	reasoning bool,
 ) (*agent.AgentResponse, error) {
@@ -182,10 +182,11 @@ func (s *Service) getAvailableTools() []prompts.ToolInfo {
 
 	for _, tool := range allTools {
 		def := tool.Definition()
-		if def.Type == "function" {
+		function := def.GetFunction()
+		if function != nil {
 			toolInfos = append(toolInfos, prompts.ToolInfo{
-				Name:        def.Function.Name,
-				Description: def.Function.Description.Value,
+				Name:        function.Name,
+				Description: function.Description.Value,
 			})
 		}
 	}
@@ -281,7 +282,7 @@ func (s *Service) SendMessage(
 
 	var accumulatedContent string
 
-	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
+	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCallUnion) {
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:          toolCall.ID,
 			Name:        toolCall.Function.Name,
@@ -301,7 +302,7 @@ func (s *Service) SendMessage(
 
 	toolCallResultsMap := make(map[string]model.ToolCallResult)
 	toolCallErrorsMap := make(map[string]string)
-	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
+	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCallUnion, toolResult types.ToolResult) {
 		var errorField *string
 		if toolResult.Error() != "" {
 			errorField = helpers.Ptr(toolResult.Error())
@@ -717,35 +718,32 @@ func (s *Service) GetChatSuggestions(
 		openai.UserMessage(instruction),
 	}
 
-	tool := openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name: "generate_suggestion",
-			Description: param.NewOpt(
-				"This tool generates chat suggestions for a user based on the existing context",
-			),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"category": map[string]string{
+	tool := openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name: "generate_suggestion",
+		Description: param.NewOpt(
+			"This tool generates chat suggestions for a user based on the existing context",
+		),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"category": map[string]any{
+					"type": "string",
+				},
+				"suggestions": map[string]any{
+					"type": "array",
+					"items": map[string]any{
 						"type": "string",
 					},
-					"suggestions": map[string]any{
-						"type": "array",
-						"items": map[string]string{
-							"type": "string",
-						},
-					},
 				},
-				"required": []string{"category", "suggestions"},
 			},
+			"required": []string{"category", "suggestions"},
 		},
-	}
+	})
 
 	choice, err := s.aiService.Completions(
 		ctx,
 		messages,
-		[]openai.ChatCompletionToolParam{tool},
+		[]openai.ChatCompletionToolUnionParam{tool},
 		s.completionsModel,
 		ai.Background,
 	)

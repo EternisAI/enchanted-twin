@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
@@ -35,12 +35,15 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 	onDelta func(StreamDelta),
 	reasoning bool,
 ) (AgentResponse, error) {
-	toolDefs := make([]openai.ChatCompletionToolParam, 0, len(currentTools))
+	toolDefs := make([]openai.ChatCompletionToolUnionParam, 0, len(currentTools))
 	toolMap := map[string]tools.Tool{}
 	for _, t := range currentTools {
 		d := t.Definition()
 		toolDefs = append(toolDefs, d)
-		toolMap[d.Function.Name] = t
+		function := d.GetFunction()
+		if function != nil {
+			toolMap[function.Name] = t
+		}
 	}
 
 	languageModel := a.CompletionsModel
@@ -48,7 +51,7 @@ func (a *Agent) ExecuteStreamWithPrivacy(
 		languageModel = a.ReasoningModel
 	}
 
-	var allToolCalls []openai.ChatCompletionMessageToolCall
+	var allToolCalls []openai.ChatCompletionMessageToolCallUnion
 	var allToolResults []types.ToolResult
 	var allImageURLs []string
 	var finalContent string

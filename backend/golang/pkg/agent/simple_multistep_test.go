@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
@@ -18,9 +18,7 @@ func TestMultiStepToolExecution_Simple(t *testing.T) {
 	// Create a simple mock tool
 	mockTool := &mockTool{
 		name: "test_tool",
-		definition: openai.ChatCompletionToolParam{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
+		definition: openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
 				Name: "test_tool",
 			},
 		},
@@ -39,11 +37,11 @@ func TestMultiStepToolExecution_Simple(t *testing.T) {
 				Message: openai.ChatCompletionMessage{
 					Role:    "assistant",
 					Content: "",
-					ToolCalls: []openai.ChatCompletionMessageToolCall{
+					ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 						{
 							ID:   "call_001",
 							Type: "function",
-							Function: openai.ChatCompletionMessageToolCallFunction{
+							Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 								Name:      "test_tool",
 								Arguments: `{"param": "test"}`,
 							},
@@ -165,9 +163,7 @@ func TestMultiStepToolExecution_DeAnonymization(t *testing.T) {
 	// Create a simple mock tool
 	mockTool := &mockTool{
 		name: "test_tool",
-		definition: openai.ChatCompletionToolParam{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
+		definition: openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
 				Name: "test_tool",
 			},
 		},
@@ -186,11 +182,11 @@ func TestMultiStepToolExecution_DeAnonymization(t *testing.T) {
 				Message: openai.ChatCompletionMessage{
 					Role:    "assistant",
 					Content: "",
-					ToolCalls: []openai.ChatCompletionMessageToolCall{
+					ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 						{
 							ID:   "call_001",
 							Type: "function",
-							Function: openai.ChatCompletionMessageToolCallFunction{
+							Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 								Name:      "test_tool",
 								Arguments: `{"name": "PERSON_001", "email": "EMAIL_001"}`,
 							},

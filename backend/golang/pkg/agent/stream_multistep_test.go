@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
@@ -18,9 +18,7 @@ func TestExecuteStreamWithPrivacy_MultiStepToolExecution(t *testing.T) {
 	// Create a mock tool that returns a result
 	mockTool := &mockTool{
 		name: "test_tool",
-		definition: openai.ChatCompletionToolParam{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
+		definition: openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
 				Name: "test_tool",
 			},
 		},
@@ -39,11 +37,11 @@ func TestExecuteStreamWithPrivacy_MultiStepToolExecution(t *testing.T) {
 				Message: openai.ChatCompletionMessage{
 					Role:    "assistant",
 					Content: "",
-					ToolCalls: []openai.ChatCompletionMessageToolCall{
+					ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 						{
 							ID:   "call_001",
 							Type: "function",
-							Function: openai.ChatCompletionMessageToolCallFunction{
+							Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 								Name:      "test_tool",
 								Arguments: `{"param": "PERSON_001"}`,
 							},
@@ -200,9 +198,7 @@ func TestExecuteStreamWithPrivacy_MaxStepsLimit(t *testing.T) {
 	// Create a mock tool
 	mockTool := &mockTool{
 		name: "test_tool",
-		definition: openai.ChatCompletionToolParam{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
+		definition: openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
 				Name: "test_tool",
 			},
 		},
@@ -220,11 +216,11 @@ func TestExecuteStreamWithPrivacy_MaxStepsLimit(t *testing.T) {
 			Message: openai.ChatCompletionMessage{
 				Role:    "assistant",
 				Content: "",
-				ToolCalls: []openai.ChatCompletionMessageToolCall{
+				ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 					{
 						ID:   "call_001",
 						Type: "function",
-						Function: openai.ChatCompletionMessageToolCallFunction{
+						Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 							Name:      "test_tool",
 							Arguments: `{"param": "test"}`,
 						},

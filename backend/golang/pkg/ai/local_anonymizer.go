@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 )
 
 // LlamaAnonymizerInterface defines the interface for Llama-based anonymization.

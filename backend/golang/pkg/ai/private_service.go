@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/microscheduler"
 )
@@ -24,8 +24,8 @@ type PrivateCompletionsService struct {
 }
 
 type CompletionsService interface {
-	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error)
-	CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) Stream
+	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority) (PrivateCompletionResult, error)
+	CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) Stream
 }
 
 type PrivateCompletionsConfig struct {
@@ -75,12 +75,12 @@ func (s *PrivateCompletionsService) Shutdown() {
 	s.logger.Info("PrivateCompletionsService shut down")
 }
 
-func (s *PrivateCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+func (s *PrivateCompletionsService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	// Call new method with empty conversation ID (memory-only mode)
 	return s.CompletionsWithContext(ctx, EmptyConversationID, messages, tools, model, priority)
 }
 
-func (s *PrivateCompletionsService) CompletionsWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+func (s *PrivateCompletionsService) CompletionsWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	s.logger.Info("[Privacy] Starting private completion", "model", model, "conversationID", conversationID, "messageCount", len(messages), "toolCount", len(tools), "priority", priority)
 
 	anonymizedMessages, allRules, err := s.scheduleAnonymization(ctx, conversationID, messages, priority)
@@ -225,7 +225,7 @@ func (s *PrivateCompletionsService) deAnonymizeMessage(message openai.ChatComple
 	}
 
 	if len(message.ToolCalls) > 0 {
-		result.ToolCalls = make([]openai.ChatCompletionMessageToolCall, len(message.ToolCalls))
+		result.ToolCalls = make([]openai.ChatCompletionMessageToolCallUnion, len(message.ToolCalls))
 		copy(result.ToolCalls, message.ToolCalls)
 
 		for i, toolCall := range message.ToolCalls {
@@ -239,12 +239,12 @@ func (s *PrivateCompletionsService) deAnonymizeMessage(message openai.ChatComple
 	return result
 }
 
-func (s *PrivateCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
+func (s *PrivateCompletionsService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
 	// Call new method with empty conversation ID (memory-only mode)
 	return s.CompletionsStreamWithContext(ctx, EmptyConversationID, messages, tools, model, priority, onDelta)
 }
 
-func (s *PrivateCompletionsService) CompletionsStreamWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
+func (s *PrivateCompletionsService) CompletionsStreamWithContext(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
 	s.logger.Debug("Starting private completion streaming", "model", model, "conversationID", conversationID, "messageCount", len(messages), "toolCount", len(tools), "priority", priority)
 
 	// 1. Anonymize input messages
@@ -256,7 +256,7 @@ func (s *PrivateCompletionsService) CompletionsStreamWithContext(ctx context.Con
 	// 2. Set up streaming with accumulation
 	var accumulatedContent strings.Builder
 	var finalMessage openai.ChatCompletionMessage
-	var toolCalls []openai.ChatCompletionMessageToolCall
+	var toolCalls []openai.ChatCompletionMessageToolCallUnion
 
 	// 3. Start streaming from the underlying service
 	stream := s.completionsService.CompletionsStream(ctx, anonymizedMessages, tools, model)

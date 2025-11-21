@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
-	openai "github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	openai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/skip2/go-qrcode"
 
 	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
@@ -98,21 +98,18 @@ func (t *TelegramSendMessageTool) Execute(ctx context.Context, input map[string]
 	}, nil
 }
 
-func (t *TelegramSendMessageTool) Definition() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        "telegram_send_message",
-			Description: param.NewOpt("Send a Telegram message to your human"),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"message": map[string]string{"type": "string"},
-				},
-				"required": []string{"message"},
+func (t *TelegramSendMessageTool) Definition() openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        "telegram_send_message",
+		Description: param.NewOpt("Send a Telegram message to your human"),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"message": map[string]string{"type": "string"},
 			},
+			"required": []string{"message"},
 		},
-	}
+	})
 }
 
 type TelegramSetupTool struct {
@@ -173,17 +170,14 @@ func (t *TelegramSetupTool) Execute(ctx context.Context, input map[string]any) (
 	}, nil
 }
 
-func (t *TelegramSetupTool) Definition() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        "telegram_setup",
-			Description: param.NewOpt("Setup the Telegram chat by sending a QR code. This tool DOES NOT send telegram messages. Use telegram_send_message to send messages."),
-			Parameters: openai.FunctionParameters{
-				"type":       "object",
-				"properties": map[string]any{},
-				"required":   []string{},
-			},
+func (t *TelegramSetupTool) Definition() openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        "telegram_setup",
+		Description: param.NewOpt("Setup the Telegram chat by sending a QR code. This tool DOES NOT send telegram messages. Use telegram_send_message to send messages."),
+		Parameters: openai.FunctionParameters{
+			"type":       "object",
+			"properties": map[string]any{},
+			"required":   []string{},
 		},
-	}
+	})
 }

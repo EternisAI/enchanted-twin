@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -30,11 +30,11 @@ func TestExecuteStreamWithPrivacy_DeAnonymizationIntegration(t *testing.T) {
 		Message: openai.ChatCompletionMessage{
 			Role:    "assistant",
 			Content: "I'll search for information.",
-			ToolCalls: []openai.ChatCompletionMessageToolCall{
+			ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 				{
 					ID:   "call_001",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "test_tool",
 						Arguments: `{"person": "PERSON_001", "company": "COMPANY_001"}`,
 					},

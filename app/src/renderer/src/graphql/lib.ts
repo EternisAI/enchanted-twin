@@ -6,7 +6,7 @@ import { createClient } from 'graphql-ws'
 import { auth } from '../lib/firebase'
 
 const httpLink = new HttpLink({
-  uri: 'http://localhost:44999/query'
+  uri: import.meta.env.RENDERER_VITE_API_URL
 })
 
 const authLink = setContext(async (_, { headers }) => {
@@ -28,7 +28,7 @@ const authLink = setContext(async (_, { headers }) => {
 
 const wsLink = new GraphQLWsLink(
   createClient({
-    url: 'http://localhost:44999/query'.replace('http', 'ws'),
+    url: import.meta.env.RENDERER_VITE_API_URL.replace('http', 'ws'),
     connectionParams: async () => {
       try {
         const token = await auth.currentUser?.getIdToken()

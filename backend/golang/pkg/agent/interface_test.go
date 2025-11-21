@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
@@ -87,7 +87,7 @@ func TestAIServiceInterface_Methods(t *testing.T) {
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage("Test"),
 	}
-	tools := []openai.ChatCompletionToolParam{}
+	tools := []openai.ChatCompletionToolUnionParam{}
 
 	// Test CompletionsStreamWithPrivacy method
 	result, err := mockAI.CompletionsStreamWithPrivacy(ctx, "", messages, tools, "gpt-4", func(ai.StreamDelta) {})

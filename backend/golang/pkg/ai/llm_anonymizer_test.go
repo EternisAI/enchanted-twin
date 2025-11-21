@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -41,11 +41,11 @@ func TestLLMAnonymizer_AnonymizeMessages_MemoryOnly(t *testing.T) {
 	mockResponse := PrivateCompletionResult{
 		Message: openai.ChatCompletionMessage{
 			Role: "assistant",
-			ToolCalls: []openai.ChatCompletionMessageToolCall{
+			ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 				{
 					ID:   "test-call",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "replace_entities",
 						Arguments: `{"replacements": [{"original": "John", "replacement": "PERSON_001"}]}`,
 					},
@@ -94,11 +94,11 @@ func TestLLMAnonymizer_AnonymizeMessages_Persistent(t *testing.T) {
 	mockResponse := PrivateCompletionResult{
 		Message: openai.ChatCompletionMessage{
 			Role: "assistant",
-			ToolCalls: []openai.ChatCompletionMessageToolCall{
+			ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 				{
 					ID:   "test-call",
 					Type: "function",
-					Function: openai.ChatCompletionMessageToolCallFunction{
+					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 						Name:      "replace_entities",
 						Arguments: `{"replacements": [{"original": "John", "replacement": "PERSON_001"}]}`,
 					},

@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
-	openai "github.com/openai/openai-go"
+	openai "github.com/openai/openai-go/v3"
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -105,7 +105,11 @@ func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input Exe
 
 	tools := s.ToolsRegistry.Excluding("schedule_task").GetAll()
 	for _, tool := range tools {
-		s.logger.Info("Tool", "name", tool.Definition().Function.Name, "description", tool.Definition().Function.Description)
+		def := tool.Definition()
+		function := def.GetFunction()
+		if function != nil {
+			s.logger.Info("Tool", "name", function.Name, "description", function.Description)
+		}
 	}
 
 	messages := []openai.ChatCompletionMessageParamUnion{

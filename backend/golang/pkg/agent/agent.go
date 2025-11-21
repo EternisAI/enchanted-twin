@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
@@ -24,8 +24,8 @@ type Agent struct {
 	aiService        AIService
 	CompletionsModel string
 	ReasoningModel   string
-	PreToolCallback  func(toolCall openai.ChatCompletionMessageToolCall)
-	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult)
+	PreToolCallback  func(toolCall openai.ChatCompletionMessageToolCallUnion)
+	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCallUnion, toolResult types.ToolResult)
 }
 
 func NewAgent(
@@ -34,8 +34,8 @@ func NewAgent(
 	aiService AIService,
 	completionsModel string,
 	reasoningModel string,
-	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
-	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
+	preToolCallback func(toolCall openai.ChatCompletionMessageToolCallUnion),
+	postToolCallback func(toolCall openai.ChatCompletionMessageToolCallUnion, toolResult types.ToolResult),
 ) *Agent {
 	return &Agent{
 		logger:           logger,
@@ -50,7 +50,7 @@ func NewAgent(
 
 type AgentResponse struct {
 	Content          string
-	ToolCalls        []openai.ChatCompletionMessageToolCall
+	ToolCalls        []openai.ChatCompletionMessageToolCallUnion
 	ToolResults      []types.ToolResult
 	ImageURLs        []string
 	ReplacementRules map[string]string
@@ -73,16 +73,20 @@ func (a *Agent) Execute(
 ) (AgentResponse, error) {
 	currentStep := 0
 	responseContent := ""
-	toolCalls := make([]openai.ChatCompletionMessageToolCall, 0)
+	toolCalls := make([]openai.ChatCompletionMessageToolCallUnion, 0)
 	toolResults := make([]types.ToolResult, 0)
 	imageURLs := make([]string, 0)
 
-	apiToolDefinitions := make([]openai.ChatCompletionToolParam, 0)
+	apiToolDefinitions := make([]openai.ChatCompletionToolUnionParam, 0)
 
 	toolsMap := make(map[string]tools.Tool, 0)
 	for _, tool := range currentTools {
-		toolsMap[tool.Definition().Function.Name] = tool
-		apiToolDefinitions = append(apiToolDefinitions, tool.Definition())
+		def := tool.Definition()
+		function := def.GetFunction()
+		if function != nil {
+			toolsMap[function.Name] = tool
+		}
+		apiToolDefinitions = append(apiToolDefinitions, def)
 	}
 
 	for currentStep < MAX_STEPS {

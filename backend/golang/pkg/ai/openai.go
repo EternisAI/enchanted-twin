@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/param"
 )
 
 type Config struct {
@@ -79,7 +79,7 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 }
 
 // Completions provides the main completion interface - now always returns PrivateCompletionResult.
-func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority Priority) (PrivateCompletionResult, error) {
+func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority Priority) (PrivateCompletionResult, error) {
 	// Always use private completions (with fallback for backward compatibility)
 	if s.privateCompletions != nil {
 		return s.privateCompletions.Completions(ctx, messages, tools, model, priority)
@@ -104,7 +104,7 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 
 // RawCompletions bypasses private completions and calls the underlying completion service directly.
 // This is used internally by the private completions service to avoid circular dependencies.
-func (s *Service) RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (PrivateCompletionResult, error) {
+func (s *Service) RawCompletions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) (PrivateCompletionResult, error) {
 	// Always call the raw completion method, bypassing private completions
 	message, err := s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
 		Messages:    messages,
@@ -129,7 +129,7 @@ func (s *Service) EnablePrivateCompletions(privateCompletions PrivateCompletions
 }
 
 // CompletionsStreamWithPrivacy provides streaming with private completions support.
-func (s *Service) CompletionsStreamWithPrivacy(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
+func (s *Service) CompletionsStreamWithPrivacy(ctx context.Context, conversationID string, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, onDelta func(StreamDelta)) (PrivateCompletionResult, error) {
 	// Always use private completions if available
 	if s.privateCompletions != nil {
 		return s.privateCompletions.CompletionsStreamWithContext(ctx, conversationID, messages, tools, model, s.defaultPriority, onDelta)
@@ -140,7 +140,7 @@ func (s *Service) CompletionsStreamWithPrivacy(ctx context.Context, conversation
 
 	var accumulatedContent strings.Builder
 	var finalMessage openai.ChatCompletionMessage
-	var toolCalls []openai.ChatCompletionMessageToolCall
+	var toolCalls []openai.ChatCompletionMessageToolCallUnion
 
 fallbackLoop:
 	for {

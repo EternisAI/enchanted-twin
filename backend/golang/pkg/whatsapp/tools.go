@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	openai "github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	openai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	whatsappdb "github.com/EternisAI/enchanted-twin/pkg/db/sqlc/whatsapp"
@@ -27,34 +27,31 @@ type ConversationAssessment struct {
 }
 
 // conversationAnalysisTool defines the proper OpenAI tool for conversation analysis.
-var conversationAnalysisTool = openai.ChatCompletionToolParam{
-	Type: "function",
-	Function: openai.FunctionDefinitionParam{
-		Name:        "analyze_conversation_boundary",
-		Description: param.NewOpt("Analyze whether a new message starts a new conversation or continues an existing one"),
-		Parameters: openai.FunctionParameters{
-			"type": "object",
-			"properties": map[string]any{
-				"is_new_conversation": map[string]any{
-					"type":        "boolean",
-					"description": "Whether the new message starts a new conversation (true) or continues the existing one (false)",
-				},
-				"confidence": map[string]any{
-					"type":        "number",
-					"minimum":     0.0,
-					"maximum":     1.0,
-					"description": "Confidence level in the assessment (0.0 to 1.0)",
-				},
-				"reasoning": map[string]any{
-					"type":        "string",
-					"description": "Brief explanation of the assessment decision",
-				},
+var conversationAnalysisTool = openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+	Name:        "analyze_conversation_boundary",
+	Description: param.NewOpt("Analyze whether a new message starts a new conversation or continues an existing one"),
+	Parameters: openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]any{
+			"is_new_conversation": map[string]any{
+				"type":        "boolean",
+				"description": "Whether the new message starts a new conversation (true) or continues the existing one (false)",
 			},
-			"required":             []string{"is_new_conversation", "confidence", "reasoning"},
-			"additionalProperties": false,
+			"confidence": map[string]any{
+				"type":        "number",
+				"minimum":     0.0,
+				"maximum":     1.0,
+				"description": "Confidence level in the assessment (0.0 to 1.0)",
+			},
+			"reasoning": map[string]any{
+				"type":        "string",
+				"description": "Brief explanation of the assessment decision",
+			},
 		},
+		"required":             []string{"is_new_conversation", "confidence", "reasoning"},
+		"additionalProperties": false,
 	},
-}
+})
 
 func NewConversationAnalyzer(logger *log.Logger, aiService *ai.Service, model string) (*ConversationAnalyzer, error) {
 	if model == "" {
@@ -125,7 +122,7 @@ Use the analyze_conversation_boundary tool to provide your assessment.`, message
 		openai.UserMessage(userPrompt),
 	}
 
-	result, err := ca.aiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{conversationAnalysisTool}, ca.model, ai.Background)
+	result, err := ca.aiService.Completions(ctx, messages, []openai.ChatCompletionToolUnionParam{conversationAnalysisTool}, ca.model, ai.Background)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AI assessment: %w", err)
 	}

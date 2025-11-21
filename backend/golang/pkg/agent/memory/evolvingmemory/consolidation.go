@@ -10,7 +10,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -258,7 +258,7 @@ func processConsolidation(ctx context.Context, topic string, facts []*memory.Mem
 	logger.Debug("Built facts content", "length", len(factsContent))
 
 	// Step 3: Run LLM consolidation
-	consolidationTools := []openai.ChatCompletionToolParam{consolidateMemoriesTool}
+	consolidationTools := []openai.ChatCompletionToolUnionParam{consolidateMemoriesTool}
 
 	llmMessages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(MemoryConsolidationPrompt),

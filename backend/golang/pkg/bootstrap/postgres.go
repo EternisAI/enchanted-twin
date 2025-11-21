@@ -100,13 +100,26 @@ func BootstrapPostgresServerWithVersion(ctx context.Context, logger *log.Logger,
 	// Find available port if specified port is in use
 	actualPort := findAvailablePostgresPort(uint32(portInt), logger)
 
-	// Ensure data directory and runtime directory exist
+	// Ensure data directory exists
 	if err := os.MkdirAll(dataPath, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create data directory: %w", err)
 	}
+
+	// Clean up runtime directory completely since it's ephemeral
+	// This prevents permission issues from previous runs
+	if _, err := os.Stat(runtimePath); err == nil {
+		logger.Debug("Removing existing runtime directory", "path", runtimePath)
+		if err := os.RemoveAll(runtimePath); err != nil {
+			return nil, fmt.Errorf("failed to remove existing runtime directory: %w", err)
+		}
+		logger.Debug("Existing runtime directory removed successfully")
+	}
+
+	// Create fresh runtime directory
 	if err := os.MkdirAll(runtimePath, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create runtime directory: %w", err)
 	}
+	logger.Debug("Created fresh runtime directory", "path", runtimePath)
 
 	// Check for local binaries in APP_DATA_PATH/postgres first
 	appDataPath := os.Getenv("APP_DATA_PATH")

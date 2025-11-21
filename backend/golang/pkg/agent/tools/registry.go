@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
@@ -25,7 +25,7 @@ type ToolRegistry interface {
 	Execute(ctx context.Context, name string, params map[string]any) (types.ToolResult, error)
 
 	// Definitions returns OpenAI-compatible tool definitions for all registered tools.
-	Definitions() []openai.ChatCompletionToolParam
+	Definitions() []openai.ChatCompletionToolUnionParam
 
 	// List returns a list of all registered tool names.
 	List() []string
@@ -60,11 +60,21 @@ func (r *ToolMapRegistry) Register(tools ...Tool) error {
 	for _, tool := range tools {
 		// Get the tool's definition
 		def := tool.Definition()
-		if def.Type != "function" {
-			return fmt.Errorf("only function tools are supported, got %s", def.Type)
+		// defType := def.GetType()
+		// if defType == nil || *defType != "function" {
+		// typeStr := "unknown"
+		// if defType != nil {
+		// typeStr = *defType
+		// }
+		// return fmt.Errorf("only function tools are supported, got %s", typeStr)
+		// }
+
+		function := def.GetFunction()
+		if function == nil {
+			return fmt.Errorf("tool definition must have a function")
 		}
 
-		toolName := def.Function.Name
+		toolName := function.Name
 		if toolName == "" {
 			return fmt.Errorf("tool name cannot be empty")
 		}
@@ -123,11 +133,11 @@ func (r *ToolMapRegistry) Execute(ctx context.Context, name string, params map[s
 }
 
 // Definitions returns OpenAI-compatible tool definitions for all registered tools.
-func (r *ToolMapRegistry) Definitions() []openai.ChatCompletionToolParam {
+func (r *ToolMapRegistry) Definitions() []openai.ChatCompletionToolUnionParam {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	defs := make([]openai.ChatCompletionToolParam, 0, len(r.tools))
+	defs := make([]openai.ChatCompletionToolUnionParam, 0, len(r.tools))
 	for _, tool := range r.tools {
 		defs = append(defs, tool.Definition())
 	}

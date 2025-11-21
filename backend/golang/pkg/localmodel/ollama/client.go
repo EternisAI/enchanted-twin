@@ -10,48 +10,45 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/param"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 var _ ai.Completion = (*OllamaClient)(nil)
 
-var replaceEntitiesTool = openai.ChatCompletionToolParam{
-	Type: "function",
-	Function: openai.FunctionDefinitionParam{
-		Name: "replace_entities",
-		Description: param.NewOpt(
-			"Replace PII entities in the text with semantically equivalent alternatives that preserve context.",
-		),
-		Parameters: openai.FunctionParameters{
-			"type": "object",
-			"properties": map[string]any{
-				"replacements": map[string]any{
-					"type":        "array",
-					"description": "List of replacements to make. Each item has the PII text and its anonymised version.",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"original": map[string]any{
-								"type":        "string",
-								"description": "PII text to replace",
-							},
-							"replacement": map[string]any{
-								"type":        "string",
-								"description": "Anonymised text",
-							},
+var replaceEntitiesTool = openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+	Name: "replace_entities",
+	Description: param.NewOpt(
+		"Replace PII entities in the text with semantically equivalent alternatives that preserve context.",
+	),
+	Parameters: openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]any{
+			"replacements": map[string]any{
+				"type":        "array",
+				"description": "List of replacements to make. Each item has the PII text and its anonymised version.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"original": map[string]any{
+							"type":        "string",
+							"description": "PII text to replace",
 						},
-						"required": []string{"original", "replacement"},
+						"replacement": map[string]any{
+							"type":        "string",
+							"description": "Anonymised text",
+						},
 					},
+					"required": []string{"original", "replacement"},
 				},
 			},
-			"required": []string{"replacements"},
 		},
+		"required": []string{"replacements"},
 	},
-}
+})
 
 type OllamaClient struct {
 	client  *openai.Client
@@ -103,7 +100,7 @@ func prettifyConnectionError(err error) error {
 	return err
 }
 
-func (c *OllamaClient) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
+func (c *OllamaClient) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) (openai.ChatCompletionMessage, error) {
 	completion, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: messages,
 		Model:    model,
@@ -159,7 +156,7 @@ REPLACEMENT RULES:
 		openai.UserMessage(prompt + "\n/no_think"),
 	}
 
-	response, err := c.Completions(ctx, messages, []openai.ChatCompletionToolParam{replaceEntitiesTool}, c.model)
+	response, err := c.Completions(ctx, messages, []openai.ChatCompletionToolUnionParam{replaceEntitiesTool}, c.model)
 	if err != nil {
 		return nil, prettifyConnectionError(err)
 	}

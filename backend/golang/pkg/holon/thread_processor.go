@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
@@ -67,36 +67,33 @@ func (tp *ThreadProcessor) EvaluateThread(ctx context.Context, thread *model.Thr
 	}
 
 	// Define evaluation tool
-	evaluationTool := openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        "evaluate_thread_interest",
-			Description: param.NewOpt("Evaluate whether a thread is interesting for the user based on their preferences and context"),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"is_interesting": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Whether the thread is interesting for the user",
-					},
-					"reason": map[string]interface{}{
-						"type":        "string",
-						"description": "Explanation for why the thread is or isn't interesting",
-					},
-					"confidence": map[string]interface{}{
-						"type":        "number",
-						"minimum":     0.0,
-						"maximum":     1.0,
-						"description": "Confidence level in the evaluation (0.0 to 1.0)",
-					},
+	evaluationTool := openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        "evaluate_thread_interest",
+		Description: param.NewOpt("Evaluate whether a thread is interesting for the user based on their preferences and context"),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"is_interesting": map[string]interface{}{
+					"type":        "boolean",
+					"description": "Whether the thread is interesting for the user",
 				},
-				"required": []string{"is_interesting", "reason", "confidence"},
+				"reason": map[string]interface{}{
+					"type":        "string",
+					"description": "Explanation for why the thread is or isn't interesting",
+				},
+				"confidence": map[string]interface{}{
+					"type":        "number",
+					"minimum":     0.0,
+					"maximum":     1.0,
+					"description": "Confidence level in the evaluation (0.0 to 1.0)",
+				},
 			},
+			"required": []string{"is_interesting", "reason", "confidence"},
 		},
-	}
+	})
 
 	// Get LLM evaluation
-	response, err := tp.aiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{evaluationTool}, tp.completionsModel, ai.Background)
+	response, err := tp.aiService.Completions(ctx, messages, []openai.ChatCompletionToolUnionParam{evaluationTool}, tp.completionsModel, ai.Background)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM evaluation: %w", err)
 	}

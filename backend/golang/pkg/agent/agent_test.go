@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,7 +27,7 @@ func TestAgentResponse_ReplacementRules(t *testing.T) {
 					"PERSON_001": "John Smith",
 					"PERSON_002": "Jane Doe",
 				},
-				ToolCalls:   []openai.ChatCompletionMessageToolCall{},
+				ToolCalls:   []openai.ChatCompletionMessageToolCallUnion{},
 				ToolResults: []types.ToolResult{},
 				ImageURLs:   []string{},
 			},
@@ -43,7 +43,7 @@ func TestAgentResponse_ReplacementRules(t *testing.T) {
 			response: AgentResponse{
 				Content:          "Hello, how are you?",
 				ReplacementRules: map[string]string{},
-				ToolCalls:        []openai.ChatCompletionMessageToolCall{},
+				ToolCalls:        []openai.ChatCompletionMessageToolCallUnion{},
 				ToolResults:      []types.ToolResult{},
 				ImageURLs:        []string{},
 			},
@@ -56,7 +56,7 @@ func TestAgentResponse_ReplacementRules(t *testing.T) {
 			response: AgentResponse{
 				Content:          "Hello, how are you?",
 				ReplacementRules: nil,
-				ToolCalls:        []openai.ChatCompletionMessageToolCall{},
+				ToolCalls:        []openai.ChatCompletionMessageToolCallUnion{},
 				ToolResults:      []types.ToolResult{},
 				ImageURLs:        []string{},
 			},
@@ -75,7 +75,7 @@ func TestAgentResponse_ReplacementRules(t *testing.T) {
 					"EMAIL_001":    "alice@techcorp.com",
 					"DATE_001":     "2025-07-13",
 				},
-				ToolCalls:   []openai.ChatCompletionMessageToolCall{},
+				ToolCalls:   []openai.ChatCompletionMessageToolCallUnion{},
 				ToolResults: []types.ToolResult{},
 				ImageURLs:   []string{},
 			},

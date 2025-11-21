@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/log"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
@@ -17,13 +17,13 @@ import (
 // Mock tool for testing.
 type mockTool struct {
 	name         string
-	definition   openai.ChatCompletionToolParam
+	definition   openai.ChatCompletionToolUnionParam
 	executed     bool
 	receivedArgs map[string]interface{}
 	result       types.ToolResult
 }
 
-func (m *mockTool) Definition() openai.ChatCompletionToolParam {
+func (m *mockTool) Definition() openai.ChatCompletionToolUnionParam {
 	return m.definition
 }
 
@@ -45,7 +45,7 @@ func (m *mockAIService) CompletionsStreamWithPrivacy(
 	ctx context.Context,
 	conversationID string,
 	messages []openai.ChatCompletionMessageParamUnion,
-	tools []openai.ChatCompletionToolParam,
+	tools []openai.ChatCompletionToolUnionParam,
 	model string,
 	onDelta func(ai.StreamDelta),
 ) (ai.PrivateCompletionResult, error) {
@@ -70,14 +70,14 @@ func (m *mockAIService) CompletionsStreamWithPrivacy(
 }
 
 // Add other required methods to satisfy interface.
-func (m *mockAIService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, priority ai.Priority) (ai.PrivateCompletionResult, error) {
+func (m *mockAIService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string, priority ai.Priority) (ai.PrivateCompletionResult, error) {
 	return m.response, m.err
 }
 
 // Ensure mockAIService implements AIService.
 var _ AIService = (*mockAIService)(nil)
 
-func (m *mockAIService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) ai.Stream {
+func (m *mockAIService) CompletionsStream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam, model string) ai.Stream {
 	return ai.Stream{}
 }
 
@@ -87,9 +87,7 @@ func TestExecuteStreamWithPrivacy_ToolExecutionWithDeAnonymization(t *testing.T)
 	// Create a mock tool
 	mockTestTool := &mockTool{
 		name: "test_search",
-		definition: openai.ChatCompletionToolParam{
-			Type: "function",
-			Function: openai.FunctionDefinitionParam{
+		definition: openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
 				Name:        "test_search",
 				Description: param.Opt[string]{Value: "Search for information about a person"},
 			},
@@ -109,11 +107,11 @@ func TestExecuteStreamWithPrivacy_ToolExecutionWithDeAnonymization(t *testing.T)
 				Message: openai.ChatCompletionMessage{
 					Role:    "assistant",
 					Content: "I'll search for information about John Smith at OpenAI.",
-					ToolCalls: []openai.ChatCompletionMessageToolCall{
+					ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 						{
 							ID:   "call_test_001",
 							Type: "function",
-							Function: openai.ChatCompletionMessageToolCallFunction{
+							Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 								Name:      "test_search",
 								Arguments: `{"name": "John Smith", "company": "OpenAI"}`, // De-anonymized arguments
 							},
@@ -148,10 +146,10 @@ func TestExecuteStreamWithPrivacy_ToolExecutionWithDeAnonymization(t *testing.T)
 		logger:           logger,
 		aiService:        mockAI,
 		CompletionsModel: "gpt-4",
-		PreToolCallback: func(toolCall openai.ChatCompletionMessageToolCall) {
+		PreToolCallback: func(toolCall openai.ChatCompletionMessageToolCallUnion) {
 			preToolCallbackCalled = true
 		},
-		PostToolCallback: func(toolCall openai.ChatCompletionMessageToolCall, result types.ToolResult) {
+		PostToolCallback: func(toolCall openai.ChatCompletionMessageToolCallUnion, result types.ToolResult) {
 			postToolCallbackCalled = true
 		},
 	}
@@ -312,11 +310,11 @@ func TestExecuteStreamWithPrivacy_ToolNotFound(t *testing.T) {
 				Message: openai.ChatCompletionMessage{
 					Role:    "assistant",
 					Content: "I'll use a tool that doesn't exist.",
-					ToolCalls: []openai.ChatCompletionMessageToolCall{
+					ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
 						{
 							ID:   "call_nonexistent",
 							Type: "function",
-							Function: openai.ChatCompletionMessageToolCallFunction{
+							Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 								Name:      "nonexistent_tool",
 								Arguments: `{"query": "test"}`,
 							},

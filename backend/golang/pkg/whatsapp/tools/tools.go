@@ -6,8 +6,8 @@ import (
 	"log/slog"
 
 	"github.com/charmbracelet/log"
-	openai "github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
+	openai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/pkg/errors"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -89,20 +89,17 @@ func (t *WhatsAppTool) Execute(ctx context.Context, input map[string]any) (agent
 	}, nil
 }
 
-func (t *WhatsAppTool) Definition() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        "whatsapp_send_message",
-			Description: param.NewOpt("Send a WhatsApp message to a recipient"),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"message":   map[string]string{"type": "string", "description": "The message content to send"},
-					"recipient": map[string]string{"type": "string", "description": "The recipient's phone number without the '+' sign (e.g. '33687866890')"},
-				},
-				"required": []string{"message", "recipient"},
+func (t *WhatsAppTool) Definition() openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+		Name:        "whatsapp_send_message",
+		Description: param.NewOpt("Send a WhatsApp message to a recipient"),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"message":   map[string]string{"type": "string", "description": "The message content to send"},
+				"recipient": map[string]string{"type": "string", "description": "The recipient's phone number without the '+' sign (e.g. '33687866890')"},
 			},
+			"required": []string{"message", "recipient"},
 		},
-	}
+	})
 }
